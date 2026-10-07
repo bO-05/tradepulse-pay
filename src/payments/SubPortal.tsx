@@ -1,5 +1,4 @@
-import { useQuery } from "convex/react";
-import { useRef, useState } from "react";
+import { usePaginatedQuery, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { agreementHash } from "../auth/navigation";
 import { formatCents, formatDate, formatDollars } from "./format";
@@ -10,12 +9,8 @@ import { WithdrawPayAppButton } from "./WithdrawPayAppButton";
 const PAY_APP_PAGE_SIZE = 25;
 
 export function SubPortal() {
-  const [limit, setLimit] = useState(PAY_APP_PAGE_SIZE);
-  const latest = useQuery(api.portal.mySubPortal, { limit });
-  // Keep the current list on screen while a larger page loads instead of flashing the loading state.
-  const lastLoaded = useRef(latest);
-  if (latest !== undefined) lastLoaded.current = latest;
-  const portal = latest ?? lastLoaded.current;
+  const portal = useQuery(api.portal.mySubPortal, {});
+  const payApps = usePaginatedQuery(api.portal.mySubPayApps, {}, { initialNumItems: PAY_APP_PAGE_SIZE });
 
   if (portal === undefined) {
     return <p className="text-sm text-slate-400" role="status">Loading your agreements…</p>;
@@ -94,7 +89,9 @@ export function SubPortal() {
         <h2 id="sub-payapps" className="text-base font-semibold mb-3">
           Pay applications
         </h2>
-        {portal.payApplications.length === 0 ? (
+        {payApps.status === "LoadingFirstPage" ? (
+          <p className="text-sm text-slate-400" role="status">Loading pay applications…</p>
+        ) : payApps.results.length === 0 ? (
           <p className="text-sm text-slate-400">No pay applications submitted yet.</p>
         ) : (
           <table className="w-full text-sm">
@@ -113,7 +110,7 @@ export function SubPortal() {
               </tr>
             </thead>
             <tbody>
-              {portal.payApplications.map((p) => (
+              {payApps.results.map((p) => (
                 <tr key={p._id} className="border-t border-slate-800" data-testid="sub-payapp-row">
                   <td className="py-2 pr-3">{p.periodLabel}</td>
                   <td className="py-2 pr-3">{p.agreementNumber}</td>
@@ -140,15 +137,15 @@ export function SubPortal() {
             </tbody>
           </table>
         )}
-        {portal.hasMore ? (
+        {payApps.status === "CanLoadMore" || payApps.status === "LoadingMore" ? (
           <button
             type="button"
             className="mt-3 text-sm text-emerald-400 hover:text-emerald-300 disabled:text-slate-500"
-            disabled={latest === undefined}
-            onClick={() => setLimit(portal.limit + PAY_APP_PAGE_SIZE)}
+            disabled={payApps.status === "LoadingMore"}
+            onClick={() => payApps.loadMore(PAY_APP_PAGE_SIZE)}
             data-testid="sub-payapp-show-older"
           >
-            {latest === undefined ? "Loading older pay applications…" : "Show older pay applications"}
+            {payApps.status === "LoadingMore" ? "Loading older pay applications…" : "Show older pay applications"}
           </button>
         ) : null}
       </section>
@@ -200,7 +197,6 @@ function PayAppOutcome({ status, outcome, rejectionReason }: { status: string; o
       </div>
     );
   }
-  if (outcome?.payoutStatus === "failed") return <span className="text-amber-200">Approved; the payout failed and the GC was notified.</span>;
   if (status === "approved") return <span>Approved; payment is being sent.</span>;
   return <span className="text-slate-400">—</span>;
 }

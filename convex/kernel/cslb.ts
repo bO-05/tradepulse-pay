@@ -132,7 +132,7 @@ export function describeKernelFailure(error: unknown, secret?: string): string {
   const status = typeof e?.status === "number" ? e.status : undefined;
   let reason: string;
   if (status === 401 || status === 403) reason = `KERNEL rejected the API key (HTTP ${status}).`;
-  else if (status === 429) reason = "KERNEL rate limit reached (HTTP 429).";
+  else if (status === 429) reason = "KERNEL rate limit reached (HTTP 429); the license is unverified (rate limited).";
   else if (status !== undefined) reason = `KERNEL API error (HTTP ${status}).`;
   else if (e?.name === "LicenseCheckTimeout") reason = String(e.message);
   else if (/timeout|timed out/i.test(String(e?.message ?? ""))) reason = "KERNEL request timed out.";

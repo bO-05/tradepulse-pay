@@ -89,7 +89,7 @@ describe("CSLB license check through KERNEL", () => {
     expect(res.kind).toBe("started");
     await runStarted(s.t);
 
-    expect(kernelMock.create).toHaveBeenCalledWith(expect.objectContaining({ stealth: true, headless: false }));
+    expect(kernelMock.create).toHaveBeenCalledWith(expect.objectContaining({ stealth: true, headless: false }), expect.anything());
     expect(seenWhileRunning).toEqual({ phase: "running", liveViewUrl: LIVE_URL, status: "unverified" });
     expect(kernelMock.deleteByID).toHaveBeenCalledWith("sess_1");
     const [row] = await rows(s.t, s.contractorId);
@@ -175,39 +175,67 @@ describe("CSLB license check through KERNEL", () => {
     expect(all.every((r) => r.browserDeleted === true)).toBe(true);
   });
 
-  test("a browser created after the 30 s timeout is still deleted and the result stays unverified", async () => {
+  /** Mimics the SDK: the request aborts at the per-request timeout, before a slower response lands. */
+  function createRespondingAfter(ms: number, sessionId: string) {
+    return (_body: unknown, options?: { timeout?: number }) =>
+      new Promise((resolve, reject) => {
+        const limit = options?.timeout ?? Infinity;
+        if (ms < limit) setTimeout(() => resolve({ session_id: sessionId, browser_live_view_url: LIVE_URL }), ms);
+        else setTimeout(() => reject(Object.assign(new Error("Request timed out."), { name: "APIConnectionTimeoutError" })), limit);
+      });
+  }
+
+  test("browsers.create never retries, its request timeout fits the local wait, and timeout_seconds is still set", async () => {
     const s = await setup("142881");
-    kernelMock.create.mockImplementationOnce(
-      () => new Promise((resolve) => setTimeout(() => resolve({ session_id: "sess_late", browser_live_view_url: LIVE_URL }), 45_000)),
-    );
+    servePage("142881");
+    await s.t.action(internal.kernel.licenseCheck.checkLicenseNow, { contractorId: s.contractorId });
+    expect(kernelMock.constructed[0]).toMatchObject({ maxRetries: 0 });
+    const [body, options] = kernelMock.create.mock.calls[0] as [{ timeout_seconds: number }, { maxRetries: number; timeout: number }];
+    expect(body.timeout_seconds).toBeGreaterThan(0);
+    expect(options.maxRetries).toBe(0);
+    expect(options.timeout).toBeLessThanOrEqual(30_000);
+  });
+
+  test("a slow create that settles inside the request timeout is used and then deleted", async () => {
+    const s = await setup("142881");
+    kernelMock.create.mockImplementationOnce(createRespondingAfter(29_000, "sess_slow"));
+    servePage("142881");
+    const pending = s.t.action(internal.kernel.licenseCheck.checkLicenseNow, { contractorId: s.contractorId });
+    await vi.advanceTimersByTimeAsync(29_001);
+    const res = await pending;
+    expect(res.status).toBe("active");
+    expect(kernelMock.deleteByID).toHaveBeenCalledWith("sess_slow");
+    const [row] = await rows(s.t, s.contractorId);
+    expect(row).toMatchObject({ phase: "done", kernelSessionId: "sess_slow", browserDeleted: true });
+  });
+
+  test("a create delayed past the request timeout is aborted by the SDK: unverified, one attempt, nothing left to delete", async () => {
+    const s = await setup("142881");
+    kernelMock.create.mockImplementationOnce(createRespondingAfter(45_000, "sess_late"));
     servePage("142881");
     const pending = s.t.action(internal.kernel.licenseCheck.checkLicenseNow, { contractorId: s.contractorId });
     await vi.advanceTimersByTimeAsync(30_001);
-    expect(kernelMock.deleteByID).not.toHaveBeenCalled();
-    await vi.advanceTimersByTimeAsync(15_000);
     const res = await pending;
-
-    expect(kernelMock.deleteByID).toHaveBeenCalledTimes(1);
-    expect(kernelMock.deleteByID).toHaveBeenCalledWith("sess_late");
+    expect(res.status).toBe("unverified");
+    expect(kernelMock.create).toHaveBeenCalledTimes(1);
     expect(kernelMock.execute).not.toHaveBeenCalled();
-    expect(res.status).toBe("unverified");
-    const [row] = await rows(s.t, s.contractorId);
-    expect(row).toMatchObject({ phase: "done", status: "unverified", browserDeleted: true });
-    expect(row.rawSummary).toMatch(/timed out/);
-  });
-
-  test("a browser creation that fails after the timeout leaves nothing to delete", async () => {
-    const s = await setup("142881");
-    kernelMock.create.mockImplementationOnce(
-      () => new Promise((_, reject) => setTimeout(() => reject(new Error("socket hang up")), 50_000)),
-    );
-    const pending = s.t.action(internal.kernel.licenseCheck.checkLicenseNow, { contractorId: s.contractorId });
-    await vi.advanceTimersByTimeAsync(60_000);
-    const res = await pending;
-    expect(res.status).toBe("unverified");
     expect(kernelMock.deleteByID).not.toHaveBeenCalled();
     const [row] = await rows(s.t, s.contractorId);
     expect(row).toMatchObject({ phase: "done", status: "unverified" });
+    expect(row.rawSummary).toMatch(/timed out/);
+  });
+
+  test("a 429 with a long Retry-After ends at once as unverified (rate limited), without retrying", async () => {
+    const s = await setup("142881");
+    kernelMock.create.mockRejectedValueOnce(
+      Object.assign(new Error(`429 Too Many Requests ${FAKE_KEY}`), { status: 429, headers: new Headers({ "retry-after": "150" }) }),
+    );
+    const res = await s.t.action(internal.kernel.licenseCheck.checkLicenseNow, { contractorId: s.contractorId });
+    expect(res.status).toBe("unverified");
+    expect(res.rawSummary).toContain("unverified (rate limited)");
+    expect(res.rawSummary).not.toContain(FAKE_KEY);
+    expect(kernelMock.create).toHaveBeenCalledTimes(1);
+    expect(kernelMock.deleteByID).not.toHaveBeenCalled();
   });
 
   test("without KERNEL_API_KEY no browser is created and the result is unverified", async () => {

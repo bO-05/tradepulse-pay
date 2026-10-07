@@ -229,10 +229,14 @@ export default defineSchema({
     rejectedAt: v.optional(v.number()),
     rejectionReason: v.optional(v.string()),
     withdrawnAt: v.optional(v.number()),
+    // The agreement's contractor, copied at submission so the sub portal can page one contractor's
+    // pay apps newest first across all its agreements. Older rows: payApps/backfill.ts.
+    contractorId: v.optional(v.id("contractors")),
     createdAt: v.number(),
   })
     .index("by_agreementId", ["agreementId"])
     .index("by_agreementId_and_status", ["agreementId", "status"])
+    .index("by_contractorId", ["contractorId"])
     .index("by_subUserId", ["subUserId"])
     .index("by_status", ["status"]),
 

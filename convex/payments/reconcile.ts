@@ -3,7 +3,8 @@ import { internal } from "../_generated/api";
 import type { Doc } from "../_generated/dataModel";
 import { env, internalAction, internalQuery } from "../_generated/server";
 import { fromPayPalString } from "../lib/money";
-import { approvedTotalFor } from "../payApps/validation";
+import { loadBillingHistory, unresolvedApprovalMessage } from "../payApps/billingHistory";
+import { APPROVED_PAY_APP_STATUSES, approvedTotalFor } from "../payApps/validation";
 import { changeOrderStatusFromInvoice } from "./changeOrderMath";
 import { computeLedgerTotals, type LedgerTotals } from "./ledgerTotals";
 import { payoutStatusFromPayPal } from "./payoutMath";
@@ -60,7 +61,7 @@ function rawSums(rows: Rows) {
     if (r.paymentId && releaseIds.has(r.paymentId)) released -= r.deltaCents;
   }
   for (const a of rows.payApps) {
-    if (a.status === "approved" || a.status === "paid") billed += approvedTotalFor(a);
+    if (APPROVED_PAY_APP_STATUSES.has(a.status)) billed += approvedTotalFor(a);
   }
   for (const c of rows.changeOrders) {
     if (c.status === "invoiced") coInvoiced += c.amountCents;
@@ -91,6 +92,8 @@ const reconciliationValidator = v.union(
     totals: v.record(v.string(), v.number()),
     rawSums: v.record(v.string(), v.number()),
     mismatches: v.array(v.string()),
+    /** Approved pay apps left out of billed because their final approved amount is unknown. */
+    needsAttention: v.array(v.object({ payAppId: v.id("payApplications"), periodLabel: v.string(), message: v.string() })),
     paypalIds: v.object({
       authorizations: v.array(v.string()),
       captures: v.array(v.string()),
@@ -106,6 +109,7 @@ export const ledgerReconciliation = internalQuery({
   handler: async (ctx, { agreementId }) => {
     const agreement = await ctx.db.get(agreementId);
     if (agreement === null) return null;
+    const billing = await loadBillingHistory(ctx, agreementId);
     const rows: Rows = {
       agreement,
       sov: await ctx.db
@@ -117,7 +121,7 @@ export const ledgerReconciliation = internalQuery({
         .query("retainageLedger")
         .withIndex("by_agreementId", (q) => q.eq("agreementId", agreementId))
         .take(1000),
-      payApps: await ctx.db.query("payApplications").withIndex("by_agreementId", (q) => q.eq("agreementId", agreementId)).take(500),
+      payApps: billing.rows,
       changeOrders: await ctx.db
         .query("changeOrders")
         .withIndex("by_agreementId_and_number", (q) => q.eq("agreementId", agreementId))
@@ -141,6 +145,12 @@ export const ledgerReconciliation = internalQuery({
     if (totals.capturedCents !== totals.capturedNotPaidCents + paidReleaseGross(rows.payments)) {
       mismatches.push("captured ≠ captured-not-paid + gross of paid releases");
     }
+    const needsAttention = billing.unresolved.map((u) => ({
+      payAppId: u.payAppId,
+      periodLabel: u.periodLabel,
+      message: unresolvedApprovalMessage(u),
+    }));
+    for (const u of needsAttention) mismatches.push(`billed: pay application ${u.payAppId} needs attention: ${u.message}`);
     const funding = rows.payments.filter((p) => p.kind === "funding");
     return {
       agreementNumber: agreement.agreementNumber,
@@ -149,6 +159,7 @@ export const ledgerReconciliation = internalQuery({
       totals,
       rawSums: raw,
       mismatches,
+      needsAttention,
       paypalIds: {
         authorizations: funding.flatMap((p) => (p.paypalAuthorizationId ? [p.paypalAuthorizationId] : [])),
         captures: funding.flatMap((p) => (p.captures ?? []).map((c) => c.captureId)),

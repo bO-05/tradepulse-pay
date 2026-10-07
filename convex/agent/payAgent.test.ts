@@ -427,8 +427,8 @@ describe("GC approval inbox", () => {
     expect(end.byKind("capture")).toMatchObject({ status: "executed", paypalCaptureId: "CAP-1", decidedBy: s.gc.userId });
     expect(end.byKind("payout")!.decidedAt).toBeGreaterThan(0);
 
-    const portal = await s.sub1.as.query(api.portal.mySubPortal, {});
-    expect(portal.payApplications[0].outcome).toMatchObject({ approvedGrossCents: 123_456, retainageHeldCents: 12_346, netCents: 111_110 });
+    const portal = await s.sub1.as.query(api.portal.mySubPayApps, { paginationOpts: { numItems: 50, cursor: null } });
+    expect(portal.page[0].outcome).toMatchObject({ approvedGrossCents: 123_456, retainageHeldCents: 12_346, netCents: 111_110 });
   });
 
   test("approval with no funded milestone is refused with a visible reason and moves nothing", async () => {
@@ -455,8 +455,8 @@ describe("GC approval inbox", () => {
     expect(st.payouts).toHaveLength(0);
     expect(st.ledger).toHaveLength(0);
     expect(fake.moneyCalls()).toHaveLength(0);
-    const portal = await s.sub1.as.query(api.portal.mySubPortal, {});
-    expect(portal.payApplications[0]).toMatchObject({ status: "rejected" });
+    const portal = await s.sub1.as.query(api.portal.mySubPayApps, { paginationOpts: { numItems: 50, cursor: null } });
+    expect(portal.page[0]).toMatchObject({ status: "rejected" });
   });
 
   test("the ledger Release & pay runs through a GC-approved proposal", async () => {
@@ -596,8 +596,8 @@ describe("rejection finalizes the pay app", () => {
     expect(after.payouts).toHaveLength(0);
     expect(fake.moneyCalls()).toHaveLength(0);
 
-    const portal = await s.sub1.as.query(api.portal.mySubPortal, {});
-    expect(portal.payApplications.find((p) => p._id === payAppId)).toMatchObject({ status: "rejected", rejectionReason: "Line 2 is not installed yet." });
+    const portal = await s.sub1.as.query(api.portal.mySubPayApps, { paginationOpts: { numItems: 50, cursor: null } });
+    expect(portal.page.find((p) => p._id === payAppId)).toMatchObject({ status: "rejected", rejectionReason: "Line 2 is not installed yet." });
     // The rejected request no longer reserves line b.
     await s.sub1.as.mutation(api.payApps.submit.submitPayApplication, lineBArgs(s, s.sov[1].scheduledValueCents));
     expect(requestedB).toBeGreaterThan(0);
@@ -615,8 +615,8 @@ describe("rejection finalizes the pay app", () => {
     expect(second).toEqual({ rejected: 1, payAppRejected: true });
     const after = await state(s, payAppId);
     expect(after.payApp).toMatchObject({ status: "rejected", rejectionReason: "The GC rejected the hold proposal." });
-    const portal = await s.sub1.as.query(api.portal.mySubPortal, {});
-    expect(portal.payApplications.find((p) => p._id === payAppId)).toMatchObject({ status: "rejected", rejectionReason: "The GC rejected the hold proposal." });
+    const portal = await s.sub1.as.query(api.portal.mySubPayApps, { paginationOpts: { numItems: 50, cursor: null } });
+    expect(portal.page.find((p) => p._id === payAppId)).toMatchObject({ status: "rejected", rejectionReason: "The GC rejected the hold proposal." });
     expect(fake.moneyCalls()).toHaveLength(0);
   });
 

@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
 import { query } from "../_generated/server";
 import { canViewAgreement, requireRole } from "../lib/roles";
+import { loadBillingHistory, unresolvedApprovalMessage } from "../payApps/billingHistory";
 import { isCaptureCollected } from "./captureSettlement";
 import { BALANCE_FORMULA, computeLedgerTotals } from "./ledgerTotals";
 import { attemptsFor, checkRetry } from "./payoutRetryMath";
@@ -108,10 +109,7 @@ export const getAgreementLedger = query({
       .query("milestones")
       .withIndex("by_agreementId_and_order", (q) => q.eq("agreementId", id))
       .take(50);
-    const payApps = await ctx.db
-      .query("payApplications")
-      .withIndex("by_agreementId", (q) => q.eq("agreementId", id))
-      .take(500);
+    const billing = await loadBillingHistory(ctx, id);
     const payments = await ctx.db
       .query("payments")
       .withIndex("by_agreementId", (q) => q.eq("agreementId", id))
@@ -138,7 +136,7 @@ export const getAgreementLedger = query({
     const retainageReleases = payments.filter((p) => p.kind === "retainage_release");
     const totals = computeLedgerTotals({
       contractSumCents: summary.contractSumCents,
-      payApps,
+      payApps: billing.rows,
       payments,
       retainage,
       changeOrders,
@@ -164,6 +162,8 @@ export const getAgreementLedger = query({
       retainageReleasedCents: totals.retainageReleasedCents,
       retainageReleasableCents: releasableRetainageCents(payments, retainage),
       balanceFormula: BALANCE_FORMULA,
+      // Approved pay apps whose final amount is unknown are left out of billed; listed so it is not silent.
+      billingAttention: billing.unresolved.map(unresolvedApprovalMessage),
       retainageReleases: retainageReleases.map((p) => releaseSummary(p, isGc || viewer.role === "sub")),
       retainageLedger: retainage.map((r) => ({
         _id: r._id,

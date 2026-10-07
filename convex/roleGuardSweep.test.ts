@@ -106,6 +106,7 @@ async function setup() {
     await ctx.db.insert("retainageLedger", { agreementId, paymentId: payoutId, deltaCents: 1_000, reason: "held", createdAt: now });
     const payAppId = await ctx.db.insert("payApplications", {
       agreementId,
+      contractorId,
       subUserId: sub1.userId,
       periodLabel: "Sweep pay app",
       lines: [{ sovLineId: sov._id, pctCompleteThisPeriod: 1, pctCompleteToDate: 1, requestedCents: 10_000 }],
@@ -285,6 +286,7 @@ describe("agreement ledger and payment reads", () => {
     { name: "payApps/proposals:getAgentTrace", fn: api.payApps.proposals.getAgentTrace, args: (i) => ({ payAppId: i.payAppId }) },
     { name: "portal:getAgreementSummary", fn: api.portal.getAgreementSummary, args: (i) => ({ agreementId: i.agreementId }) },
     { name: "portal:mySubPortal", fn: api.portal.mySubPortal, args: () => ({}) },
+    { name: "portal:mySubPayApps", fn: api.portal.mySubPayApps, args: () => ({ paginationOpts: { numItems: 50, cursor: null } }) },
     { name: "kernel/licenseChecks:getContractorLicense", fn: api.kernel.licenseChecks.getContractorLicense, args: (i) => ({ contractorId: i.contractorId }) },
   ];
 

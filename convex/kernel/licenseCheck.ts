@@ -9,11 +9,14 @@ import type { Doc, Id } from "../_generated/dataModel";
 import { internalAction, type ActionCtx } from "../_generated/server";
 import { buildCslbScript, describeKernelFailure, parseCslbPage, scrub, type CslbStatus } from "./cslb";
 
+// The SDK aborts creation at CREATE_TIMEOUT_MS and never retries (a retry could sleep for any
+// server Retry-After), so creation settles before the local wait ends and `finally` owns cleanup of
+// any browser it returns. timeout_seconds on create is the server-side backstop for a browser
+// KERNEL starts but whose response never arrives. Create + execute + delete stays under the
+// 3-minute stale-check deadline in licenseChecks.ts.
 const CREATE_TIMEOUT_MS = 30_000;
-// The SDK (60 s request timeout, one retry) settles creation within ~125 s of starting, i.e.
-// within this grace after our own timeout. Create + grace + delete stays under the 3-minute
-// stale-check deadline in licenseChecks.ts.
-const LATE_CREATE_GRACE_MS = 100_000;
+const CREATE_LOCAL_WAIT_MS = CREATE_TIMEOUT_MS + 5_000;
+const BROWSER_SERVER_TIMEOUT_SECONDS = 120;
 const EXECUTE_TIMEOUT_MS = 95_000;
 const DELETE_TIMEOUT_MS = 20_000;
 const POLL_LIMIT_MS = 150_000;
@@ -43,23 +46,18 @@ async function lookupCslb(
 ): Promise<Lookup> {
   const apiKey = process.env.KERNEL_API_KEY?.trim();
   if (!apiKey) return { status: "unverified", rawSummary: "KERNEL_API_KEY is not configured; no CSLB lookup was run." };
-  const kernel = new Kernel({ apiKey, maxRetries: 1, timeout: 60_000 });
+  const kernel = new Kernel({ apiKey, maxRetries: 0, timeout: 60_000 });
   let sessionId: string | undefined;
   let result: Lookup = { status: "unverified", rawSummary: "CSLB lookup not completed." };
   try {
-    const creation = kernel.browsers.create({ stealth: true, headless: false, timeout_seconds: 120 });
-    let browser: Awaited<typeof creation>;
-    try {
-      browser = await withTimeout(creation, CREATE_TIMEOUT_MS, "Starting the KERNEL browser");
-    } catch (error) {
-      // Our timeout does not cancel the SDK request: KERNEL may still create the browser. Keep
-      // waiting for that outcome so a late session is deleted in `finally` instead of leaking.
-      if (error instanceof LicenseCheckTimeout) {
-        const late = await withTimeout(creation, LATE_CREATE_GRACE_MS, "Waiting for the late KERNEL browser").catch(() => undefined);
-        if (late) sessionId = late.session_id;
-      }
-      throw error;
-    }
+    const browser = await withTimeout(
+      kernel.browsers.create(
+        { stealth: true, headless: false, timeout_seconds: BROWSER_SERVER_TIMEOUT_SECONDS },
+        { maxRetries: 0, timeout: CREATE_TIMEOUT_MS },
+      ),
+      CREATE_LOCAL_WAIT_MS,
+      "Starting the KERNEL browser",
+    );
     sessionId = browser.session_id;
     await ctx.runMutation(internal.kernel.licenseChecks.attachBrowser, {
       checkId,

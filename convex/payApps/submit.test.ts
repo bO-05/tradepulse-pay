@@ -100,9 +100,9 @@ describe("submitPayApplication", () => {
     expect(row!.submittedBy.agentEmail).toBeUndefined();
     expect(row!.lines.every((l) => Number.isInteger(l.requestedCents))).toBe(true);
 
-    const portal = await sub1.as.query(api.portal.mySubPortal, {});
-    expect(portal.payApplications).toHaveLength(1);
-    expect(portal.payApplications[0]).toMatchObject({ status: "submitted", canWithdraw: true });
+    const portal = await sub1.as.query(api.portal.mySubPayApps, { paginationOpts: { numItems: 50, cursor: null } });
+    expect(portal.page).toHaveLength(1);
+    expect(portal.page[0]).toMatchObject({ status: "submitted", canWithdraw: true });
   });
 
   test("linked billing agent submits with agent and owner attribution", async () => {
@@ -123,7 +123,10 @@ describe("submitPayApplication", () => {
     );
     expect(audit).toMatchObject({ agentSub: "agent-sub-1", ownerEmail: "pat@example.com", agreementId: agreement._id });
 
-    const sub2Portal = JSON.stringify(await sub2.as.query(api.portal.mySubPortal, {}));
+    const sub2Portal = JSON.stringify([
+      await sub2.as.query(api.portal.mySubPortal, {}),
+      await sub2.as.query(api.portal.mySubPayApps, { paginationOpts: { numItems: 50, cursor: null } }),
+    ]);
     expect(sub2Portal).not.toContain(AGENT_EMAIL);
     expect(sub2Portal).not.toContain("pat@example.com");
   });

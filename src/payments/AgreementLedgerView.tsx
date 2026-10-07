@@ -91,6 +91,13 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
         <p className="text-xs text-slate-400" data-testid="ledger-balance-formula">
           {ledger.balanceFormula}. Paid is the net of successful payouts and retainage releases.
         </p>
+        {ledger.billingAttention.length > 0 ? (
+          <ul className="text-xs text-amber-200 space-y-1" role="alert" data-testid="ledger-billing-attention">
+            {ledger.billingAttention.map((m) => (
+              <li key={m}>Billed excludes a pay application that needs attention: {m}</li>
+            ))}
+          </ul>
+        ) : null}
         <dl className="grid grid-cols-2 sm:grid-cols-6 gap-3 text-xs" data-testid="ledger-reconciliation">
           {RECONCILIATION.map((t) => (
             <div key={t.key} className="border border-slate-800 rounded-lg p-2">

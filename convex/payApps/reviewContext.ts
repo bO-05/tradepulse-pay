@@ -2,7 +2,7 @@ import type { Doc } from "../_generated/dataModel";
 import { agreementContractSumCents } from "../payments/sov";
 import { retainagePercentFor } from "../payments/payoutMath";
 import { buildReviewLines, type ReviewContext } from "./reviewMath";
-import { priorBillingByLine } from "./validation";
+import { APPROVED_PAY_APP_STATUSES, approvedTotalFor, priorBillingByLine } from "./validation";
 
 /**
  * Assembles what the reviewer sees from stored rows. Only pay apps created
@@ -40,7 +40,7 @@ export function buildReviewContext(input: {
       periodLabel: p.periodLabel,
       status: p.status,
       requestedTotalCents: p.requestedTotalCents,
-      approvedTotalCents: p.finalApproval?.totalCents ?? p.review?.approvedTotalCents ?? null,
+      approvedTotalCents: APPROVED_PAY_APP_STATUSES.has(p.status) ? approvedTotalFor(p) : (p.review?.approvedTotalCents ?? null),
     })),
     license: input.license
       ? {

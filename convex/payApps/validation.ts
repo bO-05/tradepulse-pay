@@ -31,35 +31,41 @@ export const WITHDRAWABLE_PAY_APP_STATUSES = new Set(["submitted", "under_review
 type PriorPayApp = {
   status: string;
   lines: readonly { sovLineId: string; requestedCents: number; pctCompleteToDate: number }[];
-  review?: { lines: readonly { sovLineId: string; approvedCents: number }[] } | null;
   finalApproval?: { lines: readonly { sovLineId: string; approvedCents: number }[] } | null;
 };
 
-/** The per-line cents an approved pay app bills: the GC's final allocation, else the review recommendation. */
-function approvedLinesFor(app: PriorPayApp) {
-  return app.finalApproval?.lines ?? app.review?.lines ?? null;
-}
+export const APPROVED_PAY_APP_STATUSES = new Set(["approved", "paid"]);
 
-/** Total billed by an approved or paid pay app: the GC's final total, else the review's, else the request. */
-export function approvedTotalFor(app: {
-  requestedTotalCents: number;
-  review?: { approvedTotalCents: number } | null;
-  finalApproval?: { totalCents: number } | null;
-}): number {
-  return app.finalApproval?.totalCents ?? app.review?.approvedTotalCents ?? app.requestedTotalCents;
+export const MISSING_FINAL_APPROVAL =
+  "An approved pay application has no recorded final GC-approved amount, so billed-to-date cannot be computed.";
+
+/**
+ * Total billed by an approved or paid pay app: only the GC's final approved total. The review's
+ * recommendation is never a substitute, because the GC may have edited it. Throws without one;
+ * billingHistory.ts rebuilds legacy approvals from the GC's decision before rows get here.
+ */
+export function approvedTotalFor(app: { finalApproval?: { totalCents: number } | null }): number {
+  if (!app.finalApproval) throw new Error(MISSING_FINAL_APPROVAL);
+  return app.finalApproval.totalCents;
 }
 
 /**
  * Per SOV line: cents already billed by open or approved pay apps (the final
  * approved cents once an app is approved) and the highest % to date claimed.
+ * An approved app without a final allocation throws, unless `unresolvedApprovedAs: "requested"`
+ * asks for its requested cents as a conservative upper bound.
  */
-export function priorBillingByLine(payApps: readonly PriorPayApp[]): Map<string, { billedCents: number; pctToDate: number }> {
+export function priorBillingByLine(
+  payApps: readonly PriorPayApp[],
+  opts: { unresolvedApprovedAs?: "throw" | "requested" } = {},
+): Map<string, { billedCents: number; pctToDate: number }> {
   const out = new Map<string, { billedCents: number; pctToDate: number }>();
   for (const app of payApps) {
     if (!BILLING_PAY_APP_STATUSES.has(app.status)) continue;
-    const approvedLines = approvedLinesFor(app);
-    const useApproved = (app.status === "approved" || app.status === "paid") && approvedLines !== null;
-    const approved = new Map((approvedLines ?? []).map((l) => [l.sovLineId, l.approvedCents]));
+    const isApproved = APPROVED_PAY_APP_STATUSES.has(app.status);
+    if (isApproved && !app.finalApproval && opts.unresolvedApprovedAs !== "requested") throw new Error(MISSING_FINAL_APPROVAL);
+    const useApproved = isApproved && !!app.finalApproval;
+    const approved = new Map((app.finalApproval?.lines ?? []).map((l) => [l.sovLineId, l.approvedCents]));
     for (const line of app.lines) {
       const cents = useApproved ? (approved.get(line.sovLineId) ?? 0) : line.requestedCents;
       const prev = out.get(line.sovLineId) ?? { billedCents: 0, pctToDate: 0 };

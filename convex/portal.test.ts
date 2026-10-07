@@ -47,6 +47,7 @@ async function insertPayApp(
   return await t.run(async (ctx) =>
     ctx.db.insert("payApplications", {
       agreementId: agreement._id,
+      contractorId: agreement.contractorId,
       subUserId: userId,
       periodLabel,
       lines: [],
@@ -60,36 +61,77 @@ async function insertPayApp(
   );
 }
 
-describe("mySubPortal history", () => {
-  test("with more than 100 applications the newest is listed first, withdrawable, and older ones load on request", async () => {
+type Sub = Awaited<ReturnType<typeof setup>>["sub1"];
+
+async function page(sub: Sub, numItems: number, cursor: string | null = null) {
+  return await sub.as.query(api.portal.mySubPayApps, { paginationOpts: { numItems, cursor } });
+}
+
+/** Every page in order, as usePaginatedQuery's "Show older" would load them. */
+async function allPages(sub: Sub, numItems: number) {
+  const rows = [];
+  let cursor: string | null = null;
+  for (let i = 0; i < 100; i++) {
+    const r = await page(sub, numItems, cursor);
+    rows.push(...r.page);
+    if (r.isDone) return rows;
+    cursor = r.continueCursor;
+  }
+  throw new Error("pagination did not finish");
+}
+
+async function latestOutcome(sub: Sub) {
+  return (await page(sub, 25)).page[0].outcome!;
+}
+
+describe("mySubPayApps history", () => {
+  test("with more than 500 applications the newest is first and the oldest stays reachable and withdrawable", async () => {
     const { t, sub1, agreement } = await setup();
     const base = Date.now() - 1_000_000;
-    for (let i = 0; i < 105; i++) {
-      await insertPayApp(t, agreement, sub1.userId, `Old #${i}`, "withdrawn", base + i);
-    }
-    const newestId = await insertPayApp(t, agreement, sub1.userId, "Newest", "submitted", base + 500);
-
-    const first = await sub1.as.query(api.portal.mySubPortal, {});
-    expect(first.payApplications[0]).toMatchObject({
-      _id: newestId,
-      periodLabel: "Newest",
-      status: "submitted",
-      canWithdraw: true,
-      submittedBy: { actorType: "human" },
+    const oldestId = await insertPayApp(t, agreement, sub1.userId, "Oldest", "submitted", base);
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 520; i++) {
+        await ctx.db.insert("payApplications", {
+          agreementId: agreement._id,
+          contractorId: agreement.contractorId,
+          subUserId: sub1.userId,
+          periodLabel: `Old #${i}`,
+          lines: [],
+          requestedTotalCents: 1_000,
+          notes: "",
+          lienWaiver: true,
+          status: i % 2 === 0 ? "withdrawn" : "rejected",
+          submittedBy: { userId: sub1.userId, actorType: "human" },
+          createdAt: base + 1 + i,
+        });
+      }
     });
-    expect(first.payApplications.length).toBeLessThan(106);
-    expect(first.hasMore).toBe(true);
+    const newestId = await insertPayApp(t, agreement, sub1.userId, "Newest", "submitted", base + 600);
 
-    await sub1.as.mutation(api.payApps.submit.withdrawPayApplication, { payAppId: newestId });
-    const after = await sub1.as.query(api.portal.mySubPortal, {});
-    expect(after.payApplications[0]).toMatchObject({ _id: newestId, status: "withdrawn", canWithdraw: false });
+    const first = await page(sub1, 25);
+    expect(first.page).toHaveLength(25);
+    expect(first.isDone).toBe(false);
+    expect(first.page[0]).toMatchObject({ _id: newestId, periodLabel: "Newest", canWithdraw: true, submittedBy: { actorType: "human" } });
 
-    const all = await sub1.as.query(api.portal.mySubPortal, { limit: 200 });
-    expect(all.payApplications).toHaveLength(106);
-    expect(all.hasMore).toBe(false);
-    expect(all.payApplications.at(-1)!.periodLabel).toBe("Old #0");
-    const times = all.payApplications.map((p) => p.createdAt);
+    const all = await allPages(sub1, 100);
+    expect(all).toHaveLength(522);
+    expect(new Set(all.map((p) => p._id)).size).toBe(522);
+    const times = all.map((p) => p.createdAt);
     expect([...times].sort((a, b) => b - a)).toEqual(times);
+    expect(all.at(-1)).toMatchObject({ _id: oldestId, periodLabel: "Oldest", status: "submitted", canWithdraw: true });
+
+    await sub1.as.mutation(api.payApps.submit.withdrawPayApplication, { payAppId: oldestId });
+    expect((await allPages(sub1, 100)).at(-1)).toMatchObject({ _id: oldestId, status: "withdrawn", canWithdraw: false });
+  });
+
+  test("another contractor's sub and a sub without a contractor see no pay applications", async () => {
+    const { t, sub1, agreement } = await setup();
+    await insertPayApp(t, agreement, sub1.userId, "Mine", "submitted", Date.now());
+    const other = await t.run(async (ctx) => (await ctx.db.query("contractors").collect()).find((c) => c._id !== agreement.contractorId)!._id);
+    const sub2 = await signInAs(t, "sub", { email: "sub2@test.tradepulse", contractorId: other });
+    expect((await page(sub2, 25)).page).toEqual([]);
+    const loose = await signInAs(t, "sub", { email: "loose@test.tradepulse" });
+    expect(await page(loose, 25)).toMatchObject({ page: [], isDone: true });
   });
 });
 
@@ -112,7 +154,7 @@ describe("mySubPortal payout outcome", () => {
       }),
     );
 
-    const created = (await sub1.as.query(api.portal.mySubPortal, {})).payApplications[0].outcome!;
+    const created = await latestOutcome(sub1);
     expect(created).toMatchObject({ payoutStatus: "created", retainageHeldCents: null, retainageWithheldCents: 10_000 });
 
     await t.mutation(internal.payments.payoutDb.recordPayoutCreated, {
@@ -126,7 +168,7 @@ describe("mySubPortal payout outcome", () => {
       status: "unclaimed",
       itemStatus: "UNCLAIMED",
     });
-    const unclaimed = (await sub1.as.query(api.portal.mySubPortal, {})).payApplications[0].outcome!;
+    const unclaimed = await latestOutcome(sub1);
     expect(unclaimed).toMatchObject({
       payoutStatus: "unclaimed",
       paypalItemStatus: "UNCLAIMED",
@@ -141,7 +183,7 @@ describe("mySubPortal payout outcome", () => {
       status: "returned",
       itemStatus: "RETURNED",
     });
-    const returned = (await sub1.as.query(api.portal.mySubPortal, {})).payApplications[0].outcome!;
+    const returned = await latestOutcome(sub1);
     expect(returned).toMatchObject({
       payoutStatus: "returned",
       paypalItemStatus: "RETURNED",
@@ -156,5 +198,48 @@ describe("mySubPortal payout outcome", () => {
         .collect(),
     );
     expect(ledger.reduce((a, r) => a + r.deltaCents, 0)).toBe(returned.retainageHeldCents);
+  });
+
+  test("a RETURNED payout followed by a FAILED retry shows Failed with the ledger's zero hold", async () => {
+    const { t, sub1, agreement } = await setup();
+    const payAppId = await insertPayApp(t, agreement, sub1.userId, "Pay app #1", "approved", Date.now());
+    const payout = (key: string, retryOf?: Id<"payments">) =>
+      t.run(async (ctx) =>
+        ctx.db.insert("payments", {
+          agreementId: agreement._id,
+          payAppId,
+          kind: "payout",
+          status: "created",
+          grossCents: 100_000,
+          retainageCents: 10_000,
+          netCents: 90_000,
+          receiverEmail: "sub1@test.tradepulse",
+          idempotencyKey: key,
+          ...(retryOf ? { retryOfPaymentId: retryOf } : {}),
+          createdAt: Date.now(),
+        }),
+      );
+    const originalId = await payout("portal-test-returned");
+    await t.mutation(internal.payments.payoutDb.recordPayoutCreated, { paymentId: originalId, batchId: "BATCH-R", auditRecorded: true, duplicate: false });
+    await t.mutation(internal.payments.payoutDb.applyPayoutStatus, { paymentId: originalId, status: "returned", itemStatus: "RETURNED" });
+    expect(await latestOutcome(sub1)).toMatchObject({ payoutStatus: "returned", retainageHeldCents: 0 });
+
+    vi.advanceTimersByTime(60_000);
+    const retryId = await payout("portal-test-returned-r1", originalId);
+    await t.mutation(internal.payments.payoutDb.recordPayoutCreated, { paymentId: retryId, batchId: "BATCH-F", auditRecorded: true, duplicate: false });
+    expect(await latestOutcome(sub1)).toMatchObject({ payoutStatus: "pending", retainageHeldCents: 10_000 });
+    await t.mutation(internal.payments.payoutDb.applyPayoutStatus, { paymentId: retryId, status: "failed", itemStatus: "FAILED" });
+
+    const failed = await latestOutcome(sub1);
+    expect(failed).toMatchObject({
+      payoutStatus: "failed",
+      paypalItemStatus: "FAILED",
+      netPaid: false,
+      approvedGrossCents: 100_000,
+      retainageHeldCents: 0,
+      netCents: 90_000,
+    });
+    const ledger = await t.run(async (ctx) => ctx.db.query("retainageLedger").collect());
+    expect(ledger.reduce((a, r) => a + r.deltaCents, 0)).toBe(0);
   });
 });

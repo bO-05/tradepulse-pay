@@ -1,5 +1,6 @@
+import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
-import type { Doc } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { query, type QueryCtx } from "./_generated/server";
 import { canViewAgreement, requireRole } from "./lib/roles";
 import { changeOrderView } from "./payments/changeOrderDb";
@@ -23,100 +24,105 @@ function agreementSummary(a: Doc<"agreements">) {
   };
 }
 
-const SUB_PORTAL_PAGE_SIZE = 25;
-const SUB_PORTAL_MAX_LIMIT = 500;
-
 /**
- * What the sub was approved and paid on one pay app: the GC-approved gross and net from its latest
- * payout payment, its payout status, and the retainage the ledger currently holds for that payout
- * (null before the ledger is credited; zero once a FAILED or RETURNED payout reversed the credit).
+ * What the sub was approved and paid on one pay app, from its newest payout attempt (failed retries
+ * included): the approved gross and net, that attempt's real status, and the retainage the ledger
+ * holds across all of the pay app's payout attempts (null before any ledger credit; zero once a
+ * FAILED or RETURNED payout reversed it).
  */
 async function payAppOutcome(ctx: QueryCtx, payments: Doc<"payments">[]) {
-  const payout = payments
-    .filter((x) => x.kind === "payout" && x.status !== "failed")
-    .sort((a, b) => b.createdAt - a.createdAt)[0];
-  if (payout) {
-    const ledger = await ctx.db
-      .query("retainageLedger")
-      .withIndex("by_paymentId", (q) => q.eq("paymentId", payout._id))
-      .take(10);
+  const payouts = payments
+    .filter((x) => x.kind === "payout")
+    .sort((a, b) => b.createdAt - a.createdAt || b._creationTime - a._creationTime);
+  const payout = payouts[0];
+  if (payout === undefined) {
     return {
-      approvedGrossCents: payout.grossCents,
-      retainageHeldCents: ledger.length > 0 ? ledger.reduce((a, r) => a + r.deltaCents, 0) : null,
-      retainageWithheldCents: payout.retainageCents,
-      netCents: payout.netCents,
-      netPaid: payout.status === "success",
-      payoutStatus: payout.status as string,
-      paypalItemStatus: payout.paypalItemStatus ?? null,
+      approvedGrossCents: null,
+      retainageHeldCents: null,
+      retainageWithheldCents: null,
+      netCents: null,
+      netPaid: false,
+      payoutStatus: null,
+      paypalItemStatus: null,
     };
   }
-  const failed = payments.find((x) => x.kind === "payout" && x.status === "failed");
+  let credited = false;
+  let heldCents = 0;
+  for (const attempt of payouts) {
+    const ledger = await ctx.db
+      .query("retainageLedger")
+      .withIndex("by_paymentId", (q) => q.eq("paymentId", attempt._id))
+      .take(10);
+    if (ledger.length > 0) credited = true;
+    heldCents += ledger.reduce((a, r) => a + r.deltaCents, 0);
+  }
   return {
-    approvedGrossCents: null,
-    retainageHeldCents: null,
-    retainageWithheldCents: null,
-    netCents: null,
-    netPaid: false,
-    payoutStatus: failed ? "failed" : null,
-    paypalItemStatus: failed?.paypalItemStatus ?? null,
+    approvedGrossCents: payout.grossCents,
+    retainageHeldCents: credited ? heldCents : null,
+    retainageWithheldCents: payout.retainageCents,
+    netCents: payout.netCents,
+    netPaid: payout.status === "success",
+    payoutStatus: payout.status as string,
+    paypalItemStatus: payout.paypalItemStatus ?? null,
   };
 }
 
-/**
- * Sub portal: the caller's own contractor, agreements and the newest `limit` pay applications
- * across them; `hasMore` says older ones exist and can be loaded with a larger limit.
- */
+async function subAgreements(ctx: QueryCtx, contractorId: Id<"contractors"> | undefined) {
+  const agreements = contractorId
+    ? await ctx.db
+        .query("agreements")
+        .withIndex("by_contractorId", (q) => q.eq("contractorId", contractorId))
+        .take(100)
+    : [];
+  return agreements.filter((a) => a.status !== "superseded");
+}
+
+/** Sub portal: the caller's own contractor and agreements. Pay apps are paged by mySubPayApps. */
 export const mySubPortal = query({
-  args: { limit: v.optional(v.number()) },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx) => {
     const viewer = await requireRole(ctx, ["sub"]);
-    const limit = Math.min(
-      SUB_PORTAL_MAX_LIMIT,
-      Math.max(1, Math.floor(Number.isFinite(args.limit) ? args.limit! : SUB_PORTAL_PAGE_SIZE)),
-    );
     const contractorId = viewer.profile.contractorId;
     const contractor = contractorId ? await ctx.db.get(contractorId) : null;
-    const agreements = contractorId
-      ? await ctx.db
-          .query("agreements")
-          .withIndex("by_contractorId", (q) => q.eq("contractorId", contractorId))
-          .take(100)
-      : [];
-    const visible = agreements.filter((a) => a.status !== "superseded");
-    // Listed per agreement (not per submitter) so pay apps filed by a linked
-    // billing agent for this contractor show up too.
-    // The overall newest `limit` rows are always within each agreement's newest `limit` rows, so
-    // reading limit + 1 per agreement (newest first) is enough to page and to detect older rows.
-    const candidates: Doc<"payApplications">[] = [];
-    for (const agreement of visible) {
-      const rows = await ctx.db
-        .query("payApplications")
-        .withIndex("by_agreementId", (q) => q.eq("agreementId", agreement._id))
-        .order("desc")
-        .take(limit + 1);
-      candidates.push(...rows);
-    }
-    candidates.sort((a, b) => b.createdAt - a.createdAt || b._creationTime - a._creationTime);
-    const payApps = candidates.slice(0, limit);
-    const outcomes = new Map<string, Awaited<ReturnType<typeof payAppOutcome>>>();
-    for (const p of payApps) {
-      const payments = await ctx.db
-        .query("payments")
-        .withIndex("by_payAppId", (q) => q.eq("payAppId", p._id))
-        .take(50);
-      outcomes.set(p._id, await payAppOutcome(ctx, payments));
-    }
+    const visible = await subAgreements(ctx, contractorId);
     return {
       displayName: viewer.profile.displayName,
       contractorName: contractor?.companyName ?? null,
       paypalEmail: viewer.profile.paypalEmail ?? null,
       agreements: visible.map(agreementSummary),
-      hasMore: candidates.length > limit,
-      limit,
-      payApplications: payApps.map((p) => ({
+    };
+  },
+});
+
+/**
+ * The caller's contractor's pay applications across all its agreements, newest first, one cursor
+ * page at a time. Listed per contractor (not per submitter) so pay apps filed by a linked billing
+ * agent show up too. Rows on superseded agreements are dropped, so a page can be shorter than asked.
+ */
+export const mySubPayApps = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    const viewer = await requireRole(ctx, ["sub"]);
+    const contractorId = viewer.profile.contractorId;
+    if (contractorId === undefined) return { page: [], isDone: true, continueCursor: "" };
+    const agreements = new Map((await subAgreements(ctx, contractorId)).map((a) => [a._id as string, a]));
+    const result = await ctx.db
+      .query("payApplications")
+      .withIndex("by_contractorId", (q) => q.eq("contractorId", contractorId))
+      .order("desc")
+      .paginate(args.paginationOpts);
+    const page = [];
+    for (const p of result.page) {
+      const agreement = agreements.get(p.agreementId);
+      if (agreement === undefined) continue;
+      const payments = await ctx.db
+        .query("payments")
+        .withIndex("by_payAppId", (q) => q.eq("payAppId", p._id))
+        .take(50);
+      page.push({
         _id: p._id,
         agreementId: p.agreementId,
-        agreementNumber: visible.find((a) => a._id === p.agreementId)?.agreementNumber ?? "",
+        agreementNumber: agreement.agreementNumber,
         periodLabel: p.periodLabel,
         requestedTotalCents: p.requestedTotalCents,
         lienWaiver: p.lienWaiver,
@@ -126,14 +132,15 @@ export const mySubPortal = query({
           agentEmail: p.submittedBy.agentEmail ?? null,
           onBehalfOf: p.submittedBy.ownerName ?? p.submittedBy.ownerEmail ?? null,
         },
-        outcome: outcomes.get(p._id) ?? null,
+        outcome: await payAppOutcome(ctx, payments),
         canWithdraw: WITHDRAWABLE_PAY_APP_STATUSES.has(p.status),
         withdrawnAt: p.withdrawnAt ?? null,
         rejectedAt: p.rejectedAt ?? null,
         rejectionReason: p.status === "rejected" ? (p.rejectionReason ?? null) : null,
         createdAt: p.createdAt,
-      })),
-    };
+      });
+    }
+    return { ...result, page };
   },
 });
 

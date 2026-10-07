@@ -225,9 +225,9 @@ describe("computeLedgerTotals", () => {
     const totals = computeLedgerTotals({
       contractSumCents: 1_000_000,
       payApps: [
-        { status: "approved", requestedTotalCents: 300_000, review: { approvedTotalCents: 250_000 } },
-        { status: "paid", requestedTotalCents: 100_000 },
-        { status: "submitted", requestedTotalCents: 999_999 },
+        { status: "approved", finalApproval: { totalCents: 250_000 } },
+        { status: "paid", finalApproval: { totalCents: 100_000 } },
+        { status: "submitted" },
       ],
       payments: [
         { kind: "payout", status: "success", netCents: 90_000 },

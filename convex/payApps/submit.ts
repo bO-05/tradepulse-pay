@@ -118,6 +118,7 @@ export const submitPayApplication = mutation({
     const now = Date.now();
     const payAppId = await ctx.db.insert("payApplications", {
       agreementId: agreement._id,
+      contractorId: agreement.contractorId,
       subUserId: viewer.userId,
       periodLabel: args.periodLabel.trim(),
       lines,

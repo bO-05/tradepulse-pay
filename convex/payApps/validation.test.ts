@@ -69,8 +69,15 @@ describe("priorBillingByLine", () => {
       { status: "submitted", lines: [l("s1", 1_000)] },
       { status: "withdrawn", lines: [l("s1", 5_000, 90)] },
       { status: "rejected", lines: [l("s1", 5_000, 90)] },
-      { status: "approved", lines: [l("s1", 3_000, 30)], review: { lines: [{ sovLineId: "s1", approvedCents: 2_000 }] } },
+      { status: "approved", lines: [l("s1", 3_000, 30)], finalApproval: { lines: [{ sovLineId: "s1", approvedCents: 2_000 }] } },
     ]);
     expect(m.get("s1")).toEqual({ billedCents: 3_000, pctToDate: 30 });
+  });
+
+  test("an approved app without a final approval fails closed unless asked for its requested cents", () => {
+    const l = (sovLineId: string, requestedCents: number) => ({ sovLineId, requestedCents, pctCompleteToDate: 10 });
+    const legacy = [{ status: "paid", lines: [l("s1", 4_000)] }];
+    expect(() => priorBillingByLine(legacy)).toThrow(/no recorded final GC-approved amount/);
+    expect(priorBillingByLine(legacy, { unresolvedApprovedAs: "requested" }).get("s1")).toEqual({ billedCents: 4_000, pctToDate: 10 });
   });
 });
