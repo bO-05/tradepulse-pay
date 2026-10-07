@@ -387,7 +387,7 @@ describe("GC approval inbox", () => {
     // Pay-agent audit entries for an agent-submitted pay app carry the billing agent and its owner.
     const agentAudits = after.audits.filter((a) => a.eventType === "agent_proposal_created" || a.eventType === "pay_agent_run");
     expect(agentAudits.length).toBeGreaterThan(0);
-    for (const a of agentAudits) expect(a).toMatchObject({ agentSub: "agent-sub-1", ownerEmail: "pat@example.com" });
+    for (const a of agentAudits) expect(a).toMatchObject({ agentSub: "agent-sub-1", agentEmail: AGENT_EMAIL, ownerEmail: "pat@example.com" });
 
     const inbox = await s.gc.as.query(api.payApps.proposals.listInbox, {});
     expect(inbox[0].payApp.submittedBy).toMatchObject({ actorType: "agent", agentEmail: AGENT_EMAIL, onBehalfOf: "Pat Owner" });

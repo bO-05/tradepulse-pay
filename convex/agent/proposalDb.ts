@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from "../_generated/server";
 import { formatCents } from "../lib/money";
+import { submitterAuditFields } from "../lib/agentAudit";
 import { retainagePercentFor } from "../payments/payoutMath";
 import { latestCompletedCheck } from "../kernel/licenseChecks";
 import { planProposals, requiredKinds, type PlanLicenseStatus, type PlanMilestone, type ProposalPlan } from "./proposalMath";
@@ -171,15 +172,6 @@ const insertResult = v.union(
   v.object({ ok: v.literal(false), reason: v.string() }),
 );
 
-/** For pay apps a billing agent submitted: the agent and owner the audit entry is attributed to. */
-export async function submitterAttribution(ctx: QueryCtx, payApp: Doc<"payApplications"> | null) {
-  if (payApp === null || payApp.submittedBy.actorType !== "agent") return {};
-  const user = await ctx.db.get(payApp.submittedBy.userId);
-  const agentSub = user?.agentSub;
-  const ownerEmail = payApp.submittedBy.ownerEmail ?? user?.ownerEmail;
-  return { ...(agentSub ? { agentSub } : {}), ...(ownerEmail ? { ownerEmail } : {}) };
-}
-
 async function auditProposal(ctx: MutationCtx, agreement: Doc<"agreements">, payApp: Doc<"payApplications">, p: { kind: string; amountCents?: number; source: string }) {
   await ctx.db.insert("auditLogs", {
     projectId: agreement.projectId,
@@ -189,7 +181,7 @@ async function auditProposal(ctx: MutationCtx, agreement: Doc<"agreements">, pay
     description: `${agreement.agreementNumber} ${payApp.periodLabel}: ${p.kind}${p.amountCents !== undefined ? ` ${formatCents(p.amountCents)}` : ""} (pending GC approval; no money moved).`,
     actor: p.source === "code_policy" ? `${AGENT_ACTOR} (code policy)` : AGENT_ACTOR,
     timestamp: Date.now(),
-    ...(await submitterAttribution(ctx, payApp)),
+    ...(await submitterAuditFields(ctx, payApp)),
   });
 }
 
@@ -363,7 +355,7 @@ export const storeAgentTrace = internalMutation({
       description: `${agreement?.agreementNumber ?? ""} ${payApp?.periodLabel ?? ""}: agent run ${trace.runId} (${trace.provider}${trace.model !== "none" ? ` ${trace.model}` : ""}) proposed actions for GC approval.`,
       actor: AGENT_ACTOR,
       timestamp: now,
-      ...(await submitterAttribution(ctx, payApp)),
+      ...(await submitterAuditFields(ctx, payApp)),
     });
     return null;
   },

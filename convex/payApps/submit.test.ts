@@ -121,7 +121,12 @@ describe("submitPayApplication", () => {
     const audit = await t.run(async (ctx) =>
       (await ctx.db.query("auditLogs").collect()).find((l) => l.eventType === "pay_app_submitted"),
     );
-    expect(audit).toMatchObject({ agentSub: "agent-sub-1", ownerEmail: "pat@example.com", agreementId: agreement._id });
+    expect(audit).toMatchObject({
+      agentSub: "agent-sub-1",
+      agentEmail: AGENT_EMAIL,
+      ownerEmail: "pat@example.com",
+      agreementId: agreement._id,
+    });
 
     const sub2Portal = JSON.stringify([
       await sub2.as.query(api.portal.mySubPortal, {}),
@@ -277,6 +282,30 @@ describe("withdrawPayApplication", () => {
     const agent = await signInAgent(t, AGENT_EMAIL);
     await agent.as.mutation(api.payApps.submit.withdrawPayApplication, { payAppId });
     expect((await t.run(async (ctx) => ctx.db.get(payAppId)))!.status).toBe("withdrawn");
+  });
+
+  test("every audit row the agent writes carries agentSub, agentEmail and ownerEmail; human rows carry none", async () => {
+    const { t, gc, sub1, agreement, sov, contractorId } = await setup();
+    await gc.as.mutation(api.agentLinks.addAgentLink, { agentEmail: AGENT_EMAIL, contractorId });
+    const agent = await signInAgent(t, AGENT_EMAIL);
+    const agentPayApp = await agent.as.mutation(api.payApps.submit.submitPayApplication, validArgs(agreement._id, sov));
+    await agent.as.mutation(api.payApps.submit.withdrawPayApplication, { payAppId: agentPayApp });
+    const humanPayApp = await sub1.as.mutation(api.payApps.submit.submitPayApplication, validArgs(agreement._id, sov));
+    await sub1.as.mutation(api.payApps.submit.withdrawPayApplication, { payAppId: humanPayApp });
+
+    const audits = await t.run(async (ctx) => ctx.db.query("auditLogs").collect());
+    const agentRows = audits.filter((a) => a.actor === AGENT_EMAIL || a.actor === agent.userId);
+    expect(agentRows.map((a) => a.eventType).sort()).toEqual(["pay_app_submitted", "pay_app_withdrawn"]);
+    for (const row of agentRows) {
+      expect(row).toMatchObject({ agentSub: "agent-sub-1", agentEmail: AGENT_EMAIL, ownerEmail: "pat@example.com" });
+    }
+    const humanRows = audits.filter((a) => a.actor === "sub1@test.tradepulse");
+    expect(humanRows.map((a) => a.eventType).sort()).toEqual(["pay_app_submitted", "pay_app_withdrawn"]);
+    for (const row of humanRows) {
+      expect(row.agentSub).toBeUndefined();
+      expect(row.agentEmail).toBeUndefined();
+      expect(row.ownerEmail).toBeUndefined();
+    }
   });
 });
 

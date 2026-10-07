@@ -35,6 +35,7 @@ import type * as kernel_demoLicenses from "../kernel/demoLicenses.js";
 import type * as kernel_licenseCheck from "../kernel/licenseCheck.js";
 import type * as kernel_licenseChecks from "../kernel/licenseChecks.js";
 import type * as lib_agentAccess from "../lib/agentAccess.js";
+import type * as lib_agentAudit from "../lib/agentAudit.js";
 import type * as lib_agentLinkRemap from "../lib/agentLinkRemap.js";
 import type * as lib_aiLabels from "../lib/aiLabels.js";
 import type * as lib_money from "../lib/money.js";
@@ -135,6 +136,7 @@ declare const fullApi: ApiFromModules<{
   "kernel/licenseCheck": typeof kernel_licenseCheck;
   "kernel/licenseChecks": typeof kernel_licenseChecks;
   "lib/agentAccess": typeof lib_agentAccess;
+  "lib/agentAudit": typeof lib_agentAudit;
   "lib/agentLinkRemap": typeof lib_agentLinkRemap;
   "lib/aiLabels": typeof lib_aiLabels;
   "lib/money": typeof lib_money;

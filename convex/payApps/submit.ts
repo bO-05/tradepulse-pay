@@ -4,6 +4,7 @@ import { internal } from "../_generated/api";
 import { mutation, query, type QueryCtx } from "../_generated/server";
 import { requireRole, type Viewer } from "../lib/roles";
 import { formatCents } from "../lib/money";
+import { viewerAgentAuditFields } from "../lib/agentAudit";
 import {
   priorBillingByLine,
   validatePayApp,
@@ -140,7 +141,7 @@ export const submitPayApplication = mutation({
       }.`,
       actor: viewer.user.email ?? viewer.profile.displayName,
       timestamp: now,
-      ...(isAgent ? { agentSub: viewer.user.agentSub, ownerEmail: viewer.user.ownerEmail } : {}),
+      ...viewerAgentAuditFields(viewer),
     });
     await ctx.scheduler.runAfter(0, internal.payApps.review.reviewPayApp, { payAppId });
     return payAppId;
@@ -179,7 +180,6 @@ export const withdrawPayApplication = mutation({
       await ctx.db.patch(p._id, { status: "cancelled", decidedBy: viewer.userId, decidedAt: now });
       cancelled++;
     }
-    const isAgent = viewer.user.actorType === "agent";
     await ctx.db.insert("auditLogs", {
       projectId: agreement.projectId,
       agreementId: agreement._id,
@@ -188,7 +188,7 @@ export const withdrawPayApplication = mutation({
       description: `${agreement.agreementNumber} ${payApp.periodLabel} withdrawn; ${cancelled} pending proposal(s) cancelled.`,
       actor: viewer.user.email ?? viewer.profile.displayName,
       timestamp: now,
-      ...(isAgent ? { agentSub: viewer.user.agentSub, ownerEmail: viewer.user.ownerEmail } : {}),
+      ...viewerAgentAuditFields(viewer),
     });
     return { status: "withdrawn" as const, cancelledProposals: cancelled };
   },

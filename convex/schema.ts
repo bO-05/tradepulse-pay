@@ -602,8 +602,9 @@ export default defineSchema({
     attempts: v.optional(v.number()),
     paypalOutcome: v.optional(v.union(v.literal("succeeded"), v.literal("failed"), v.literal("indeterminate"))),
     agreementId: v.optional(v.id("agreements")),
-    // Set when a billing agent acted: its AgentID subject and the owner it acts for.
+    // Set when a billing agent acted: its AgentID subject and email, and the owner it acts for.
     agentSub: v.optional(v.string()),
+    agentEmail: v.optional(v.string()),
     ownerEmail: v.optional(v.string()),
   })
     .index("by_project", ["projectId"])
