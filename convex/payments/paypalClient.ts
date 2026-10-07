@@ -86,6 +86,8 @@ export type PayPalErrorData = {
   message: string;
   paypalRequestId?: string;
   auditRecorded?: boolean;
+  /** HATEOAS hrefs from the error body (e.g. the existing batch on a duplicate sender_batch_id). */
+  links?: string[];
 };
 
 /** Raised when no readable PayPal response arrived. For writes, retry with the same `paypalRequestId`. */
@@ -177,12 +179,27 @@ export function operationFor(method: string, path: string): string {
   return `paypal.${m.toLowerCase()} ${cleanPath}`;
 }
 
-function errorFields(body: unknown): { name?: string; message?: string; issues: string[]; descriptions: string[]; debugId?: string } {
-  if (typeof body !== "object" || body === null) return { issues: [], descriptions: [] };
+function hrefsOf(x: unknown): string[] {
+  const list = Array.isArray(x) ? x : x === undefined ? [] : [x];
+  return list
+    .map((l) => (typeof l === "string" ? l : typeof l === "object" && l !== null ? (l as { href?: unknown }).href : undefined))
+    .filter((h): h is string => typeof h === "string" && h.length > 0);
+}
+
+function errorFields(body: unknown): {
+  name?: string;
+  message?: string;
+  issues: string[];
+  descriptions: string[];
+  debugId?: string;
+  links: string[];
+} {
+  if (typeof body !== "object" || body === null) return { issues: [], descriptions: [], links: [] };
   const b = body as Record<string, unknown>;
   const details = Array.isArray(b.details) ? (b.details as Array<Record<string, unknown>>) : [];
   const str = (x: unknown) => (typeof x === "string" && x.length > 0 ? x : undefined);
   return {
+    links: [...details.flatMap((d) => hrefsOf(d.link)), ...hrefsOf(b.links)],
     name: str(b.name) ?? str(b.error),
     message: str(b.message) ?? str(b.error_description),
     issues: details.map((d) => str(d.issue)).filter((x): x is string => x !== undefined),
@@ -207,6 +224,7 @@ export function payPalError(operation: string, status: number, body: unknown, de
     name,
     issues: f.issues,
     ...(debugId ? { debugId } : {}),
+    ...(f.links.length > 0 ? { links: f.links } : {}),
     message: `PayPal ${operation} failed (HTTP ${status} ${name}): ${detail}`,
   });
 }
@@ -256,6 +274,11 @@ function resourceIdFrom(body: unknown): string | undefined {
   if (bh && typeof bh.payout_batch_id === "string") return bh.payout_batch_id;
   if (typeof b.href === "string") return b.href.split("/").pop();
   return undefined;
+}
+
+/** For writes that return no body (void → 204), the resource id from the path, e.g. the authorization id. */
+function pathResourceId(path: string): string | undefined {
+  return path.match(/^\/v2\/payments\/authorizations\/([^/]+)\/[a-z]+$/)?.[1];
 }
 
 export class PayPalClient {
@@ -570,7 +593,7 @@ export class PayPalClient {
       attempts,
       paypalRequestId: requestId,
       paypalDebugId: response.headers.get("paypal-debug-id") ?? undefined,
-      resourceId: response.ok ? resourceIdFrom(parsed) : undefined,
+      resourceId: response.ok ? (resourceIdFrom(parsed) ?? pathResourceId(path)) : undefined,
       errorName: response.ok ? undefined : payPalError(operation, response.status, parsed).data.name,
       outcome: response.ok ? "succeeded" : "failed",
       via: "sdk",

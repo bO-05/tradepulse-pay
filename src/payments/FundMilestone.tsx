@@ -14,6 +14,7 @@ export type MilestoneFunding = {
   paypalAuthorizationId: string | null;
   authorizationExpiresAt: number | null;
   honorPeriodEndsAt: number | null;
+  capturedCents?: number;
   error: string | null;
 } | null;
 
@@ -53,6 +54,20 @@ export function FundingProvider({ children }: { children: ReactNode }) {
 export function FundingStatus({ milestone }: { milestone: FundableMilestone }) {
   const f = milestone.funding;
   if (f === null) return <span className="text-xs text-slate-500">Not funded</span>;
+  if (f.paypalAuthorizationId && (f.status === "partially_captured" || f.status === "captured" || f.status === "voided")) {
+    const captured = formatCents(f.capturedCents ?? 0);
+    const text =
+      f.status === "partially_captured"
+        ? `Captured ${captured} of ${formatCents(f.grossCents)} authorized`
+        : f.status === "captured"
+          ? `Fully captured ${captured}`
+          : `Closed: captured ${captured}, remainder voided`;
+    return (
+      <span className="text-xs text-emerald-300" data-testid="milestone-funding">
+        {text}
+      </span>
+    );
+  }
   if (f.paypalAuthorizationId) {
     return (
       <span className="text-xs text-emerald-300" data-testid="milestone-funding">

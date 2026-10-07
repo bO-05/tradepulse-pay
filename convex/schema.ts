@@ -256,6 +256,25 @@ export default defineSchema({
     retainageCents: v.number(),
     netCents: v.number(),
     capturedCents: v.optional(v.number()),
+    // Funding rows: one entry per capture against the authorization (requestKey dedupes retries).
+    captures: v.optional(
+      v.array(
+        v.object({
+          captureId: v.string(),
+          amountCents: v.number(),
+          requestKey: v.string(),
+          finalCapture: v.boolean(),
+          status: v.string(),
+          releasePaymentId: v.optional(v.id("payments")),
+          capturedAt: v.number(),
+        }),
+      ),
+    ),
+    // Payout rows: the funding payment whose capture paid for this release.
+    fundingPaymentId: v.optional(v.id("payments")),
+    // Payout rows: recipient snapshot at release time, and PayPal's raw item status (e.g. UNCLAIMED).
+    receiverEmail: v.optional(v.string()),
+    paypalItemStatus: v.optional(v.string()),
     idempotencyKey: v.string(),
     error: v.optional(v.string()),
     // False once any PayPal write for this payment succeeded but its auditLogs entry could not be stored.

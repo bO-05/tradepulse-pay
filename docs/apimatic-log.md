@@ -49,3 +49,22 @@ Notes from reading the installed SDK alongside the answers (not from the plugin)
 - SDK writes now go through `PayPalClient.sdkWrite()` (`convex/payments/paypalClient.ts:507`), which returns the unchanged `ApiResponse` plus a per-call `auditRecorded` flag and adds `paypalRequestId`/`auditRecorded` to readable PayPal errors. The funding payment row stores that flag as `payments.auditRecorded`.
 
 Live check (2026-10-07, dev deployment, browser as `gc@demo.tradepulse`): funding the Rosendin Mobilization milestone ($119,000.00) with card 4111111111111111 created order `55L66109EN020541H` (`intent AUTHORIZE`, `119000.00`), and authorize returned 422 `INSTRUMENT_DECLINED`. The retry with card 4032031427005060 created order `0G046509CX277741H` and authorization `62D98083J0795792W` (`CREATED`, `119000.00`, `expiration_time` 2026-11-05T05:30:19Z), and the order GET returned `COMPLETED`.
+
+### 2026-10-07: Release & pay with partial capture, void and payouts (feature p2, `convex/payments/captures.ts`)
+
+Same access procedure as above (dynamic client registration, `client_credentials`, MCP session).
+
+| # | Tool | Question | Answer used | Code it informed |
+|---|---|---|---|---|
+| 13 | `fetch_api` | `language: typescript, key: paypal` | Same API key `paypal`; Payments controller exposes `captureAuthorizedPayment` and `voidPayment`. No Payouts controller, so payouts stay on the REST helper. | Captures and voids go through `sdkWrite`: `convex/payments/captures.ts:59`, `convex/payments/captures.ts:113`; payouts use REST `POST /v1/payments/payouts`: `convex/payments/payouts.ts:63` |
+| 14 | `endpoint_search` | `captureAuthorizedPayment` | Params `authorizationId`, `paypalRequestId`, `prefer`, `paypalAuthAssertion`, `body` (`CaptureRequest`: `amount`, `finalCapture`, `invoiceId`, `noteToPayer`, `softDescriptor`); response `CapturedPayment`. | Capture call with `amount`, `finalCapture` and `paypalRequestId = cap_<payment idempotency key>`: `convex/payments/captures.ts:59-68` |
+| 15 | `ask` | How do I capture part of an authorization with `finalCapture: false`, capture again later, and then release the uncaptured remainder with `voidPayment`? | Multiple captures are allowed while `finalCapture` is false; `finalCapture: true` (or a capture of the full amount) closes the authorization; `voidPayment` voids the remaining uncaptured amount and needs only `authorizationId`. | `finalCapture` is true only when the capture uses the whole remaining authorized amount, so no void follows a full capture; a partial capture leaves the milestone `in_progress` and "Close milestone" voids the rest: `convex/payments/captures.ts:24`, `convex/payments/captures.ts:98-125` |
+| 16 | `model_search` | `CapturedPayment` | Properties `id`, `status` (`COMPLETED`, `PENDING`, `DECLINED`, ...), `amount`, `finalCapture`, `sellerReceivableBreakdown`, `createTime`. | Only `COMPLETED` or `PENDING` with an id counts as captured; anything else is recorded as a failed release and nothing is paid: `convex/payments/captures.ts:79-84` |
+
+Notes from live sandbox probes (not from the plugin):
+
+- A second `POST /v1/payments/payouts` with an existing `sender_batch_id` returns 400 `USER_BUSINESS_ERROR` with `details[0].link` as an array of `{ href: ".../v1/payments/payouts/<batch id>" }`. The app treats this as an idempotent hit and fetches that batch: `convex/payments/payouts.ts:86`, `batchIdFromLinks` in `convex/payments/payoutMath.ts:95`.
+- A payout sent seconds after its capture can return 422 `INSUFFICIENT_FUNDS`; the same `sender_batch_id` is retried on a bounded schedule: `convex/payments/payouts.ts:22-23`, `convex/payments/payouts.ts:156`.
+- An unregistered receiver email makes the item `UNCLAIMED` (`RECEIVER_UNREGISTERED`) while the batch reports `SUCCESS`, so the item status decides the payout state: `payoutStatusFromPayPal` in `convex/payments/payoutMath.ts:65`.
+
+Live check (2026-10-07, dev deployment, browser as `gc@demo.tradepulse`): Release & pay of $10,000.00 on the Rosendin Mobilization milestone (authorization `62D98083J0795792W`) created capture `28H482609A502011N` (`COMPLETED`, `10000.00`, `final_capture` false). A later $10,000.00 release produced payout batch `5JXY5LK76WBX8` (`SUCCESS`, one `9000.00` USD EMAIL item, `sender_batch_id` = the payment idempotency key) and $1,000.00 retainage. "Close milestone" voided the authorization (`VOIDED`) after captures totaling $20,100.00.

@@ -1,6 +1,7 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
-import { v } from "convex/values";
-import { internalQuery, query } from "./_generated/server";
+import { ConvexError, v } from "convex/values";
+import { internalMutation, internalQuery, query } from "./_generated/server";
+import { DEMO_ACCOUNTS } from "./demoAccounts";
 import { roleValidator } from "./schema";
 import { getViewer, requireRole } from "./lib/roles";
 
@@ -45,6 +46,41 @@ export const me = query({
       ownerName: user.ownerName ?? null,
       ownerEmail: user.ownerEmail ?? null,
     };
+  },
+});
+
+/**
+ * Test-only (internal, CLI): points a sub profile's payout address elsewhere, e.g. at an unclaimable
+ * address. Omit `paypalEmail` to restore the demo account's value from its PAYPAL_SANDBOX_* env var.
+ *   npx convex run profiles:setPaypalEmailForTesting '{"email":"sub1@demo.tradepulse","paypalEmail":"nobody-1@example.com"}'
+ */
+export const setPaypalEmailForTesting = internalMutation({
+  args: { email: v.string(), paypalEmail: v.optional(v.string()) },
+  returns: v.object({ email: v.string(), restoredFromEnv: v.boolean() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("email", (q) => q.eq("email", args.email))
+      .first();
+    if (user === null) throw new ConvexError({ code: "NOT_FOUND", message: `No user ${args.email}.` });
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .unique();
+    if (profile === null || profile.role !== "sub") {
+      throw new ConvexError({ code: "NOT_FOUND", message: `${args.email} has no sub profile.` });
+    }
+    let paypalEmail = args.paypalEmail?.trim();
+    const restoredFromEnv = paypalEmail === undefined;
+    if (paypalEmail === undefined) {
+      const envName = DEMO_ACCOUNTS.find((a) => a.email === args.email)?.paypalEmailEnv;
+      paypalEmail = envName ? process.env[envName]?.trim() : undefined;
+      if (!paypalEmail) {
+        throw new ConvexError({ code: "NOT_FOUND", message: `No demo PayPal email env var is set for ${args.email}.` });
+      }
+    }
+    await ctx.db.patch(profile._id, { paypalEmail });
+    return { email: args.email, restoredFromEnv };
   },
 });
 

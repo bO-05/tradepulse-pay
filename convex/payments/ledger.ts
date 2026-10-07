@@ -3,6 +3,7 @@ import type { Doc } from "../_generated/dataModel";
 import { query } from "../_generated/server";
 import { canViewAgreement, requireRole } from "../lib/roles";
 import { computeLedgerTotals } from "./ledgerTotals";
+import { retainagePercentFor } from "./payoutMath";
 import { agreementContractSumCents } from "./sov";
 
 function ledgerAgreementSummary(a: Doc<"agreements">) {
@@ -15,7 +16,7 @@ function ledgerAgreementSummary(a: Doc<"agreements">) {
     csiDivision: a.csiDivision,
     tradeName: a.tradeName,
     status: a.status,
-    retainagePercent: a.retainagePercent,
+    retainagePercent: retainagePercentFor(a),
     contractSumCents: agreementContractSumCents(a),
     executedAt: a.executedAt ?? null,
   };
@@ -31,7 +32,25 @@ function fundingSummary(p: Doc<"payments"> | undefined) {
     paypalAuthorizationId: p.paypalAuthorizationId ?? null,
     authorizationExpiresAt: p.authorizationExpiresAt ?? null,
     honorPeriodEndsAt: p.honorPeriodEndsAt ?? null,
+    capturedCents: p.capturedCents ?? 0,
+    captureCount: p.captures?.length ?? 0,
     error: p.error ?? null,
+  };
+}
+
+function releaseSummary(p: Doc<"payments">, showReceiver: boolean) {
+  return {
+    paymentId: p._id,
+    status: p.status,
+    grossCents: p.grossCents,
+    retainageCents: p.retainageCents,
+    netCents: p.netCents,
+    paypalPayoutBatchId: p.paypalPayoutBatchId ?? null,
+    paypalPayoutItemId: p.paypalPayoutItemId ?? null,
+    paypalItemStatus: p.paypalItemStatus ?? null,
+    receiverEmail: showReceiver ? (p.receiverEmail ?? null) : null,
+    error: p.error ?? null,
+    createdAt: p.createdAt,
   };
 }
 
@@ -96,9 +115,23 @@ export const getAgreementLedger = query({
     // Latest funding attempt per milestone (payments come back in creation order).
     const latestFunding = new Map<string, Doc<"payments">>();
     for (const p of payments) if (p.kind === "funding" && p.milestoneId) latestFunding.set(p.milestoneId, p);
+    const releasesByMilestone = new Map<string, Doc<"payments">[]>();
+    for (const p of payments) {
+      if (p.kind !== "payout" || !p.milestoneId) continue;
+      releasesByMilestone.set(p.milestoneId, [...(releasesByMilestone.get(p.milestoneId) ?? []), p]);
+    }
+    const isGc = viewer.role === "gc";
     return {
       agreement: summary,
-      canFund: viewer.role === "gc",
+      canFund: isGc,
+      canRelease: isGc,
+      retainageLedger: retainage.map((r) => ({
+        _id: r._id,
+        deltaCents: r.deltaCents,
+        reason: r.reason,
+        paymentId: r.paymentId ?? null,
+        createdAt: r.createdAt,
+      })),
       sov: sov.map((line) => ({
         _id: line._id,
         lineNo: line.lineNo,
@@ -116,6 +149,7 @@ export const getAgreementLedger = query({
         amountCents: m.amountCents,
         status: m.status,
         funding: fundingSummary(latestFunding.get(m._id)),
+        releases: (releasesByMilestone.get(m._id) ?? []).map((p) => releaseSummary(p, isGc || viewer.role === "sub")),
       })),
       totals: computeLedgerTotals({
         contractSumCents: summary.contractSumCents,

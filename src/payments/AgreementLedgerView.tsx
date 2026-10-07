@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { api } from "../../convex/_generated/api";
 import { formatCents, formatDate } from "./format";
 import { FundMilestoneControl, FundingProvider, FundingStatus } from "./FundMilestone";
+import { ReleaseControl, ReleaseList } from "./ReleaseMilestone";
 
 const TOTALS: { key: "contractSumCents" | "billedCents" | "paidCents" | "retainageHeldCents" | "balanceCents"; label: string }[] = [
   { key: "contractSumCents", label: "Contract sum" },
@@ -33,7 +34,7 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
     );
   }
 
-  const { agreement, sov, milestones, totals, canFund } = ledger;
+  const { agreement, sov, milestones, totals, canFund, canRelease, retainageLedger } = ledger;
 
   return (
     <div className="max-w-5xl space-y-6">
@@ -159,12 +160,55 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
                     <td className="py-2 pl-3 align-top space-y-1">
                       <FundingStatus milestone={m} />
                       {canFund && <FundMilestoneControl milestone={m} />}
+                      <ReleaseList milestone={m} canRelease={canRelease} />
+                      {canRelease && <ReleaseControl milestone={m} retainagePercent={agreement.retainagePercent} />}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </MaybeFundingProvider>
+        )}
+      </section>
+
+      <section aria-labelledby="ledger-retainage" className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+        <h3 id="ledger-retainage" className="text-base font-semibold mb-3">
+          Retainage ledger
+        </h3>
+        {retainageLedger.length === 0 ? (
+          <p className="text-sm text-slate-400">No retainage held yet. Each sub payout withholds {agreement.retainagePercent}%.</p>
+        ) : (
+          <table className="w-full text-sm" data-testid="retainage-ledger-table">
+            <thead className="text-xs text-slate-400 text-left">
+              <tr>
+                <th className="py-2 pr-3 font-medium">Date</th>
+                <th className="py-2 pr-3 font-medium">Reason</th>
+                <th className="py-2 pr-3 font-medium text-right">Change</th>
+              </tr>
+            </thead>
+            <tbody>
+              {retainageLedger.map((r) => (
+                <tr key={r._id} className="border-t border-slate-800" data-testid="retainage-row">
+                  <td className="py-2 pr-3 text-slate-400">{formatDate(r.createdAt)}</td>
+                  <td className="py-2 pr-3">{r.reason}</td>
+                  <td className={`py-2 pr-3 text-right tabular-nums ${r.deltaCents < 0 ? "text-rose-300" : ""}`}>
+                    {r.deltaCents > 0 ? "+" : ""}
+                    {formatCents(r.deltaCents)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t border-slate-700 font-semibold">
+                <td className="py-2 pr-3" colSpan={2}>
+                  Retainage held
+                </td>
+                <td className="py-2 pr-3 text-right tabular-nums" data-testid="retainage-ledger-balance">
+                  {formatCents(totals.retainageHeldCents)}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
         )}
       </section>
     </div>
