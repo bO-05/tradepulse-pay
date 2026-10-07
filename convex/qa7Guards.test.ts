@@ -8,6 +8,7 @@ import { convexTest } from "convex-test";
 import { expect, test } from "vitest";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
+import { asGc, type GcTest } from "./lib/testIdentity";
 import {
   sanitizeBidLevelingOutput,
   applyExplicitExclusionAmounts,
@@ -21,7 +22,7 @@ import {
 } from "./llmRouter";
 
 const modules = import.meta.glob("./**/*.ts");
-type T = ReturnType<typeof convexTest>;
+type T = GcTest;
 
 async function makeProject(t: T, title: string) {
   return await t.mutation(api.projects.createProject, {
@@ -97,7 +98,7 @@ async function rawByPackage(t: T, table: any, packageId: any) {
 
 // ---------------------------------------------------------------- Item 1
 test("QA7-1: createTradePackage rejects a nonexistent projectId and inserts nothing", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await makeProject(t, "QA7 Item1 Project");
   await t.run(async (ctx) => await ctx.db.delete(projectId));
   await expect(
@@ -117,7 +118,7 @@ test("QA7-1: createTradePackage rejects a nonexistent projectId and inserts noth
 
 // ---------------------------------------------------------------- Item 2
 test("QA7-2a: deleteContractor refuses a contractor with a proposal and preserves bid + conversation", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await makeProject(t, "QA7 Item2a Project");
   const packageId = await makePackage(t, projectId);
   const contractorId = await makeContractor(t, packageId, "QA7 Bidder");
@@ -134,7 +135,7 @@ test("QA7-2a: deleteContractor refuses a contractor with a proposal and preserve
 });
 
 test("QA7-2b: deleteContractor refuses an executed subcontract and preserves bid + agreement + conversation", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await makeProject(t, "QA7 Item2b Project");
   const packageId = await makePackage(t, projectId);
   const contractorId = await makeContractor(t, packageId, "QA7 Executed");
@@ -154,7 +155,7 @@ test("QA7-2b: deleteContractor refuses an executed subcontract and preserves bid
 });
 
 test("QA7-2c: deleteContractor succeeds when no bids exist and cascades its conversations only", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await makeProject(t, "QA7 Item2c Project");
   const packageId = await makePackage(t, projectId);
   const cleanId = await makeContractor(t, packageId, "QA7 Clean");
@@ -175,7 +176,7 @@ test("QA7-2c: deleteContractor succeeds when no bids exist and cascades its conv
 
 // ---------------------------------------------------------------- Item 3
 test("QA7-3a: deleteTradePackage refuses an executed subcontract and preserves children", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await makeProject(t, "QA7 Item3a Project");
   const packageId = await makePackage(t, projectId);
   const contractorId = await makeContractor(t, packageId, "QA7 Package Guard");
@@ -194,7 +195,7 @@ test("QA7-3a: deleteTradePackage refuses an executed subcontract and preserves c
 });
 
 test("QA7-3b: deleteTradePackage cascades bids/agreements/contractors/conversations when no executed contract", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await makeProject(t, "QA7 Item3b Project");
   const packageId = await makePackage(t, projectId);
   const contractorId = await makeContractor(t, packageId, "QA7 Cascade");
@@ -214,7 +215,7 @@ test("QA7-3b: deleteTradePackage cascades bids/agreements/contractors/conversati
 
 // ---------------------------------------------------------------- Item 4
 test("QA7-4: executed agreement cannot be superseded; same-bid regeneration rejects with immutability", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await makeProject(t, "QA7 Item4 Project");
   const packageId = await makePackage(t, projectId);
   const firstContractor = await makeContractor(t, packageId, "QA7 Winner");
@@ -253,7 +254,7 @@ test("QA7-4: executed agreement cannot be superseded; same-bid regeneration reje
 
 // ---------------------------------------------------------------- Item 6
 test("QA7-6: deadline monitor leaves zero-bid packages open, advances bid packages, and flags once", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await makeProject(t, "QA7 Item6 Project");
   const emptyPackage = await makePackage(t, projectId, "26 00 00");
   const bidPackage = await makePackage(t, projectId, "23 00 00");
@@ -295,7 +296,7 @@ test("QA7-6: deadline monitor leaves zero-bid packages open, advances bid packag
 
 // ---------------------------------------------------------------- Item 7
 test("QA7-7: deleteProject removes clashResolutions and every project child", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await makeProject(t, "QA7 Item7 Project");
   const packageId = await makePackage(t, projectId);
   const contractorId = await makeContractor(t, packageId, "QA7 Clash");
@@ -344,7 +345,7 @@ test("QA7-7: deleteProject removes clashResolutions and every project child", as
 
 // ---------------------------------------------------------------- Item 8
 test("QA7-8: updateBidAdjustments validates inputs, rejects negatives, and recomputes exactly", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await makeProject(t, "QA7 Item8 Project");
   const packageId = await makePackage(t, projectId);
   const contractorId = await makeContractor(t, packageId, "QA7 Adjust");
@@ -397,7 +398,7 @@ test("QA7-8: updateBidAdjustments validates inputs, rejects negatives, and recom
 
 // ------------------------------------------------- A6-05r / A6-54 (critical)
 test("A6-05r: insertParsedBid derives the schedule penalty from weeks + division baseline and ignores any supplied dollar amount", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await makeProject(t, "A6 LeadTime Project");
   const packageId = await makePackage(t, projectId, "22 00 00", 3_000_000);
   const contractorId = await makeContractor(t, packageId, "A6 Plumbing Bidder");
@@ -492,7 +493,7 @@ test("A6-54 class: stated exclusion amounts win over ASPE/RSMeans benchmarks", (
 });
 
 test("A7CONV-A-01: an included booster pump is not priced as an exclusion just because 'excluded' appears elsewhere", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const res: any = await t.action(internal.llmRouter.executeReasoning, {
     taskType: "bid_leveling",
     division: "22 00 00",
@@ -516,7 +517,7 @@ test("A7CONV-A-01: an included booster pump is not priced as an exclusion just b
 });
 
 test("A7CONV-R2A-N2: a compound INCLUDED/excluded sentence never prices the included scope", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const res: any = await t.action(internal.llmRouter.executeReasoning, {
     taskType: "bid_leveling",
     division: "22 00 00",
@@ -534,7 +535,7 @@ test("A7CONV-R2A-N2: a compound INCLUDED/excluded sentence never prices the incl
 });
 
 test("A7CONV-R2C-F1: VE credit lines are alternates, not exclusions; inline exclusion lists keep every clause", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const res: any = await t.action(internal.llmRouter.executeReasoning, {
     taskType: "bid_leveling",
     division: "22 00 00",
@@ -559,7 +560,7 @@ test("A7CONV-R2C-F1: VE credit lines are alternates, not exclusions; inline excl
 });
 
 test("A7CONV-R2C-F2: a negative stated base bid is never sign-flipped into a positive amount", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const res: any = await t.action(internal.llmRouter.executeReasoning, {
     taskType: "bid_leveling",
     division: "22 00 00",
@@ -575,7 +576,7 @@ test("A7CONV-R2C-F2: a negative stated base bid is never sign-flipped into a pos
 });
 
 test("A7CONV-R2C-F3: the addendum certification gate holds server-side with zero certified RFIs", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await makeProject(t, "A7 Addendum Gate Project");
   await expect(
     t.action(api.files.generatePreBidAddendum, { projectId })
@@ -583,7 +584,7 @@ test("A7CONV-R2C-F3: the addendum certification gate holds server-side with zero
 });
 
 test("A7CONV-R3C-1: a currency-word base amount is used; an insurance limit never becomes the base bid", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const res: any = await t.action(internal.llmRouter.executeReasoning, {
     taskType: "bid_leveling",
     division: "26 00 00",
@@ -601,7 +602,7 @@ test("A7CONV-R3C-1: a currency-word base amount is used; an insurance limit neve
 });
 
 test("A7CONV-R3C-2/3/4/5: inclusion-negatives are not exclusions; plugs are not double-charged; omitted/not-by-us clauses are kept", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const noExclusions: any = await t.action(internal.llmRouter.executeReasoning, {
     taskType: "bid_leveling",
     division: "22 00 00",
@@ -685,7 +686,7 @@ test("A7CONV-R20A: the scope named first in the text wins over later modifiers",
 });
 
 test("A7CONV-R19B: updateBidAdjustments accepts and preserves canonicalCode on exclusion rows", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await makeProject(t, "A7 Adjustments CanonicalCode Project");
   const packageId = await makePackage(t, projectId, "26 00 00", 1_250_000);
   const contractorId = await makeContractor(t, packageId, "A7 Adjustment Bidder");
@@ -709,7 +710,7 @@ test("A7CONV-R19B: updateBidAdjustments accepts and preserves canonicalCode on e
 });
 
 test("A7CONV-R3C-6: inferred canonical codes never cross the package division", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const res: any = await t.action(internal.llmRouter.executeReasoning, {
     taskType: "bid_leveling",
     division: "23 00 00",
@@ -1051,7 +1052,7 @@ test("A7CONV-R12B: base/retainage amounts never bind as exclusions; scope collis
 });
 
 test("A7CONV-R5C-1/2: next-line amounts bind to the bulleted exclusion and subrogation is a COI deficiency", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const res: any = await t.action(internal.llmRouter.executeReasoning, {
     taskType: "bid_leveling",
     division: "26 00 00",

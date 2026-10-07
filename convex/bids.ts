@@ -1,4 +1,5 @@
 import { query, mutation, internalMutation } from "./_generated/server";
+import { requireRole } from "./lib/roles";
 import { v, ConvexError } from "convex/values";
 import { syncAgreementForBid } from "./agreements";
 import { validateNonNegativeAmount, validatePositiveAmount, validateProjectText } from "./validation";
@@ -117,6 +118,7 @@ export const awardContract = mutation({
     tradePackageId: v.id("tradePackages"),
   },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc"]);
     const awardedBid = await ctx.db.get(args.bidId);
     if (!awardedBid) throw new Error("Bid not found");
     if (awardedBid.tradePackageId !== args.tradePackageId) {
@@ -197,6 +199,7 @@ export const unawardContract = mutation({
     tradePackageId: v.id("tradePackages"),
   },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc"]);
     const bid = await ctx.db.get(args.bidId);
     if (!bid) throw new Error("Bid not found");
     if (bid.tradePackageId !== args.tradePackageId) {

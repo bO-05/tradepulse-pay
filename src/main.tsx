@@ -1,7 +1,9 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { ConvexProvider, ConvexReactClient } from "convex/react";
+import { ConvexAuthProvider } from "@convex-dev/auth/react";
+import { ConvexReactClient } from "convex/react";
 import App from "./App.tsx";
+import { AuthGate } from "./auth/AuthGate";
 import "./index.css";
 
 function getConvexUrl(): string {
@@ -15,8 +17,8 @@ const convex = new ConvexReactClient(getConvexUrl());
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <ConvexProvider client={convex}>
-      <App />
-    </ConvexProvider>
+    <ConvexAuthProvider client={convex}>
+      <AuthGate procurementApp={<App />} />
+    </ConvexAuthProvider>
   </React.StrictMode>
 );

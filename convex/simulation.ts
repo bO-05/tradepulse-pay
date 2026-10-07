@@ -1,4 +1,5 @@
 import { mutation, internalMutation, internalQuery } from "./_generated/server";
+import { requireRole } from "./lib/roles";
 import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { generateAiaA401AgreementText, getStateAbbreviation } from "./agreements";
@@ -21,6 +22,7 @@ export const triggerJudgeSimulation = mutation({
     ),
   },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc"]);
     const tradePkg = await ctx.db.get(args.tradePackageId);
     if (!tradePkg) throw new Error("Trade package not found");
 
@@ -404,6 +406,7 @@ export const runFullProcurementCycle = mutation({
     tradePackageId: v.optional(v.id("tradePackages")),
   },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc"]);
     const project = await ctx.db.get(args.projectId);
     if (!project) throw new Error("Project not found");
 

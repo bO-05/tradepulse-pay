@@ -112,6 +112,33 @@ rendering the arithmetic on the leveling card. The model never returns a dollar 
 
 ---
 
+## 🔐 Sign-in and Demo Accounts (TradePulse Pay)
+
+TradePulse Pay requires sign-in (Convex Auth, email + password). Signed-out visitors only see the sign-in page; `/llms.txt` and `/api/health` stay public. Self sign-up is disabled: accounts come from the demo seed.
+
+All demo accounts share the public demo password **`TradePulseDemo!2026`**.
+
+| Account | Role | What it sees |
+|---|---|---|
+| `gc@demo.tradepulse` | General contractor | Everything: procurement (award, execute, reset, 1-click demo) and the projects overview |
+| `sub1@demo.tradepulse` | Subcontractor | Only Rosendin Electric's agreements and pay applications |
+| `sub2@demo.tradepulse` | Subcontractor | Only TDIndustries' agreements and pay applications |
+| `sub3@demo.tradepulse` | Subcontractor | Only Clarke Kent Plumbing's agreements and pay applications |
+| `owner@demo.tradepulse` | Owner | Read-only projects, agreements and change-order invoices; no award, approve or fund controls |
+
+Sub and owner PayPal sandbox emails are read from the Convex environment (`PAYPAL_SANDBOX_SUB{1,2,3}_EMAIL`, `PAYPAL_SANDBOX_OWNER_EMAIL`) when the seed runs; they are not stored in this repository.
+
+Setup on a Convex deployment (idempotent; prints names only, never values):
+
+```bash
+bash scripts/sync-convex-env.sh            # app env, including SITE_URL
+bash scripts/setup-convex-auth-keys.sh     # JWT_PRIVATE_KEY + JWKS (skips if already set)
+npx convex dev --once                      # push functions
+npx convex run demoAccounts:seedDemo '{}'  # demo project (if missing) + demo accounts + role profiles
+```
+
+---
+
 ## ⚡ 60-Second Judge Evaluation Walkthrough
 
 Want to experience the complete platform in 60 seconds?

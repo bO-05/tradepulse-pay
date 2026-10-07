@@ -3,11 +3,12 @@ import { convexTest } from "convex-test";
 import { expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
+import { asGc, type GcTest } from "./lib/testIdentity";
 import { validateBidDeadline } from "./validation";
 
 const modules = import.meta.glob("./**/*.ts");
 
-async function createProject(t: ReturnType<typeof convexTest>, title = "Regression Project") {
+async function createProject(t: GcTest, title = "Regression Project") {
   return await t.mutation(api.projects.createProject, {
     title,
     location: "Austin, TX",
@@ -19,7 +20,7 @@ async function createProject(t: ReturnType<typeof convexTest>, title = "Regressi
   });
 }
 
-async function createPackage(t: ReturnType<typeof convexTest>, projectId: any) {
+async function createPackage(t: GcTest, projectId: any) {
   return await t.mutation(api.tradePackages.createTradePackage, {
     projectId,
     csiDivision: "26 00 00",
@@ -31,7 +32,7 @@ async function createPackage(t: ReturnType<typeof convexTest>, projectId: any) {
   });
 }
 
-async function createContractor(t: ReturnType<typeof convexTest>, tradePackageId: any) {
+async function createContractor(t: GcTest, tradePackageId: any) {
   return await t.mutation(api.contractors.createContractor, {
     tradePackageId,
     companyName: "Regression Electric LLC",
@@ -45,14 +46,14 @@ async function createContractor(t: ReturnType<typeof convexTest>, tradePackageId
 }
 
 test("F1: created project persists in listProjects", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "F1 Persistence Project");
   const projects = await t.query(api.projects.listProjects, {});
   expect(projects.some((p) => p._id === projectId && p.title === "F1 Persistence Project")).toBe(true);
 });
 
 test("F3/F4: saveFileRecord accepts real storage ids and persists records", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "F4 Upload Project");
   const storageId = await t.run(async (ctx) =>
     await ctx.storage.store(new Blob(["spec body for regression"], { type: "text/plain" }))
@@ -72,7 +73,7 @@ test("F3/F4: saveFileRecord accepts real storage ids and persists records", asyn
 });
 
 test("F3/A7CONV-R2C-F3: addendum requires at least one PM-certified RFI; zero certified is refused server-side", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "F3 Addendum Project");
   // A7CONV-R2C-F3: zero certified RFIs must be refused by the action itself,
   // not only by the disabled UI button.
@@ -104,7 +105,7 @@ test("F3/A7CONV-R2C-F3: addendum requires at least one PM-certified RFI; zero ce
 });
 
 test("F9: invalid CSI divisions are rejected and valid ones accepted", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "F9 CSI Project");
   await expect(
     t.mutation(api.tradePackages.createTradePackage, {
@@ -122,7 +123,7 @@ test("F9: invalid CSI divisions are rejected and valid ones accepted", async () 
 });
 
 test("F9: implausible bid amounts are rejected; revisions increment", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "Bid Floor Project");
   const packageId = await createPackage(t, projectId);
   const contractorId = await createContractor(t, packageId);
@@ -165,7 +166,7 @@ test("F9: implausible bid amounts are rejected; revisions increment", async () =
 });
 
 test("F5: executed agreements block bid changes", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "Executed Agreement Project");
   const packageId = await createPackage(t, projectId);
   const contractorId = await createContractor(t, packageId);
@@ -216,7 +217,7 @@ test("F5: executed agreements block bid changes", async () => {
 });
 
 test("Clash guard: projects without both trade packages return no clashes", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "Clash Guard Project");
   const empty = await t.query(api.coordination.detectCrossTradeClashes, { projectId });
   expect(empty.doubleBuys).toEqual([]);
@@ -225,7 +226,7 @@ test("Clash guard: projects without both trade packages return no clashes", asyn
 });
 
 test("Clash guard: both packages but zero bids return no clashes (no priced evidence)", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "Zero Bid Clash Project");
   await createPackage(t, projectId);
   const hvacId = await t.mutation(api.tradePackages.createTradePackage, {
@@ -245,7 +246,7 @@ test("Clash guard: both packages but zero bids return no clashes (no priced evid
 });
 
 test("B1/A24-01: clash credit is persisted as a resolution once both trades are priced", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "Clash Resolution Project");
   const packageId = await createPackage(t, projectId);
   // A24-01: credits require priced evidence on both sides.
@@ -300,7 +301,7 @@ test("B1/A24-01: clash credit is persisted as a resolution once both trades are 
 });
 
 test("Guest RFI: submission without a contractor id succeeds (no v.id failure)", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "Guest RFI Project");
   const packageId = await createPackage(t, projectId);
   const result = await t.mutation(api.simulation.submitCustomRfi, {
@@ -312,7 +313,7 @@ test("Guest RFI: submission without a contractor id succeeds (no v.id failure)",
 });
 
 test("RFQ dispatch with zero discovered contractors is rejected and leaves the package undispached", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "Zero Recipient RFQ Project");
   const packageId = await createPackage(t, projectId);
 
@@ -328,7 +329,7 @@ test("RFQ dispatch with zero discovered contractors is rejected and leaves the p
 });
 
 test("RFQ dispatch with discovered contractors marks them invited", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "Recipient RFQ Project");
   const packageId = await createPackage(t, projectId);
   const contractorId = await createContractor(t, packageId);
@@ -358,7 +359,7 @@ function withoutProviderKeys<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 test("F1: submitted RFI is persisted as pending_analysis before any LLM work", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "F1 Durability Project");
   const packageId = await createPackage(t, projectId);
 
@@ -383,7 +384,7 @@ test("F1: submitted RFI is persisted as pending_analysis before any LLM work", a
 });
 
 test("F1: a failed analysis keeps the RFI text and records failed_analysis + error", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "F1 Failure Project");
   const packageId = await createPackage(t, projectId);
   const contractorId = await createContractor(t, packageId);
@@ -425,7 +426,7 @@ test("F1: a failed analysis keeps the RFI text and records failed_analysis + err
 });
 
 test("F1: retry re-queues a failed RFI without losing the text and completes it", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "F1 Retry Project");
   const packageId = await createPackage(t, projectId);
   const contractorId = await createContractor(t, packageId);
@@ -461,7 +462,7 @@ test("F1: retry re-queues a failed RFI without losing the text and completes it"
 });
 
 test("F1: retry refuses to re-run an already answered RFI", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "F1 Answered Project");
   const packageId = await createPackage(t, projectId);
   const contractorId = await createContractor(t, packageId);
@@ -483,7 +484,7 @@ test("F1: retry refuses to re-run an already answered RFI", async () => {
 });
 
 test("F6: an RFI targeting another package is stored on that package, not the active one", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "F6 Routing Project");
   const electricalId = await createPackage(t, projectId);
   const plumbingId = await t.mutation(api.tradePackages.createTradePackage, {
@@ -524,7 +525,7 @@ test("F6: an RFI targeting another package is stored on that package, not the ac
   expect(guestContractors[0].companyName).toContain("Guest");
 });
 
-async function seedAwardedExecuted(t: ReturnType<typeof convexTest>, title: string) {
+async function seedAwardedExecuted(t: GcTest, title: string) {
   const projectId = await createProject(t, title);
   const packageId = await createPackage(t, projectId);
   const contractorId = await createContractor(t, packageId);
@@ -541,7 +542,7 @@ async function seedAwardedExecuted(t: ReturnType<typeof convexTest>, title: stri
 }
 
 test("A1-02: awarding a different bid cannot silently supersede an executed subcontract", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const { packageId } = await seedAwardedExecuted(t, "Executed Guard Project");
   const secondContractor = await t.mutation(api.contractors.createContractor, {
     tradePackageId: packageId,
@@ -576,7 +577,7 @@ test("A1-02: awarding a different bid cannot silently supersede an executed subc
 });
 
 test("A1-03/A3-03: deleting a contractor with bids or an executed subcontract is refused", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const { contractorId } = await seedAwardedExecuted(t, "Contractor Guard Project");
 
   await expect(t.mutation(api.contractors.deleteContractor, { contractorId })).rejects.toThrow(
@@ -589,7 +590,7 @@ test("A1-03/A3-03: deleting a contractor with bids or an executed subcontract is
 });
 
 test("A3-01: creating a trade package requires an existing project", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "Orphan Guard Project");
   await t.run(async (ctx) => {
     await ctx.db.delete(projectId);
@@ -608,7 +609,7 @@ test("A3-01: creating a trade package requires an existing project", async () =>
 });
 
 test("A3-03: deleting a package with an executed subcontract is refused", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const { packageId } = await seedAwardedExecuted(t, "Package Delete Guard");
   await expect(t.mutation(api.tradePackages.deleteTradePackage, { tradePackageId: packageId })).rejects.toThrow(
     /executed subcontract/i
@@ -616,7 +617,7 @@ test("A3-03: deleting a package with an executed subcontract is refused", async 
 });
 
 test("A10-05/A10-06: long-lead and line-item bounds are enforced on every writer", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "Bounds Guard Project");
   const packageId = await createPackage(t, projectId);
   const contractorId = await createContractor(t, packageId);
@@ -647,7 +648,7 @@ test("A10-05/A10-06: long-lead and line-item bounds are enforced on every writer
 });
 
 test("A8-03/A10-04: a clash can only be credited once", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "Clash Guard Project");
   const packageId = await createPackage(t, projectId);
   const contractorId = await createContractor(t, packageId);
@@ -703,7 +704,7 @@ test("A8-03/A10-04: a clash can only be credited once", async () => {
 });
 
 test("A10-01/A10-02: full-cycle simulation and project delete refuse executed subcontracts", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const { projectId, packageId } = await seedAwardedExecuted(t, "Executed Simulation Guard");
 
   await expect(
@@ -719,7 +720,7 @@ test("A10-01/A10-02: full-cycle simulation and project delete refuse executed su
 });
 
 test("RFQ dispatch without contractors returns a readable error", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "Readable Dispatch Error");
   const packageId = await createPackage(t, projectId);
   await expect(t.mutation(api.rfq.dispatchRfqs, { tradePackageId: packageId })).rejects.toThrow(
@@ -728,7 +729,7 @@ test("RFQ dispatch without contractors returns a readable error", async () => {
 });
 
 test("A12-01: awarding cannot ride on a superseded agreement", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "Superseded Award Guard");
   const packageId = await createPackage(t, projectId);
   const contractorId = await createContractor(t, packageId);
@@ -752,7 +753,7 @@ test("A12-01: awarding cannot ride on a superseded agreement", async () => {
 });
 
 test("A12-02: a revision to an awarded bid keeps the active agreement in sync", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "Revision Sync Guard");
   const packageId = await createPackage(t, projectId);
   const contractorId = await createContractor(t, packageId);
@@ -782,7 +783,7 @@ test("A12-02: a revision to an awarded bid keeps the active agreement in sync", 
 });
 
 test("A12-03: a package cannot be marked awarded without award evidence", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "Status Evidence Guard");
   const packageId = await createPackage(t, projectId);
   await expect(
@@ -803,7 +804,7 @@ test("A12-03: a package cannot be marked awarded without award evidence", async 
 });
 
 test("A11-03: voiding an executed agreement reopens the package with an audit reason", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const { packageId, bidId, agreementId } = await seedAwardedExecuted(t, "Void Executed Guard");
   await expect(
     t.mutation(api.agreements.voidExecutedAgreement, { agreementId, reason: "short" })
@@ -823,7 +824,7 @@ test("A11-03: voiding an executed agreement reopens the package with an audit re
 });
 
 test("A12-08: reserved system labels and invisible characters are rejected for names", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "Name Guard");
   const packageId = await createPackage(t, projectId);
   await expect(
@@ -851,7 +852,7 @@ test("A12-08: reserved system labels and invisible characters are rejected for n
 });
 
 test("A14-02: a stale contractor edit is refused instead of clobbering a newer save", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "Concurrent Edit Guard");
   const packageId = await createPackage(t, projectId);
   const contractorId = await createContractor(t, packageId);
@@ -892,7 +893,7 @@ test("A14-01: a date-only bid deadline accepts the current UTC day", () => {
 });
 
 test("A21-01: cross-trade clashes and credits require priced evidence on both sides", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "Cross-Trade Evidence Guard");
   const elecId = await createPackage(t, projectId);
   const hvacId = await t.mutation(api.tradePackages.createTradePackage, {
@@ -948,7 +949,7 @@ test("A21-01: cross-trade clashes and credits require priced evidence on both si
 });
 
 test("A28-01/02/03/04: clash truth, manual-VE coverage, and credit bounds", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "Clash Truth Guard");
   const elecId = await createPackage(t, projectId);
   const hvacId = await t.mutation(api.tradePackages.createTradePackage, {
@@ -1118,7 +1119,7 @@ test("A28-01/02/03/04: clash truth, manual-VE coverage, and credit bounds", asyn
 });
 
 test("A36-01: reversal finds the carrier even when a sibling package id is passed", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "Reversal Package Guard");
   const elecId = await createPackage(t, projectId);
   const hvacId = await t.mutation(api.tradePackages.createTradePackage, {
@@ -1176,7 +1177,7 @@ test("A36-01: reversal finds the carrier even when a sibling package id is passe
 });
 
 test("A3-06: invalid COI status and negative exclusion impacts are rejected", async () => {
-  const t = convexTest(schema, modules);
+  const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "Adjustment Guard Project");
   const packageId = await createPackage(t, projectId);
   const contractorId = await createContractor(t, packageId);

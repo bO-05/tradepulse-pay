@@ -1,4 +1,5 @@
 import { mutation, query } from "./_generated/server";
+import { requireRole } from "./lib/roles";
 import { v, ConvexError } from "convex/values";
 import { DEFAULT_GENERAL_CONTRACTOR, validateProjectText } from "./validation";
 import { LIQUIDATED_DAMAGES_PER_DAY, RETAINAGE_PERCENT } from "./terms";
@@ -15,6 +16,7 @@ export const generateAgreement = mutation({
     tradePackageId: v.id("tradePackages"),
   },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc"]);
     // Check if an agreement already exists for this bid
     const existing = await ctx.db
       .query("agreements")
@@ -262,6 +264,7 @@ export const voidExecutedAgreement = mutation({
     reason: v.string(),
   },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc"]);
     const agreement = await ctx.db.get(args.agreementId);
     if (!agreement) throw new ConvexError("Agreement not found.");
     if (agreement.status !== "executed") {
@@ -327,6 +330,7 @@ export const listAgreements = query({
 export const executeAgreement = mutation({
   args: { agreementId: v.id("agreements") },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc"]);
     const agreement = await ctx.db.get(args.agreementId);
     if (!agreement) throw new Error("Agreement not found");
 

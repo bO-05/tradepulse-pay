@@ -3574,12 +3574,12 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-white">
-      {/* A6-18: public/shared-instance disclosure (auth is intentionally out of scope). */}
+      {/* A6-18: shared-instance disclosure; the demo accounts and their password are public (README). */}
       <div
         role="note"
         className="w-full bg-amber-950/90 border-b border-amber-800/70 text-amber-100 text-[11px] sm:text-xs px-4 py-1.5 text-center font-medium"
       >
-        Public shared demo — everything here is visible to anyone with this URL. Do not enter confidential or real bid data.
+        Shared demo — the demo accounts and their password are public, so anyone can see this data. Do not enter confidential or real bid data.
       </div>
 
       {/* Toast Notification */}

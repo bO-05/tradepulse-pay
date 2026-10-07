@@ -1,4 +1,6 @@
-import { query, mutation, internalQuery } from "./_generated/server";
+import { query, mutation, internalQuery, internalMutation, type MutationCtx } from "./_generated/server";
+import { requireRole } from "./lib/roles";
+import { linkDemoProfiles } from "./demoAccounts";
 import { v, ConvexError } from "convex/values";
 import { generateAiaA401AgreementText } from "./agreements";
 import { getRealDocumentPdfBytes } from "./realDocuments";
@@ -102,9 +104,8 @@ export const createProject = mutation({
  * Ensures rich, realistic commercial MEP data is seeded for demo & judge evaluation.
  * Fulfills the 60-Second Invariant: zero empty states, instant live view.
  */
-export const seedInitialData = mutation({
-  args: { force: v.optional(v.boolean()) },
-  handler: async (ctx, args) => {
+async function seedDemoProject(ctx: MutationCtx, args: { force?: boolean }) {
+  {
     const existing = await ctx.db
       .query("projects")
       .withIndex("by_demo", (q) => q.eq("isDemoProject", true))
@@ -974,12 +975,35 @@ Furnish and install 1600A main service switchboard, 480/277V step-down distribut
       hvacPackageId,
       plumbingPackageId,
     };
+  }
+}
+
+/** GC-only demo seed / reset (`force: true` wipes and reseeds the demo project). */
+export const seedInitialData = mutation({
+  args: { force: v.optional(v.boolean()) },
+  handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc"]);
+    const result = await seedDemoProject(ctx, args);
+    // Reseeding recreates contractors, so demo sub profiles must be relinked.
+    await linkDemoProfiles(ctx);
+    return result;
+  },
+});
+
+/** CLI / scheduler entry point for the same seed (no signed-in user). */
+export const seedInitialDataInternal = internalMutation({
+  args: { force: v.optional(v.boolean()) },
+  handler: async (ctx, args) => {
+    const result = await seedDemoProject(ctx, args);
+    await linkDemoProfiles(ctx);
+    return result;
   },
 });
 
 export const deleteProject = mutation({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc"]);
     const project = await ctx.db.get(args.projectId);
     if (!project) throw new Error("Project not found");
     if (project.isDemoProject) {

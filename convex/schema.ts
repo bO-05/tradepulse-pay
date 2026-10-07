@@ -478,7 +478,8 @@ export default defineSchema({
   })
     .index("by_bid", ["bidId"])
     .index("by_package", ["tradePackageId"])
-    .index("by_project", ["projectId"]),
+    .index("by_project", ["projectId"])
+    .index("by_contractorId", ["contractorId"]),
 
   // Convex File Storage (_storage) for drawings, specs, quote PDFs, and COIs
   projectFiles: defineTable({
