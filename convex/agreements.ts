@@ -3,6 +3,7 @@ import { requireRole } from "./lib/roles";
 import { v, ConvexError } from "convex/values";
 import { DEFAULT_GENERAL_CONTRACTOR, validateProjectText } from "./validation";
 import { LIQUIDATED_DAMAGES_PER_DAY, RETAINAGE_PERCENT } from "./terms";
+import { ensureSovAndMilestones } from "./payments/sov";
 
 /**
  * AIA Document A401™ - 2017 Standard Form of Agreement Between Contractor and Subcontractor.
@@ -338,6 +339,8 @@ export const executeAgreement = mutation({
       throw new ConvexError("Cannot execute a superseded agreement. Regenerate or re-award it first.");
     }
     if (agreement.status === "executed") {
+      // Backfills agreements executed before SOV generation existed; no-op otherwise.
+      await ensureSovAndMilestones(ctx, args.agreementId);
       return { success: true, agreementNumber: agreement.agreementNumber };
     }
 
@@ -345,6 +348,7 @@ export const executeAgreement = mutation({
       status: "executed",
       executedAt: Date.now(),
     });
+    await ensureSovAndMilestones(ctx, args.agreementId);
 
     await ctx.db.insert("auditLogs", {
       projectId: agreement.projectId,

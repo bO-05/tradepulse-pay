@@ -1,6 +1,8 @@
 import { useAuthActions } from "@convex-dev/auth/react";
 import type { ReactNode } from "react";
+import { AgreementLedgerView } from "../payments/AgreementLedgerView";
 import { AgreementSummaryView } from "../payments/AgreementSummaryView";
+import { PaymentsWorkspace } from "../payments/PaymentsWorkspace";
 import { OwnerPortal } from "../payments/OwnerPortal";
 import { SubPortal } from "../payments/SubPortal";
 import { NAV_BY_ROLE, resolveRoute, type Role } from "./navigation";
@@ -26,7 +28,11 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
   if (route.area === "procurement") content = procurementApp;
   else if (route.area === "sub-portal") content = <SubPortal />;
   else if (route.area === "owner-portal") content = <OwnerPortal />;
-  else content = <AgreementSummaryView agreementId={route.agreementId ?? ""} backHash={homeHash} />;
+  else if (route.area === "payments") content = <PaymentsWorkspace />;
+  else if (route.area === "ledger") {
+    const backHash = nav.find((item) => item.area === "payments")?.hash ?? homeHash;
+    content = <AgreementLedgerView agreementId={route.agreementId ?? ""} backHash={backHash} />;
+  } else content = <AgreementSummaryView agreementId={route.agreementId ?? ""} backHash={homeHash} />;
 
   const isLegacyFullPage = route.area === "procurement";
 
@@ -39,7 +45,7 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
         <span className="font-bold tracking-tight mr-2">TradePulse Pay</span>
         <ul className="flex flex-wrap items-center gap-1">
           {nav.map((item) => {
-            const active = route.area === item.area;
+            const active = route.area === item.area || (route.area === "ledger" && item.area === "payments");
             return (
               <li key={item.area}>
                 <a

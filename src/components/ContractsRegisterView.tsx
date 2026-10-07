@@ -17,6 +17,7 @@ import { Project, Agreement } from "../types.ts";
 import { ConfirmDialog } from "./ConfirmDialog.tsx";
 import { useDialogFocus, useEscapeToClose } from "../lib/useDialogFocus.ts";
 import { printContractText } from "../lib/printContract.ts";
+import { formatCents, fromDollars } from "../../convex/lib/money";
 
 interface ContractsRegisterViewProps {
   currentProject: Project | null;
@@ -281,7 +282,7 @@ const handlePrint = (agr: Agreement) => {
                     </td>
 
                     <td className="px-4 py-3.5 font-mono font-bold text-white text-sm">
-                      ${agr.contractSum.toLocaleString("en-US")}
+                      {formatCents(fromDollars(agr.contractSum))}
                     </td>
 
                     <td className="px-4 py-3.5 text-slate-400 font-mono text-[11px]">
@@ -447,7 +448,7 @@ const handlePrint = (agr: Agreement) => {
                   <div>
                     <span className="text-slate-400 block text-[10px] uppercase">Subcontract Sum</span>
                     <span className="font-bold text-emerald-400 text-sm font-mono">
-                      ${selectedAgreement.contractSum.toLocaleString("en-US")}
+                      {formatCents(fromDollars(selectedAgreement.contractSum))}
                     </span>
                   </div>
                   <div>

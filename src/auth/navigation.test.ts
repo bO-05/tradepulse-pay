@@ -1,10 +1,10 @@
 import { describe, expect, test } from "vitest";
-import { agreementHash, NAV_BY_ROLE, parseHash, resolveRoute, signInErrorMessage } from "./navigation";
+import { agreementHash, ledgerHash, NAV_BY_ROLE, parseHash, resolveRoute, signInErrorMessage } from "./navigation";
 
 describe("role navigation", () => {
-  test("GC gets procurement plus the read-only overview; sub and owner never get procurement", () => {
-    expect(NAV_BY_ROLE.gc.map((i) => i.area)).toEqual(["procurement", "owner-portal"]);
-    expect(NAV_BY_ROLE.sub.map((i) => i.area)).toEqual(["sub-portal"]);
+  test("GC gets procurement, payments and the read-only overview; sub and owner never get procurement", () => {
+    expect(NAV_BY_ROLE.gc.map((i) => i.area)).toEqual(["procurement", "payments", "owner-portal"]);
+    expect(NAV_BY_ROLE.sub.map((i) => i.area)).toEqual(["sub-portal", "payments"]);
     expect(NAV_BY_ROLE.owner.map((i) => i.area)).toEqual(["owner-portal"]);
   });
 
@@ -21,6 +21,14 @@ describe("role navigation", () => {
     const hash = agreementHash("k97abc");
     expect(parseHash(hash)).toEqual({ area: "agreement", agreementId: "k97abc" });
     expect(resolveRoute("sub", hash)).toEqual({ area: "agreement", agreementId: "k97abc" });
+  });
+
+  test("payments workspace and ledger deep links", () => {
+    expect(resolveRoute("gc", "#/payments")).toEqual({ area: "payments" });
+    expect(resolveRoute("owner", "#/payments")).toEqual({ area: "owner-portal" });
+    const hash = ledgerHash("k97abc");
+    expect(hash).toBe("#/payments/k97abc");
+    expect(resolveRoute("sub", hash)).toEqual({ area: "ledger", agreementId: "k97abc" });
   });
 });
 

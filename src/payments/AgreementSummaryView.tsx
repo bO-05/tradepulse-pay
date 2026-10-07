@@ -1,5 +1,6 @@
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import { ledgerHash } from "../auth/navigation";
 import { formatDate, formatDollars } from "./format";
 
 export function AgreementSummaryView({ agreementId, backHash }: { agreementId: string; backHash: string }) {
@@ -51,9 +52,14 @@ export function AgreementSummaryView({ agreementId, backHash }: { agreementId: s
           <dd className="font-semibold">{formatDate(agreement.executedAt)}</dd>
         </div>
       </dl>
-      <a href={backHash} className="inline-block text-sm text-emerald-400 hover:text-emerald-300">
-        Back
-      </a>
+      <div className="flex gap-4">
+        <a href={ledgerHash(agreement._id)} className="inline-block text-sm text-emerald-400 hover:text-emerald-300">
+          Open payment ledger
+        </a>
+        <a href={backHash} className="inline-block text-sm text-emerald-400 hover:text-emerald-300">
+          Back
+        </a>
+      </div>
     </div>
   );
 }

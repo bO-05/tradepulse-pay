@@ -1,13 +1,14 @@
 export type Role = "gc" | "sub" | "owner";
 
-export type AreaId = "procurement" | "sub-portal" | "owner-portal" | "agreement";
+export type AreaId = "procurement" | "payments" | "sub-portal" | "owner-portal" | "agreement" | "ledger";
 
-export type NavItem = { area: Exclude<AreaId, "agreement">; label: string; hash: string };
+export type NavItem = { area: Exclude<AreaId, "agreement" | "ledger">; label: string; hash: string };
 
 export type Route = { area: AreaId; agreementId?: string };
 
 const AREA_HASH: Record<NavItem["area"], string> = {
   procurement: "#/procurement",
+  payments: "#/payments",
   "sub-portal": "#/portal",
   "owner-portal": "#/projects",
 };
@@ -19,9 +20,13 @@ const AREA_HASH: Record<NavItem["area"], string> = {
 export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
   gc: [
     { area: "procurement", label: "Procurement", hash: AREA_HASH.procurement },
+    { area: "payments", label: "Payments", hash: AREA_HASH.payments },
     { area: "owner-portal", label: "Projects overview", hash: AREA_HASH["owner-portal"] },
   ],
-  sub: [{ area: "sub-portal", label: "My agreements & pay applications", hash: AREA_HASH["sub-portal"] }],
+  sub: [
+    { area: "sub-portal", label: "My agreements & pay applications", hash: AREA_HASH["sub-portal"] },
+    { area: "payments", label: "Payments", hash: AREA_HASH.payments },
+  ],
   owner: [{ area: "owner-portal", label: "Projects & change orders", hash: AREA_HASH["owner-portal"] }],
 };
 
@@ -29,10 +34,16 @@ export function agreementHash(agreementId: string): string {
   return `#/agreements/${encodeURIComponent(agreementId)}`;
 }
 
+export function ledgerHash(agreementId: string): string {
+  return `#/payments/${encodeURIComponent(agreementId)}`;
+}
+
 export function parseHash(hash: string): Route | null {
   const path = hash.replace(/^#/, "");
   const agreementMatch = path.match(/^\/agreements\/([^/?#]+)$/);
   if (agreementMatch) return { area: "agreement", agreementId: decodeURIComponent(agreementMatch[1]) };
+  const ledgerMatch = path.match(/^\/payments\/([^/?#]+)$/);
+  if (ledgerMatch) return { area: "ledger", agreementId: decodeURIComponent(ledgerMatch[1]) };
   for (const [area, h] of Object.entries(AREA_HASH)) {
     if (h === `#${path}`) return { area: area as NavItem["area"] };
   }
@@ -43,7 +54,7 @@ export function parseHash(hash: string): Route | null {
 export function resolveRoute(role: Role, hash: string): Route {
   const nav = NAV_BY_ROLE[role];
   const parsed = parseHash(hash);
-  if (parsed?.area === "agreement") return parsed;
+  if (parsed?.area === "agreement" || parsed?.area === "ledger") return parsed;
   if (parsed && nav.some((item) => item.area === parsed.area)) return parsed;
   return { area: nav[0].area };
 }
