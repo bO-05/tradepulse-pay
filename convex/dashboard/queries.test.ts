@@ -277,6 +277,109 @@ describe("dashboard data", () => {
     expect(row.totals.retainageReleasedCents).toBe(ledger.totals.retainageReleasedCents);
     expect(data.totals.retainageReleasedCents).toBe(sum((r) => r.releasedCents) + otherReleased(data, agreement._id));
   });
+
+  for (const status of ["paid", "invoiced"] as const) {
+    const label = status === "paid" ? "a paid change-order invoice" : "an invoiced but unpaid change order";
+    test(`voiding an agreement whose only money is ${label} keeps it in dashboard and pay summary`, async () => {
+      const t = convexTest(schema, modules);
+      await t.mutation(internal.projects.seedInitialDataInternal, { force: false });
+      const gc = await signInAs(t, "gc", { email: "gc@test.tradepulse" });
+      const agreement = await t.run(async (ctx) => (await ctx.db.query("agreements").first())!);
+      await gc.as.mutation(api.agreements.executeAgreement, { agreementId: agreement._id });
+      const changeOrderId = await t.run(async (ctx) => {
+        const now = Date.now();
+        // A draft and a cancelled change order alone would not keep a voided agreement in.
+        await ctx.db.insert("changeOrders", {
+          agreementId: agreement._id,
+          number: 1,
+          description: "Never sent",
+          amountCents: 1_000,
+          status: "draft",
+          createdAt: now,
+        });
+        await ctx.db.insert("changeOrders", {
+          agreementId: agreement._id,
+          number: 2,
+          description: "Withdrawn",
+          amountCents: 2_000,
+          status: "cancelled",
+          createdAt: now,
+        });
+        return await ctx.db.insert("changeOrders", {
+          agreementId: agreement._id,
+          number: 3,
+          description: "Extra panel",
+          amountCents: 12_300,
+          status,
+          paypalInvoiceId: `INV2-CO-${status}`,
+          paypalInvoiceStatus: status === "paid" ? "PAID" : "SENT",
+          createdAt: now,
+          invoicedAt: now,
+          ...(status === "paid" ? { paidAt: now } : {}),
+        });
+      });
+      const before = await gc.as.query(api.dashboard.queries.getDashboardData, {});
+      await gc.as.mutation(api.agreements.voidExecutedAgreement, {
+        agreementId: agreement._id,
+        reason: "Executed against the wrong bid by mistake",
+      });
+
+      const after = await gc.as.query(api.dashboard.queries.getDashboardData, {});
+      const row = after.agreements.find((a) => a.agreementId === agreement._id)!;
+      expect(row).toMatchObject({ status: "superseded" });
+      expect(after.payments.filter((p) => p.agreementId === agreement._id)).toHaveLength(0);
+      expect(after.payApps.filter((p) => p.agreementId === agreement._id)).toHaveLength(0);
+      expect(after.changeOrders.find((c) => c.changeOrderId === changeOrderId)).toMatchObject({
+        status,
+        amountCents: 12_300,
+      });
+      expect(after.changeOrders.filter((c) => c.agreementId === agreement._id)).toHaveLength(3);
+      expect(row.totals.changeOrdersPaidCents).toBe(status === "paid" ? 12_300 : 0);
+      expect(row.totals.changeOrdersInvoicedCents).toBe(status === "invoiced" ? 12_300 : 0);
+      expect(after.totals.changeOrdersPaidCents).toBe(before.totals.changeOrdersPaidCents);
+      expect(after.totals.changeOrdersInvoicedCents).toBe(before.totals.changeOrdersInvoicedCents);
+
+      const ledger = (await gc.as.query(api.payments.ledger.getAgreementLedger, { agreementId: agreement._id }))!;
+      expect(row.totals).toEqual(ledger.totals);
+      const others = after.agreements.filter((a) => a.agreementId !== agreement._id);
+      for (const key of ["changeOrdersPaidCents", "changeOrdersInvoicedCents", "paidCents", "balanceCents"] as const) {
+        expect(after.totals[key]).toBe(ledger.totals[key] + others.reduce((acc, a) => acc + a.totals[key], 0));
+      }
+
+      const summary = await gc.as.query(api.dashboard.payAgent.getPaySummary, {});
+      const summaryRow = summary.agreements.find((a) => a.agreementId === agreement._id)!;
+      expect(summaryRow).toMatchObject({ status: "superseded" });
+      expect(summaryRow.totalsCents).toEqual(ledger.totals);
+    });
+  }
+
+  test("a voided agreement with only draft or cancelled change orders drops out", async () => {
+    const t = convexTest(schema, modules);
+    await t.mutation(internal.projects.seedInitialDataInternal, { force: false });
+    const gc = await signInAs(t, "gc", { email: "gc@test.tradepulse" });
+    const agreement = await t.run(async (ctx) => (await ctx.db.query("agreements").first())!);
+    await gc.as.mutation(api.agreements.executeAgreement, { agreementId: agreement._id });
+    await t.run(async (ctx) => {
+      for (const [number, status] of [[1, "draft"], [2, "cancelled"]] as const) {
+        await ctx.db.insert("changeOrders", {
+          agreementId: agreement._id,
+          number,
+          description: "Not billed",
+          amountCents: 1_000,
+          status,
+          createdAt: Date.now(),
+        });
+      }
+    });
+    await gc.as.mutation(api.agreements.voidExecutedAgreement, {
+      agreementId: agreement._id,
+      reason: "Executed against the wrong bid by mistake",
+    });
+    const data = await gc.as.query(api.dashboard.queries.getDashboardData, {});
+    expect(data.agreements.some((a) => a.agreementId === agreement._id)).toBe(false);
+    const summary = await gc.as.query(api.dashboard.payAgent.getPaySummary, {});
+    expect(summary.agreements.some((a) => a.agreementId === agreement._id)).toBe(false);
+  });
 });
 
 function otherReleased(

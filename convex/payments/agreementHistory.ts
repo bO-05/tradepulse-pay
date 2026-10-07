@@ -158,5 +158,10 @@ function isBillingTooLarge(err: unknown): boolean {
 
 /** Whether an agreement carries money history that must stay in totals even after it is voided. */
 export function hasFinancialHistory(history: AgreementHistory, payAppCount: number): boolean {
-  return history.payments.length > 0 || history.retainage.length > 0 || payAppCount > 0;
+  return (
+    history.payments.length > 0 ||
+    history.retainage.length > 0 ||
+    payAppCount > 0 ||
+    history.changeOrders.some((co) => co.status !== "draft" && co.status !== "cancelled")
+  );
 }
