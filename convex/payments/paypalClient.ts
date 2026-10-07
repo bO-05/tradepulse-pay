@@ -383,7 +383,7 @@ export class PayPalClient {
 
   /**
    * Audit entries whose auditLogs write failed even after one retry. The PayPal results they describe are
-   * still valid; callers can persist these elsewhere (SDK calls have no result object to flag).
+   * still valid; callers can persist these elsewhere. Per-call flags: `auditRecorded` on request() and sdkWrite() results.
    */
   readonly unrecordedAudits: PayPalAuditEntry[] = [];
 
@@ -495,6 +495,42 @@ export class PayPalClient {
     return { status: response.status, data: body as T, requestId, debugId, ...(isWrite ? { auditRecorded } : {}) };
   }
 
+  /** Audit outcome of the last SDK write per PayPal-Request-Id, read back by sdkWrite(). */
+  private readonly sdkAuditByRequestId = new Map<string, boolean>();
+
+  /**
+   * Runs one Server SDK write under `paypalRequestId` and returns the SDK response unchanged together
+   * with whether its auditLogs entry was persisted. `call` must pass the given id as `paypalRequestId`.
+   * Readable PayPal errors (PAYPAL_ERROR / PAYPAL_NETWORK_ERROR) also carry `paypalRequestId` and `auditRecorded`.
+   * The write is never repeated because of an audit failure.
+   */
+  async sdkWrite<T>(
+    operation: string,
+    paypalRequestId: string,
+    call: (sdk: { orders: OrdersController; payments: PaymentsController }, paypalRequestId: string) => Promise<ApiResponse<T>>,
+  ): Promise<{ response: ApiResponse<T>; auditRecorded: boolean; paypalRequestId: string }> {
+    if (paypalRequestId.length === 0) {
+      throw new ConvexError({ code: "PAYPAL_CONFIG", message: `PayPal ${operation} needs a stable PayPal-Request-Id.` });
+    }
+    this.sdkAuditByRequestId.delete(paypalRequestId);
+    const take = (): boolean => {
+      const recorded = this.sdkAuditByRequestId.get(paypalRequestId) ?? false;
+      this.sdkAuditByRequestId.delete(paypalRequestId);
+      return recorded;
+    };
+    let response: ApiResponse<T>;
+    try {
+      response = await withPayPalErrors(operation, () => call(this.sdk(), paypalRequestId));
+    } catch (e) {
+      const recorded = take();
+      if (e instanceof ConvexError && (e.data as { code?: unknown } | undefined)?.code === "PAYPAL_ERROR") {
+        throw new ConvexError<PayPalErrorData>({ ...(e.data as PayPalErrorData), paypalRequestId, auditRecorded: recorded });
+      }
+      throw e;
+    }
+    return { response, auditRecorded: take(), paypalRequestId };
+  }
+
   /** Fetch used by the Server SDK: adds PayPal-Request-Id to writes that lack one, applies backoff and audits writes. */
   private sdkFetch: FetchLike = async (input, init) => {
     const original = new Request(input, init);
@@ -525,7 +561,7 @@ export class PayPalClient {
       throw e;
     }
     const parsed = parseJson(text);
-    await this.recordAudit({
+    const auditRecorded = await this.recordAudit({
       operation,
       method,
       path,
@@ -539,6 +575,7 @@ export class PayPalClient {
       outcome: response.ok ? "succeeded" : "failed",
       via: "sdk",
     });
+    if (requestId) this.sdkAuditByRequestId.set(requestId, auditRecorded);
     // The body was consumed above, so hand the SDK an equivalent response.
     return new Response(text.length > 0 ? text : null, { status: response.status, statusText: response.statusText, headers: response.headers });
   };

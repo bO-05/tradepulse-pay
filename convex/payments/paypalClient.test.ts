@@ -560,6 +560,64 @@ describe("audit persistence failures", () => {
       errSpy.mockRestore();
     }
   });
+
+  test("sdkWrite: a sink that always rejects returns the unchanged SDK result with auditRecorded false after one send", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const fake = fakePayPal({ responders: [() => json(201, { id: "ORDER-8", status: "COMPLETED" })] });
+      const { client, audits, auditCalls } = clientWithFlakyAudit(fake.fetchImpl, Infinity);
+      const out = await client.sdkWrite("paypal.orders.authorize", "fund_8_auth", (sdk, id) =>
+        sdk.orders.authorizeOrder({ id: "ORDER-8", paypalRequestId: id }),
+      );
+      expect(out.auditRecorded).toBe(false);
+      expect(out.paypalRequestId).toBe("fund_8_auth");
+      expect(out.response.statusCode).toBe(201);
+      expect(out.response.result).toMatchObject({ id: "ORDER-8", status: "COMPLETED" });
+      expect(fake.apiCalls).toHaveLength(1);
+      expect(fake.apiCalls[0].headers["paypal-request-id"]).toBe("fund_8_auth");
+      expect(audits).toHaveLength(0);
+      expect(auditCalls()).toBe(2);
+    } finally {
+      errSpy.mockRestore();
+    }
+  });
+
+  test("sdkWrite: a healthy sink reports auditRecorded true", async () => {
+    const fake = fakePayPal({ responders: [() => json(201, { id: "ORDER-9", status: "CREATED" })] });
+    const { client, audits } = clientWithFlakyAudit(fake.fetchImpl, 0);
+    const out = await client.sdkWrite("paypal.orders.create", "fund_9", (sdk, id) =>
+      sdk.orders.createOrder({ paypalRequestId: id, body: { intent: "AUTHORIZE" as never, purchaseUnits: [] } }),
+    );
+    expect(out.auditRecorded).toBe(true);
+    expect(out.response.result.id).toBe("ORDER-9");
+    expect(audits).toEqual([expect.objectContaining({ paypalRequestId: "fund_9", outcome: "succeeded", via: "sdk" })]);
+  });
+
+  test("sdkWrite: a 4xx carries the request id and auditRecorded on the readable error", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const fake = fakePayPal({
+        responders: [
+          () => json(422, { name: "UNPROCESSABLE_ENTITY", details: [{ issue: "INSTRUMENT_DECLINED", description: "Declined." }] }),
+        ],
+      });
+      const { client } = clientWithFlakyAudit(fake.fetchImpl, Infinity);
+      const err = await catchError(
+        client.sdkWrite("paypal.orders.authorize", "fund_10_auth", (sdk, id) => sdk.orders.authorizeOrder({ id: "O10", paypalRequestId: id })),
+      );
+      expect(err).toBeInstanceOf(ConvexError);
+      expect((err as ConvexError<PayPalErrorData>).data).toMatchObject({
+        code: "PAYPAL_ERROR",
+        status: 422,
+        issues: ["INSTRUMENT_DECLINED"],
+        paypalRequestId: "fund_10_auth",
+        auditRecorded: false,
+      });
+      expect(fake.apiCalls).toHaveLength(1);
+    } finally {
+      errSpy.mockRestore();
+    }
+  });
 });
 
 describe("indeterminate writes", () => {

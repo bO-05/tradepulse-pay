@@ -258,6 +258,8 @@ export default defineSchema({
     capturedCents: v.optional(v.number()),
     idempotencyKey: v.string(),
     error: v.optional(v.string()),
+    // False once any PayPal write for this payment succeeded but its auditLogs entry could not be stored.
+    auditRecorded: v.optional(v.boolean()),
     createdAt: v.number(),
     updatedAt: v.optional(v.number()),
   })

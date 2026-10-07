@@ -21,6 +21,20 @@ function ledgerAgreementSummary(a: Doc<"agreements">) {
   };
 }
 
+function fundingSummary(p: Doc<"payments"> | undefined) {
+  if (p === undefined) return null;
+  return {
+    paymentId: p._id,
+    status: p.status,
+    grossCents: p.grossCents,
+    paypalOrderId: p.paypalOrderId ?? null,
+    paypalAuthorizationId: p.paypalAuthorizationId ?? null,
+    authorizationExpiresAt: p.authorizationExpiresAt ?? null,
+    honorPeriodEndsAt: p.honorPeriodEndsAt ?? null,
+    error: p.error ?? null,
+  };
+}
+
 /** Payments workspace list: GC sees every live agreement, a sub only its own contractor's. */
 export const listLedgerAgreements = query({
   args: {},
@@ -79,8 +93,12 @@ export const getAgreementLedger = query({
       .take(1000);
 
     const summary = ledgerAgreementSummary(agreement);
+    // Latest funding attempt per milestone (payments come back in creation order).
+    const latestFunding = new Map<string, Doc<"payments">>();
+    for (const p of payments) if (p.kind === "funding" && p.milestoneId) latestFunding.set(p.milestoneId, p);
     return {
       agreement: summary,
+      canFund: viewer.role === "gc",
       sov: sov.map((line) => ({
         _id: line._id,
         lineNo: line.lineNo,
@@ -97,6 +115,7 @@ export const getAgreementLedger = query({
         plannedDate: m.plannedDate,
         amountCents: m.amountCents,
         status: m.status,
+        funding: fundingSummary(latestFunding.get(m._id)),
       })),
       totals: computeLedgerTotals({
         contractSumCents: summary.contractSumCents,

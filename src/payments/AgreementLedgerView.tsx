@@ -1,6 +1,8 @@
 import { useQuery } from "convex/react";
+import type { ReactNode } from "react";
 import { api } from "../../convex/_generated/api";
 import { formatCents, formatDate } from "./format";
+import { FundMilestoneControl, FundingProvider, FundingStatus } from "./FundMilestone";
 
 const TOTALS: { key: "contractSumCents" | "billedCents" | "paidCents" | "retainageHeldCents" | "balanceCents"; label: string }[] = [
   { key: "contractSumCents", label: "Contract sum" },
@@ -31,7 +33,7 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
     );
   }
 
-  const { agreement, sov, milestones, totals } = ledger;
+  const { agreement, sov, milestones, totals, canFund } = ledger;
 
   return (
     <div className="max-w-5xl space-y-6">
@@ -129,32 +131,46 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
               : "Milestones are created when the agreement is executed."}
           </p>
         ) : (
-          <table className="w-full text-sm" data-testid="ledger-milestones-table">
-            <thead className="text-xs text-slate-400 text-left">
-              <tr>
-                <th className="py-2 pr-3 font-medium">Milestone</th>
-                <th className="py-2 pr-3 font-medium">Planned date</th>
-                <th className="py-2 pr-3 font-medium">Status</th>
-                <th className="py-2 pr-3 font-medium text-right">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {milestones.map((m) => (
-                <tr key={m._id} className="border-t border-slate-800" data-testid="milestone-row">
-                  <td className="py-2 pr-3">{m.name}</td>
-                  <td className="py-2 pr-3">{formatDate(m.plannedDate, { utc: true })}</td>
-                  <td className="py-2 pr-3">
-                    <span className="text-xs rounded-full px-2 py-0.5 bg-slate-800 border border-slate-700">
-                      {m.status}
-                    </span>
-                  </td>
-                  <td className="py-2 pr-3 text-right tabular-nums">{formatCents(m.amountCents)}</td>
+          <MaybeFundingProvider enabled={canFund}>
+            <table className="w-full text-sm" data-testid="ledger-milestones-table">
+              <thead className="text-xs text-slate-400 text-left">
+                <tr>
+                  <th className="py-2 pr-3 font-medium">Milestone</th>
+                  <th className="py-2 pr-3 font-medium">Planned date</th>
+                  <th className="py-2 pr-3 font-medium">Status</th>
+                  <th className="py-2 pr-3 font-medium text-right">Amount</th>
+                  <th className="py-2 pl-3 font-medium">Funding</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {milestones.map((m) => (
+                  <tr key={m._id} className="border-t border-slate-800" data-testid="milestone-row">
+                    <td className="py-2 pr-3">{m.name}</td>
+                    <td className="py-2 pr-3">{formatDate(m.plannedDate, { utc: true })}</td>
+                    <td className="py-2 pr-3">
+                      <span
+                        className="text-xs rounded-full px-2 py-0.5 bg-slate-800 border border-slate-700"
+                        data-testid="milestone-status"
+                      >
+                        {m.status}
+                      </span>
+                    </td>
+                    <td className="py-2 pr-3 text-right tabular-nums">{formatCents(m.amountCents)}</td>
+                    <td className="py-2 pl-3 align-top space-y-1">
+                      <FundingStatus milestone={m} />
+                      {canFund && <FundMilestoneControl milestone={m} />}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </MaybeFundingProvider>
         )}
       </section>
     </div>
   );
+}
+
+function MaybeFundingProvider({ enabled, children }: { enabled: boolean; children: ReactNode }) {
+  return enabled ? <FundingProvider>{children}</FundingProvider> : <>{children}</>;
 }
