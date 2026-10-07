@@ -7,6 +7,7 @@ import { PaymentsWorkspace } from "../payments/PaymentsWorkspace";
 import { OwnerPortal } from "../payments/OwnerPortal";
 import { SubPortal } from "../payments/SubPortal";
 import { BillingAgentsView } from "./BillingAgentsView";
+import { JudgeDemoPage } from "../payments/judgeDemo/JudgeDemoPage";
 import { NAV_BY_ROLE, resolveRoute, type Role } from "./navigation";
 import { useHash } from "./useHash";
 
@@ -36,6 +37,7 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
   else if (route.area === "payments") content = <PaymentsWorkspace />;
   else if (route.area === "billing-agents") content = <BillingAgentsView />;
   else if (route.area === "inbox") content = <ApprovalInbox />;
+  else if (route.area === "judge-demo") content = <JudgeDemoPage />;
   else if (route.area === "dashboard")
     content = (
       <Suspense fallback={<p className="text-sm text-slate-400">Loading dashboard…</p>}>

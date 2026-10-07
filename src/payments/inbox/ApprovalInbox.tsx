@@ -7,6 +7,7 @@ import { readableError } from "../FundMilestone";
 import { formatCents, formatDate } from "../format";
 import { LicenseBadge, LicenseCheckPanel, type LicenseBadgeStatus } from "../LicenseCheck";
 import { PayAppReviewCard } from "../PayAppReviews";
+import { JudgeDemoBadge } from "../JudgeDemoBadge";
 
 type InboxItem = FunctionReturnType<typeof api.payApps.proposals.listInbox>[number];
 type Proposal = InboxItem["proposals"][number];
@@ -371,6 +372,7 @@ function InboxEntry({ item }: { item: InboxItem }) {
             <span data-testid="inbox-payapp-status">{item.payApp.status}</span>
           </p>
           <Attribution submittedBy={item.payApp.submittedBy} />
+          <JudgeDemoBadge filedBy={item.payApp.judgeDemoFiledBy} />
         </div>
         {["submitted", "under_review", "reviewed"].includes(item.payApp.status) ? <RejectPayAppButton payAppId={item.payApp._id} /> : null}
       </header>

@@ -5,6 +5,7 @@ import { api } from "../../convex/_generated/api";
 import { readableError } from "./FundMilestone";
 import { formatCents, formatDate } from "./format";
 import { LicenseCheckPanel } from "./LicenseCheck";
+import { JudgeDemoBadge } from "./JudgeDemoBadge";
 
 type PayAppWithReview = FunctionReturnType<typeof api.payApps.review.listAgreementPayApps>[number];
 
@@ -102,6 +103,7 @@ export function PayAppReviewCard({ payApp, canRerun }: { payApp: PayAppWithRevie
               : "the subcontractor"}
             {" · "}status <span data-testid="payapp-review-status">{payApp.status}</span>
           </p>
+          <JudgeDemoBadge filedBy={payApp.judgeDemoFiledBy} />
         </div>
         <dl className="flex gap-4 text-sm">
           <div>

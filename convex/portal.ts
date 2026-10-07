@@ -132,6 +132,7 @@ export const mySubPayApps = query({
           agentEmail: p.submittedBy.agentEmail ?? null,
           onBehalfOf: p.submittedBy.ownerName ?? p.submittedBy.ownerEmail ?? null,
         },
+        judgeDemoFiledBy: p.judgeDemo?.filedBy ?? null,
         outcome: await payAppOutcome(ctx, payments),
         canWithdraw: WITHDRAWABLE_PAY_APP_STATUSES.has(p.status),
         withdrawnAt: p.withdrawnAt ?? null,

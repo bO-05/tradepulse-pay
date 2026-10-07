@@ -10,6 +10,7 @@ describe("role navigation", () => {
       "owner-portal",
       "billing-agents",
       "dashboard",
+      "judge-demo",
     ]);
     expect(NAV_BY_ROLE.sub.map((i) => i.area)).toEqual(["sub-portal", "payments"]);
     expect(NAV_BY_ROLE.owner.map((i) => i.area)).toEqual(["owner-portal", "dashboard"]);
@@ -28,6 +29,9 @@ describe("role navigation", () => {
     expect(resolveRoute("gc", "#/inbox")).toEqual({ area: "inbox" });
     expect(resolveRoute("sub", "#/inbox")).toEqual({ area: "sub-portal" });
     expect(resolveRoute("owner", "#/inbox")).toEqual({ area: "owner-portal" });
+    expect(resolveRoute("gc", "#/judge-demo")).toEqual({ area: "judge-demo" });
+    expect(resolveRoute("sub", "#/judge-demo")).toEqual({ area: "sub-portal" });
+    expect(resolveRoute("owner", "#/judge-demo")).toEqual({ area: "owner-portal" });
   });
 
   test("dashboard: GC and owner reach it, a sub's direct route is access denied", () => {

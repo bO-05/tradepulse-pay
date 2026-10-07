@@ -8,6 +8,7 @@ export type AreaId =
   | "owner-portal"
   | "billing-agents"
   | "dashboard"
+  | "judge-demo"
   | "agreement"
   | "ledger"
   | "access-denied";
@@ -27,6 +28,7 @@ const AREA_HASH: Record<NavItem["area"], string> = {
   "owner-portal": "#/projects",
   "billing-agents": "#/billing-agents",
   dashboard: "#/dashboard",
+  "judge-demo": "#/judge-demo",
 };
 
 /**
@@ -41,6 +43,7 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { area: "owner-portal", label: "Projects overview", hash: AREA_HASH["owner-portal"] },
     { area: "billing-agents", label: "Billing agents", hash: AREA_HASH["billing-agents"] },
     { area: "dashboard", label: "Dashboard", hash: AREA_HASH.dashboard },
+    { area: "judge-demo", label: "Judge demo", hash: AREA_HASH["judge-demo"] },
   ],
   sub: [
     { area: "sub-portal", label: "My agreements & pay applications", hash: AREA_HASH["sub-portal"] },

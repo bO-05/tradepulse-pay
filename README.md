@@ -164,6 +164,22 @@ Want to experience the complete platform in 60 seconds?
    * Awards Rosendin Electric and generates an **A401-style subcontract draft** (follows the AIA A401 article structure; not an official AIA-licensed form).
 4. Click **Scope Clash Engine**: Review cross-trade coordination catching the **$38,500 VFD Double-Buy** and click **"Deduct Credit"**.
 
+### TradePulse Pay judge demo (PayPal sandbox, about 1–3 minutes)
+
+Sign in as `gc@demo.tradepulse`, open the **⚡ 60s Judge Dock** and click **Run TradePulse Pay demo** (or use the **Judge demo** item in the navigation). Each run creates a fresh, labeled demo award for sub1's contractor (Rosendin Electric, $59,500 with an excluded $4,500 seismic bracing line) and then uses the app's regular functions:
+
+1. Execute the agreement; the schedule of values and four milestones are generated.
+2. **You** fund Mobilization ($5,950.00) in the PayPal popup: "Debit or Credit Card", guest card `4032031427005060`, `01/29`, CVV `480`. The demo waits for the real authorization.
+3. The demo files two pay applications as stand-ins: an honest one for sub1 and an overbilled one (billing early closeout work and the excluded scope, no lien waiver) for the billing agent `boldlevel182@agentmail.to`. Both are labeled **"Judge demo · filed by <GC>"** on every screen.
+4. AI review (Anthropic; code computes every dollar), the KERNEL CSLB license check, and the pay agent's capture and payout proposals.
+5. The GC approves the honest pay app as proposed and edits the agent's proposal down to 90% before approving. PayPal captures from the authorization and pays sub1 90% net; 10% goes to the retainage ledger.
+6. A $1,850.00 change order is invoiced to the Owner through PayPal Invoicing. The dashboard step turns green once its totals match the ledger.
+7. **The Owner** pays the invoice in their own browser (sign in as `owner@demo.tradepulse`, **Projects & change orders**, **Open PayPal invoice**, pay with the guest card and a guest email), then clicks **Refresh status**.
+
+The page shows each step's status from Convex and PayPal, and the time from start to the change-order invoice. "Continue this run" resumes after a reload or re-sign-in.
+
+**Sandbox-only setup step: top up the platform balance before releasing retainage.** PayPal keeps about 3.5% + $0.49 of every capture, so after paying subs 90% the sandbox platform account holds less than the retainage it owes, and a retainage release fails with `INSUFFICIENT_FUNDS`. The demo page's optional closeout section has a GC-only **Sandbox setup: top up the platform balance** panel (`payments/sandboxTopUp:createTopUpOrder` / `captureTopUpOrder`). It creates a PayPal CAPTURE order (suggested amount: 110% of the retainage held), opens the PayPal checkout in a new tab (pay as guest with the card above; turn off "Save info & create your PayPal account", then "Continue as Guest" and "Continue"), and then **Capture top-up** moves the funds into the platform account. Wait about 15 s, then click **Release retainage**. The top-up is not linked to any agreement and is never counted in ledger or dashboard totals. It refuses to run unless `PAYPAL_ENV` is `sandbox`.
+
 ---
 
 ## 🛠️ Local Development & Testing

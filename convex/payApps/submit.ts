@@ -1,10 +1,10 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import { internal } from "../_generated/api";
-import { mutation, query, type QueryCtx } from "../_generated/server";
+import { mutation, query, type MutationCtx, type QueryCtx } from "../_generated/server";
 import { requireRole, type Viewer } from "../lib/roles";
 import { formatCents } from "../lib/money";
-import { viewerAgentAuditFields } from "../lib/agentAudit";
+import { viewerAgentAuditFields, type AgentAuditFields } from "../lib/agentAudit";
 import {
   priorBillingByLine,
   validatePayApp,
@@ -104,49 +104,86 @@ export const submitPayApplication = mutation({
         message: "Pay applications can only be submitted on an executed agreement.",
       });
     }
-    const sov = await sovContext(ctx, agreement._id);
-    const sovForValidation: SovLineContext[] = sov.map((s) => ({ ...s, _id: s._id as string }));
-    const result = validatePayApp(args, sovForValidation);
-    if (result.errors.length > 0) {
-      throw new ConvexError({
-        code: "INVALID_PAY_APP",
-        message: result.errors.map((e) => e.message).join(" "),
-        errors: result.errors,
-      });
-    }
-    const lines = result.lines.map((l) => ({ ...l, sovLineId: l.sovLineId as Id<"scheduleOfValues"> }));
-    const submittedBy = submittedByFor(viewer);
-    const now = Date.now();
-    const payAppId = await ctx.db.insert("payApplications", {
-      agreementId: agreement._id,
-      contractorId: agreement.contractorId,
+    return await recordPayApplication(ctx, agreement, args, {
+      submittedBy: submittedByFor(viewer),
       subUserId: viewer.userId,
-      periodLabel: args.periodLabel.trim(),
-      lines,
-      requestedTotalCents: result.requestedTotalCents,
-      notes: args.notes.trim(),
-      lienWaiver: args.lienWaiver,
-      status: "submitted",
-      submittedBy,
-      createdAt: now,
-    });
-    const isAgent = submittedBy.actorType === "agent";
-    await ctx.db.insert("auditLogs", {
-      projectId: agreement.projectId,
-      agreementId: agreement._id,
-      eventType: "pay_app_submitted",
-      title: "Pay application submitted",
-      description: `${agreement.agreementNumber} ${args.periodLabel.trim()}: ${formatCents(result.requestedTotalCents)} requested${
-        isAgent ? " by billing agent" : ""
-      }.`,
       actor: viewer.user.email ?? viewer.profile.displayName,
-      timestamp: now,
-      ...viewerAgentAuditFields(viewer),
+      auditFields: viewerAgentAuditFields(viewer),
     });
-    await ctx.scheduler.runAfter(0, internal.payApps.review.reviewPayApp, { payAppId });
-    return payAppId;
   },
 });
+
+type PayAppInput = {
+  periodLabel: string;
+  lines: { sovLineId: string; pctCompleteThisPeriod: number; pctCompleteToDate: number; requestedCents: number }[];
+  notes: string;
+  lienWaiver: boolean;
+};
+
+/**
+ * Validates and stores a pay application on an executed agreement, audits it and schedules the
+ * AI review. Callers decide who may file it and pass the attribution.
+ */
+export async function recordPayApplication(
+  ctx: MutationCtx,
+  agreement: Doc<"agreements">,
+  args: PayAppInput,
+  who: {
+    submittedBy: Doc<"payApplications">["submittedBy"];
+    subUserId: Id<"users">;
+    actor: string;
+    auditFields: AgentAuditFields;
+    judgeDemo?: Doc<"payApplications">["judgeDemo"];
+    auditNote?: string;
+  },
+): Promise<Id<"payApplications">> {
+  const sov = await sovContext(ctx, agreement._id);
+  const sovForValidation: SovLineContext[] = sov.map((s) => ({ ...s, _id: s._id as string }));
+  const result = validatePayApp(args, sovForValidation);
+  if (result.errors.length > 0) {
+    throw new ConvexError({
+      code: "INVALID_PAY_APP",
+      message: result.errors.map((e) => e.message).join(" "),
+      errors: result.errors,
+    });
+  }
+  const lines = result.lines.map((l) => ({ ...l, sovLineId: l.sovLineId as Id<"scheduleOfValues"> }));
+  const now = Date.now();
+  const payAppId = await ctx.db.insert("payApplications", {
+    agreementId: agreement._id,
+    contractorId: agreement.contractorId,
+    subUserId: who.subUserId,
+    periodLabel: args.periodLabel.trim(),
+    lines,
+    requestedTotalCents: result.requestedTotalCents,
+    notes: args.notes.trim(),
+    lienWaiver: args.lienWaiver,
+    status: "submitted",
+    submittedBy: who.submittedBy,
+    ...(who.judgeDemo ? { judgeDemo: who.judgeDemo } : {}),
+    createdAt: now,
+  });
+  const isAgent = who.submittedBy.actorType === "agent";
+  await ctx.db.insert("auditLogs", {
+    projectId: agreement.projectId,
+    agreementId: agreement._id,
+    eventType: "pay_app_submitted",
+    title: "Pay application submitted",
+    description: `${agreement.agreementNumber} ${args.periodLabel.trim()}: ${formatCents(result.requestedTotalCents)} requested${
+      isAgent ? " by billing agent" : ""
+    }${who.auditNote ? ` ${who.auditNote}` : ""}.`,
+    actor: who.actor,
+    timestamp: now,
+    ...who.auditFields,
+  });
+  await ctx.scheduler.runAfter(0, internal.payApps.review.reviewPayApp, { payAppId });
+  return payAppId;
+}
+
+/** SOV lines of an agreement with what earlier pay apps already billed. */
+export async function payAppSovContext(ctx: QueryCtx, agreementId: Id<"agreements">) {
+  return await sovContext(ctx, agreementId);
+}
 
 /**
  * Withdraws a submitted or under-review pay app of the caller's contractor and

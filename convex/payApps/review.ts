@@ -245,6 +245,7 @@ export async function payAppView(ctx: QueryCtx, p: Doc<"payApplications">, sovBy
       onBehalfOf: p.submittedBy.ownerName ?? p.submittedBy.ownerEmail ?? null,
       userEmail: submitter?.email ?? null,
     },
+    judgeDemoFiledBy: p.judgeDemo?.filedBy ?? null,
     lines: p.lines.map((l) => {
       const s = sovById.get(l.sovLineId);
       const r = reviewLines.get(l.sovLineId);

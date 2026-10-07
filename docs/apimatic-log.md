@@ -13,7 +13,7 @@ This log records each lookup made with the APIMatic Context Plugin (ContextMatic
 
 ## Summary
 
-- **Plugin tools queried:** `fetch_api` (4 times), `ask` (7), `endpoint_search` (5) and `model_search` (3), 19 queries in total. `update_activity` was listed by the server but never called.
+- **Plugin tools queried:** `fetch_api` (5 times), `ask` (8), `endpoint_search` (6) and `model_search` (3), 22 queries in total. `update_activity` was listed by the server but never called.
 - **SDK methods and models the answers informed:**
   - `OrdersController.createOrder` with `CheckoutPaymentIntent.Authorize` (milestone funding): `convex/payments/orders.ts:58-74`
   - `OrdersController.authorizeOrder` (onApprove): `convex/payments/orders.ts:154-155`
@@ -21,6 +21,7 @@ This log records each lookup made with the APIMatic Context Plugin (ContextMatic
   - `PaymentsController.captureAuthorizedPayment` (release and pay, partial capture): `convex/payments/captures.ts:71-80`
   - `PaymentsController.voidPayment` (close milestone): `convex/payments/captures.ts:126-127`
   - `PaymentsController.reauthorizePayment` (honor-period watcher): `convex/payments/honorPeriod.ts:52-59`
+  - `OrdersController.createOrder` with `CheckoutPaymentIntent.Capture` and `OrdersController.captureOrder` (sandbox-only platform top-up): `convex/payments/sandboxTopUp.ts:40-58`, `convex/payments/sandboxTopUp.ts:87-110`
   - Models `AuthorizationWithAdditionalData`, `CapturedPayment` and `AuthorizationStatus`, plus the `Client` setup with `clientCredentialsAuthCredentials` and `unstable_httpClientOptions`: `convex/payments/paypalClient.ts:611-630`
 - **Coverage is limited to Orders and Payments.** The plugin's only PayPal API key (`paypal`, "PayPal Server SDK") has no Payouts, Invoicing or Webhooks controllers, and the plugin was not used for them. Payouts, Invoicing and webhook signature verification use plain REST through the shared `request()` helper (`convex/payments/paypalClient.ts:451`):
   - Payouts: `POST /v1/payments/payouts` and `GET /v1/payments/payouts/{id}` in `convex/payments/payouts.ts:63`, `convex/payments/payouts.ts:144`
@@ -99,3 +100,15 @@ Same access procedure as above (dynamic client registration, `client_credentials
 | 19 | `model_search` | `AuthorizationStatus` | `CREATED`, `CAPTURED`, `DENIED`, `PARTIALLY_CAPTURED`, `VOIDED`, `PENDING` (no `EXPIRED` in the enum the plugin returned; the REST docs list `EXPIRED`). | The watcher only touches `authorized` / `partially_captured` rows (`convex/payments/honorPeriodMath.ts:28-33`); the PayPal reconciliation maps stored states to these values and also accepts `EXPIRED`: `convex/payments/reconcile.ts:220` |
 
 Live check (2026-10-07, dev deployment): the Closeout milestone on the Rosendin agreement was funded in the browser (authorization `6NF54227AP5021023`, `CREATED`, `178500.00`). After backdating `honorPeriodEndsAt`, the watcher called reauthorize and PayPal returned 422 `REAUTHORIZATION_TOO_SOON` ("A reauthorization is only allowed once from Day 4 to Day 29 since the date of the original authorization."). The row kept the original authorization, and a GET still returned `CREATED 178500.00`. This issue code came from the live sandbox, not from the plugin.
+
+### 2026-10-07: Sandbox platform top-up with CAPTURE orders (feature s2, `convex/payments/sandboxTopUp.ts`)
+
+Same access procedure as above (dynamic client registration, `client_credentials`, MCP session). This is a sandbox-only setup step: PayPal capture fees leave the platform account short of the retainage it owes, so the GC can add funds with a CAPTURE order paid by the guest card before releasing retainage.
+
+| # | Tool | Question | Answer used | Code it informed |
+|---|---|---|---|---|
+| 20 | `fetch_api` | `language: typescript, key: paypal` | Same API key `paypal`; the Orders controller exposes `createOrder` and `captureOrder`. | Both calls go through `sdkWrite` (audited, `PayPal-Request-Id`): `convex/payments/sandboxTopUp.ts:40`, `convex/payments/sandboxTopUp.ts:87` |
+| 21 | `ask` | Using `OrdersController.createOrder` with `CheckoutPaymentIntent.Capture`, how do I set `returnUrl` and `cancelUrl` so a buyer can approve the order in a browser, which link rel holds the approval URL, and how do I read the capture id and status from `captureOrder`? | Intent `CheckoutPaymentIntent.Capture`; amount under `body.purchaseUnits[].amount`; the buyer approves at the HATEOAS link with rel `approve`; capture result at `result.purchaseUnits[].payments.captures[]` (`id`, `status`). The plugin's example set the URLs in `paymentSource.paypal.experienceContext`. | Order body and approve link: `convex/payments/sandboxTopUp.ts:40-58`. The code keeps `applicationContext.returnUrl/cancelUrl` instead of `paymentSource.paypal.experienceContext`, because that form was verified live with the guest card (a `paymentSource.paypal` order returns a `payer-action` link, which the code also accepts). Capture id/status read with optional chaining, only `COMPLETED`/`PENDING` count: `convex/payments/sandboxTopUp.ts:87-110` |
+| 22 | `endpoint_search` | `captureOrder` | Params `id`, `paypalRequestId` (keys stored 6 hours), `prefer`, `paypalMockResponse`; the buyer must approve the order (rel `approve`) before capture. | Request id `topup_cap_<order id>` makes a repeated capture idempotent; a 422 `ORDER_NOT_APPROVED` keeps the order open and asks the GC to finish checkout: `convex/payments/sandboxTopUp.ts:87-100` |
+
+Live check (2026-10-07, dev deployment, browser as `gc@demo.tradepulse` on the Judge demo page): a $270.00 top-up order was paid with the guest card (create-account switch off, "Continue as Guest", "Continue") and captured as `19U89892PJ0690200`; about 15 s later the $245.00 retainage release on agreement `A401-DEMO-PAY-20261007-02` paid out (batch `4K73B2Y5K32SS`, item `SUCCESS 245.00`).

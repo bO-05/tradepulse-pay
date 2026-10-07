@@ -232,6 +232,8 @@ export default defineSchema({
     // The agreement's contractor, copied at submission so the sub portal can page one contractor's
     // pay apps newest first across all its agreements. Older rows: payApps/backfill.ts.
     contractorId: v.optional(v.id("contractors")),
+    // Set when the GC's one-click judge demo filed this pay app as a stand-in for the sub or its agent.
+    judgeDemo: v.optional(v.object({ runId: v.id("judgeDemoRuns"), filedBy: v.string() })),
     createdAt: v.number(),
   })
     .index("by_agreementId", ["agreementId"])
@@ -678,4 +680,32 @@ export default defineSchema({
     .index("by_caseId", ["caseId"])
     .index("by_run_and_timestamp", ["runId", "timestamp"])
     .index("by_timestamp", ["timestamp"]),
+
+  // One-click TradePulse Pay judge demo: one fresh agreement per run.
+  judgeDemoRuns: defineTable({
+    startedBy: v.id("users"),
+    gcEmail: v.string(),
+    projectId: v.id("projects"),
+    agreementId: v.id("agreements"),
+    agreementNumber: v.string(),
+    honestPayAppId: v.optional(v.id("payApplications")),
+    agentPayAppId: v.optional(v.id("payApplications")),
+    createdAt: v.number(),
+  }).index("by_startedBy", ["startedBy"]),
+
+  // Sandbox-only CAPTURE orders that top up the platform account so retainage releases are covered
+  // after PayPal capture fees. Not part of any agreement's money.
+  sandboxTopUps: defineTable({
+    paypalOrderId: v.string(),
+    amountCents: v.number(),
+    status: v.union(v.literal("created"), v.literal("captured"), v.literal("failed")),
+    approveUrl: v.optional(v.string()),
+    paypalCaptureId: v.optional(v.string()),
+    error: v.optional(v.string()),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    capturedAt: v.optional(v.number()),
+  })
+    .index("by_paypalOrderId", ["paypalOrderId"])
+    .index("by_createdAt", ["createdAt"]),
 });

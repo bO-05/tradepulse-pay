@@ -5,6 +5,7 @@ import { formatCents, formatDate, formatDollars } from "./format";
 import { PayAppForm } from "./PayAppForm";
 import { subPayoutStatusLabel } from "./payoutStatusLabel";
 import { WithdrawPayAppButton } from "./WithdrawPayAppButton";
+import { JudgeDemoBadge } from "./JudgeDemoBadge";
 
 const PAY_APP_PAGE_SIZE = 25;
 
@@ -128,6 +129,9 @@ export function SubPortal() {
                     {p.submittedBy.actorType === "agent"
                       ? `Billing agent ${p.submittedBy.agentEmail ?? ""}${p.submittedBy.onBehalfOf ? ` on behalf of ${p.submittedBy.onBehalfOf}` : ""}`
                       : "Subcontractor (human)"}
+                    <span className="block mt-1">
+                      <JudgeDemoBadge filedBy={p.judgeDemoFiledBy} />
+                    </span>
                   </td>
                   <td className="py-2 pr-3 text-right">
                     {p.canWithdraw ? <WithdrawPayAppButton payAppId={p._id} periodLabel={p.periodLabel} /> : null}

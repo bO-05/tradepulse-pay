@@ -6,6 +6,7 @@ import { api } from "../../convex/_generated/api.js";
 import { TradePackage } from "../types.ts";
 import { useDialogFocus } from "../lib/useDialogFocus.ts";
 import { ConfirmDialog } from "./ConfirmDialog.tsx";
+import { JUDGE_DEMO_AUTOSTART_KEY } from "../payments/judgeDemo/steps.ts";
 
 interface JudgeSimulationDockProps {
   isOpen: boolean;
@@ -198,6 +199,36 @@ export const JudgeSimulationDock: React.FC<JudgeSimulationDockProps> = ({
               {loadingAction === "full_cycle"
                 ? "Executing Full Autonomous Procurement Loop..."
                 : "⚡ 1-Click Run Full Autonomous Procurement Lifecycle"}
+            </button>
+          </div>
+
+          <div className="bg-gradient-to-r from-sky-950/70 via-slate-850 to-indigo-950/50 border-2 border-sky-500/50 rounded-xl p-3.5 shadow-lg space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-sky-300 uppercase tracking-wider flex items-center gap-1.5">
+                <Zap className="w-3.5 h-3.5 fill-sky-300" />
+                TradePulse Pay
+              </span>
+              <span className="text-[10px] bg-sky-950 text-sky-300 border border-sky-800 px-2 py-0.5 rounded-full font-bold">
+                Sandbox · about 3 minutes
+              </span>
+            </div>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Executes a demo agreement, builds the schedule of values, files an honest pay app for sub1 and an overbilled one for
+              its billing agent, then runs AI review, the KERNEL license check and pay-agent proposals. You approve one as proposed
+              and one edited down; capture and payout keep 10% retainage, and a change order is invoiced to the Owner. You approve
+              the PayPal funding yourself, and the Owner pays the invoice in their own browser.
+            </p>
+            <button
+              disabled={loadingAction !== null}
+              onClick={() => {
+                sessionStorage.setItem(JUDGE_DEMO_AUTOSTART_KEY, "1");
+                window.location.hash = "#/judge-demo";
+                onClose();
+              }}
+              className="w-full bg-gradient-to-r from-sky-500 to-indigo-500 hover:from-sky-400 hover:to-indigo-400 disabled:opacity-50 text-slate-950 font-black text-xs py-2 px-4 rounded-xl flex items-center justify-center gap-2 transition shadow-lg shadow-sky-950/40"
+            >
+              <Play className="w-4 h-4 fill-slate-950" />
+              Run TradePulse Pay demo
             </button>
           </div>
 
