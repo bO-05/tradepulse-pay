@@ -206,61 +206,76 @@ export const applyPayoutStatus = internalMutation({
   handler: async (ctx, args) => {
     const p = await ctx.db.get(args.paymentId);
     if (p === null) throw new ConvexError({ code: "NOT_FOUND", message: "Payout payment not found." });
-    const now = Date.now();
-    const meta = {
-      ...(args.itemId && !p.paypalPayoutItemId ? { paypalPayoutItemId: args.itemId } : {}),
-      ...(args.itemStatus ? { paypalItemStatus: args.itemStatus } : {}),
-    };
-    if (!args.status || args.status === p.status || !canTransitionPayment(p.kind, p.status, args.status)) {
-      if (Object.keys(meta).length > 0) await ctx.db.patch(p._id, { ...meta, updatedAt: now });
-      return { applied: false, status: p.status };
-    }
-    const to = args.status;
-    await ctx.db.patch(p._id, {
-      ...meta,
-      status: to,
-      error: nonSuccessMessage(p.kind, to, args.itemStatus, args.errorName, p.receiverEmail),
-      updatedAt: now,
-    });
-
-    if ((RETAINAGE_REVERSING_STATUSES as readonly string[]).includes(to) && p.kind !== "funding") {
-      const rows = await ledgerRowsFor(ctx, p);
-      const net = rows.reduce((a, r) => a + r.deltaCents, 0);
-      // A failed payout gives back its credit; a failed retainage release puts the released amount back on hold.
-      const reversing = p.kind === "payout" ? net > 0 : net < 0;
-      if (reversing) {
-        await ctx.db.insert("retainageLedger", {
-          agreementId: p.agreementId,
-          paymentId: p._id,
-          deltaCents: -net,
-          reason:
-            p.kind === "payout"
-              ? `Retainage credit reversed: payout ${to} (${args.itemStatus ?? to.toUpperCase()})`
-              : `Retainage release ${to} (${args.itemStatus ?? to.toUpperCase()}): the amount is held again`,
-          createdAt: now,
-        });
-      }
-    }
-
-    if (to === "success") {
-      if (p.payAppId) {
-        const app = await ctx.db.get(p.payAppId);
-        if (app !== null && app.status === "approved") await ctx.db.patch(app._id, { status: "paid" });
-      }
-      if (p.milestoneId) {
-        const milestone = await ctx.db.get(p.milestoneId);
-        const siblings = await ctx.db
-          .query("payments")
-          .withIndex("by_milestoneId", (q) => q.eq("milestoneId", p.milestoneId))
-          .take(200);
-        const paidGross = siblings
-          .filter((s) => s.kind === "payout" && (s._id === p._id || s.status === "success"))
-          .map((s) => s.grossCents);
-        if (milestone !== null && isMilestoneFullyPaid(milestone.amountCents, paidGross)) {
-          await moveMilestone(ctx, milestone._id, "paid");
-        }
-      }
-    }
-    return { applied: true, status: to };
+    return await applyPayoutStatusTo(ctx, p, args);
   },
 });
+
+export type PayoutStatusUpdate = {
+  status?: Infer<typeof payoutStatusValidator>;
+  itemId?: string;
+  itemStatus?: string;
+  errorName?: string;
+};
+
+export async function applyPayoutStatusTo(
+  ctx: MutationCtx,
+  p: Doc<"payments">,
+  args: PayoutStatusUpdate,
+): Promise<{ applied: boolean; status: string }> {
+  const now = Date.now();
+  const meta = {
+    ...(args.itemId && !p.paypalPayoutItemId ? { paypalPayoutItemId: args.itemId } : {}),
+    ...(args.itemStatus && args.itemStatus !== p.paypalItemStatus ? { paypalItemStatus: args.itemStatus } : {}),
+  };
+  if (!args.status || args.status === p.status || !canTransitionPayment(p.kind, p.status, args.status)) {
+    if (Object.keys(meta).length > 0) await ctx.db.patch(p._id, { ...meta, updatedAt: now });
+    return { applied: false, status: p.status };
+  }
+  const to = args.status;
+  await ctx.db.patch(p._id, {
+    ...meta,
+    status: to,
+    error: nonSuccessMessage(p.kind, to, args.itemStatus, args.errorName, p.receiverEmail),
+    updatedAt: now,
+  });
+
+  if ((RETAINAGE_REVERSING_STATUSES as readonly string[]).includes(to) && p.kind !== "funding") {
+    const rows = await ledgerRowsFor(ctx, p);
+    const net = rows.reduce((a, r) => a + r.deltaCents, 0);
+    // A failed payout gives back its credit; a failed retainage release puts the released amount back on hold.
+    const reversing = p.kind === "payout" ? net > 0 : net < 0;
+    if (reversing) {
+      await ctx.db.insert("retainageLedger", {
+        agreementId: p.agreementId,
+        paymentId: p._id,
+        deltaCents: -net,
+        reason:
+          p.kind === "payout"
+            ? `Retainage credit reversed: payout ${to} (${args.itemStatus ?? to.toUpperCase()})`
+            : `Retainage release ${to} (${args.itemStatus ?? to.toUpperCase()}): the amount is held again`,
+        createdAt: now,
+      });
+    }
+  }
+
+  if (to === "success") {
+    if (p.payAppId) {
+      const app = await ctx.db.get(p.payAppId);
+      if (app !== null && app.status === "approved") await ctx.db.patch(app._id, { status: "paid" });
+    }
+    if (p.milestoneId) {
+      const milestone = await ctx.db.get(p.milestoneId);
+      const siblings = await ctx.db
+        .query("payments")
+        .withIndex("by_milestoneId", (q) => q.eq("milestoneId", p.milestoneId))
+        .take(200);
+      const paidGross = siblings
+        .filter((s) => s.kind === "payout" && (s._id === p._id || s.status === "success"))
+        .map((s) => s.grossCents);
+      if (milestone !== null && isMilestoneFullyPaid(milestone.amountCents, paidGross)) {
+        await moveMilestone(ctx, milestone._id, "paid");
+      }
+    }
+  }
+  return { applied: true, status: to };
+}

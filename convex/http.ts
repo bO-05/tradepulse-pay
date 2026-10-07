@@ -5,12 +5,20 @@ import { AgentMail } from "@agentmail/convex";
 import { components, internal } from "./_generated/api";
 import { getRealDocumentPdfBytes } from "./realDocuments";
 import { auth } from "./auth";
+import { paypalWebhook } from "./payments/webhook";
 
 const http = httpRouter();
 
 // Convex Auth (JWKS, OpenID config, /api/auth/* OAuth routes). Must stay ahead of
 // the /api/ JSON-404 prefix handlers and the static-hosting catch-all below.
 auth.addHttpRoutes(http);
+
+// PayPal webhooks: public, but every delivery is signature-verified with PayPal before processing.
+http.route({
+  path: "/paypal/webhook",
+  method: "POST",
+  handler: paypalWebhook,
+});
 
 // Inbound AgentMail Webhook. Never mutate procurement records without Svix verification.
 http.route({
