@@ -1,6 +1,7 @@
 import { useQuery } from "convex/react";
 import type { ReactNode } from "react";
 import { api } from "../../convex/_generated/api";
+import { AgreementChangeOrders } from "./ChangeOrders";
 import { formatCents, formatDate } from "./format";
 import { FundMilestoneControl, FundingProvider, FundingStatus } from "./FundMilestone";
 import { ReleaseControl, ReleaseList } from "./ReleaseMilestone";
@@ -226,6 +227,8 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
           </table>
         )}
       </section>
+
+      <AgreementChangeOrders agreementId={agreement._id} />
     </div>
   );
 }

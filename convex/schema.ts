@@ -312,9 +312,15 @@ export default defineSchema({
     status: changeOrderStatusValidator,
     paypalInvoiceId: v.optional(v.string()),
     payerViewUrl: v.optional(v.string()),
+    recipientEmail: v.optional(v.string()),
+    paypalInvoiceStatus: v.optional(v.string()),
+    error: v.optional(v.string()),
+    auditRecorded: v.optional(v.boolean()),
     createdBy: v.optional(v.id("users")),
     createdAt: v.number(),
+    invoicedAt: v.optional(v.number()),
     paidAt: v.optional(v.number()),
+    statusCheckedAt: v.optional(v.number()),
   })
     .index("by_agreementId_and_number", ["agreementId", "number"])
     .index("by_paypalInvoiceId", ["paypalInvoiceId"])

@@ -1,7 +1,8 @@
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { agreementHash } from "../auth/navigation";
-import { formatCents, formatDollars } from "./format";
+import { ChangeOrderList } from "./ChangeOrders";
+import { formatDollars } from "./format";
 
 /** Read-only projects view for owners (and GC). No approve, fund or award controls live here. */
 export function OwnerPortal() {
@@ -62,33 +63,7 @@ export function OwnerPortal() {
 
           <div>
             <h3 className="text-sm font-semibold mb-2">Change-order invoices</h3>
-            {project.changeOrders.length === 0 ? (
-              <p className="text-sm text-slate-400">No change-order invoices yet.</p>
-            ) : (
-              <ul className="space-y-2 text-sm">
-                {project.changeOrders.map((co) => (
-                  <li key={co._id} className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-800 pt-2">
-                    <span>
-                      CO #{co.number} · {co.agreementNumber} · {co.description}
-                    </span>
-                    <span className="flex items-center gap-3">
-                      <span className="font-semibold">{formatCents(co.amountCents)}</span>
-                      <span className="text-xs uppercase text-slate-400">{co.status}</span>
-                      {co.payerViewUrl && (
-                        <a
-                          href={co.payerViewUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-emerald-400 hover:text-emerald-300"
-                        >
-                          View / pay invoice on PayPal
-                        </a>
-                      )}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <ChangeOrderList changeOrders={project.changeOrders} canRefresh canResend={false} showAgreement />
           </div>
         </section>
       ))}

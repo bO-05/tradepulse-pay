@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import { query } from "./_generated/server";
 import { canViewAgreement, requireRole } from "./lib/roles";
+import { changeOrderView } from "./payments/changeOrderDb";
 
 function agreementSummary(a: Doc<"agreements">) {
   return {
@@ -100,15 +101,7 @@ export const ownerOverview = query({
           .take(100);
         for (const co of cos) {
           if (co.status === "draft") continue;
-          changeOrders.push({
-            _id: co._id,
-            agreementNumber: agreement.agreementNumber,
-            number: co.number,
-            description: co.description,
-            amountCents: co.amountCents,
-            status: co.status,
-            payerViewUrl: co.payerViewUrl ?? null,
-          });
+          changeOrders.push(changeOrderView(co, agreement));
         }
       }
       result.push({
