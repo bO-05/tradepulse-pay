@@ -1,0 +1,1007 @@
+{
+  "info": {
+    "_postman_id": "5b0f7a52-2f4e-4c55-9d0e-7c1f2b6a9e10",
+    "name": "TradePulse Pay",
+    "description": "TradePulse Pay HTTP endpoints and the PayPal **sandbox** calls the app makes.\n\n1. Import this collection and `TradePulse-Pay-sandbox.postman_environment.json`.\n2. Set `clientId` / `clientSecret` (your own sandbox app) locally. No secrets are stored in these files.\n3. Run \"OAuth 2.0 access token\" first; it fills `accessToken`.\n\nOrders and Payments go through `@paypal/paypal-server-sdk` in the app; Payouts, Invoicing and webhook verification use plain REST (see `docs/apimatic-log.md`). All writes carry a `PayPal-Request-Id`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "TradePulse endpoints",
+      "description": "Public Convex HTTP routes from `convex/http.ts`.",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{convexSite}}/api/health",
+              "host": [
+                "{{convexSite}}"
+              ],
+              "path": [
+                "api",
+                "health"
+              ]
+            },
+            "description": "Liveness probe for the Convex HTTP router (`convex/http.ts`). Returns 200 with JSON `{status: \"ok\", app, timestamp, version}`. Public, no auth."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 ok', () => pm.response.to.have.status(200));",
+                  "pm.test('status ok', () => pm.expect(pm.response.json().status).to.eql('ok'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "llms.txt manifest",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{convexSite}}/llms.txt",
+              "host": [
+                "{{convexSite}}"
+              ],
+              "path": [
+                "llms.txt"
+              ]
+            },
+            "description": "Plain-text discoverability manifest for AI agents (`convex/http.ts`). Lists the app's public endpoints. Public, no auth, cached for one hour."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 text', () => { pm.response.to.have.status(200); pm.expect(pm.response.headers.get('Content-Type')).to.include('text/plain'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PayPal webhook: unsigned replay of a sample event",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{convexSite}}/paypal/webhook",
+              "host": [
+                "{{convexSite}}"
+              ],
+              "path": [
+                "paypal",
+                "webhook"
+              ]
+            },
+            "description": "Replays a sample `PAYMENT.CAPTURE.COMPLETED` event **without** PayPal signature headers (`paypal-transmission-id`, `paypal-transmission-sig`, `paypal-cert-url`, `paypal-auth-algo`, `paypal-transmission-time`).\n\n**Documented result:** HTTP 400 with `{\"error\": \"Missing PayPal signature headers.\"}`. Nothing is processed. The delivery is recorded in the `paypalEvents` table as `verified=false`, `processed=false` with the reason (`convex/payments/webhook.ts`, `recordUnverifiedEvent` in `convex/payments/webhookDb.ts`).\n\nEvery real delivery is checked with `POST /v1/notifications/verify-webhook-signature` before any state changes, so a forged or simulated event can never move money. PayPal dashboard simulator events also fail verification by design and get the same 400.\n\nOther responses: 413 for bodies over 256 KB, 400 `Body is not a PayPal webhook event.` for a body without `id`/`event_type`, and 503 when `PAYPAL_WEBHOOK_ID` is unset or PayPal's verify endpoint is unreachable (so PayPal retries a genuine event).\n\nCheck the row: `npx convex run payments/webhookDb:recentEvents '{\"limit\":5}'`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{replayEventId}}\",\n  \"event_version\": \"1.0\",\n  \"create_time\": \"2026-10-07T12:00:00Z\",\n  \"resource_type\": \"capture\",\n  \"resource_version\": \"2.0\",\n  \"event_type\": \"PAYMENT.CAPTURE.COMPLETED\",\n  \"summary\": \"Payment completed for $ 10000.0 USD (Postman replay sample, not from PayPal)\",\n  \"resource\": {\n    \"id\": \"POSTMAN-SAMPLE-CAPTURE\",\n    \"status\": \"COMPLETED\",\n    \"amount\": {\n      \"currency_code\": \"USD\",\n      \"value\": \"10000.00\"\n    },\n    \"final_capture\": false,\n    \"links\": [\n      {\n        \"href\": \"https://api-m.sandbox.paypal.com/v2/payments/authorizations/POSTMAN-SAMPLE-AUTH\",\n        \"rel\": \"up\",\n        \"method\": \"GET\"\n      }\n    ]\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unsigned replay is rejected with 400', () => pm.response.to.have.status(400));",
+                  "pm.test('body explains the verification failure', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.error).to.be.a('string').and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PayPal webhook: replay the same event id again (dedupe)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{convexSite}}/paypal/webhook",
+              "host": [
+                "{{convexSite}}"
+              ],
+              "path": [
+                "paypal",
+                "webhook"
+              ]
+            },
+            "description": "Sends the same unsigned event again with the same `id` (`{{replayEventId}}`).\n\n**Documented result:** HTTP 400 again, and the table still holds exactly one `paypalEvents` row for that event id: `recordUnverifiedEvent` never inserts a second row or overwrites an existing one.\n\n**Dedupe for signed events:** when PayPal redelivers a verified event whose row is already `verified=true, processed=true`, the endpoint answers 200 `{\"ok\": true, \"duplicate\": true, \"changed\": false}` and does not reprocess it (`processVerifiedEvent` in `convex/payments/webhookDb.ts`). A row left by an earlier unverified or failed delivery is upgraded in place, so there is still one row per event id. A verified delivery cannot be produced from Postman because it needs PayPal's signature.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{replayEventId}}\",\n  \"event_version\": \"1.0\",\n  \"create_time\": \"2026-10-07T12:00:00Z\",\n  \"resource_type\": \"capture\",\n  \"resource_version\": \"2.0\",\n  \"event_type\": \"PAYMENT.CAPTURE.COMPLETED\",\n  \"summary\": \"Payment completed for $ 10000.0 USD (Postman replay sample, not from PayPal)\",\n  \"resource\": {\n    \"id\": \"POSTMAN-SAMPLE-CAPTURE\",\n    \"status\": \"COMPLETED\",\n    \"amount\": {\n      \"currency_code\": \"USD\",\n      \"value\": \"10000.00\"\n    },\n    \"final_capture\": false,\n    \"links\": [\n      {\n        \"href\": \"https://api-m.sandbox.paypal.com/v2/payments/authorizations/POSTMAN-SAMPLE-AUTH\",\n        \"rel\": \"up\",\n        \"method\": \"GET\"\n      }\n    ]\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unsigned replay is rejected with 400', () => pm.response.to.have.status(400));",
+                  "pm.test('body explains the verification failure', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.error).to.be.a('string').and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "AG Studio AI proxy",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{convexAuthToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{convexSite}}/ai/studio",
+              "host": [
+                "{{convexSite}}"
+              ],
+              "path": [
+                "ai",
+                "studio"
+              ]
+            },
+            "description": "LLM proxy used by the AG Studio payments dashboard chat (`convex/dashboard/studioProxy.ts`). The browser sends one AG Studio LLM request per turn; the proxy calls Anthropic with the key held in the Convex environment and streams NDJSON AG-UI events back. The AI only explains and proposes; it never moves money.\n\n**Auth:** `Authorization: Bearer {{convexAuthToken}}` with a Convex Auth JWT of a signed-in GC or Owner. Copy it from the browser after signing in (local storage key starting with `__convexAuthJWT`). With `convexAuthToken` empty the documented result is 401 `{\"error\": \"Not authenticated: sign in required.\"}`; a sub's token gets 403; 503 if `ANTHROPIC_API_KEY` is not configured.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"instructions\": \"You are the TradePulse Pay assistant. Answer briefly.\",\n  \"input\": [\n    {\n      \"type\": \"message\",\n      \"role\": \"user\",\n      \"content\": \"Summarize what the payments dashboard shows.\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 without a token, 200 with one', () => {",
+                  "  const hasToken = !!pm.variables.get('convexAuthToken');",
+                  "  pm.expect(pm.response.code).to.eql(hasToken ? 200 : 401);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "PayPal sandbox",
+      "description": "The sandbox REST calls the app makes, in workflow order: token, fund (create + authorize), release (capture), close (void), pay the sub (payout), change-order invoice, webhook verification.",
+      "item": [
+        {
+          "name": "OAuth 2.0 access token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "url": {
+              "raw": "{{paypalBase}}/v1/oauth2/token",
+              "host": [
+                "{{paypalBase}}"
+              ],
+              "path": [
+                "v1",
+                "oauth2",
+                "token"
+              ]
+            },
+            "description": "Client-credentials token for the sandbox REST app (`PayPalClient` token cache in `convex/payments/paypalClient.ts`; the Server SDK reuses the same token through `oAuthTokenProvider`). Basic auth with `{{clientId}}` / `{{clientSecret}}` from your own sandbox app; values are never committed. The test script stores the token in the `accessToken` collection variable for the other PayPal requests. Run this first.",
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{clientId}}",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "{{clientSecret}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "client_credentials",
+                  "type": "text"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('token issued', () => pm.response.to.have.status(200));",
+                  "const t = pm.response.json().access_token;",
+                  "if (t) pm.collectionVariables.set('accessToken', t);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create AUTHORIZE order (milestone funding)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "PayPal-Request-Id",
+                "value": "postman-order-{{$timestamp}}",
+                "description": "Idempotency key. The app derives it from the payment row (see description)."
+              },
+              {
+                "key": "Prefer",
+                "value": "return=representation"
+              }
+            ],
+            "url": {
+              "raw": "{{paypalBase}}/v2/checkout/orders",
+              "host": [
+                "{{paypalBase}}"
+              ],
+              "path": [
+                "v2",
+                "checkout",
+                "orders"
+              ]
+            },
+            "description": "Orders v2 create with `intent: AUTHORIZE`, as `createFundingOrder` does through `OrdersController.createOrder` (`convex/payments/orders.ts`). The app sets `reference_id` = milestone id, `custom_id` = payment id and `PayPal-Request-Id` = `fund_<milestoneId>_<attemptNo>`. Funds are only held, not captured. Approve the order in a browser with the logged approve link (guest card 4032031427005060, 01/29, CVV 480) before calling Authorize.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"intent\": \"AUTHORIZE\",\n  \"purchase_units\": [\n    {\n      \"reference_id\": \"postman-demo-milestone\",\n      \"custom_id\": \"postman-demo-payment\",\n      \"description\": \"Milestone funding (demo)\",\n      \"amount\": {\n        \"currency_code\": \"USD\",\n        \"value\": \"1.00\"\n      }\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('order created', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+                  "const o = pm.response.json();",
+                  "if (o.id) pm.collectionVariables.set('orderId', o.id);",
+                  "const approve = (o.links || []).find(l => l.rel === 'payer-action' || l.rel === 'approve');",
+                  "if (approve) console.log('Approve as guest buyer at: ' + approve.href);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Authorize order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "PayPal-Request-Id",
+                "value": "postman-auth-{{orderId}}",
+                "description": "Idempotency key. The app derives it from the payment row (see description)."
+              },
+              {
+                "key": "Prefer",
+                "value": "return=representation"
+              }
+            ],
+            "url": {
+              "raw": "{{paypalBase}}/v2/checkout/orders/{{orderId}}/authorize",
+              "host": [
+                "{{paypalBase}}"
+              ],
+              "path": [
+                "v2",
+                "checkout",
+                "orders",
+                "{{orderId}}",
+                "authorize"
+              ]
+            },
+            "description": "Places the hold after buyer approval, as `authorizeFundingOrder` does through `OrdersController.authorizeOrder` (`convex/payments/orders.ts`, request id `<idempotencyKey>_auth`). Returns `purchase_units[0].payments.authorizations[0]` with `id`, `status` and `expiration_time`; the app stores the honor period as `create_time` + 3 days. Without buyer approval PayPal answers 422 `ORDER_NOT_APPROVED`. The test saves `authorizationId`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('authorized, or not yet approved by the buyer', () => pm.expect(pm.response.code).to.be.oneOf([200, 201, 422]));",
+                  "const a = (((pm.response.json().purchase_units || [])[0] || {}).payments || {}).authorizations;",
+                  "if (a && a[0]) pm.collectionVariables.set('authorizationId', a[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Capture authorized payment (partial)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "PayPal-Request-Id",
+                "value": "postman-cap-{{authorizationId}}",
+                "description": "Idempotency key. The app derives it from the payment row (see description)."
+              },
+              {
+                "key": "Prefer",
+                "value": "return=representation"
+              }
+            ],
+            "url": {
+              "raw": "{{paypalBase}}/v2/payments/authorizations/{{authorizationId}}/capture",
+              "host": [
+                "{{paypalBase}}"
+              ],
+              "path": [
+                "v2",
+                "payments",
+                "authorizations",
+                "{{authorizationId}}",
+                "capture"
+              ]
+            },
+            "description": "Release & pay: captures part of the hold, as `captureApproved` does through `PaymentsController.captureAuthorizedPayment` (`convex/payments/captures.ts`, request id `cap_<key>`). `final_capture` is true only when the amount equals the remaining authorized amount. Only `COMPLETED` or `PENDING` captures count as paid.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": {\n    \"currency_code\": \"USD\",\n    \"value\": \"0.50\"\n  },\n  \"final_capture\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('captured, or authorization not capturable', () => pm.expect(pm.response.code).to.be.oneOf([200, 201, 422]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Void authorization (close milestone)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "PayPal-Request-Id",
+                "value": "postman-void-{{authorizationId}}",
+                "description": "Idempotency key. The app derives it from the payment row (see description)."
+              }
+            ],
+            "url": {
+              "raw": "{{paypalBase}}/v2/payments/authorizations/{{authorizationId}}/void",
+              "host": [
+                "{{paypalBase}}"
+              ],
+              "path": [
+                "v2",
+                "payments",
+                "authorizations",
+                "{{authorizationId}}",
+                "void"
+              ]
+            },
+            "description": "Releases the uncaptured remainder of the hold, as `voidRemainder` does through `PaymentsController.voidPayment` (`convex/payments/captures.ts`, \"Close milestone\"). Returns 200 with the voided authorization, or 204 with `Prefer: return=minimal`. A fully captured authorization cannot be voided (422).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('voided, or nothing left to void', () => pm.expect(pm.response.code).to.be.oneOf([200, 204, 422]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create payout to subcontractor",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "PayPal-Request-Id",
+                "value": "{{payoutSenderBatchId}}",
+                "description": "Idempotency key. The app derives it from the payment row (see description)."
+              },
+              {
+                "key": "Prefer",
+                "value": "return=representation"
+              }
+            ],
+            "url": {
+              "raw": "{{paypalBase}}/v1/payments/payouts",
+              "host": [
+                "{{paypalBase}}"
+              ],
+              "path": [
+                "v1",
+                "payments",
+                "payouts"
+              ]
+            },
+            "description": "Payouts v1 create, plain REST (the Server SDK has no Payouts controller), as `payoutSub` does in `convex/payments/payouts.ts`. The app uses the payment idempotency key as both `PayPal-Request-Id` and `sender_batch_id`, and sends the net amount after retainage. A repeated `sender_batch_id` returns 400 `USER_BUSINESS_ERROR` with a link to the existing batch, which the app treats as an idempotent hit. 422 `INSUFFICIENT_FUNDS` is retried on a bounded schedule. The test saves `payoutBatchId`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sender_batch_header\": {\n    \"sender_batch_id\": \"{{payoutSenderBatchId}}\",\n    \"email_subject\": \"TradePulse Pay: milestone payment\",\n    \"email_message\": \"Payment for an approved milestone (demo).\"\n  },\n  \"items\": [\n    {\n      \"recipient_type\": \"EMAIL\",\n      \"amount\": {\n        \"value\": \"1.00\",\n        \"currency\": \"USD\"\n      },\n      \"receiver\": \"{{subPayPalEmail}}\",\n      \"note\": \"Payment for an approved milestone (demo).\",\n      \"sender_item_id\": \"postman-demo-item\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('batch created, or duplicate sender_batch_id', () => pm.expect(pm.response.code).to.be.oneOf([200, 201, 400, 422]));",
+                  "const b = (pm.response.json().batch_header || {}).payout_batch_id;",
+                  "if (b) pm.collectionVariables.set('payoutBatchId', b);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get payout batch",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{paypalBase}}/v1/payments/payouts/{{payoutBatchId}}",
+              "host": [
+                "{{paypalBase}}"
+              ],
+              "path": [
+                "v1",
+                "payments",
+                "payouts",
+                "{{payoutBatchId}}"
+              ]
+            },
+            "description": "Payouts v1 batch status, as `refreshPayout` and the `pollPayoutBatch` scheduler do (`convex/payments/payouts.ts`). The item `transaction_status` (`SUCCESS`, `UNCLAIMED`, `FAILED`, ...) decides the payout state, because an unregistered receiver is `UNCLAIMED` while the batch says `SUCCESS`.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('batch returned', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create draft invoice (change order)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "PayPal-Request-Id",
+                "value": "postman-inv-{{$timestamp}}",
+                "description": "Idempotency key. The app derives it from the payment row (see description)."
+              },
+              {
+                "key": "Prefer",
+                "value": "return=representation"
+              }
+            ],
+            "url": {
+              "raw": "{{paypalBase}}/v2/invoicing/invoices",
+              "host": [
+                "{{paypalBase}}"
+              ],
+              "path": [
+                "v2",
+                "invoicing",
+                "invoices"
+              ]
+            },
+            "description": "Invoicing v2 create, plain REST, as `invoiceChangeOrder` does (`convex/payments/invoices.ts`, body from `buildInvoiceBody` in `convex/payments/changeOrderMath.ts`). Request id `co_<changeOrderId>_create`. The sandbox returns 201 with a `href` whose last path segment is the invoice id; the test saves `invoiceId`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"detail\": {\n    \"currency_code\": \"USD\",\n    \"reference\": \"AGR-DEMO CO-001\",\n    \"note\": \"Change order CO-001 on the demo project (demo).\",\n    \"payment_term\": {\n      \"term_type\": \"DUE_ON_RECEIPT\"\n    }\n  },\n  \"primary_recipients\": [\n    {\n      \"billing_info\": {\n        \"email_address\": \"{{ownerPayPalEmail}}\"\n      }\n    }\n  ],\n  \"items\": [\n    {\n      \"name\": \"Change order CO-001\",\n      \"description\": \"Added conduit run (demo).\",\n      \"quantity\": \"1\",\n      \"unit_amount\": {\n        \"currency_code\": \"USD\",\n        \"value\": \"2500.00\"\n      },\n      \"unit_of_measure\": \"AMOUNT\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('invoice created', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+                  "const j = pm.response.json();",
+                  "const id = j.id || (j.href ? j.href.split('/').pop() : undefined);",
+                  "if (id) pm.collectionVariables.set('invoiceId', id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Send invoice",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "PayPal-Request-Id",
+                "value": "postman-send-{{invoiceId}}",
+                "description": "Idempotency key. The app derives it from the payment row (see description)."
+              },
+              {
+                "key": "Prefer",
+                "value": "return=representation"
+              }
+            ],
+            "url": {
+              "raw": "{{paypalBase}}/v2/invoicing/invoices/{{invoiceId}}/send",
+              "host": [
+                "{{paypalBase}}"
+              ],
+              "path": [
+                "v2",
+                "invoicing",
+                "invoices",
+                "{{invoiceId}}",
+                "send"
+              ]
+            },
+            "description": "Sends the draft invoice to the Owner (`convex/payments/invoices.ts`, request id `co_<changeOrderId>_send`). The sandbox sends no email; the app stores the payer-view URL instead. Returns 200 with a `href`, or 202.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"send_to_recipient\": true,\n  \"send_to_invoicer\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('invoice sent', () => pm.expect(pm.response.code).to.be.oneOf([200, 202]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get invoice",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{paypalBase}}/v2/invoicing/invoices/{{invoiceId}}",
+              "host": [
+                "{{paypalBase}}"
+              ],
+              "path": [
+                "v2",
+                "invoicing",
+                "invoices",
+                "{{invoiceId}}"
+              ]
+            },
+            "description": "Invoice detail and status (`getInvoice` in `convex/payments/invoices.ts`, used by \"Refresh status\"). `detail.metadata.recipient_view_url` is the payer-view link shown to the Owner; `status` becomes `PAID` after payment.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('invoice returned', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify webhook signature",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Prefer",
+                "value": "return=representation"
+              }
+            ],
+            "url": {
+              "raw": "{{paypalBase}}/v1/notifications/verify-webhook-signature",
+              "host": [
+                "{{paypalBase}}"
+              ],
+              "path": [
+                "v1",
+                "notifications",
+                "verify-webhook-signature"
+              ]
+            },
+            "description": "The check `/paypal/webhook` runs on every delivery (`verifyWithPayPal` in `convex/payments/webhook.ts`). Fill the `webhook*` variables with the `paypal-*` headers of a real delivery and your sandbox webhook id. Returns 200 `{verification_status: \"SUCCESS\" | \"FAILURE\"}`; with the placeholder values it returns `FAILURE` or 400, which is the same outcome the unsigned replay gets.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"auth_algo\": \"{{webhookAuthAlgo}}\",\n  \"cert_url\": \"{{webhookCertUrl}}\",\n  \"transmission_id\": \"{{webhookTransmissionId}}\",\n  \"transmission_sig\": \"{{webhookTransmissionSig}}\",\n  \"transmission_time\": \"{{webhookTransmissionTime}}\",\n  \"webhook_id\": \"{{webhookId}}\",\n  \"webhook_event\": {\n    \"id\": \"{{replayEventId}}\",\n    \"event_version\": \"1.0\",\n    \"create_time\": \"2026-10-07T12:00:00Z\",\n    \"resource_type\": \"capture\",\n    \"resource_version\": \"2.0\",\n    \"event_type\": \"PAYMENT.CAPTURE.COMPLETED\",\n    \"summary\": \"Payment completed for $ 10000.0 USD (Postman replay sample, not from PayPal)\",\n    \"resource\": {\n      \"id\": \"POSTMAN-SAMPLE-CAPTURE\",\n      \"status\": \"COMPLETED\",\n      \"amount\": {\n        \"currency_code\": \"USD\",\n        \"value\": \"10000.00\"\n      },\n      \"final_capture\": false,\n      \"links\": [\n        {\n          \"href\": \"https://api-m.sandbox.paypal.com/v2/payments/authorizations/POSTMAN-SAMPLE-AUTH\",\n          \"rel\": \"up\",\n          \"method\": \"GET\"\n        }\n      ]\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('PayPal answered the verification request', () => pm.expect(pm.response.code).to.be.oneOf([200, 400]));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "convexSite",
+      "value": "https://exuberant-boar-323.convex.site",
+      "type": "string",
+      "description": "Convex HTTP actions origin of the TradePulse Pay dev deployment (`.convex.site`)."
+    },
+    {
+      "key": "paypalBase",
+      "value": "https://api-m.sandbox.paypal.com",
+      "type": "string",
+      "description": "PayPal sandbox REST base URL. Never point this at live."
+    },
+    {
+      "key": "clientId",
+      "value": "",
+      "type": "string",
+      "description": "Your PayPal sandbox REST app client id. Set it locally; do not commit it."
+    },
+    {
+      "key": "clientSecret",
+      "value": "",
+      "type": "string",
+      "description": "Your PayPal sandbox REST app secret. Set it locally; do not commit it."
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string",
+      "description": "Set by the OAuth token request."
+    },
+    {
+      "key": "convexAuthToken",
+      "value": "",
+      "type": "string",
+      "description": "Convex Auth JWT of a signed-in GC or Owner, for /ai/studio. Empty gives the documented 401."
+    },
+    {
+      "key": "replayEventId",
+      "value": "WH-POSTMAN-REPLAY-0001",
+      "type": "string",
+      "description": "Event id used by both webhook replay requests, to show dedupe."
+    },
+    {
+      "key": "orderId",
+      "value": "",
+      "type": "string",
+      "description": "Set by Create AUTHORIZE order."
+    },
+    {
+      "key": "authorizationId",
+      "value": "",
+      "type": "string",
+      "description": "Set by Authorize order."
+    },
+    {
+      "key": "payoutSenderBatchId",
+      "value": "postman-demo-batch-0001",
+      "type": "string",
+      "description": "sender_batch_id; reuse it to see the duplicate-batch 400."
+    },
+    {
+      "key": "payoutBatchId",
+      "value": "",
+      "type": "string",
+      "description": "Set by Create payout."
+    },
+    {
+      "key": "subPayPalEmail",
+      "value": "",
+      "type": "string",
+      "description": "Sandbox personal account email of the receiving subcontractor."
+    },
+    {
+      "key": "ownerPayPalEmail",
+      "value": "",
+      "type": "string",
+      "description": "Sandbox personal account email of the invoice recipient (Owner)."
+    },
+    {
+      "key": "invoiceId",
+      "value": "",
+      "type": "string",
+      "description": "Set by Create draft invoice."
+    },
+    {
+      "key": "webhookId",
+      "value": "",
+      "type": "string",
+      "description": "Your sandbox webhook id (PAYPAL_WEBHOOK_ID)."
+    },
+    {
+      "key": "webhookAuthAlgo",
+      "value": "SHA256withRSA",
+      "type": "string",
+      "description": "paypal-auth-algo header of a delivery."
+    },
+    {
+      "key": "webhookCertUrl",
+      "value": "",
+      "type": "string",
+      "description": "paypal-cert-url header of a delivery."
+    },
+    {
+      "key": "webhookTransmissionId",
+      "value": "",
+      "type": "string",
+      "description": "paypal-transmission-id header of a delivery."
+    },
+    {
+      "key": "webhookTransmissionSig",
+      "value": "",
+      "type": "string",
+      "description": "paypal-transmission-sig header of a delivery."
+    },
+    {
+      "key": "webhookTransmissionTime",
+      "value": "",
+      "type": "string",
+      "description": "paypal-transmission-time header of a delivery."
+    }
+  ]
+}

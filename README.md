@@ -216,6 +216,14 @@ npm run smoke:live
 
 ---
 
+## 📮 API collection (Postman) and APIMatic log
+
+- Postman v2.1 collection: [`docs/postman/TradePulse-Pay.postman_collection.json`](./docs/postman/TradePulse-Pay.postman_collection.json), with the sandbox environment [`docs/postman/TradePulse-Pay-sandbox.postman_environment.json`](./docs/postman/TradePulse-Pay-sandbox.postman_environment.json). It covers `/api/health`, `/llms.txt`, an unsigned `/paypal/webhook` replay (documented 400, recorded `verified=false`, one row per event id), `/ai/studio`, and the PayPal sandbox calls the app makes (OAuth token, AUTHORIZE order, authorize, capture, void, payout, payout batch, invoice create/send/get, webhook signature verification). Secret variables are empty; set your own sandbox `clientId` / `clientSecret` locally.
+- Run it from the CLI: `npx -y newman run docs/postman/TradePulse-Pay.postman_collection.json -e docs/postman/TradePulse-Pay-sandbox.postman_environment.json --folder "TradePulse endpoints"`.
+- APIMatic Context Plugin log: [`docs/apimatic-log.md`](./docs/apimatic-log.md). It lists the plugin tools queried and the Server SDK methods they informed. Plugin coverage is limited to Orders and Payments; Payouts, Invoicing and webhook verification use plain REST.
+
+---
+
 ## 🧾 Audits & Verification
 
 The full audit trail lives in [`docs/audits/`](./docs/audits/README.md) — self-contained HTML reports
