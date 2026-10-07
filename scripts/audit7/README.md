@@ -1,5 +1,10 @@
 # Audit-6 repro harness (`scripts/audit7/`)
 
+> **Legacy (pre-auth).** These scripts were written for TradePulse Pro before sign-in existed. They
+> read public Convex functions without an identity, which the TradePulse Pay role guards now refuse,
+> and they default to the old Convex hackathon deployment. They are kept for history and are not
+> TradePulse Pay verification commands.
+
 Portable, browser-driven reproduction scripts for the AUDIT-6 remediation (pass 3). Everything
 here runs against the live deployment (or a local `npx convex dev` deployment) from a fresh clone
 on Windows or macOS/Linux — no absolute paths, no secrets.

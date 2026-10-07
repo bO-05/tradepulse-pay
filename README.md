@@ -1,141 +1,197 @@
-# TradePulse Pro ⚡
+# TradePulse Pay
 
-> **Autonomous CSI MasterFormat Subcontractor Procurement, Dynamic Pre-Bid Q&A & Real-Time Bid Leveling for Commercial Construction**
+> Milestone payments, pay-application review and retainage for commercial construction subcontracts, on the PayPal sandbox. Built on the TradePulse Pro procurement app.
 
-[![Convex All Gas Hackathon](https://img.shields.io/badge/Convex-All%20Gas%20Hackathon-f59e0b?style=for-the-badge&logo=convex)](https://vibeapps.dev/judging/convex-all-gas-hackathon-openai)
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-brainy--skunk--440.convex.site-10b981?style=for-the-badge)](https://brainy-skunk-440.convex.site)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
-[![React](https://img.shields.io/badge/React-18.3.1-61dafb?style=for-the-badge&logo=react)](https://react.dev/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4.19-38bdf8?style=for-the-badge&logo=tailwindcss)](https://tailwindcss.com/)
+TradePulse Pay is MIT licensed (see [`LICENSE`](./LICENSE)).
 
----
+**Deployment.** The app runs against a Convex deployment in the `tradepulse-pay` project. The production URL is added here after the production deploy. All PayPal calls use the sandbox (`api-m.sandbox.paypal.com`); no real money moves.
 
-## 🌐 Live Access & Deployment
-
-| Resource | URL |
-| :--- | :--- |
-| **Official Web Application** | **[https://brainy-skunk-440.convex.site](https://brainy-skunk-440.convex.site)** |
-| **LLMs Discoverability Manifest** | **[https://brainy-skunk-440.convex.site/llms.txt](https://brainy-skunk-440.convex.site/llms.txt)** |
-| **Convex Cloud Production Backend** | **[https://brainy-skunk-440.convex.cloud](https://brainy-skunk-440.convex.cloud)** |
-| **AgentMail Live Webhook Endpoint** | **[https://brainy-skunk-440.convex.site/agentmail/webhook](https://brainy-skunk-440.convex.site/agentmail/webhook)** |
+> The earlier TradePulse Pro submission for the Convex hackathon lives on a separate, frozen deployment (`brainy-skunk-440`). It is not TradePulse Pay and does not run this code.
 
 ---
 
-## 🎯 The Problem: The $186,000 Scope Exclusion Trap
+## The problem
 
-In commercial construction (hospitals, labs, towers), General Contractors (GCs) solicit bids from trade subcontractors (Electrical, HVAC, Plumbing). Subcontractors frequently submit **deceptive low bids** on paper ($1,100,000 vs $1,225,000), but hide critical exclusions in fine print:
-- Excluded crane hoisting to penthouse mechanical rooms (+$45,000 GC cost)
-- Excluded UL 1479 rated firestop penetrations (+$22,000 GC cost)
-- Excluded seismic engineered structural bracing (+$55,000 GC cost)
-- Non-compliant Certificate of Insurance ($1M limit vs required $5M, +$15,000 penalty)
-- 16-week long-lead equipment delays (+$24,000 schedule delay impact)
+A general contractor (GC) awards a subcontract, then pays it out over months. Every month the subcontractor files a pay application ("we are 40% done with rough-in, pay us $X"). The GC has to check each line against the schedule of values, catch overbilling and billing for excluded scope, hold back retainage (usually 10%), confirm the sub's license is still active, and then actually move the money. Today this is spreadsheets, email and manual bank transfers. Overbilling slips through, retainage is tracked by hand, and change orders are invoiced separately.
 
-When GCs award purely based on base price, they suffer **six-figure change orders** and schedule blowouts. Furthermore, trades frequently **double-buy equipment** (e.g. both Division 26 Electrical and Division 23 HVAC bidding Variable Frequency Drives — a **$38,500 VFD line item**, part of the demo's **$50,500 total double-buys**, alongside $46,500 in scope voids) or leave **scope voids** (e.g. low-voltage control wiring excluded by both).
+## The pitch
 
----
+TradePulse Pay takes the contract the GC just awarded in TradePulse Pro and runs the money side:
 
-## ⚡ Solution: TradePulse Pro
-
-TradePulse Pro automates the entire MEP subcontractor buyout lifecycle end-to-end:
-1. **CSI MasterFormat Scoping**: Auto-parses architectural specifications into Division 26 (Electrical), Division 23 (HVAC), and Division 22 (Plumbing) packages with dedicated `@agentmail.to` inboxes.
-2. **Autonomous Subcontractor Discovery (Firecrawl)**: Searches regional contractor sites for candidate bidders and records the provenance of every data point. License numbers, phone numbers and emails are only stored when the source actually publishes them; records are labeled "Unverified" unless the source itself is a state registry page.
-3. **Dynamic Pre-Bid Q&A (AgentMail & OpenAI)**: Ingests subcontractor email RFIs via AgentMail with cryptographic Svix verification, answers technical questions against the spec, and compiles binding **CSI Addendum No. 01** documents stored in Convex File Storage (`_storage`).
-4. **Forensic Bid Leveling Engine (ADR-0003)**: Automatically parses proposals, normalizes hidden exclusions, applies lead-time delay adjustments and COI penalties, and accounts for Value Engineering (VE) alternates.
-5. **Cross-Trade Scope Clash Engine**: Detects Double-Buys and Scope Voids between electrical and mechanical trades with 1-click buyout deductions.
-6. **A401-Style Contract Draft Generator**: Instantly produces a standard 10-article subcontract draft following the AIA A401 article structure (explicitly labeled as not an official AIA-licensed form) with financial attestations, retainage terms, and liquidated damages.
+1. **Execute the agreement.** Code generates the schedule of values (SOV) from the leveled bid, including the excluded-scope lines, and four funded milestones.
+2. **Fund a milestone.** The GC approves a PayPal `AUTHORIZE` order. The money is held, not captured.
+3. **Sub files a pay application**, either a person or the sub's **billing agent** signed in with AgentID.
+4. **AI review.** Anthropic Claude returns per-line verdicts (ok, overbilled, excluded scope, front-loaded, out of sequence). **Code computes every dollar** from the SOV; the model never authors an amount. KERNEL checks the sub's California license (CSLB) in a hosted browser.
+5. **Pay agent proposes**, the GC approves. The agent can only insert proposals (capture, payout, hold, reschedule). Money moves only after the GC approves: PayPal captures from the authorization, pays the sub net of retainage through Payouts, and credits the retainage ledger.
+6. **Change orders** are invoiced to the Owner with PayPal Invoicing. **Retainage** is released at closeout as one payout of the ledger balance.
+7. **Dashboard.** An AG Studio dashboard shows payments, pay apps, retainage and change orders, with a chat agent that answers from the Convex ledger.
 
 ---
 
-## 🏛️ Architecture & Sponsor Synergy Matrix
+## What changed since Oct 1
 
-TradePulse Pro deeply integrates all 4 hackathon sponsors:
+The TradePulse Pay work is the commit range **`2ad5543..paypal-hackathon`** on branch `paypal-hackathon` (first commit `fc2f763`, Oct 7 2026). `2ad5543` is the last TradePulse Pro commit (Sep 22 2026). See them with `git log --oneline 2ad5543..paypal-hackathon`.
 
-```mermaid
-graph TD
-    A[CSI 3-Part MasterFormat Specs] -->|AI Spec Breakdown| B(Convex Trade Packages)
-    B -->|Firecrawl Web Crawler| C[Licensed Contractor Directory]
-    B -->|AgentMail API| D[Dedicated Package Inboxes]
-    C -->|Outbound RFQ Invites| D
-    D -->|Svix Cryptographic Webhook| E[Convex HTTP Router]
-    E -->|Pre-Bid Inquiries| F[OpenAI Pre-Bid RFI Engine]
-    F -->|Binding Addenda| G[Convex File Storage _storage]
-    E -->|Quote Proposals| H[ADR-0003 Bid Leveling Engine]
-    H -->|A401-Style Draft Generator| I[Subcontract Agreement Drafts]
-    H -->|Cross-Trade Clash Detection| J[Double-Buy & Scope Void Resolver]
+- **Sign-in and roles (AUTH).** Convex Auth email + password with roles gc, sub and owner; AgentID sign-in for billing agents with GC-managed links; every public Convex function, old and new, is role-guarded (`docs/guard-audit.md`).
+- **Payments (PAY).** Payments schema and integer-cents money helpers; PayPal client with token cache, `PayPal-Request-Id` idempotency, backoff and audit logs; SOV and milestones on execution; AUTHORIZE funding; partial capture, void and reauthorize; payouts net of retainage; retainage ledger and closeout release; change-order invoices; signature-verified `/paypal/webhook`; hourly honor-period watcher; payout retry and ledger reconciliation.
+- **Pay apps and agent (AGENT).** Sub pay-application submit and withdraw with agent attribution; AI review with structured verdicts and an "Offline rules engine" fallback; KERNEL CSLB license checks with live view and 24 h cache; pay-agent proposals with a GC approval inbox.
+- **Dashboard (DASH).** Lazy-loaded AG Studio payments dashboard for the GC and a read-only owner view, with the TradePulse pay agent wired through the auth-gated `/ai/studio` Anthropic proxy.
+- **Submission (DOCS, PAY).** Postman collection and APIMatic log, the one-click judge demo, this README, `.env.example`, the secret sweep and the guard audit.
+
+The procurement features of TradePulse Pro (CSI scoping, Firecrawl discovery, AgentMail RFQ inboxes, bid leveling, scope clash detection, A401-style drafts) are unchanged in behavior. They now require the GC sign-in.
+
+---
+
+## Architecture
+
+```
+Browser (Vite dev server, http://localhost:3150)
+  ├─ Convex Auth sign-in: password (gc, sub, owner) or "Continue with AgentID" (billing agents)
+  ├─ Procurement (TradePulse Pro views, GC only)
+  ├─ Payments workspace (src/payments/): ledger, fund milestone (PayPal JS SDK buttons),
+  │    sub portal, GC approval inbox (AI review, KERNEL live view, approve/edit/reject),
+  │    owner portal (change-order invoices), judge demo
+  └─ AG Studio dashboard (src/dashboard/, lazy route) → POST /ai/studio with the Convex Auth token
+
+Convex (convex/)
+  auth.ts, auth.config.ts     Convex Auth: Password + AgentID OIDC provider
+  lib/roles.ts                requireRole / requireRoleInAction / requireAgreementAccess
+  lib/money.ts                integer cents; the only place amounts become PayPal strings
+  payments/                   SOV, orders, captures, payouts, retainage, invoices, webhook, crons
+  payApps/                    submit, withdraw, AI review, proposals, approval
+  agent/                      pay agent (AI SDK v7 + @ai-sdk/anthropic + read-only PayPal agent-toolkit tools)
+  kernel/                     CSLB license check in KERNEL browsers
+  dashboard/                  dashboard queries and the /ai/studio Anthropic proxy
+  judgeDemo/                  one-click judge demo runner
+  http.ts                     /api/auth/*, /paypal/webhook, /ai/studio, /llms.txt, /api/health, demo PDFs
+        │
+        ▼
+PayPal sandbox · Anthropic · KERNEL → CSLB website · AgentID · AgentMail · Firecrawl
 ```
 
-### 1. Convex (All-Gas Full-Stack Reactive Backend)
-* **Real-time WebSockets**: Zero-polling reactive UI updates across all bidders, RFIs, leveling matrices, and audit streams (`useQuery`, `useMutation`).
-* **Convex Crons (`convex/crons.ts`)**: Scheduled hourly bid deadline sweeps (`monitor-bid-deadlines`) and 6-hour contractor compliance audits (`audit-contractor-compliance`).
-* **Convex File Storage (`_storage`, `convex/files.ts`)**: Secure persistence for CSI specs, BIM drawing PDFs, ACORD 25 COIs, and generated Addenda.
-* **Official Static Hosting (`@convex-dev/static-hosting`)**: Unified single-command deployment with production SPA fallback and Wayne Sutton `/llms.txt` discoverability.
+Rules the code enforces:
 
-### 2. OpenAI & Multi-Model Pipeline (`convex/llmRouter.ts`)
-* **GPT-4o Spec Scoping & Pre-Bid RFI Analysis**: Technical inquiry extraction against Division 26/23 specifications.
-* **Structured Bid Parsing**: Extracts line items, quantities, unit prices, exclusions, and VE alternates.
-* **Multi-Model Support**: Google Gemini and Anthropic Claude run the live pipeline today; OpenAI GPT-4o is a **BYOK adapter** that activates the moment an `OPENAI_API_KEY` is configured (the hackathon provides no OpenAI API credits). A deterministic offline construction-intelligence fallback keeps the pipeline alive even with no provider keys at all.
-
-### 3. Firecrawl (`@firecrawl/firecrawl-convex`, `convex/contractorDiscovery.ts`)
-* **Subcontractor Web Discovery**: Autonomous discovery of MEP specialty contractors by location and trade division.
-* **Provenance-First Records**: Scrapes contractor domains for published contacts and license numbers and labels each record with its source. Nothing is presented as state-verified unless a registry page was actually the source.
-
-### 4. AgentMail (`@agentmail/convex`, `convex/emailActions.ts`, `convex/http.ts`)
-* **Dedicated Project Inboxes**: Auto-provisions `@agentmail.to` inboxes per CSI trade package (Div 26 Electrical, Div 23 HVAC, Div 22 Plumbing) on the AgentMail free tier. When the plan's inbox limit is reached, new packages reuse an existing inbox and the UI labels it as shared instead of claiming a dedicated address.
-* **Cryptographic Svix Verification**: Validates `svix-id`, `svix-timestamp`, and `svix-signature` on inbound emails at `/agentmail/webhook`.
-* **Two-Way Communication**: Transmits outbound invitations to bid and ingests inbound contractor RFIs and quote proposals directly into the Convex pipeline.
+- No money moves without an explicit GC action (fund) or a GC-approved proposal (`approveProposal`).
+- Amounts are integer cents (`*Cents` fields). Conversion goes through `convex/lib/money.ts` only.
+- Every PayPal write sends a `PayPal-Request-Id` and writes an `auditLogs` row without secrets. A duplicate webhook event id is a no-op.
+- A sub sees only its own agreements. The owner can read and pay invoices but cannot approve or fund.
+- Secrets stay in the Convex environment. Only the PayPal client id and the AG Studio license key reach the browser.
 
 ---
 
-## 📊 The ADR-0003 Normalization Formula
+## Setup and run
 
-$$\text{Leveled Total Cost} = \text{Base Bid} + \sum(\text{Active Exclusions}) + \text{Lead Time Penalty} + \text{COI Deficiency Penalty} - \sum(\text{Accepted VE Alternates})$$
+### Prerequisites
 
-The lead-time term is deterministic: the engine extracts the bidder's lead time in weeks and computes
-`max(0, weeks − baseline) × $6,000` in code (Division 26 baseline: 12 weeks; Divisions 22/23: 16 weeks),
-rendering the arithmetic on the leveling card. The model never returns a dollar penalty.
+- Node.js 20+ and npm
+- A Convex account (or a deploy key for an existing deployment)
+- A PayPal developer account with a **sandbox** REST app, and sandbox accounts for the GC buyer, three subs and the owner
+- Optional, for the full flow: Anthropic, KERNEL, AgentID, AgentMail and Firecrawl keys
 
-### The Alterman vs. Rosendin Electric Case Study:
-* **Alterman, Inc.**:
-  * Base Bid: $\$1,100,000$ *(Looks like the lowest bidder!)*
-  * Crane Hoisting Excluded: $+\$45,000$
-  * UL 1479 Firestopping Excluded: $+\$22,000$
-  * Seismic Bracing Excluded: $+\$55,000$
-  * Schedule Lead Time Penalty (16 wks vs the Division 26 12-wk baseline @ \$6,000/wk, computed in code): $+\$24,000$
-  * COI Penalty (\$1M policy vs \$5M required): $+\$15,000$
-  * **Normalized Leveled Cost: $\$1,286,000$**
-* **Rosendin Electric, Inc.**:
-  * Base Bid: $\$1,225,000$
-  * Exclusions: $\$0$ *(All mandatory inclusions covered)*
-  * VE Alternate 01 (Aluminum MC feeder cable): $-\$35,000$ *(Optional GC savings)*
-  * **Normalized Leveled Cost: $\$1,225,000$ (or $\$1,190,000$ with VE accepted)**
-* **Financial Decision**: Awarding Rosendin Electric saves the GC **$\$61,000$ to $\$96,000$** and prevents catastrophic site delays.
+### 1. Install
+
+```bash
+git clone https://github.com/bO-05/tradepulse-pro.git
+cd tradepulse-pro
+git checkout paypal-hackathon
+npm ci
+```
+
+### 2. Environment variables
+
+[`.env.example`](./.env.example) lists every variable name the code reads, with no values. There are two groups:
+
+- **Browser (`.env.local`, gitignored):** `VITE_CONVEX_URL`, `VITE_CONVEX_SITE_URL`, `VITE_PAYPAL_CLIENT_ID` (public by design), `VITE_AG_STUDIO_LICENSE_KEY` (client-side by design).
+- **Convex deployment:** `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL=claude-sonnet-5-5`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_ENV=sandbox`, `PAYPAL_WEBHOOK_ID`, `PAYPAL_SANDBOX_{GC_BUYER,SUB1,SUB2,SUB3,OWNER}_EMAIL`, `KERNEL_API_KEY`, `FIRECRAWL_API_KEY`, `AGENTMAIL_API_KEY`, `AUTH_AGENTID_ID`, `AUTH_AGENTID_SECRET`, `SITE_URL`, plus `JWT_PRIVATE_KEY` and `JWKS` (generated below).
+
+Keep real values in a secrets file outside the repo. The setup scripts read it, pipe each value to `npx convex env set` on stdin and print names only. They refuse the frozen `brainy-skunk-440` deployment.
+
+### 3. Convex deployment (sandbox setup)
+
+```bash
+export SECRETS_FILE=/path/to/secrets.env          # must define CONVEX_DEPLOY_KEY for your deployment
+export EXPECTED_DEPLOYMENT=<your-deployment-name>  # the scripts refuse any other deployment
+
+bash scripts/sync-convex-env.sh            # app env incl. ANTHROPIC_MODEL and SITE_URL=http://localhost:3150
+bash scripts/setup-convex-auth-keys.sh     # JWT_PRIVATE_KEY + JWKS (skips if already set)
+npx convex dev --once                      # push functions (writes CONVEX_DEPLOYMENT and VITE_CONVEX_URL to .env.local)
+npx convex run demoAccounts:seedDemo '{}'  # demo project (if missing), demo accounts and role profiles
+```
+
+Run the env sync before the first push: the Firecrawl component requires `FIRECRAWL_API_KEY`, and the push fails without it.
+
+Then add the remaining browser values to `.env.local`: `VITE_CONVEX_SITE_URL=https://<deployment>.convex.site`, `VITE_PAYPAL_CLIENT_ID` and `VITE_AG_STUDIO_LICENSE_KEY`.
+
+PayPal sandbox setup:
+
+1. In the PayPal developer dashboard, create a sandbox REST app and enable Payouts and Invoicing for it.
+2. Add a sandbox webhook pointing to `https://<deployment>.convex.site/paypal/webhook` with the authorization, capture, payouts and invoicing events. Put its id in `PAYPAL_WEBHOOK_ID`.
+3. Put the sandbox account emails in `PAYPAL_SANDBOX_*_EMAIL` before seeding. The seed copies them onto the sub and owner profiles; they are not stored in this repository.
+
+### 4. Run
+
+```bash
+npm run dev        # Vite on http://localhost:3150 (strict port)
+```
+
+Open **http://localhost:3150** (not `127.0.0.1`). Convex Auth redirects to `SITE_URL`, so sign-in only works on that exact origin.
 
 ---
 
-## 🔐 Sign-in and Demo Accounts (TradePulse Pay)
+## Demo accounts and password
 
-TradePulse Pay requires sign-in (Convex Auth, email + password). Signed-out visitors only see the sign-in page; `/llms.txt` and `/api/health` stay public. Self sign-up is disabled: accounts come from the demo seed.
+TradePulse Pay requires sign-in. Signed-out visitors only see the sign-in page; `/llms.txt` and `/api/health` stay public. Self sign-up is disabled: accounts come from the demo seed.
 
 All demo accounts share the public demo password **`TradePulseDemo!2026`**.
 
 | Account | Role | What it sees |
 |---|---|---|
-| `gc@demo.tradepulse` | General contractor | Everything: procurement (award, execute, reset, 1-click demo) and the projects overview |
+| `gc@demo.tradepulse` | General contractor | Everything: procurement (award, execute, reset, 1-click demo), payments, approval inbox, billing agents, dashboard, judge demo |
 | `sub1@demo.tradepulse` | Subcontractor | Only Rosendin Electric's agreements and pay applications |
 | `sub2@demo.tradepulse` | Subcontractor | Only TDIndustries' agreements and pay applications |
 | `sub3@demo.tradepulse` | Subcontractor | Only Clarke Kent Plumbing's agreements and pay applications |
-| `owner@demo.tradepulse` | Owner | Read-only projects, agreements and change-order invoices; no award, approve or fund controls |
+| `owner@demo.tradepulse` | Owner | Read-only projects, agreements and change-order invoices, and the read-only dashboard; no award, approve or fund controls |
 
-Sub and owner PayPal sandbox emails are read from the Convex environment (`PAYPAL_SANDBOX_SUB{1,2,3}_EMAIL`, `PAYPAL_SANDBOX_OWNER_EMAIL`) when the seed runs; they are not stored in this repository.
+## Guest test card (PayPal sandbox)
 
-Setup on a Convex deployment (idempotent; prints names only, never values):
+There is no buyer password. Fund milestones and pay invoices with PayPal guest checkout:
 
-```bash
-bash scripts/sync-convex-env.sh            # app env, including SITE_URL
-bash scripts/setup-convex-auth-keys.sh     # JWT_PRIVATE_KEY + JWKS (skips if already set)
-npx convex dev --once                      # push functions
-npx convex run demoAccounts:seedDemo '{}'  # demo project (if missing) + demo accounts + role profiles
-```
+- Choose **Debit or Credit Card** in the PayPal window.
+- Card `4032031427005060`, expiry `01/29`, CVV `480`. Any name and address.
+- If PayPal offers to create an account, turn off "Save info & create your PayPal account" and continue as guest.
+
+The PayPal sandbox sends no real emails and moves no real money.
+
+## Billing-agent sign-in (AgentID)
+
+A subcontractor can let an AI billing agent file pay applications for it. The agent signs in with [AgentID](https://agentid.com), using its AgentMail inbox as its identity.
+
+1. **The GC links the agent.** Signed in as `gc@demo.tradepulse`, open **Billing agents**, enter the agent's inbox email (the demo agent is `boldlevel182@agentmail.to`) and pick the subcontractor (sub1's contractor, Rosendin Electric). The GC can revoke the link at any time; the agent loses access on its next request.
+2. **The agent signs in.** On the sign-in page, click **Continue with AgentID**. The browser goes to AgentID's "Waiting for your agent to authorize an inbox" page. The `jti` value in that page's URL is the auth token.
+3. **The agent's owner authorizes.** The inbox owner approves the sign-in with the AgentMail API, `POST https://api.agentmail.to/v0/inboxes/{inbox}/authorize` with body `{"auth_token": "<jti>", "accept_disclosure": true}` and their own AgentMail API key. AgentID redirects back and the agent lands on the sub workspace.
+4. **What the agent can do.** It sees the linked sub's agreements and can submit or withdraw that sub's pay applications. It can never approve, fund, capture, pay or manage links. Its pay apps and audit rows record the agent email and its owner, and the GC inbox shows "Submitted by billing agent <email> on behalf of <owner>".
+
+An AgentID account without an active link sees **Agent not authorized**, naming the agent email and its owner, with a sign-out button.
+
+The AgentID client is registered per deployment with the redirect URI `https://<deployment>.convex.site/api/auth/callback/agentid`. Its id and secret go in `AUTH_AGENTID_ID` and `AUTH_AGENTID_SECRET` on the Convex deployment, never in the repo.
+
+---
+
+## TradePulse Pay judge demo (PayPal sandbox, about 1–3 minutes)
+
+Sign in as `gc@demo.tradepulse`, open the **⚡ 60s Judge Dock** and click **Run TradePulse Pay demo** (or use the **Judge demo** item in the navigation). Each run creates a fresh, labeled demo award for sub1's contractor (Rosendin Electric, $59,500 with an excluded $4,500 seismic bracing line) and then uses the app's regular functions:
+
+1. Execute the agreement; the schedule of values and four milestones are generated.
+2. **You** fund Mobilization ($5,950.00) in the PayPal popup with the guest card above. The demo waits for the real authorization.
+3. The demo files two pay applications as stand-ins: an honest one for sub1 and an overbilled one (billing early closeout work and the excluded scope, no lien waiver) for the billing agent `boldlevel182@agentmail.to`. Both are labeled **"Judge demo · filed by <GC>"** on every screen.
+4. AI review (Anthropic; code computes every dollar), the KERNEL CSLB license check, and the pay agent's capture and payout proposals.
+5. The GC approves the honest pay app as proposed and edits the agent's proposal down to 90% before approving. PayPal captures from the authorization and pays sub1 90% net; 10% goes to the retainage ledger.
+6. A $1,850.00 change order is invoiced to the Owner through PayPal Invoicing. The dashboard step turns green once its totals match the ledger.
+7. **The Owner** pays the invoice in their own browser (sign in as `owner@demo.tradepulse`, **Projects & change orders**, **Open PayPal invoice**, pay with the guest card and a guest email), then clicks **Refresh status**.
+
+The page shows each step's status from Convex and PayPal, and the time from start to the change-order invoice. "Continue this run" resumes after a reload or re-sign-in.
+
+**Sandbox-only setup step: top up the platform balance before releasing retainage.** PayPal keeps about 3.5% + $0.49 of every capture, so after paying subs 90% the sandbox platform account holds less than the retainage it owes, and a retainage release fails with `INSUFFICIENT_FUNDS`. The demo page's optional closeout section has a GC-only **Sandbox setup: top up the platform balance** panel (`payments/sandboxTopUp:createTopUpOrder` / `captureTopUpOrder`). It creates a PayPal CAPTURE order (suggested amount: 110% of the retainage held), opens the PayPal checkout in a new tab (pay as guest with the card above), and then **Capture top-up** moves the funds into the platform account. Wait about 15 s, then click **Release retainage**. The top-up is not linked to any agreement and is never counted in ledger or dashboard totals. It refuses to run unless `PAYPAL_ENV` is `sandbox`.
 
 ### Agreement ledger totals
 
@@ -150,125 +206,82 @@ Funded authorizations are watched hourly (`convex/crons.ts`): after the 3-day ho
 
 ---
 
-## ⚡ 60-Second Judge Evaluation Walkthrough
+## Which integrations are live and which fall back
 
-Want to experience the complete platform in 60 seconds?
-1. Open the live deployment: **[https://brainy-skunk-440.convex.site](https://brainy-skunk-440.convex.site)**.
-2. In the top navigation bar, click the glowing **⚡ 60s Judge Dock** button.
-3. Click **"⚡ 1-Click Run Full Autonomous Procurement Lifecycle"**:
-   * Watch the live Activity Audit Stream log every step in real-time.
-   * Scopes Division 26 Electrical, 23 HVAC, and 22 Plumbing.
-   * Discovers contractors and provisions AgentMail inboxes.
-   * Clarifies RFIs and generates binding CSI Addendum No. 01.
-   * Compares bids in the ADR-0003 Side-by-Side Leveling Matrix.
-   * Awards Rosendin Electric and generates an **A401-style subcontract draft** (follows the AIA A401 article structure; not an official AIA-licensed form).
-4. Click **Scope Clash Engine**: Review cross-trade coordination catching the **$38,500 VFD Double-Buy** and click **"Deduct Credit"**.
-
-### TradePulse Pay judge demo (PayPal sandbox, about 1–3 minutes)
-
-Sign in as `gc@demo.tradepulse`, open the **⚡ 60s Judge Dock** and click **Run TradePulse Pay demo** (or use the **Judge demo** item in the navigation). Each run creates a fresh, labeled demo award for sub1's contractor (Rosendin Electric, $59,500 with an excluded $4,500 seismic bracing line) and then uses the app's regular functions:
-
-1. Execute the agreement; the schedule of values and four milestones are generated.
-2. **You** fund Mobilization ($5,950.00) in the PayPal popup: "Debit or Credit Card", guest card `4032031427005060`, `01/29`, CVV `480`. The demo waits for the real authorization.
-3. The demo files two pay applications as stand-ins: an honest one for sub1 and an overbilled one (billing early closeout work and the excluded scope, no lien waiver) for the billing agent `boldlevel182@agentmail.to`. Both are labeled **"Judge demo · filed by <GC>"** on every screen.
-4. AI review (Anthropic; code computes every dollar), the KERNEL CSLB license check, and the pay agent's capture and payout proposals.
-5. The GC approves the honest pay app as proposed and edits the agent's proposal down to 90% before approving. PayPal captures from the authorization and pays sub1 90% net; 10% goes to the retainage ledger.
-6. A $1,850.00 change order is invoiced to the Owner through PayPal Invoicing. The dashboard step turns green once its totals match the ledger.
-7. **The Owner** pays the invoice in their own browser (sign in as `owner@demo.tradepulse`, **Projects & change orders**, **Open PayPal invoice**, pay with the guest card and a guest email), then clicks **Refresh status**.
-
-The page shows each step's status from Convex and PayPal, and the time from start to the change-order invoice. "Continue this run" resumes after a reload or re-sign-in.
-
-**Sandbox-only setup step: top up the platform balance before releasing retainage.** PayPal keeps about 3.5% + $0.49 of every capture, so after paying subs 90% the sandbox platform account holds less than the retainage it owes, and a retainage release fails with `INSUFFICIENT_FUNDS`. The demo page's optional closeout section has a GC-only **Sandbox setup: top up the platform balance** panel (`payments/sandboxTopUp:createTopUpOrder` / `captureTopUpOrder`). It creates a PayPal CAPTURE order (suggested amount: 110% of the retainage held), opens the PayPal checkout in a new tab (pay as guest with the card above; turn off "Save info & create your PayPal account", then "Continue as Guest" and "Continue"), and then **Capture top-up** moves the funds into the platform account. Wait about 15 s, then click **Release retainage**. The top-up is not linked to any agreement and is never counted in ledger or dashboard totals. It refuses to run unless `PAYPAL_ENV` is `sandbox`.
+| Integration | Live behavior | Fallback or limit (labeled in the app) |
+|---|---|---|
+| PayPal (sandbox) | Orders `AUTHORIZE`, authorize, capture, void, reauthorize; Payouts; Invoicing v2; webhook signature verification. All real sandbox calls. | Sandbox only. An unverified webhook gets 400 and is recorded `verified=false`. PayPal's webhook simulator events fail verification by design. Retainage release needs the sandbox top-up above. |
+| Anthropic | `claude-sonnet-5-5` (from `ANTHROPIC_MODEL`) for pay-app review, the pay agent and the AG Studio chat proxy. | If no provider responds, the review and the agent fall back to a deterministic rules engine labeled **"Offline rules engine"**. The Studio proxy returns 503 when no key is set. |
+| KERNEL | Hosted browser runs the CSLB license lookup, with the live view embedded in the inbox. Results are cached 24 h. | On timeout or failure the check is **"unverified"**; a license is never shown as verified unless CSLB returned it. |
+| AgentID | Billing-agent sign-in (OIDC, PKCE) on the deployment whose redirect URI is registered. | Unlinked agents get "Agent not authorized". Each new deployment needs its redirect URI registered. |
+| AgentMail | Inbox identity for billing agents; RFQ inboxes and outbound email for procurement. | The free plan is at its 3-inbox limit, so new trade packages reuse an existing inbox and the UI labels it **shared**. Inbound `/agentmail/webhook` requires `AGENTMAIL_WEBHOOK_SECRET` (Svix verification) and returns 503 when it is not set. |
+| Firecrawl | Subcontractor discovery by web search, with per-record provenance. | When a search returns nothing usable, no records are created; records stay "Unverified" unless the source is a registry page. |
+| AG Studio | Payments dashboard and chat agent with a STUDIO-PRO-AI trial license (expires 20 Nov 2026). | The chat agent needs the Anthropic key on the deployment (the `/ai/studio` proxy). |
+| OpenAI, Gemini, Vertex | BYOK adapters in the procurement router (`convex/llmRouter.ts`). | Not configured on the TradePulse Pay deployment; procurement AI uses Anthropic or its deterministic fallback. |
 
 ---
 
-## 🛠️ Local Development & Testing
+## Tools used and how
 
-### Prerequisites
-* Node.js v20+
-* Python 3.10+ (for verification test suites)
-
-### Setup
-```bash
-# Clone the repository
-git clone https://github.com/bO-05/tradepulse-pro.git
-cd tradepulse-pro
-
-# Install exact locked dependencies (npm install also works)
-npm ci
-
-# Run frontend development server
-npm run dev
-# -> http://localhost:5173/
-
-# Run Convex local backend
-npx convex dev
-```
-
-### Verification & Testing
-```bash
-# Build the frontend first (a fresh clone has no dist/ yet; the Python suite checks it)
-npm run build
-
-# 36 domain, sponsor, and architecture deliverable tests -> expect 36/36 PASS
-python tests/test_tradepulse.py
-
-# Hackathon setup and log verification -> expect ALL VERIFICATION TESTS PASSED
-python tests/verify_setup.py
-
-# Unit + integration tests -> expect 113/113
-npx vitest run
-
-# Type-check -> expect no output, exit 0
-npx tsc -b
-
-# Docs integrity (links + log order) and offline rendering of the curated reports
-npm run verify:docs
-npm run verify:reports
-
-# Live guarantee smoke against the deployment (creates and deletes one AUDIT-* fixture)
-npm run smoke:live
-```
+| Tool | How TradePulse Pay uses it |
+|---|---|
+| **PayPal** | `@paypal/paypal-server-sdk@2.5.0` for Orders and Payments (`convex/payments/paypalClient.ts`, `orders.ts`); plain REST for Payouts, Invoicing v2 and webhook verification (`payouts.ts`, `invoices.ts`, `webhook.ts`); `@paypal/react-paypal-js@10.6.0` buttons for funding (`src/payments/FundMilestone.tsx`); `@paypal/agent-toolkit@1.11.0` read-only tools (`list_invoices`, `get_invoice`, `get_order`, `list_transactions`) wrapped for AI SDK v7 in `convex/agent/tools.ts`. |
+| **Anthropic** | Claude through `ai@7` and `@ai-sdk/anthropic@4` for structured pay-app verdicts (`convex/payApps/review.ts`) and the pay agent tool loop (`convex/agent/`); the `/ai/studio` HTTP action proxies AG Studio chat to the Anthropic Messages API so the key stays server-side. |
+| **AG Studio** | `ag-studio-react@3.0.0` and `ag-studio@3.0.0` render the lazy-loaded payments dashboard (`src/dashboard/`) from reactive Convex queries, with custom widgets and a "TradePulse pay agent" that delegates to AG's built-in agents. |
+| **APIMatic** | The APIMatic Context Plugin (MCP) was queried while writing the PayPal Server SDK code. Every lookup and the code it informed is in [`docs/apimatic-log.md`](./docs/apimatic-log.md). It covers Orders and Payments only; the app never calls it at runtime. |
+| **Postman** | A v2.1 collection and sandbox environment document every HTTP endpoint and PayPal call the app makes (see "API collection" below). |
+| **KERNEL** | `@onkernel/sdk@0.119.0` creates a hosted browser, runs the CSLB lookup with Playwright and deletes the browser (`convex/kernel/`). |
+| **AgentID / AgentMail** | AgentID is a custom OIDC provider in Convex Auth for billing-agent sign-in (`convex/auth.ts`, `convex/lib/agentAccess.ts`); AgentMail inboxes are the agents' identities, and AgentMail also powers the procurement RFQ inboxes (`@agentmail/convex`). |
+| **Firecrawl** | `@firecrawl/firecrawl-convex` searches and scrapes contractor sites for subcontractor discovery (`convex/contractorDiscovery.ts`). |
+| **Convex** | Database, queries, mutations, actions, HTTP router, crons (honor-period watcher), file storage, Convex Auth, and `convex-test` for the role-guard and money tests. |
 
 ---
 
 ## 📮 API collection (Postman) and APIMatic log
 
-- Postman v2.1 collection: [`docs/postman/TradePulse-Pay.postman_collection.json`](./docs/postman/TradePulse-Pay.postman_collection.json), with the sandbox environment [`docs/postman/TradePulse-Pay-sandbox.postman_environment.json`](./docs/postman/TradePulse-Pay-sandbox.postman_environment.json). It covers `/api/health`, `/llms.txt`, an unsigned `/paypal/webhook` replay (documented 400, recorded `verified=false`, one row per event id), `/ai/studio`, and the PayPal sandbox calls the app makes (OAuth token, AUTHORIZE order, authorize, capture, void, payout, payout batch, invoice create/send/get, webhook signature verification). Secret variables are empty; set your own sandbox `clientId` / `clientSecret` locally.
+- Postman v2.1 collection: [`docs/postman/TradePulse-Pay.postman_collection.json`](./docs/postman/TradePulse-Pay.postman_collection.json), with the sandbox environment [`docs/postman/TradePulse-Pay-sandbox.postman_environment.json`](./docs/postman/TradePulse-Pay-sandbox.postman_environment.json). It covers `/api/health`, `/llms.txt`, an unsigned `/paypal/webhook` replay (documented 400, recorded `verified=false`, one row per event id), `/ai/studio`, and the PayPal sandbox calls the app makes (OAuth token, AUTHORIZE order, authorize, capture, void, payout, payout batch, invoice create/send/get, webhook signature verification). Secret variables are empty; set your own sandbox `clientId` / `clientSecret` locally, and set `convexSite` to your deployment's `.convex.site` URL.
 - Run it from the CLI: `npx -y newman run docs/postman/TradePulse-Pay.postman_collection.json -e docs/postman/TradePulse-Pay-sandbox.postman_environment.json --folder "TradePulse endpoints"`.
 - APIMatic Context Plugin log: [`docs/apimatic-log.md`](./docs/apimatic-log.md). It lists the plugin tools queried and the Server SDK methods they informed. Plugin coverage is limited to Orders and Payments; Payouts, Invoicing and webhook verification use plain REST.
 
 ---
 
-## 🧾 Audits & Verification
+## Verification
 
-The full audit trail lives in [`docs/audits/`](./docs/audits/README.md) — self-contained HTML reports
-(open by double-click, no network needed):
+Run from the repository root:
 
-| Report | What it covers |
-| :--- | :--- |
-| [audit-1-ux.html](./docs/audits/audit-1-ux.html) | First UX audit of the deployed app. |
-| [audit-2-user-journey.html](./docs/audits/audit-2-user-journey.html) | Five-persona user-journey audit (BUG-01…BUG-36). |
-| [audit-3-adversarial.html](./docs/audits/audit-3-adversarial.html) | Independent audit v3 with adversarial passes (AUD-01…AUD-05). |
-| [audit-4-ui.html](./docs/audits/audit-4-ui.html) | Human-operator UI audit (F1…F12). The [.md copy](./docs/audits/audit-4-ui.md) is machine-readable. |
-| [audit-5-remediation.html](./docs/audits/audit-5-remediation.html) | Remediation pass 2: F1–F12 verification table, new findings, claim-change decisions, convergence log, before/after evidence. |
-| [audit-6-usefulness.html](./docs/audits/audit-6-usefulness.html) / [.md](./docs/audits/audit-6-usefulness.md) | Independent adversarial usefulness audit (AUDIT-6) of the live app: demo + BYO verdicts, C1–C15 claims, A6-xx findings. |
-| [audit-6-remediation.html](./docs/audits/audit-6-remediation.html) / [.md](./docs/audits/audit-6-remediation.md) | Remediation pass 3: reproduction status for every A6-xx, before/after evidence, 25 convergence rounds, decisions, BYO proof, regression output, and a browser-only re-verification guide. |
+```bash
+npx tsc -b                      # type-check, no output on success
+npx vitest run --maxWorkers=2   # unit, convex-test integration and role-guard tests
+npm run build                   # tsc + Vite production build into dist/
+npm run verify:guards           # every public Convex function calls a role guard (table: docs/guard-audit.md)
+npm run verify:docs             # README and docs links resolve, hackathon log is in order
+npm run verify:reports          # the archived audit reports render offline (needs Chrome or Edge)
+```
 
-**Current state (audit 6 remediation, pass 3).** Every AUDIT-6 finding was reproduced live before
-fixing; the one that no longer reproduces is marked UNREPRODUCED rather than "fixed." The core
-claim now holds deterministically: the lead-time penalty is computed in code from the extracted
-weeks and a GC-owned division baseline (12 wks Div 26 / 16 wks Div 22–23), persisted per bid with
-the baseline, and rendered as auditable arithmetic. Stated exclusion amounts bind positionally,
-unpriced scopes take division-correct benchmarks, COI is a text-driven $15,000 in both directions,
-and VE/waiver acceptance is GC-only. Identical input twice is byte-identical live (repeated-ingest
-sha checks). Regression is green: `npx tsc -b` clean, `npx vitest run` 113/113,
-`python tests/test_tradepulse.py` 36/36, `python tests/verify_setup.py`, `npm run verify:docs`,
-`npm run verify:reports`, `npm run smoke:live` 7/7. The BYO journey was re-run end to end with our
-own spec, numbers, and documents, then cleaned up (only the demo project remains). Live
-verification harness: [`scripts/qa/`](./scripts/qa/README.md).
+Against your deployment (needs `CONVEX_DEPLOY_KEY` in the shell):
+
+```bash
+npx convex run demoAccounts:seedDemo '{}'   # idempotent; re-creates missing demo accounts
+curl -s https://<deployment>.convex.site/api/health
+```
+
+The end-to-end check is the judge demo above, signed in as the demo GC.
+
+### Legacy checks and scripts
+
+These predate TradePulse Pay. They are kept for history, are not part of the checks above, and are not verification commands:
+
+- **Legacy Python tests:** `tests/test_tradepulse.py` and `tests/verify_setup.py` (TradePulse Pro, September 2026). Nothing in `package.json`, Vitest or `scripts/` runs them.
+- **Legacy, pre-auth Node scripts:** they call public Convex functions without signing in, or target the old hackathon deployment, and the role guards now refuse them. This covers `scripts/qa/live-smoke.mjs` (`npm run smoke:live`), `scripts/run-expert-evals.mjs` (`npm run evals`), `scripts/run-real-world-benchmark.mjs` (`npm run benchmark`), `scripts/verify-deep-real-world.mjs`, `scripts/verify-real-world-edge-cases.mjs`, `scripts/test-run-model-diagnostic.mjs`, `scripts/test-all-models-live.mjs`, `scripts/inspect-live-db.mjs`, `scripts/inspect-live-prod.mjs`, `scripts/verify-prod.mjs` and everything in `scripts/audit7/`. Each carries a "LEGACY, pre-auth script" header.
 
 ---
 
-## 📄 License
-MIT License. Built for the Convex All Gas Hackathon 2026.
+## TradePulse Pro procurement (the base app)
+
+Signed in as the GC, the **Procurement** area is the original TradePulse Pro app: CSI MasterFormat scoping into trade packages, Firecrawl subcontractor discovery with provenance, AgentMail RFQ inboxes and pre-bid RFIs, forensic bid leveling (base bid + exclusions + lead-time and COI penalties − accepted VE alternates, computed in code), cross-trade scope clash detection, and A401-style subcontract drafts (not an official AIA form). Awarding and executing a contract there is what starts the TradePulse Pay flow. The September audits of that app are archived in [`docs/audits/`](./docs/audits/README.md).
+
+---
+
+## License
+
+MIT License. See [`LICENSE`](./LICENSE).

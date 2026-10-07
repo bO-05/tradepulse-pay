@@ -1,3 +1,7 @@
+// LEGACY, pre-auth script (TradePulse Pro, Sep 2026). It calls public Convex functions without
+// signing in, or targets the old Convex hackathon deployment. The TradePulse Pay role guards
+// refuse those calls, so this script no longer works. Kept for history only; it is not a
+// verification command. See README "Legacy scripts".
 /**
  * A7-05: AFTER-fix live verification for A6-05r/A6-54 (deterministic lead-time),
  * A6-29 (RFQ delivery truth), A6-18 (banner), A6-22 (stable modal ids), A6-07 (accept).
@@ -46,9 +50,9 @@ try {
   });
   out.project = proj.proj;
   if (!proj.proj) throw new Error("after fixture not created");
-  // A6-18 banner
+  // A6-18 banner (text updated when sign-in replaced the public-URL disclosure)
   out.assertions.banner = await page.evaluate(() =>
-    document.body.innerText.includes("Public shared demo — everything here is visible to anyone with this URL")
+    document.body.innerText.includes("Shared demo — the demo accounts and their password are public, so anyone can see this data.")
   );
 
   for (const spec of [

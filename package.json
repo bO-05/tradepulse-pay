@@ -17,6 +17,7 @@
     "test": "vitest run",
     "verify:docs": "node scripts/tools/check-docs-links.mjs docs README.md && node scripts/tools/reorder-hackathon-log.mjs --check",
     "verify:reports": "node scripts/qa/render-audit-reports.mjs",
+    "verify:guards": "node scripts/tools/guard-audit.mjs",
     "smoke:live": "node scripts/qa/live-smoke.mjs"
   },
   "dependencies": {

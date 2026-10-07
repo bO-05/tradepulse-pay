@@ -10,7 +10,9 @@ function getConvexUrl(): string {
   if (typeof window !== "undefined" && window.location.hostname.endsWith(".convex.site")) {
     return `https://${window.location.hostname.replace(".convex.site", ".convex.cloud")}`;
   }
-  return (import.meta.env.VITE_CONVEX_URL as string) || "https://brainy-skunk-440.convex.cloud";
+  const url = import.meta.env.VITE_CONVEX_URL as string | undefined;
+  if (!url) throw new Error("VITE_CONVEX_URL is not set. Run `npx convex dev` or add it to .env.local (see .env.example).");
+  return url;
 }
 
 const convex = new ConvexReactClient(getConvexUrl());

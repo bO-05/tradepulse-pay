@@ -102,7 +102,7 @@ describe("Postman collection", () => {
     for (const [file, raw] of Object.entries(postmanFiles)) {
       expect(raw, file).not.toMatch(/Bearer [A-Za-z0-9._-]{20,}/);
       expect(raw, file).not.toMatch(/A21AA[A-Za-z0-9_-]{20,}/);
-      expect(raw, file).not.toMatch(/sk-ant-[A-Za-z0-9_-]+/);
+      expect(raw, file).not.toMatch(new RegExp(`${["sk", "ant", ""].join("-")}[A-Za-z0-9_-]+`));
       expect(raw, file).not.toMatch(/eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}/);
     }
     const secretKeys = ["clientId", "clientSecret", "accessToken", "convexAuthToken", "webhookId"];

@@ -573,7 +573,11 @@ export const registerAgentMailWebhook = internalAction({
       };
     }
 
-    const targetUrl = args.webhookUrl || (process.env.CONVEX_SITE_URL ? `${process.env.CONVEX_SITE_URL}/agentmail/webhook` : "https://brainy-skunk-440.convex.site/agentmail/webhook");
+    const siteUrl = process.env.CONVEX_SITE_URL;
+    if (!args.webhookUrl && !siteUrl) {
+      return { success: false, message: "CONVEX_SITE_URL is not available; pass webhookUrl explicitly." };
+    }
+    const targetUrl = args.webhookUrl || `${siteUrl}/agentmail/webhook`;
 
     try {
       // 1. Check existing webhooks

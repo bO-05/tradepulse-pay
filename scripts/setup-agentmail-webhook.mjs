@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * TradePulse Pro - AgentMail Webhook Setup Automation
+ * TradePulse Pay - AgentMail Webhook Setup Automation
+ * Usage: CONVEX_SITE_URL=https://<deployment>.convex.site node scripts/setup-agentmail-webhook.mjs
  * Automatically registers or retrieves the webhook endpoint with AgentMail REST API
  * (https://api.agentmail.to/v0/webhooks) and configures the Svix signing secret.
  */
@@ -9,11 +10,24 @@ import fs from "fs";
 import path from "path";
 
 async function main() {
-  console.log("=== TradePulse Pro - AgentMail Webhook Setup ===");
+  console.log("=== TradePulse Pay - AgentMail Webhook Setup ===");
 
   const envPath = path.resolve(process.cwd(), ".env.local");
   let apiKey = process.env.AGENTMAIL_API_KEY;
-  let targetUrl = process.env.CONVEX_SITE_URL ? `${process.env.CONVEX_SITE_URL}/agentmail/webhook` : "https://brainy-skunk-440.convex.site/agentmail/webhook";
+
+  // Required, with no default: the webhook must point at the deployment you are setting up.
+  const siteUrl = process.env.CONVEX_SITE_URL?.trim();
+  if (!siteUrl || !/^https:\/\/[a-z0-9-]+\.convex\.site\/?$/.test(siteUrl)) {
+    console.error("Error: CONVEX_SITE_URL is required, e.g. CONVEX_SITE_URL=https://<deployment>.convex.site");
+    console.error("Use the .convex.site URL of the deployment that should receive AgentMail webhooks.");
+    process.exit(1);
+  }
+  // The frozen Convex hackathon submission must never receive TradePulse Pay webhooks.
+  if (siteUrl.includes("brainy-skunk-440")) {
+    console.error("Error: refusing to target brainy-skunk-440 (frozen Convex hackathon deployment).");
+    process.exit(1);
+  }
+  const targetUrl = `${siteUrl.replace(/\/+$/, "")}/agentmail/webhook`;
 
   if (fs.existsSync(envPath)) {
     const envContent = fs.readFileSync(envPath, "utf8");
@@ -22,12 +36,6 @@ async function main() {
       if (trimmed.startsWith("AGENTMAIL_API_KEY=")) {
         const val = trimmed.split("=")[1]?.trim();
         if (val && !apiKey) apiKey = val;
-      }
-      if (trimmed.startsWith("VITE_CONVEX_URL=")) {
-        const urlVal = trimmed.split("=")[1]?.trim();
-        if (urlVal && urlVal.startsWith("http")) {
-          targetUrl = `${urlVal.replace(/\/+$/, "")}/agentmail/webhook`;
-        }
       }
     }
   }
@@ -101,9 +109,9 @@ async function main() {
 
     console.log("\n✓ Webhook successfully configured!");
     console.log(`Webhook ID:     ${webhookId}`);
-    console.log(`Webhook Secret: ${secret ? secret.slice(0, 8) + "..." : "[hidden]"}`);
-    console.log("\nTo configure on your Convex Cloud deployment, run:");
-    console.log(`  npx convex env set AGENTMAIL_WEBHOOK_SECRET "${secret}"`);
+    console.log(`Webhook Secret: ${secret ? "[received, not shown]" : "[not returned]"}`);
+    console.log("\nSet the signing secret on the deployment without printing it, for example:");
+    console.log("  grep '^AGENTMAIL_WEBHOOK_SECRET=' .env.local | cut -d= -f2- | npx convex env set AGENTMAIL_WEBHOOK_SECRET");
 
     // Update .env.local with the real secret if available
     if (fs.existsSync(envPath) && secret) {

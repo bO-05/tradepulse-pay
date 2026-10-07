@@ -1,3 +1,7 @@
+// LEGACY, pre-auth script (TradePulse Pro, Sep 2026). It calls public Convex functions without
+// signing in, or targets the old Convex hackathon deployment. The TradePulse Pay role guards
+// refuse those calls, so this script no longer works. Kept for history only; it is not a
+// verification command. See README "Legacy scripts".
 /**
  * A7-05b: AFTER-fix live verification for A6-29 (RFQ toast truth + package notice)
  * and the rendered lead-time arithmetic. Uses the AUDIT7-AFTER fixture.

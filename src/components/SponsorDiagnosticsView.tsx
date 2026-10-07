@@ -21,6 +21,10 @@ import {
   Scale,
 } from "lucide-react";
 
+const CONVEX_SITE_URL =
+  (import.meta.env.VITE_CONVEX_SITE_URL as string | undefined)?.replace(/\/+$/, "") ||
+  ((import.meta.env.VITE_CONVEX_URL as string | undefined) ?? "").replace(/\.convex\.cloud\/?$/, ".convex.site");
+
 /**
  * A6-13: only used when the live /llms.txt fetch fails; the panel prefers the
  * live endpoint so its copy can never drift from what the deployment serves.
@@ -39,9 +43,9 @@ TradePulse Pro automates the $1.8T commercial construction subcontractor procure
 6. A401-style Subcontract Draft Generation (not an AIA-licensed form)
 
 ## Live Endpoints
-- Web UI: https://brainy-skunk-440.convex.site
-- Webhook Ingest: POST https://brainy-skunk-440.convex.site/agentmail/webhook
-- Discoverability: GET https://brainy-skunk-440.convex.site/llms.txt
+- Web UI: ${CONVEX_SITE_URL}
+- Webhook Ingest: POST ${CONVEX_SITE_URL}/agentmail/webhook
+- Discoverability: GET ${CONVEX_SITE_URL}/llms.txt
 - Reactive Engine: Convex Realtime WebSockets (Zero Polling Invariant)
 
 ## Normalization Formula (ADR-0003)
@@ -838,7 +842,7 @@ export const SponsorDiagnosticsView: React.FC = () => {
             </h3>
           </div>
           <span className="text-[11px] text-slate-400 font-mono">
-            GET https://brainy-skunk-440.convex.site/llms.txt
+            GET {CONVEX_SITE_URL}/llms.txt
           </span>
         </div>
 

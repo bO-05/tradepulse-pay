@@ -1,3 +1,7 @@
+// LEGACY, pre-auth script (TradePulse Pro, Sep 2026). It calls public Convex functions without
+// signing in, or targets the old Convex hackathon deployment. The TradePulse Pay role guards
+// refuse those calls, so this script no longer works. Kept for history only; it is not a
+// verification command. See README "Legacy scripts".
 import { ConvexHttpClient } from "convex/browser";
 import { BACKEND_URL } from "./lib.mjs";
 import { setTimeout as delay } from "node:timers/promises";

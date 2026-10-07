@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+// LEGACY, pre-auth script (TradePulse Pro, Sep 2026). It calls public Convex functions without
+// signing in, or targets the old Convex hackathon deployment. The TradePulse Pay role guards
+// refuse those calls, so this script no longer works. Kept for history only; it is not a
+// verification command. See README "Legacy scripts".
 /**
  * TradePulse Pro — Real-World Hackathon Benchmark Suite
  * Evaluates the live system against commercial construction procurement scenarios:

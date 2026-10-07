@@ -1,3 +1,7 @@
+# LEGACY (TradePulse Pro, Convex hackathon, Sep 2026). Not part of the TradePulse Pay checks.
+# This script predates TradePulse Pay and is kept for history only. It is not run by
+# package.json, Vitest, CI or any script. The current checks are `npx tsc -b`,
+# `npx vitest run --maxWorkers=2` and `npm run build` (see README "Verification").
 import os
 import re
 import json

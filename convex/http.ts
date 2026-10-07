@@ -92,8 +92,8 @@ http.route({
 http.route({
   path: "/llms.txt",
   method: "GET",
-  handler: httpAction(async () => {
-    const siteUrl = process.env.CONVEX_SITE_URL || "https://brainy-skunk-440.convex.site";
+  handler: httpAction(async (_ctx, req) => {
+    const siteUrl = process.env.CONVEX_SITE_URL || new URL(req.url).origin;
     const manifest = `# TradePulse Pro - Autonomous Construction Procurement API
 > Autonomous Trade Subcontractor Procurement, RFQ Distribution & Real-Time Bid Leveling
 > Built for the Convex "All Gas" Hackathon 2026

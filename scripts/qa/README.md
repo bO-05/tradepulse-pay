@@ -1,5 +1,10 @@
 # Quality harness (`scripts/qa/`)
 
+> **Legacy (pre-auth).** `live-smoke.mjs` calls public Convex functions without signing in, which the
+> TradePulse Pay role guards now refuse, so `npm run smoke:live` no longer passes. It is kept for history
+> and is not a TradePulse Pay verification command. `render-audit-reports.mjs` (`npm run verify:reports`)
+> works offline and is unaffected.
+
 Portable, judge-runnable verification for the TradePulse Pro deployment. Everything here
 works from a fresh clone on Windows or macOS/Linux — no absolute paths, no secrets.
 

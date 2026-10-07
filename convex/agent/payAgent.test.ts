@@ -8,7 +8,7 @@ import { agentIdProfile, syncAgentProfile } from "../lib/agentAccess";
 import { signInAs } from "../lib/testIdentity";
 import { clearPayPalTokenCache } from "../payments/paypalClient";
 import { CSLB_FIXTURES } from "../kernel/cslbFixtures";
-import { CUSTOM_TOOL_NAMES, READ_ONLY_TOOLKIT_TOOLS } from "./tools";
+import { ANTHROPIC_KEY_PREFIX, CUSTOM_TOOL_NAMES, READ_ONLY_TOOLKIT_TOOLS } from "./tools";
 
 const generateTextMock = vi.hoisted(() => vi.fn());
 vi.mock("ai", async (importOriginal) => {
@@ -218,11 +218,11 @@ describe("pay agent run", () => {
     expect(tools[0]).toBe("checkLicense");
     expect(tools).toEqual(expect.arrayContaining(["proposeCapture", "proposePayout"]));
     expect(trace.parsedOutput.license).toMatchObject({ status: "active", licenseNumber: "142881" });
-    expect(JSON.stringify(trace)).not.toMatch(/test-secret-value|A21AA|sk-ant-/);
+    expect(JSON.stringify(trace)).not.toMatch(new RegExp(`test-secret-value|A21AA|${ANTHROPIC_KEY_PREFIX}`));
   });
 
   test("Anthropic tool loop: the model sees only read-only PayPal tools and propose tools, bounded steps", async () => {
-    vi.stubEnv("ANTHROPIC_API_KEY", "sk-ant-test-not-real");
+    vi.stubEnv("ANTHROPIC_API_KEY", `${ANTHROPIC_KEY_PREFIX}test-not-real`);
     vi.stubEnv("ANTHROPIC_MODEL", "claude-sonnet-5-5");
     const s = await setup();
     const [a, b] = s.sov;
@@ -272,12 +272,12 @@ describe("pay agent run", () => {
     expect(check).toMatchObject({ source: "model" });
     expect(check.input).toContain("142881");
     expect(check.output).toContain('"status":"active"');
-    expect(JSON.stringify(trace)).not.toMatch(/sk-ant-|A21AA|test-secret-value/);
+    expect(JSON.stringify(trace)).not.toMatch(new RegExp(`${ANTHROPIC_KEY_PREFIX}|A21AA|test-secret-value`));
     expect(fake.moneyCalls()).toHaveLength(0);
   });
 
   test("a payout proposed before checkLicense still records one checkLicense entry with input and status, and KERNEL runs once", async () => {
-    vi.stubEnv("ANTHROPIC_API_KEY", "sk-ant-test-not-real");
+    vi.stubEnv("ANTHROPIC_API_KEY", `${ANTHROPIC_KEY_PREFIX}test-not-real`);
     vi.stubEnv("ANTHROPIC_MODEL", "claude-sonnet-5-5");
     vi.stubEnv("KERNEL_API_KEY", KERNEL_FAKE_KEY);
     kernelMock.create.mockResolvedValue({ session_id: "sess_agent", browser_live_view_url: "https://live.kernel.test/v" });
@@ -323,7 +323,7 @@ describe("pay agent run", () => {
     // The model's later explicit call reuses the run's result and is recorded as its own call.
     expect(calls.filter((c) => c.tool === "checkLicense")).toHaveLength(2);
     expect(trace.parsedOutput.license).toMatchObject({ status: "active", licenseNumber: "142881" });
-    expect(JSON.stringify(trace)).not.toMatch(/sk-ant-|A21AA|test-secret-value/);
+    expect(JSON.stringify(trace)).not.toMatch(new RegExp(`${ANTHROPIC_KEY_PREFIX}|A21AA|test-secret-value`));
     expect(JSON.stringify(trace)).not.toContain(KERNEL_FAKE_KEY);
   });
 

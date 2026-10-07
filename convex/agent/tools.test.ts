@@ -7,6 +7,7 @@ import {
   READ_ONLY_TOOLKIT_TOOLS,
   createProposeTools,
   scrubSecrets,
+  ANTHROPIC_KEY_PREFIX,
   wrapToolkitTools,
   type LicenseToolResult,
   type ToolCallRecord,
@@ -122,8 +123,8 @@ describe("read-only PayPal toolkit wrapping", () => {
 
 describe("scrubSecrets", () => {
   test("removes configured secrets and known token prefixes", () => {
-    const text = "key sk-ant-api03-abc token A21AAxyz.123 kernel sk_live_12345678 Bearer abc.def value s3cr3t-value";
+    const text = `key ${ANTHROPIC_KEY_PREFIX}api03-abc token A21AAxyz.123 kernel sk_live_12345678 Bearer abc.def value s3cr3t-value`;
     const out = scrubSecrets(text, ["s3cr3t-value"]);
-    for (const s of ["sk-ant-", "A21AA", "sk_live", "abc.def", "s3cr3t-value"]) expect(out).not.toContain(s);
+    for (const s of [ANTHROPIC_KEY_PREFIX, "A21AA", "sk_live", "abc.def", "s3cr3t-value"]) expect(out).not.toContain(s);
   });
 });

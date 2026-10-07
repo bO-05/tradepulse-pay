@@ -25,5 +25,10 @@ break. The curated reports above embed the before/after images they reference.
 
 ## Reproducing the checks
 
-- App test suites: `npx tsc -b`, `npx vitest run`, `python tests/test_tradepulse.py`, `python tests/verify_setup.py`.
-- Live verification harness: [`../../scripts/qa/`](../../scripts/qa/) (requires Chrome/Edge and the live deployment; see its README).
+- App checks: `npx tsc -b`, `npx vitest run --maxWorkers=2`, `npm run build` (see the repository README).
+- The Python scripts `tests/test_tradepulse.py` and `tests/verify_setup.py` are legacy. They predate
+  TradePulse Pay, are not part of the test suite, and are kept for history only. The reports above
+  quote their results from September 2026.
+- The live harnesses in [`../../scripts/qa/`](../../scripts/qa/) and [`../../scripts/audit7/`](../../scripts/audit7/)
+  are legacy, pre-auth scripts: TradePulse Pay's sign-in and role guards refuse their unauthenticated
+  calls. They are kept for history.
