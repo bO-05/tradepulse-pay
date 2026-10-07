@@ -1,4 +1,5 @@
 import { action } from "./_generated/server";
+import { requireRoleInAction } from "./lib/roles";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { createAgentmailInbox, isAgentmailConfigured, listAgentmailInboxes, sendAgentmailMessage } from "./agentmailApi";
@@ -9,6 +10,7 @@ export const provisionPackageInbox = action({
     usernamePrefix: v.string(),
   },
   handler: async (ctx, args): Promise<{ email: string; id: string; live: boolean; shared: boolean }> => {
+    await requireRoleInAction(ctx, ["gc"]);
     let mailboxEmail = `${args.usernamePrefix}-${Date.now().toString().slice(-4)}@agentmail.to`;
     let mailboxId = `local_inbox_${Date.now().toString().slice(-6)}`;
     let live = false;
@@ -59,6 +61,7 @@ export const dispatchRfqsWithNotification = action({
     tradePackageId: v.id("tradePackages"),
   },
   handler: async (ctx, args): Promise<any> => {
+    await requireRoleInAction(ctx, ["gc"]);
     // 1. Run mutation to mark contractors invited and package dispatched
     const result: any = await ctx.runMutation(internal.rfq.dispatchRfqsInternal, {
       tradePackageId: args.tradePackageId,
@@ -146,6 +149,7 @@ export const dispatchSingleRfqWithNotification = action({
     contractorId: v.id("contractors"),
   },
   handler: async (ctx, args): Promise<any> => {
+    await requireRoleInAction(ctx, ["gc"]);
     // 1. Fetch contractor details
     const contractor = await ctx.runQuery(internal.contractors.getContractorInternal, {
       contractorId: args.contractorId,

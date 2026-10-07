@@ -246,6 +246,7 @@ export const deleteBid = mutation({
     bidId: v.id("bids"),
   },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc"]);
     const bid = await ctx.db.get(args.bidId);
     if (!bid) throw new Error("Bid not found");
 
@@ -323,6 +324,7 @@ export const updateBidLeveling = mutation({
     coiComplianceStatus: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc"]);
     const bid = await ctx.db.get(args.bidId);
     if (!bid) throw new Error("Bid not found");
 
@@ -407,6 +409,7 @@ export const updateBidAdjustments = mutation({
     coiComplianceStatus: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc"]);
     const bid = await ctx.db.get(args.bidId);
     if (!bid) throw new Error("Bid not found");
 
@@ -506,6 +509,7 @@ export const submitDirectBid = mutation({
     rawProposalText: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc"]);
     const tradePkg = await ctx.db.get(args.tradePackageId);
     if (!tradePkg) throw new Error("Trade package not found");
     const contractor = await ctx.db.get(args.contractorId);

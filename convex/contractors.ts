@@ -1,4 +1,5 @@
 import { query, mutation, internalMutation, internalQuery } from "./_generated/server";
+import { requireRole } from "./lib/roles";
 import { v, ConvexError } from "convex/values";
 import { validateEmail, validateProjectText } from "./validation";
 
@@ -46,6 +47,7 @@ export const createContractor = mutation({
     ),
   },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc"]);
     const tradePackage = await ctx.db.get(args.tradePackageId);
     if (!tradePackage) throw new Error("Trade package not found");
     return await ctx.db.insert("contractors", {
@@ -98,6 +100,7 @@ export const updateRfqStatus = mutation({
     ),
   },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc"]);
     const patchData: { rfqStatus: any; dispatchedAt?: number } = {
       rfqStatus: args.rfqStatus,
     };
@@ -151,6 +154,7 @@ export const updateContractor = mutation({
     expectedUpdatedAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc"]);
     const { contractorId, expectedUpdatedAt, ...fields } = args;
     const contractor = await ctx.db.get(contractorId);
     if (!contractor) throw new Error("Contractor not found");
@@ -177,6 +181,7 @@ export const deleteContractor = mutation({
     contractorId: v.id("contractors"),
   },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc"]);
     const contractor = await ctx.db.get(args.contractorId);
     if (!contractor) throw new Error("Contractor not found");
 

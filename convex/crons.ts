@@ -1,4 +1,5 @@
 import { cronJobs } from "convex/server";
+import { requireRole } from "./lib/roles";
 import { internalMutation, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
@@ -168,6 +169,7 @@ export const auditContractorCompliance = internalMutation({
 export const runDeadlineMonitorNow = mutation({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc"]);
     const project = await ctx.db.get(args.projectId);
     if (!project) throw new Error("Project not found");
     const packages = await ctx.db.query("tradePackages").collect();
@@ -228,6 +230,7 @@ export const runDeadlineMonitorNow = mutation({
 export const runComplianceAuditNow = mutation({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc"]);
     const project = await ctx.db.get(args.projectId);
     if (!project) throw new Error("Project not found");
     let contractors = await ctx.db.query("contractors").collect();

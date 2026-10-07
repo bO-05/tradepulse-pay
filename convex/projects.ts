@@ -65,6 +65,7 @@ export const createProject = mutation({
     generalContractorName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc"]);
     const title = validateProjectText(args.title, "Project title");
     const location = validateProjectText(args.location, "Project location");
     const projectType = validateProjectText(args.projectType, "Project type");

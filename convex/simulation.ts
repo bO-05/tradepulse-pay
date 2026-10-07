@@ -273,6 +273,7 @@ export const submitCustomRfi = mutation({
     question: v.string(),
   },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc"]);
     const tradePkg = await ctx.db.get(args.tradePackageId);
     if (!tradePkg) throw new ConvexError("The selected trade package could not be found.");
 
@@ -359,6 +360,7 @@ export const submitCustomRfi = mutation({
 export const retryRfiAnalysis = mutation({
   args: { conversationId: v.id("conversations") },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc"]);
     const convo = await ctx.db.get(args.conversationId);
     if (!convo) throw new ConvexError("The RFI record could not be found.");
     if (convo.status === "clarified" || convo.status === "escalated_to_pm") {

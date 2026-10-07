@@ -1,4 +1,5 @@
 import { query, mutation, action } from "./_generated/server";
+import { requireRole, requireRoleInAction } from "./lib/roles";
 import { v, ConvexError } from "convex/values";
 import { internal, api } from "./_generated/api";
 import { syncAgreementForBid } from "./agreements";
@@ -362,6 +363,7 @@ export const deductDoubleBuyCredit = mutation({
     bidId: v.optional(v.id("bids")),
   },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc"]);
     const project = await ctx.db.get(args.projectId);
     if (!project) throw new Error("Project not found");
     const tradePkg = await ctx.db.get(args.tradePackageId);
@@ -506,6 +508,7 @@ export const reverseDoubleBuyCredit = mutation({
     tradePackageId: v.id("tradePackages"),
   },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc"]);
     const project = await ctx.db.get(args.projectId);
     if (!project) throw new ConvexError("Project not found.");
     const tradePkg = await ctx.db.get(args.tradePackageId);
@@ -616,6 +619,7 @@ export const assignScopeVoidToTrade = mutation({
     bidId: v.optional(v.id("bids")),
   },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc"]);
     const project = await ctx.db.get(args.projectId);
     if (!project) throw new Error("Project not found");
     const tradePkg = await ctx.db.get(args.tradePackageId);
@@ -741,6 +745,7 @@ export const assignScopeVoidToTrade = mutation({
 export const scanCrossTradeClashes = action({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
+    await requireRoleInAction(ctx, ["gc"]);
     // A19-02: cross-trade clash detection is only meaningful with both trades
     // and priced proposals. Never ask the model to invent clashes otherwise.
     const packages: any = await ctx.runQuery(api.tradePackages.listByProject, { projectId: args.projectId });
@@ -805,6 +810,7 @@ export const extractDynamicClashes = action({
     div23ScopeText: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<any> => {
+    await requireRoleInAction(ctx, ["gc"]);
     // 1. Fetch live trade packages and proposals if not provided
     const packages: any = await ctx.runQuery(api.tradePackages.listByProject, { projectId: args.projectId });
     const elecPkg = packages.find((p: any) => p.csiDivision.startsWith("26"));

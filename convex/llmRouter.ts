@@ -1,4 +1,5 @@
 import { internalAction, action, query } from "./_generated/server";
+import { requireRoleInAction } from "./lib/roles";
 import { v } from "convex/values";
 import { inflate } from "pako";
 import { internal } from "./_generated/api";
@@ -2782,6 +2783,7 @@ export const runModelDiagnostic = action({
     promptType: v.string(), // "spec_div26" | "hvac_bacnet" | "plumbing_drainage"
   },
   handler: async (ctx, args) => {
+    await requireRoleInAction(ctx, ["gc"]);
     const t0 = Date.now();
     let samplePrompt = "";
     let taskType: "bid_leveling" | "spec_generation" | "clash_detection" | "rfi_reply" = "bid_leveling";

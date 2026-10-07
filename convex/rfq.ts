@@ -1,4 +1,5 @@
 import { query, mutation, internalMutation, internalQuery, action } from "./_generated/server";
+import { requireRole, requireRoleInAction } from "./lib/roles";
 import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 
@@ -76,6 +77,7 @@ export const listClarifiedConversationsForProject = internalQuery({
 export const dispatchRfqs = mutation({
   args: { tradePackageId: v.id("tradePackages") },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc"]);
     const tradePkg = await ctx.db.get(args.tradePackageId);
     if (!tradePkg) throw new Error("Trade package not found");
 
@@ -369,6 +371,7 @@ export const reviewEscalatedRfi = mutation({
     reviewNote: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc"]);
     const convo = await ctx.db.get(args.conversationId);
     if (!convo) throw new Error("Conversation not found");
     const convoContractor = await ctx.db.get(convo.contractorId);
@@ -422,6 +425,7 @@ export const generatePreBidAddendum = action({
     addendumNumber: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<any> => {
+    await requireRoleInAction(ctx, ["gc"]);
     // Delegate to the storage-backed generator in files.ts to ensure single source of truth
     return await ctx.runAction(internal.files.generatePreBidAddendumInternal, {
       projectId: args.projectId,

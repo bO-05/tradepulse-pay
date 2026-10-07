@@ -1,4 +1,5 @@
 import { action, query, internalMutation } from "./_generated/server";
+import { requireRoleInAction } from "./lib/roles";
 import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
 
@@ -140,6 +141,7 @@ export const executeEvalSuite = action({
     triggeredBy: v.optional(v.string()), // "cli_benchmark" | "judge_diagnostics"
   },
   handler: async (ctx, args): Promise<any> => {
+    await requireRoleInAction(ctx, ["gc"]);
     const startTime = Date.now();
     const runId = `eval_${Date.now()}`;
     const targetEnv = args.targetEnvironment || "prod";

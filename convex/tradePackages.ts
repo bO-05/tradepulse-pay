@@ -1,4 +1,5 @@
 import { query, mutation, internalMutation, internalQuery, action } from "./_generated/server";
+import { requireRole, requireRoleInAction } from "./lib/roles";
 import { v, ConvexError } from "convex/values";
 import { api, internal } from "./_generated/api";
 import {
@@ -46,6 +47,7 @@ export const createTradePackage = mutation({
     agentMailboxId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc"]);
     const project = await ctx.db.get(args.projectId);
     if (!project) {
       throw new ConvexError("Project not found. Create or select a project before adding a trade package.");
@@ -117,6 +119,7 @@ export const updateStatus = mutation({
     ),
   },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc"]);
     const pkg = await ctx.db.get(args.tradePackageId);
     if (!pkg) throw new ConvexError("Trade package not found.");
     // A12-03: "awarded" must be backed by evidence (awarded bid or active
@@ -216,6 +219,7 @@ export const generateTradePackagesFromSpec = action({
     ),
   },
   handler: async (ctx, args): Promise<any> => {
+    await requireRoleInAction(ctx, ["gc"]);
     let specText: string = args.specDocumentTextOverride || "";
     if (!specText) {
       const project: any = await ctx.runQuery(internal.projects.getProjectInternal, {
@@ -377,6 +381,7 @@ export const deleteTradePackage = mutation({
     tradePackageId: v.id("tradePackages"),
   },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc"]);
     const pkg = await ctx.db.get(args.tradePackageId);
     if (!pkg) throw new Error("Trade package not found");
 

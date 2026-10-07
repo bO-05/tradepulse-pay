@@ -1,4 +1,5 @@
 import { mutation, query, action, internalMutation, internalAction, internalQuery } from "./_generated/server";
+import { requireRole, requireRoleInAction } from "./lib/roles";
 import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { sanitizeBidLevelingOutput, extractTextFromPdfStream, augmentExclusionsWithDeterministicGaps, applyExplicitExclusionAmounts, applyUnpricedExclusionBenchmarks, normalizeExclusionSeverity, normalizeLeadWeeksFromText, detectCoiDeficiency, detectCoiAffirmativeCompliance } from "./llmRouter";
@@ -29,6 +30,7 @@ export { extractTextFromPdfStream };
 export const generateUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
+    await requireRole(ctx, ["gc"]);
     return await ctx.storage.generateUploadUrl();
   },
 });
@@ -46,6 +48,7 @@ export const saveFileRecord = mutation({
     contentType: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc"]);
     if (args.storageId.startsWith("http") || args.storageId.startsWith("/")) {
       throw new Error("Project uploads must use a Convex Storage identifier.");
     }
@@ -150,6 +153,7 @@ export const saveFileRecordInternal = internalMutation({
 export const repairSeededDocumentSizes = mutation({
   args: {},
   handler: async (ctx) => {
+    await requireRole(ctx, ["gc"]);
     const files = await ctx.db.query("projectFiles").collect();
     let repaired = 0;
     for (const file of files) {
@@ -232,6 +236,7 @@ export const listFilesByPackage = query({
 export const deleteFile = mutation({
   args: { fileId: v.id("projectFiles") },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc"]);
     const file = await ctx.db.get(args.fileId);
     if (!file) throw new Error("File not found");
 
@@ -813,6 +818,7 @@ export const extractBidFromQuoteFile = action({
     fileSize: v.optional(v.number()),
   },
   handler: async (ctx, args): Promise<any> => {
+    await requireRoleInAction(ctx, ["gc"]);
     return await doExtractBid(ctx, args);
   },
 });
@@ -827,6 +833,7 @@ export const extractBidFromFile = action({
     quoteText: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<any> => {
+    await requireRoleInAction(ctx, ["gc"]);
     return await doExtractBid(ctx, args);
   },
 });
@@ -860,6 +867,7 @@ export const generatePreBidAddendum = action({
     addendumNumber: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<any> => {
+    await requireRoleInAction(ctx, ["gc"]);
     return await doGeneratePreBidAddendum(ctx, args);
   },
 });

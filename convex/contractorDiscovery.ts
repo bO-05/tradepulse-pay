@@ -1,4 +1,5 @@
 import { action } from "./_generated/server";
+import { requireRoleInAction } from "./lib/roles";
 import { v } from "convex/values";
 import { FirecrawlClient } from "@firecrawl/firecrawl-convex";
 import { components, internal } from "./_generated/api";
@@ -341,6 +342,7 @@ export const discoverSubcontractors = action({
     tradePackageId: v.id("tradePackages"),
   },
   handler: async (ctx, args): Promise<DiscoveryResult> => {
+    await requireRoleInAction(ctx, ["gc"]);
     const tradePkg = await ctx.runQuery(internal.tradePackages.getPackageInternal, {
       tradePackageId: args.tradePackageId,
     });
@@ -509,6 +511,7 @@ export const scrapeContractorWebsite = action({
     url: v.string(),
   },
   handler: async (ctx, args) => {
+    await requireRoleInAction(ctx, ["gc"]);
     const firecrawlKey = process.env.FIRECRAWL_API_KEY;
     if (firecrawlKey) {
       try {
