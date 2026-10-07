@@ -2,7 +2,7 @@ import { useAction } from "convex/react";
 import { useRef, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
-import { fromDollars, percentageOfCents } from "../../convex/lib/money";
+import { fromDollars, percentageOfCents, toDollarString } from "../../convex/lib/money";
 import { readableError } from "./FundMilestone";
 import { formatCents, formatDate } from "./format";
 
@@ -18,6 +18,9 @@ export type MilestoneRelease = {
   receiverEmail: string | null;
   error: string | null;
   createdAt: number;
+  retryOfPaymentId?: Id<"payments"> | null;
+  captured?: boolean;
+  canRetryPayout?: boolean;
 };
 
 export type ReleasableMilestone = {
@@ -47,6 +50,7 @@ export const BADGE: Record<string, { label: string; cls: string }> = {
 export function ReleaseList({ milestone, canRelease }: { milestone: ReleasableMilestone; canRelease: boolean }) {
   const refresh = useAction(api.payments.release.refreshPayoutStatus);
   const resume = useAction(api.payments.release.resumeRelease);
+  const retryPayout = useAction(api.payments.payoutRetry.retryPayout);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   if (milestone.releases.length === 0) return null;
@@ -77,6 +81,16 @@ export function ReleaseList({ milestone, canRelease }: { milestone: ReleasableMi
                 Gross {formatCents(r.grossCents)} · retainage {formatCents(r.retainageCents)} · net {formatCents(r.netCents)}
               </span>
               <span className="text-slate-500">{formatDate(r.createdAt)}</span>
+              {r.retryOfPaymentId && (
+                <span className="text-slate-400" data-testid="release-retry-tag">
+                  Payout retry
+                </span>
+              )}
+              {r.captured && r.status !== "success" && !r.retryOfPaymentId && (
+                <span className="text-amber-300" data-testid="release-captured-not-paid">
+                  Captured
+                </span>
+              )}
             </div>
             {(r.paypalPayoutBatchId || r.receiverEmail) && (
               <div className="text-slate-500">
@@ -99,6 +113,17 @@ export function ReleaseList({ milestone, canRelease }: { milestone: ReleasableMi
                 className="rounded px-2 py-0.5 border border-slate-600 text-slate-200 disabled:opacity-50"
               >
                 {busyId === r.paymentId ? "Refreshing…" : "Refresh status"}
+              </button>
+            )}
+            {canRelease && r.canRetryPayout && (
+              <button
+                type="button"
+                data-testid="retry-payout-button"
+                disabled={busyId !== null}
+                onClick={() => void run(r.paymentId, () => retryPayout({ paymentId: r.paymentId }))}
+                className="rounded px-2 py-0.5 border border-amber-700 text-amber-200 disabled:opacity-50"
+              >
+                {busyId === r.paymentId ? "Sending…" : "Retry payout"}
               </button>
             )}
             {canRelease && r.status === "created" && Date.now() - r.createdAt > 60_000 && (
@@ -130,7 +155,7 @@ export function ReleaseControl({ milestone, retainagePercent }: { milestone: Rel
   const closeMilestone = useAction(api.payments.release.closeMilestone);
   const funding = milestone.funding;
   const remainingCents = funding ? funding.grossCents - funding.capturedCents : 0;
-  const [amount, setAmount] = useState(() => (remainingCents / 100).toFixed(2));
+  const [amount, setAmount] = useState(() => toDollarString(remainingCents));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);

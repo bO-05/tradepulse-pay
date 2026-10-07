@@ -12,7 +12,25 @@ const TOTALS: { key: "contractSumCents" | "billedCents" | "paidCents" | "retaina
   { key: "billedCents", label: "Billed" },
   { key: "paidCents", label: "Paid" },
   { key: "retainageHeldCents", label: "Retainage held" },
-  { key: "balanceCents", label: "Balance to finish" },
+  { key: "balanceCents", label: "Balance" },
+];
+
+const RECONCILIATION: {
+  key:
+    | "fundedCents"
+    | "capturedCents"
+    | "capturedNotPaidCents"
+    | "retainageReleasedCents"
+    | "changeOrdersInvoicedCents"
+    | "changeOrdersPaidCents";
+  label: string;
+}[] = [
+  { key: "fundedCents", label: "Funded, not captured" },
+  { key: "capturedCents", label: "Captured" },
+  { key: "capturedNotPaidCents", label: "Captured, not paid out" },
+  { key: "retainageReleasedCents", label: "Retainage released" },
+  { key: "changeOrdersInvoicedCents", label: "Change orders invoiced" },
+  { key: "changeOrdersPaidCents", label: "Change orders paid" },
 ];
 
 export function AgreementLedgerView({ agreementId, backHash }: { agreementId: string; backHash: string }) {
@@ -64,6 +82,19 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
             <div key={t.key} className="bg-slate-950/60 border border-slate-800 rounded-xl p-3">
               <dt className="text-xs text-slate-400">{t.label}</dt>
               <dd className="font-semibold tabular-nums" data-testid={`ledger-${t.key}`}>
+                {formatCents(totals[t.key])}
+              </dd>
+            </div>
+          ))}
+        </dl>
+        <p className="text-xs text-slate-400" data-testid="ledger-balance-formula">
+          {ledger.balanceFormula}. Paid is the net of successful payouts and retainage releases.
+        </p>
+        <dl className="grid grid-cols-2 sm:grid-cols-6 gap-3 text-xs" data-testid="ledger-reconciliation">
+          {RECONCILIATION.map((t) => (
+            <div key={t.key} className="border border-slate-800 rounded-lg p-2">
+              <dt className="text-slate-400">{t.label}</dt>
+              <dd className="font-semibold tabular-nums text-slate-200" data-testid={`ledger-${t.key}`}>
                 {formatCents(totals[t.key])}
               </dd>
             </div>

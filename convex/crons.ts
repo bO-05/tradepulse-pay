@@ -20,6 +20,14 @@ crons.interval(
   internal.crons.auditContractorCompliance
 );
 
+// PayPal authorization honor periods: reauthorize after the 3-day honor period, expire at 29 days.
+crons.interval(
+  "watch-authorization-honor-periods",
+  { hours: 1 },
+  internal.payments.honorPeriod.watchAuthorizations,
+  {}
+);
+
 /**
  * Convex Scheduled Cron Job: Bid Deadline Monitor
  * Automatically checks all active CSI trade packages against their stated deadlines.

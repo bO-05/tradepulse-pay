@@ -1,6 +1,7 @@
 import { mutation, internalMutation, internalQuery } from "./_generated/server";
 import { requireRole } from "./lib/roles";
 import { v, ConvexError } from "convex/values";
+import { deleteAgreementCascade } from "./payments/cascade";
 import { internal } from "./_generated/api";
 import { generateAiaA401AgreementText, getStateAbbreviation } from "./agreements";
 import { persistPendingRfi } from "./rfq";
@@ -814,7 +815,7 @@ export const runFullProcurementCycle = mutation({
     // Clear old agreements for package
     const oldAgreements = packageAgreementsBefore;
     for (const oa of oldAgreements) {
-      await ctx.db.delete(oa._id);
+      await deleteAgreementCascade(ctx, oa._id);
     }
 
     const agreementId = await ctx.db.insert("agreements", {

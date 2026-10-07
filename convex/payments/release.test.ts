@@ -468,6 +468,106 @@ describe("retainage ledger", () => {
   });
 });
 
+describe("retry payout of a captured release", () => {
+  async function failedRelease() {
+    const s = await setup({ authorizedCents: 1_000_000 });
+    fake.state.defaultItemStatus = "FAILED";
+    await s.gc.as.action(api.payments.release.releaseAndPay, { milestoneId: s.milestone._id, amountCents: 1_000_000, requestKey: key("rt") });
+    await s.t.finishAllScheduledFunctions(vi.runAllTimers);
+    fake.state.defaultItemStatus = "SUCCESS";
+    const r = await rows(s.t, s.milestone._id);
+    expect(r.payouts[0].status).toBe("failed");
+    return { ...s, original: r.payouts[0] };
+  }
+
+  test("the ledger counts a captured-but-failed release as captured, not paid, and offers a retry", async () => {
+    const { t, gc, agreement, milestone, original } = await failedRelease();
+    const ledger = await gc.as.query(api.payments.ledger.getAgreementLedger, { agreementId: agreement._id });
+    expect(ledger?.totals).toMatchObject({ capturedCents: 1_000_000, paidCents: 0, capturedNotPaidCents: 1_000_000, retainageHeldCents: 0 });
+    const release = ledger?.milestones.find((m) => m._id === milestone._id)?.releases.find((x) => x.paymentId === original._id);
+    expect(release).toMatchObject({ captured: true, canRetryPayout: true });
+    const rec = await t.query(internal.payments.reconcile.ledgerReconciliation, { agreementId: agreement._id });
+    expect(rec?.mismatches).toEqual([]);
+    expect(rec?.rawSums.capturedNotPaidCents).toBe(1_000_000);
+  });
+
+  test("a GC retry sends a new batch <key>_r1 for the same net, pays once and credits retainage once", async () => {
+    const { t, gc, agreement, milestone, original } = await failedRelease();
+    const capturesBefore = fake.posts(/\/capture$/).length;
+    const out = await gc.as.action(api.payments.payoutRetry.retryPayout, { paymentId: original._id });
+    expect(out.idempotencyKey).toBe(`${original.idempotencyKey}_r1`);
+    const posts = fake.posts(/^\/v1\/payments\/payouts$/);
+    const last = posts[posts.length - 1];
+    expect((last.body as { sender_batch_header: { sender_batch_id: string } }).sender_batch_header.sender_batch_id).toBe(
+      `${original.idempotencyKey}_r1`,
+    );
+    expect((last.body as { items: Array<{ amount: { value: string } }> }).items[0].amount.value).toBe("9000.00");
+    expect(fake.posts(/\/capture$/)).toHaveLength(capturesBefore);
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const r = await rows(t, milestone._id);
+    const retry = r.payouts.find((p) => p.retryOfPaymentId === original._id)!;
+    expect(retry).toMatchObject({ status: "success", netCents: 900_000, retainageCents: 100_000 });
+    expect(r.ledger.reduce((a, l) => a + l.deltaCents, 0)).toBe(100_000);
+    expect(r.milestone.status).toBe("paid");
+
+    const audit = await t.run(async (ctx) =>
+      ctx.db
+        .query("auditLogs")
+        .filter((q) => q.eq(q.field("eventType"), "payout_retry"))
+        .collect(),
+    );
+    expect(audit).toHaveLength(1);
+    expect(audit[0].description).toContain(`${original.idempotencyKey}_r1`);
+
+    const ledger = await gc.as.query(api.payments.ledger.getAgreementLedger, { agreementId: agreement._id });
+    expect(ledger?.totals).toMatchObject({ capturedCents: 1_000_000, paidCents: 900_000, capturedNotPaidCents: 0, retainageHeldCents: 100_000 });
+
+    // Retrying again (on the original or the retry) is refused: it will not be paid twice.
+    for (const id of [original._id, retry._id]) {
+      const err = await errorOf(gc.as.action(api.payments.payoutRetry.retryPayout, { paymentId: id }));
+      expect(err.data.code).toBe("ALREADY_PAID");
+    }
+    expect(fake.posts(/^\/v1\/payments\/payouts$/)).toHaveLength(posts.length);
+
+    const rec = await t.query(internal.payments.reconcile.ledgerReconciliation, { agreementId: agreement._id });
+    expect(rec?.mismatches).toEqual([]);
+    expect(rec?.rawSums).toMatchObject({ capturedCents: 1_000_000, paidCents: 900_000, retainageHeldCents: 100_000 });
+  });
+
+  test("a retry is refused while a payout for that release is in flight, and when nothing was captured", async () => {
+    const { t, gc, milestone } = await setup({ authorizedCents: 1_000_000 });
+    await gc.as.action(api.payments.release.releaseAndPay, { milestoneId: milestone._id, amountCents: 500_000, requestKey: key("fl") });
+    const pending = (await rows(t, milestone._id)).payouts[0];
+    expect(pending.status).toBe("pending");
+    expect((await errorOf(gc.as.action(api.payments.payoutRetry.retryPayout, { paymentId: pending._id }))).data.code).toBe("PAYOUT_IN_FLIGHT");
+
+    const s2 = await setup({ authorizedCents: 1_000_000 });
+    fake.voided.add(AUTH_ID);
+    await errorOf(s2.gc.as.action(api.payments.release.releaseAndPay, { milestoneId: s2.milestone._id, amountCents: 100_000, requestKey: key("nc") }));
+    const failed = (await rows(s2.t, s2.milestone._id)).payouts[0];
+    expect((await errorOf(s2.gc.as.action(api.payments.payoutRetry.retryPayout, { paymentId: failed._id }))).data.code).toBe("NOT_CAPTURED");
+  });
+
+  test("a second failure allows _r2; subs, owners and anonymous callers cannot retry", async () => {
+    const { t, gc, original } = await failedRelease();
+    fake.state.defaultItemStatus = "FAILED";
+    await gc.as.action(api.payments.payoutRetry.retryPayout, { paymentId: original._id });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    fake.state.defaultItemStatus = "SUCCESS";
+    const second = await gc.as.action(api.payments.payoutRetry.retryPayout, { paymentId: original._id });
+    expect(second.idempotencyKey).toBe(`${original.idempotencyKey}_r2`);
+
+    const before = fake.calls.length;
+    for (const role of ["sub", "owner", null] as const) {
+      const caller = role === null ? t : (await signInAs(t, role)).as;
+      const err = await errorOf(caller.action(api.payments.payoutRetry.retryPayout, { paymentId: original._id }));
+      expect(String(err.data?.message ?? err.message)).toMatch(/Not authenticated|Forbidden/);
+    }
+    expect(fake.calls.length).toBe(before);
+  });
+});
+
 describe("access and audit", () => {
   test.each(["sub", "owner", null] as const)("role %s cannot release & pay", async (role) => {
     const { t, milestone } = await setup({ authorizedCents: 1_000_000 });

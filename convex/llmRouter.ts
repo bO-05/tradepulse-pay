@@ -4,6 +4,7 @@ import { v } from "convex/values";
 import { inflate } from "pako";
 import { internal } from "./_generated/api";
 import { COI_DEFICIENCY_PENALTY, leadTimePenaltyFor, targetWeeksForDivision } from "./terms";
+import { roundDollarsToCents } from "./lib/money";
 
 export interface ReasoningResult {
   provider: string;
@@ -400,7 +401,7 @@ export function cleanNumber(val: any, fallback = 0): number {
   if (numMatch) {
     const num = parseFloat(numMatch[0]);
     if (Number.isFinite(num)) {
-      const finalVal = Math.round(num * 100) / 100;
+      const finalVal = roundDollarsToCents(num);
       return isNegative ? -finalVal : finalVal;
     }
   }

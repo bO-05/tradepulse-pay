@@ -1,6 +1,7 @@
 import { ConvexError, v, type Infer } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
+import { toDollarString } from "../lib/money";
 import { moveMilestone } from "./releaseDb";
 import { RETAINAGE_REVERSING_STATUSES, isMilestoneFullyPaid } from "./payoutMath";
 import { assertPaymentTransition, canTransitionPayment, type PayoutStatus } from "./stateMachine";
@@ -48,7 +49,8 @@ export const beginPayout = internalMutation({
     if (p.status !== "created") return { state: "closed", status: p.status, error: p.error };
     if (p.fundingPaymentId) {
       const funding = await ctx.db.get(p.fundingPaymentId);
-      const captured = (funding?.captures ?? []).some((c) => c.releasePaymentId === p._id);
+      const releaseId = p.retryOfPaymentId ?? p._id;
+      const captured = (funding?.captures ?? []).some((c) => c.releasePaymentId === releaseId);
       if (!captured) {
         throw new ConvexError({ code: "NOT_CAPTURED", message: "The release amount has not been captured yet; the sub was not paid." });
       }
@@ -120,7 +122,7 @@ export const recordPayoutCreated = internalMutation({
           agreementId: p.agreementId,
           paymentId: p._id,
           deltaCents: p.retainageCents,
-          reason: `Retainage withheld from ${(p.grossCents / 100).toFixed(2)} USD gross release (payout batch ${args.batchId})`,
+          reason: `Retainage withheld from ${toDollarString(p.grossCents)} USD gross release (payout batch ${args.batchId})`,
           createdAt: now,
         });
       }

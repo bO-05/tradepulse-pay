@@ -1,6 +1,7 @@
 import { query, mutation, internalMutation, internalQuery, action } from "./_generated/server";
 import { requireRole, requireRoleInAction } from "./lib/roles";
 import { v, ConvexError } from "convex/values";
+import { deleteAgreementCascade, deleteContractorCascade } from "./payments/cascade";
 import { api, internal } from "./_generated/api";
 import {
   normalizeCsiDivision,
@@ -408,7 +409,7 @@ export const deleteTradePackage = mutation({
         .withIndex("by_bid", (q) => q.eq("bidId", b._id))
         .collect();
       for (const a of agreements) {
-        await ctx.db.delete(a._id);
+        await deleteAgreementCascade(ctx, a._id);
       }
       await ctx.db.delete(b._id);
     }
@@ -419,7 +420,7 @@ export const deleteTradePackage = mutation({
       .withIndex("by_package", (q) => q.eq("tradePackageId", args.tradePackageId))
       .collect();
     for (const c of contractors) {
-      await ctx.db.delete(c._id);
+      await deleteContractorCascade(ctx, c._id);
     }
 
     // 3. Delete all conversations
@@ -453,7 +454,7 @@ export const deleteTradePackage = mutation({
       .withIndex("by_package", (q) => q.eq("tradePackageId", args.tradePackageId))
       .collect();
     for (const a of packageAgreements) {
-      await ctx.db.delete(a._id);
+      await deleteAgreementCascade(ctx, a._id);
     }
 
     // 6. Delete the trade package itself

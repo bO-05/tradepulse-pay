@@ -2,7 +2,8 @@ import { v } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
 import { query } from "../_generated/server";
 import { canViewAgreement, requireRole } from "../lib/roles";
-import { computeLedgerTotals } from "./ledgerTotals";
+import { BALANCE_FORMULA, computeLedgerTotals } from "./ledgerTotals";
+import { attemptsFor, checkRetry } from "./payoutRetryMath";
 import { retainagePercentFor } from "./payoutMath";
 import { agreementContractSumCents } from "./sov";
 
@@ -34,11 +35,13 @@ function fundingSummary(p: Doc<"payments"> | undefined) {
     honorPeriodEndsAt: p.honorPeriodEndsAt ?? null,
     capturedCents: p.capturedCents ?? 0,
     captureCount: p.captures?.length ?? 0,
+    reauthorizationCount: p.reauthorizationCount ?? 0,
+    reauthorizeError: p.reauthorizeError ?? null,
     error: p.error ?? null,
   };
 }
 
-function releaseSummary(p: Doc<"payments">, showReceiver: boolean) {
+function releaseSummary(p: Doc<"payments">, showReceiver: boolean, retry?: { captured: boolean; canRetryPayout: boolean }) {
   return {
     paymentId: p._id,
     status: p.status,
@@ -51,6 +54,9 @@ function releaseSummary(p: Doc<"payments">, showReceiver: boolean) {
     receiverEmail: showReceiver ? (p.receiverEmail ?? null) : null,
     error: p.error ?? null,
     createdAt: p.createdAt,
+    retryOfPaymentId: p.retryOfPaymentId ?? null,
+    captured: retry?.captured ?? false,
+    canRetryPayout: retry?.canRetryPayout ?? false,
   };
 }
 
@@ -110,6 +116,10 @@ export const getAgreementLedger = query({
       .query("retainageLedger")
       .withIndex("by_agreementId", (q) => q.eq("agreementId", id))
       .take(1000);
+    const changeOrders = await ctx.db
+      .query("changeOrders")
+      .withIndex("by_agreementId_and_number", (q) => q.eq("agreementId", id))
+      .take(500);
 
     const summary = ledgerAgreementSummary(agreement);
     // Latest funding attempt per milestone (payments come back in creation order).
@@ -122,16 +132,31 @@ export const getAgreementLedger = query({
     }
     const isGc = viewer.role === "gc";
     const retainageReleases = payments.filter((p) => p.kind === "retainage_release");
-    const releaseIds = new Set<string>(retainageReleases.map((p) => p._id));
-    const retainageReleasedCents = -retainage
-      .filter((r) => r.paymentId !== undefined && releaseIds.has(r.paymentId))
-      .reduce((acc, r) => acc + r.deltaCents, 0);
+    const totals = computeLedgerTotals({
+      contractSumCents: summary.contractSumCents,
+      payApps,
+      payments,
+      retainage,
+      changeOrders,
+    });
+    const capturedReleaseIds = new Set<string>();
+    for (const p of payments) for (const c of p.captures ?? []) if (c.releasePaymentId) capturedReleaseIds.add(c.releasePaymentId);
+    const payouts = payments.filter((p) => p.kind === "payout");
+    const retryInfo = (p: Doc<"payments">) => {
+      const rootId = p.retryOfPaymentId ?? p._id;
+      const captured = capturedReleaseIds.has(rootId);
+      const attempts = attemptsFor(payouts, rootId);
+      // Only the latest attempt of a release offers "Retry payout".
+      const latest = attempts[attempts.length - 1];
+      return { captured, canRetryPayout: isGc && latest?._id === p._id && checkRetry(attempts, rootId, captured).ok };
+    };
     return {
       agreement: summary,
       canFund: isGc,
       canRelease: isGc,
       canReleaseRetainage: isGc,
-      retainageReleasedCents,
+      retainageReleasedCents: totals.retainageReleasedCents,
+      balanceFormula: BALANCE_FORMULA,
       retainageReleases: retainageReleases.map((p) => releaseSummary(p, isGc || viewer.role === "sub")),
       retainageLedger: retainage.map((r) => ({
         _id: r._id,
@@ -157,14 +182,9 @@ export const getAgreementLedger = query({
         amountCents: m.amountCents,
         status: m.status,
         funding: fundingSummary(latestFunding.get(m._id)),
-        releases: (releasesByMilestone.get(m._id) ?? []).map((p) => releaseSummary(p, isGc || viewer.role === "sub")),
+        releases: (releasesByMilestone.get(m._id) ?? []).map((p) => releaseSummary(p, isGc || viewer.role === "sub", retryInfo(p))),
       })),
-      totals: computeLedgerTotals({
-        contractSumCents: summary.contractSumCents,
-        payApps,
-        payments,
-        retainage,
-      }),
+      totals,
     };
   },
 });

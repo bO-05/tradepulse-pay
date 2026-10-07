@@ -33,6 +33,7 @@ import { Bid, TradePackage, Agreement, Contractor, ScopeExclusion, ValueEngineer
 import { extractTextFromPdfStream } from "../standaloneStore.ts";
 import { getDeceptiveBidIds, getSuspiciouslyLowBidIds, leadPenaltyArithmetic, leadTargetWeeksFor } from "../leveling.ts";
 import { ConfirmDialog } from "./ConfirmDialog.tsx";
+import { roundDollarsToCents } from "../../convex/lib/money.ts";
 import { useDialogFocus, useEscapeToClose } from "../lib/useDialogFocus.ts";
 import { printContractText } from "../lib/printContract.ts";
 
@@ -599,7 +600,7 @@ const [scannedPdfWarning, setScannedPdfWarning] = useState<string | null>(null);
       const totalVeDeduct = alternates.reduce((s, x) => (x.isAccepted ? s + x.costDeduct : s), 0);
       const topCost = sortedBids[0]?.leveledTotalCost ?? bid.leveledTotalCost;
       // A7CONV-A-03: avoid float artifacts like 20722.869999999995 in the CSV.
-      const variance = index === 0 ? 0 : Math.round((bid.leveledTotalCost - topCost) * 100) / 100;
+      const variance = index === 0 ? 0 : roundDollarsToCents(bid.leveledTotalCost - topCost);
       return [
         `#${index + 1}`,
         bid.subcontractorName || "",

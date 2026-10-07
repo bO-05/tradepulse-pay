@@ -275,6 +275,16 @@ export default defineSchema({
     // Payout rows: recipient snapshot at release time, and PayPal's raw item status (e.g. UNCLAIMED).
     receiverEmail: v.optional(v.string()),
     paypalItemStatus: v.optional(v.string()),
+    // Payout rows: a "Retry payout" row points at the original release it re-sends (same capture).
+    retryOfPaymentId: v.optional(v.id("payments")),
+    // Funding rows: honor-period watcher state. PayPal allows one reauthorization per authorization.
+    reauthorizationCount: v.optional(v.number()),
+    reauthorizeAttempts: v.optional(v.number()),
+    reauthorizedAt: v.optional(v.number()),
+    previousAuthorizationIds: v.optional(v.array(v.string())),
+    reauthorizeError: v.optional(v.string()),
+    reauthorizeRetryAfter: v.optional(v.number()),
+    expiredAt: v.optional(v.number()),
     idempotencyKey: v.string(),
     error: v.optional(v.string()),
     // False once any PayPal write for this payment succeeded but its auditLogs entry could not be stored.

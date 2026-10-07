@@ -49,7 +49,7 @@ export const DEMO_ACCOUNTS: readonly DemoAccount[] = [
   },
 ];
 
-async function findDemoContractorId(ctx: MutationCtx, companyName: string): Promise<Id<"contractors"> | undefined> {
+export async function findDemoContractorId(ctx: MutationCtx, companyName: string): Promise<Id<"contractors"> | undefined> {
   const demoProject = await ctx.db
     .query("projects")
     .withIndex("by_demo", (q) => q.eq("isDemoProject", true))

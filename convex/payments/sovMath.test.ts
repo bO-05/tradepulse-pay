@@ -200,17 +200,27 @@ describe("default milestones", () => {
 });
 
 describe("computeLedgerTotals", () => {
-  test("a new agreement has nothing billed, paid or held and the full balance", () => {
+  const ZERO = {
+    billedCents: 0,
+    fundedCents: 0,
+    capturedCents: 0,
+    capturedNotPaidCents: 0,
+    paidCents: 0,
+    retainageHeldCents: 0,
+    retainageReleasedCents: 0,
+    changeOrdersInvoicedCents: 0,
+    changeOrdersPaidCents: 0,
+  };
+
+  test("a new agreement has nothing billed, funded, paid or held and the full balance", () => {
     expect(computeLedgerTotals({ contractSumCents: 122_500_000, payApps: [], payments: [], retainage: [] })).toEqual({
+      ...ZERO,
       contractSumCents: 122_500_000,
-      billedCents: 0,
-      paidCents: 0,
-      retainageHeldCents: 0,
       balanceCents: 122_500_000,
     });
   });
 
-  test("counts approved pay apps, successful payouts and the retainage balance", () => {
+  test("counts approved pay apps, successful payouts and the retainage balance; balance = contract − (paid + held)", () => {
     const totals = computeLedgerTotals({
       contractSumCents: 1_000_000,
       payApps: [
@@ -226,11 +236,69 @@ describe("computeLedgerTotals", () => {
       retainage: [{ deltaCents: 10_000 }, { deltaCents: 25_000 }, { deltaCents: -10_000 }],
     });
     expect(totals).toEqual({
+      ...ZERO,
       contractSumCents: 1_000_000,
       billedCents: 350_000,
       paidCents: 90_000,
       retainageHeldCents: 25_000,
-      balanceCents: 650_000,
+      balanceCents: 1_000_000 - (90_000 + 25_000),
+    });
+  });
+
+  test("funded, captured, captured-not-paid (including a retried payout), retainage released and change orders", () => {
+    const totals = computeLedgerTotals({
+      contractSumCents: 10_000_000,
+      payApps: [],
+      payments: [
+        {
+          _id: "f1",
+          kind: "funding",
+          status: "voided",
+          grossCents: 11_900_000,
+          netCents: 11_900_000,
+          capturedCents: 2_010_000,
+          captures: [
+            { amountCents: 1_000_000, status: "COMPLETED", releasePaymentId: "r1" },
+            { amountCents: 1_000_000, status: "COMPLETED", releasePaymentId: "r2" },
+            { amountCents: 10_000, status: "COMPLETED", releasePaymentId: "r3" },
+          ],
+        },
+        { _id: "f2", kind: "funding", status: "partially_captured", grossCents: 500_000, netCents: 500_000, capturedCents: 100_000, captures: [{ amountCents: 100_000, status: "COMPLETED", releasePaymentId: "r4" }] },
+        { _id: "f3", kind: "funding", status: "authorized", grossCents: 300_000, netCents: 300_000 },
+        { _id: "f4", kind: "funding", status: "expired", grossCents: 700_000, netCents: 700_000 },
+        // r1 failed then its retry r1b succeeded; r2 paid; r3 unclaimed; r4 pending.
+        { _id: "r1", kind: "payout", status: "failed", grossCents: 1_000_000, netCents: 900_000 },
+        { _id: "r1b", kind: "payout", status: "success", grossCents: 1_000_000, netCents: 900_000, retryOfPaymentId: "r1" },
+        { _id: "r2", kind: "payout", status: "success", grossCents: 1_000_000, netCents: 900_000 },
+        { _id: "r3", kind: "payout", status: "unclaimed", grossCents: 10_000, netCents: 9_000 },
+        { _id: "r4", kind: "payout", status: "pending", grossCents: 100_000, netCents: 90_000 },
+        { _id: "rr1", kind: "retainage_release", status: "success", grossCents: 50_000, netCents: 50_000 },
+      ],
+      retainage: [
+        { deltaCents: 100_000, paymentId: "r1b" },
+        { deltaCents: 100_000, paymentId: "r2" },
+        { deltaCents: 1_000, paymentId: "r3" },
+        { deltaCents: 10_000, paymentId: "r4" },
+        { deltaCents: -50_000, paymentId: "rr1" },
+      ],
+      changeOrders: [
+        { status: "invoiced", amountCents: 250_000 },
+        { status: "paid", amountCents: 100_000 },
+        { status: "draft", amountCents: 999 },
+      ],
+    });
+    expect(totals).toEqual({
+      contractSumCents: 10_000_000,
+      billedCents: 0,
+      fundedCents: 400_000 + 300_000,
+      capturedCents: 2_110_000,
+      capturedNotPaidCents: 10_000 + 100_000,
+      paidCents: 900_000 + 900_000 + 50_000,
+      retainageHeldCents: 161_000,
+      retainageReleasedCents: 50_000,
+      changeOrdersInvoicedCents: 250_000,
+      changeOrdersPaidCents: 100_000,
+      balanceCents: 10_000_000 - (1_850_000 + 161_000),
     });
   });
 });

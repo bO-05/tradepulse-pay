@@ -304,8 +304,14 @@ describe("agreement ledger", () => {
     expect(ledger!.totals).toEqual({
       contractSumCents: cents,
       billedCents: 0,
+      fundedCents: 0,
+      capturedCents: 0,
+      capturedNotPaidCents: 0,
       paidCents: 0,
       retainageHeldCents: 0,
+      retainageReleasedCents: 0,
+      changeOrdersInvoicedCents: 0,
+      changeOrdersPaidCents: 0,
       balanceCents: cents,
     });
     expect(ledger!.sovTotalCents).toBe(cents);

@@ -1,9 +1,11 @@
 import { query, mutation, internalQuery, internalMutation, type MutationCtx } from "./_generated/server";
 import { requireRole } from "./lib/roles";
 import { linkDemoProfiles } from "./demoAccounts";
+import { remapAgentLinks, snapshotActiveAgentLinks } from "./lib/agentLinkRemap";
 import { v, ConvexError } from "convex/values";
 import { generateAiaA401AgreementText } from "./agreements";
 import { getRealDocumentPdfBytes } from "./realDocuments";
+import { deleteAgreementCascade, deleteContractorCascade, isPaymentHistory } from "./payments/cascade";
 
 /**
  * Seed metadata must equal the bytes actually served by the document endpoints,
@@ -163,7 +165,7 @@ async function seedDemoProject(ctx: MutationCtx, args: { force?: boolean }) {
             .withIndex("by_package", (q) => q.eq("tradePackageId", pkg._id))
             .collect();
           for (const c of contractors) {
-            await ctx.db.delete(c._id);
+            await deleteContractorCascade(ctx, c._id);
           }
 
           const convos = await ctx.db
@@ -187,7 +189,7 @@ async function seedDemoProject(ctx: MutationCtx, args: { force?: boolean }) {
             .withIndex("by_package", (q) => q.eq("tradePackageId", pkg._id))
             .collect();
           for (const a of agreements) {
-            await ctx.db.delete(a._id);
+            await deleteAgreementCascade(ctx, a._id);
           }
 
           await ctx.db.delete(pkg._id);
@@ -198,7 +200,7 @@ async function seedDemoProject(ctx: MutationCtx, args: { force?: boolean }) {
           .withIndex("by_project", (q) => q.eq("projectId", proj._id))
           .collect();
         for (const a of projAgreements) {
-          await ctx.db.delete(a._id);
+          await deleteAgreementCascade(ctx, a._id);
         }
 
         const files = await ctx.db
@@ -221,7 +223,7 @@ async function seedDemoProject(ctx: MutationCtx, args: { force?: boolean }) {
           .withIndex("by_project", (q) => q.eq("projectId", proj._id))
           .collect();
         for (const l of logs) {
-          await ctx.db.delete(l._id);
+          if (!isPaymentHistory(l)) await ctx.db.delete(l._id);
         }
 
         await ctx.db.delete(proj._id);
@@ -249,7 +251,7 @@ async function seedDemoProject(ctx: MutationCtx, args: { force?: boolean }) {
           c.companyName.includes("Hill Country") ||
           (c.phone && c.phone.includes("555-"))
         ) {
-          await ctx.db.delete(c._id);
+          await deleteContractorCascade(ctx, c._id);
         }
       }
 
@@ -276,7 +278,7 @@ async function seedDemoProject(ctx: MutationCtx, args: { force?: boolean }) {
           a.subcontractorName.includes("Austin Metro") ||
           a.subcontractorName.includes("Capital City")
         ) {
-          await ctx.db.delete(a._id);
+          await deleteAgreementCascade(ctx, a._id);
         }
       }
     }
@@ -979,26 +981,31 @@ Furnish and install 1600A main service switchboard, 480/277V step-down distribut
   }
 }
 
+/**
+ * Reseeding recreates contractors and agreements, so demo sub profiles are relinked and active
+ * billing-agent links are remapped to the new contractor ids by name.
+ */
+async function reseedAndRelink(ctx: MutationCtx, args: { force?: boolean }) {
+  const links = await snapshotActiveAgentLinks(ctx);
+  const result = await seedDemoProject(ctx, args);
+  await linkDemoProfiles(ctx);
+  await remapAgentLinks(ctx, links);
+  return result;
+}
+
 /** GC-only demo seed / reset (`force: true` wipes and reseeds the demo project). */
 export const seedInitialData = mutation({
   args: { force: v.optional(v.boolean()) },
   handler: async (ctx, args) => {
     await requireRole(ctx, ["gc"]);
-    const result = await seedDemoProject(ctx, args);
-    // Reseeding recreates contractors, so demo sub profiles must be relinked.
-    await linkDemoProfiles(ctx);
-    return result;
+    return await reseedAndRelink(ctx, args);
   },
 });
 
 /** CLI / scheduler entry point for the same seed (no signed-in user). */
 export const seedInitialDataInternal = internalMutation({
   args: { force: v.optional(v.boolean()) },
-  handler: async (ctx, args) => {
-    const result = await seedDemoProject(ctx, args);
-    await linkDemoProfiles(ctx);
-    return result;
-  },
+  handler: async (ctx, args) => await reseedAndRelink(ctx, args),
 });
 
 export const deleteProject = mutation({
@@ -1043,7 +1050,7 @@ export const deleteProject = mutation({
         .withIndex("by_package", (q) => q.eq("tradePackageId", pkg._id))
         .collect();
       for (const c of contractors) {
-        await ctx.db.delete(c._id);
+        await deleteContractorCascade(ctx, c._id);
       }
 
       const agreements = await ctx.db
@@ -1051,7 +1058,7 @@ export const deleteProject = mutation({
         .withIndex("by_package", (q) => q.eq("tradePackageId", pkg._id))
         .collect();
       for (const a of agreements) {
-        await ctx.db.delete(a._id);
+        await deleteAgreementCascade(ctx, a._id);
       }
 
       const convos = await ctx.db
@@ -1085,7 +1092,7 @@ export const deleteProject = mutation({
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
       .collect();
     for (const l of logs) {
-      await ctx.db.delete(l._id);
+      if (!isPaymentHistory(l)) await ctx.db.delete(l._id);
     }
 
     // A3-07: clash resolutions belonged to the project and were left orphaned.

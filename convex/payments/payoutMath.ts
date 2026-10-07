@@ -1,5 +1,5 @@
 import { RETAINAGE_PERCENT } from "../terms";
-import { assertCents, splitRetainage } from "../lib/money";
+import { assertCents, splitRetainage, toDollarString } from "../lib/money";
 import type { PayoutStatus } from "./stateMachine";
 
 /**
@@ -50,7 +50,7 @@ export function checkCaptureAmount(amountCents: number, remainingCents: number):
   if (amountCents > remainingCents) {
     return {
       ok: false,
-      message: `The release amount exceeds the ${(remainingCents / 100).toFixed(2)} USD still authorized for this milestone.`,
+      message: `The release amount exceeds the ${toDollarString(remainingCents)} USD still authorized for this milestone.`,
     };
   }
   return { ok: true, finalCapture: amountCents === remainingCents, remainingAfterCents: remainingCents - amountCents };

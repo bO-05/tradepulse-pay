@@ -18,6 +18,13 @@ import {
 
 const CAPTURABLE: readonly string[] = ["authorized", "partially_captured"];
 
+function notCapturableMessage(funding: Doc<"payments">): string {
+  if (funding.status === "expired") {
+    return "The milestone's PayPal authorization expired, so nothing can be captured from it. Fund the milestone again before releasing payment.";
+  }
+  return `The milestone's authorization is ${funding.status}; nothing more can be released.`;
+}
+
 export async function moveMilestone(ctx: MutationCtx, milestoneId: Id<"milestones"> | undefined, to: MilestoneStatus) {
   if (!milestoneId) return;
   const m = await ctx.db.get(milestoneId);
@@ -105,7 +112,7 @@ export const beginRelease = internalMutation({
         message:
           funding === null
             ? "This milestone is not funded. Fund it before releasing payment."
-            : `The milestone's authorization is ${funding.status}; nothing more can be released.`,
+            : notCapturableMessage(funding),
       });
     }
     const check = checkCaptureAmount(args.amountCents, remainingAuthorizedCents(funding));
@@ -185,7 +192,7 @@ export const beginCapture = internalMutation({
     if (!funding.paypalAuthorizationId || !CAPTURABLE.includes(funding.status)) {
       throw new ConvexError({
         code: "NOT_CAPTURABLE",
-        message: `The authorization is ${funding.status}; it cannot be captured.`,
+        message: notCapturableMessage(funding),
       });
     }
     const check = checkCaptureAmount(args.amountCents, remainingAuthorizedCents(funding));

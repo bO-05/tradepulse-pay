@@ -12,6 +12,7 @@ import type {
 } from "./types.ts";
 import { getRealDocumentText } from "../convex/realDocuments.ts";
 import { inflate } from "pako";
+import { roundDollarsToCents } from "../convex/lib/money.ts";
 
 export interface StandaloneData {
   projects: Project[];
@@ -1173,7 +1174,7 @@ export function cleanNumber(val: any, fallback = 0): number {
   if (numMatch) {
     const num = parseFloat(numMatch[0]);
     if (Number.isFinite(num)) {
-      const finalVal = Math.round(num * 100) / 100;
+      const finalVal = roundDollarsToCents(num);
       return isNegative ? -finalVal : finalVal;
     }
   }

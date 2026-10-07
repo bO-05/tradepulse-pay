@@ -1,6 +1,7 @@
 import { query, mutation, internalMutation } from "./_generated/server";
 import { requireRole } from "./lib/roles";
 import { v, ConvexError } from "convex/values";
+import { deleteAgreementCascade } from "./payments/cascade";
 import { syncAgreementForBid } from "./agreements";
 import { validateNonNegativeAmount, validatePositiveAmount, validateProjectText } from "./validation";
 import { leadTimePenaltyFor, targetWeeksForDivision } from "./terms";
@@ -261,7 +262,7 @@ export const deleteBid = mutation({
       if (a.status === "executed") {
         throw new ConvexError("Executed agreements are immutable and cannot be deleted with their bid. Void the executed subcontract first.");
       }
-      await ctx.db.delete(a._id);
+      await deleteAgreementCascade(ctx, a._id);
     }
 
     await ctx.db.delete(args.bidId);

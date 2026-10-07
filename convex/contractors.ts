@@ -1,6 +1,7 @@
 import { query, mutation, internalMutation, internalQuery } from "./_generated/server";
 import { requireRole } from "./lib/roles";
 import { v, ConvexError } from "convex/values";
+import { deleteContractorCascade } from "./payments/cascade";
 import { validateEmail, validateProjectText } from "./validation";
 
 export const listByPackage = query({
@@ -224,7 +225,7 @@ export const deleteContractor = mutation({
       await ctx.db.delete(c._id);
     }
 
-    await ctx.db.delete(args.contractorId);
+    await deleteContractorCascade(ctx, args.contractorId);
 
     if (tradePkg) {
       await ctx.db.insert("auditLogs", {

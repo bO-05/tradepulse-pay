@@ -15,6 +15,8 @@ export type MilestoneFunding = {
   authorizationExpiresAt: number | null;
   honorPeriodEndsAt: number | null;
   capturedCents?: number;
+  reauthorizationCount?: number;
+  reauthorizeError?: string | null;
   error: string | null;
 } | null;
 
@@ -28,6 +30,8 @@ export type FundableMilestone = {
 
 const PAYPAL_CLIENT_ID = import.meta.env.VITE_PAYPAL_CLIENT_ID as string | undefined;
 const FUNDABLE = new Set(["planned", "funding", "funding_expired"]);
+/** A funding attempt in one of these states holds or held money, so no new attempt is offered. */
+const FUNDED = new Set(["authorized", "partially_captured", "captured"]);
 
 /** Readable text for errors thrown by Convex actions (ConvexError data.message) or the PayPal SDK. */
 export function readableError(e: unknown): string {
@@ -68,11 +72,27 @@ export function FundingStatus({ milestone }: { milestone: FundableMilestone }) {
       </span>
     );
   }
+  if (f.status === "expired" && f.paypalAuthorizationId) {
+    return (
+      <span className="text-xs text-rose-300" data-testid="milestone-funding">
+        Funding expired: the authorization lapsed on {formatDate(f.authorizationExpiresAt)} before it was captured. Fund it again to
+        release payment.
+      </span>
+    );
+  }
   if (f.paypalAuthorizationId) {
     return (
-      <span className="text-xs text-emerald-300" data-testid="milestone-funding">
-        Authorized {formatCents(f.grossCents)} · honor period ends {formatDate(f.honorPeriodEndsAt)} · expires{" "}
-        {formatDate(f.authorizationExpiresAt)}
+      <span className="text-xs text-emerald-300 space-y-0.5" data-testid="milestone-funding">
+        <span className="block">
+          Authorized {formatCents(f.grossCents)}
+          {f.reauthorizationCount ? " (reauthorized)" : ""} · honor period ends {formatDate(f.honorPeriodEndsAt)} · expires{" "}
+          {formatDate(f.authorizationExpiresAt)}
+        </span>
+        {f.reauthorizeError && (
+          <span className="block text-amber-300" data-testid="milestone-reauthorize-error">
+            {f.reauthorizeError}
+          </span>
+        )}
       </span>
     );
   }
@@ -106,7 +126,7 @@ export function FundMilestoneControl({ milestone }: { milestone: FundableMilesto
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  if (!FUNDABLE.has(milestone.status) || milestone.funding?.paypalAuthorizationId) return null;
+  if (!FUNDABLE.has(milestone.status) || (milestone.funding && FUNDED.has(milestone.funding.status))) return null;
 
   const storedError = milestone.funding?.status === "failed" ? milestone.funding.error : null;
   const shownError = error ?? storedError;

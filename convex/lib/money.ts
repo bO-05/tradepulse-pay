@@ -76,6 +76,19 @@ export function formatCents(cents: number): string {
   return `${cents < 0 ? "-" : ""}$${grouped}.${frac}`;
 }
 
+/** Cents as an editable dollar string without symbol or grouping, e.g. "1234.56" (form inputs, log text). */
+export function toDollarString(cents: number): string {
+  return toDecimalString(cents);
+}
+
+/**
+ * Rounds a legacy dollar float (bid totals, parsed amounts) to whole cents and
+ * returns dollars, e.g. 20722.869999999995 -> 20722.87.
+ */
+export function roundDollarsToCents(dollars: number): number {
+  return centsToDollarsForDisplay(fromDollars(dollars));
+}
+
 /** Cents to dollars as a number, for display-only consumers such as charts. */
 export function centsToDollarsForDisplay(cents: number): number {
   assertCents(cents);

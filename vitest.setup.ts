@@ -1,0 +1,50 @@
+/**
+ * Tests must not depend on the developer's shell. When secrets.env is sourced before `vitest run`,
+ * real API keys and sandbox emails would leak into Convex functions under test: LLM routes then make
+ * live network calls (slow, nondeterministic) and "no email on file" paths find one. Tests that need
+ * a value set it with `vi.stubEnv`.
+ */
+const LIVE_ENV = [
+  "ANTHROPIC_API_KEY",
+  "ANTHROPIC_MODEL",
+  "OPENAI_API_KEY",
+  "OPENAI_MODEL",
+  "GEMINI_API_KEY",
+  "GEMINI_MODEL",
+  "VERTEX_PROJECT_ID",
+  "VERTEX_LOCATION",
+  "VERTEX_MODEL",
+  "VERTEX_ACCESS_TOKEN",
+  "VERTEX_API_KEY",
+  "GCP_PROJECT",
+  "GOOGLE_CLOUD_PROJECT",
+  "GOOGLE_CLOUD_REGION",
+  "GCLOUD_ACCESS_TOKEN",
+  "GOOGLE_ACCESS_TOKEN",
+  "PAYPAL_CLIENT_ID",
+  "PAYPAL_CLIENT_SECRET",
+  "PAYPAL_ENV",
+  "PAYPAL_WEBHOOK_ID",
+  "PAYPAL_SANDBOX_GC_BUYER_EMAIL",
+  "PAYPAL_SANDBOX_SUB1_EMAIL",
+  "PAYPAL_SANDBOX_SUB2_EMAIL",
+  "PAYPAL_SANDBOX_SUB3_EMAIL",
+  "PAYPAL_SANDBOX_OWNER_EMAIL",
+  "KERNEL_API_KEY",
+  "AGENTMAIL_API_KEY",
+  "AGENTMAIL_WEBHOOK_SECRET",
+  "AGENTMAIL_BASE_URL",
+  "FIRECRAWL_API_KEY",
+  "FIRECRAWL_WEBHOOK_SECRET",
+  "FIRECRAWL_API_URL",
+  "AUTH_AGENTID_ID",
+  "AUTH_AGENTID_SECRET",
+  "AGENTID_PROJECT_BINDING",
+  "AG_STUDIO_LICENSE_KEY",
+  "CONVEX_DEPLOY_KEY",
+  "JWT_PRIVATE_KEY",
+  "JWKS",
+  "SITE_URL",
+];
+
+for (const name of LIVE_ENV) delete process.env[name];
