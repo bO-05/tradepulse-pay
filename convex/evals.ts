@@ -2,6 +2,7 @@ import { action, query, internalMutation } from "./_generated/server";
 import { requireRoleInAction } from "./lib/roles";
 import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
+import { OFFLINE_RULES_ENGINE } from "./lib/aiLabels";
 
 export interface EvalMetricResult {
   caseId: string;
@@ -98,11 +99,13 @@ export const recordEvalRun = internalMutation({
 export const getLatestEvalRun = query({
   args: {},
   handler: async (ctx) => {
-    const latestRun = await ctx.db
+    // Other suites (e.g. pay-app review) record their own runs; this view is bid leveling only.
+    const recentRuns = await ctx.db
       .query("evalRuns")
       .withIndex("by_createdAt")
       .order("desc")
-      .first();
+      .take(50);
+    const latestRun = recentRuns.find((r) => r.suite === undefined);
 
     if (!latestRun) return null;
 
@@ -595,8 +598,8 @@ Insurance: fully compliant with a $5,000,000 excess umbrella policy naming GC an
         caseId: tc.caseId,
         csiDivision: tc.csiDivision,
         contractorName: tc.contractorName,
-        provider: reasoningRes.provider || "OpenAI-SimulationEngine",
-        model: reasoningRes.model || "gpt-4o-bid-leveler",
+        provider: reasoningRes.provider || OFFLINE_RULES_ENGINE,
+        model: reasoningRes.model || OFFLINE_RULES_ENGINE,
         rawPrompt: prompt,
         systemPrompt: "You are the TradePulse Chief Estimator and Forensic Bid Leveling Specialist.",
         rawResponse: reasoningRes.content || "",

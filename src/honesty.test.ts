@@ -32,6 +32,12 @@ const convexSources = import.meta.glob("../convex/*.ts", {
   eager: true,
 }) as Record<string, string>;
 
+const libConvexSources = import.meta.glob("../convex/lib/*.ts", {
+  query: "?raw",
+  import: "default",
+  eager: true,
+}) as Record<string, string>;
+
 function find(pathFragment: string, sources: Record<string, string>): string {
   const key = Object.keys(sources).find((k) => k.endsWith(pathFragment));
   if (!key) throw new Error(`Source not found: ${pathFragment}`);
@@ -209,4 +215,14 @@ test("F2: no surface hard-codes the bid-based buyout label or a budget savings p
   const leveling = find("leveling.ts", rootSources);
   expect(leveling).toContain("leveledBuyoutCaption");
   expect(leveling).toContain("varianceIsLeveled");
+});
+test("Offline fallbacks are labeled 'Offline rules engine' and never claim an OpenAI model ran", () => {
+  for (const file of ["llmRouter.ts", "evals.ts", "files.ts", "emailActions.ts"]) {
+    const src = find(file, convexSources);
+    expect(src).not.toContain("OpenAI-SimulationEngine");
+    expect(src).not.toContain("gpt-4o-deterministic-cache");
+    expect(src).not.toContain("gpt-4o-bid-leveler");
+  }
+  expect(find("llmRouter.ts", convexSources)).toContain("provider: OFFLINE_RULES_ENGINE");
+  expect(find("lib/aiLabels.ts", libConvexSources)).toContain('OFFLINE_RULES_ENGINE = "Offline rules engine"');
 });

@@ -89,6 +89,32 @@ export const lineVerdictValidator = v.union(
   v.literal("out_of_sequence"),
 );
 
+// Dollar figures here are computed by code from the model's percentages
+// (fractions 0-1); the model never authors amounts.
+export const payAppReviewValidator = v.object({
+  engine: v.string(), // display label: "Anthropic <model id>" or "Offline rules engine"
+  provider: v.string(), // "Anthropic" or "Offline rules engine"
+  model: v.string(), // model id that ran, or "none" for the rules engine
+  fallbackReason: v.optional(v.string()),
+  lines: v.array(
+    v.object({
+      sovLineId: v.id("scheduleOfValues"),
+      verdict: lineVerdictValidator,
+      recommendedPctToDate: v.number(),
+      approvedCents: v.number(),
+      reason: v.string(),
+    }),
+  ),
+  flags: v.object({
+    lienWaiverMissing: v.boolean(),
+    licenseIssue: v.boolean(),
+    notes: v.string(),
+  }),
+  approvedTotalCents: v.number(),
+  traceRunId: v.optional(v.string()),
+  reviewedAt: v.number(),
+});
+
 export default defineSchema({
   ...authTables,
 
@@ -187,30 +213,7 @@ export default defineSchema({
       ownerEmail: v.optional(v.string()),
       ownerName: v.optional(v.string()),
     }),
-    // Dollar figures here are computed by code from the model's percentages;
-    // the model never authors amounts.
-    review: v.optional(
-      v.object({
-        engine: v.string(), // model id, or "Offline rules engine"
-        lines: v.array(
-          v.object({
-            sovLineId: v.id("scheduleOfValues"),
-            verdict: lineVerdictValidator,
-            recommendedPctToDate: v.number(),
-            approvedCents: v.number(),
-            reason: v.string(),
-          }),
-        ),
-        flags: v.object({
-          lienWaiverMissing: v.boolean(),
-          licenseIssue: v.boolean(),
-          notes: v.string(),
-        }),
-        approvedTotalCents: v.number(),
-        traceRunId: v.optional(v.string()),
-        reviewedAt: v.number(),
-      }),
-    ),
+    review: v.optional(payAppReviewValidator),
     withdrawnAt: v.optional(v.number()),
     createdAt: v.number(),
   })
@@ -588,6 +591,22 @@ export default defineSchema({
     holdoutCases: v.optional(v.number()),
     holdoutPassed: v.optional(v.number()),
     holdoutMape: v.optional(v.number()),
+    // Set on non-bid-leveling suites (e.g. "pay_app_review"); the leveling metrics above are then 0.
+    suite: v.optional(v.string()),
+    provider: v.optional(v.string()),
+    model: v.optional(v.string()),
+    fixtureScores: v.optional(
+      v.array(
+        v.object({
+          fixtureId: v.string(),
+          score: v.number(), // fraction of lines with the expected verdict
+          passed: v.boolean(),
+          provider: v.string(),
+          model: v.string(),
+          checks: v.array(v.string()),
+        }),
+      ),
+    ),
     createdAt: v.number(),
   })
     .index("by_runId", ["runId"])
@@ -599,7 +618,7 @@ export default defineSchema({
     caseId: v.string(),
     csiDivision: v.string(),
     contractorName: v.string(),
-    provider: v.string(), // "OpenAI" | "Anthropic" | "Vertex AI / Gemini" | "DeterministicEngine"
+    provider: v.string(), // "OpenAI" | "Anthropic" | "Vertex AI / Gemini" | "Offline rules engine"
     model: v.string(),
     rawPrompt: v.string(),
     systemPrompt: v.optional(v.string()),

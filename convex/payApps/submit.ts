@@ -1,5 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
+import { internal } from "../_generated/api";
 import { mutation, query, type QueryCtx } from "../_generated/server";
 import { requireRole, type Viewer } from "../lib/roles";
 import { formatCents } from "../lib/money";
@@ -143,6 +144,7 @@ export const submitPayApplication = mutation({
       timestamp: now,
       ...(isAgent ? { agentSub: viewer.user.agentSub, ownerEmail: viewer.user.ownerEmail } : {}),
     });
+    await ctx.scheduler.runAfter(0, internal.payApps.review.reviewPayApp, { payAppId });
     return payAppId;
   },
 });

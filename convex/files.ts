@@ -1,5 +1,6 @@
 import { mutation, query, action, internalMutation, internalAction, internalQuery } from "./_generated/server";
 import { requireRole, requireRoleInAction } from "./lib/roles";
+import { OFFLINE_RULES_ENGINE } from "./lib/aiLabels";
 import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { sanitizeBidLevelingOutput, extractTextFromPdfStream, augmentExclusionsWithDeterministicGaps, applyExplicitExclusionAmounts, applyUnpricedExclusionBenchmarks, normalizeExclusionSeverity, normalizeLeadWeeksFromText, detectCoiDeficiency, detectCoiAffirmativeCompliance } from "./llmRouter";
@@ -636,8 +637,8 @@ async function doExtractBid(
     leveledTotalCost: leveledTotal,
     sourceFileId: args.fileId,
     levelingProvider:
-      reasoningResult.provider === "OpenAI-SimulationEngine"
-        ? "Deterministic Engine (offline fallback — no model call)"
+      reasoningResult.provider === OFFLINE_RULES_ENGINE
+        ? `${OFFLINE_RULES_ENGINE} (no model call)`
         : `${reasoningResult.provider || "unknown"} ${reasoningResult.model || ""}`.trim(),
   });
 

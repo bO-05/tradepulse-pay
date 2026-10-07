@@ -4,6 +4,7 @@ import { api } from "../../convex/_generated/api";
 import { AgreementChangeOrders } from "./ChangeOrders";
 import { formatCents, formatDate } from "./format";
 import { FundMilestoneControl, FundingProvider, FundingStatus } from "./FundMilestone";
+import { AgreementPayAppReviews } from "./PayAppReviews";
 import { ReleaseControl, ReleaseList } from "./ReleaseMilestone";
 import { RetainageReleaseControl, RetainageReleaseList } from "./RetainageRelease";
 
@@ -268,6 +269,8 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
           </table>
         )}
       </section>
+
+      {canFund ? <AgreementPayAppReviews agreementId={agreement._id} /> : null}
 
       <AgreementChangeOrders agreementId={agreement._id} />
     </div>

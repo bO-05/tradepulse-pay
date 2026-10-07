@@ -5,6 +5,7 @@ import { inflate } from "pako";
 import { internal } from "./_generated/api";
 import { COI_DEFICIENCY_PENALTY, leadTimePenaltyFor, targetWeeksForDivision } from "./terms";
 import { roundDollarsToCents } from "./lib/money";
+import { OFFLINE_RULES_ENGINE } from "./lib/aiLabels";
 
 export interface ReasoningResult {
   provider: string;
@@ -1717,8 +1718,8 @@ Ensure all cost numbers are pure numeric primitives.`
       }
 
       return {
-        provider: "OpenAI-SimulationEngine",
-        model: "gpt-4o-deterministic-cache",
+        provider: OFFLINE_RULES_ENGINE,
+        model: OFFLINE_RULES_ENGINE,
         content: reply,
         confidenceScore: confidence,
       };
@@ -2399,8 +2400,8 @@ Ensure all cost numbers are pure numeric primitives.`
       });
 
       return {
-        provider: "OpenAI-SimulationEngine",
-        model: "gpt-4o-bid-leveler",
+        provider: OFFLINE_RULES_ENGINE,
+        model: OFFLINE_RULES_ENGINE,
         content: JSON.stringify(structuredResult),
         parsedJson: structuredResult,
       };
@@ -2663,8 +2664,8 @@ Ensure all cost numbers are pure numeric primitives.`
       ];
 
       return {
-        provider: "OpenAI-SimulationEngine",
-        model: "gpt-4o-deterministic-cache",
+        provider: OFFLINE_RULES_ENGINE,
+        model: OFFLINE_RULES_ENGINE,
         content: JSON.stringify({ packages: generatedPackages }, null, 2),
         parsedJson: { packages: generatedPackages },
       };
@@ -2735,16 +2736,16 @@ Ensure all cost numbers are pure numeric primitives.`
       };
 
       return {
-        provider: "OpenAI-SimulationEngine",
-        model: "gpt-4o-deterministic-cache",
+        provider: OFFLINE_RULES_ENGINE,
+        model: OFFLINE_RULES_ENGINE,
         content: JSON.stringify(fallbackClashes, null, 2),
         parsedJson: fallbackClashes,
       };
     }
 
     return {
-      provider: "OpenAI-SimulationEngine",
-      model: "gpt-4o-deterministic-cache",
+      provider: OFFLINE_RULES_ENGINE,
+      model: OFFLINE_RULES_ENGINE,
       content: "TradePulse Pro specification analysis completed successfully.",
     };
   },

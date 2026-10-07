@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { convexTest, type TestConvex } from "convex-test";
-import { describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import schema from "../schema";
@@ -11,6 +11,14 @@ const modules = import.meta.glob("/convex/**/*.ts");
 const AGENT_EMAIL = "boldlevel182@agentmail.to";
 
 type T = TestConvex<typeof schema>;
+
+// Submitting schedules the AI review; fake timers keep it from running mid-test.
+beforeEach(() => {
+  vi.useFakeTimers();
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 async function setup() {
   const t = convexTest(schema, modules);

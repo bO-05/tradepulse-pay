@@ -1,6 +1,7 @@
 import { internalAction } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
+import { OFFLINE_RULES_ENGINE } from "./lib/aiLabels";
 import { cleanNumber, sanitizeBidLevelingOutput, augmentExclusionsWithDeterministicGaps, applyExplicitExclusionAmounts, applyUnpricedExclusionBenchmarks, normalizeExclusionSeverity, normalizeLeadWeeksFromText, detectCoiDeficiency, detectCoiAffirmativeCompliance } from "./llmRouter";
 import { sendAgentmailMessage } from "./agentmailApi";
 import { COI_DEFICIENCY_PENALTY, leadTimePenaltyFor, targetWeeksForDivision } from "./terms";
@@ -526,8 +527,8 @@ export const handleBidProcessing = internalAction({
       coiPenalty: effectiveCoiPenalty,
       leveledTotalCost: calculatedLeveledCost,
       levelingProvider:
-        llmResult.provider === "OpenAI-SimulationEngine"
-          ? "Deterministic Engine (offline fallback — no model call)"
+        llmResult.provider === OFFLINE_RULES_ENGINE
+          ? `${OFFLINE_RULES_ENGINE} (no model call)`
           : `${llmResult.provider || "deterministic-fallback"} ${llmResult.model || ""}`.trim(),
     });
     } catch (bidErr: any) {
