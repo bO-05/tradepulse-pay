@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useQuery, useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { formatFullDateTime } from "../lib/datetime.ts";
+import { PayAppEvalPanel } from "../dashboard/PayAppEvalPanel";
 import {
   Activity,
   CheckCircle2,
@@ -77,13 +78,13 @@ export const SponsorDiagnosticsView: React.FC = () => {
 
   const handleRunExpertEvals = async () => {
     setIsRunningEvals(true);
-    setEvalStatusMsg("Running the 13-case extraction, holdout and cross-trade evaluation against live backend...");
+    setEvalStatusMsg("Running the 13-case extraction, holdout and cross-trade evaluation plus the 4 pay-app review fixtures against live backend...");
     try {
       const res = await executeEvalSuiteAction({
         targetEnvironment: "prod",
         triggeredBy: "judge_diagnostics",
       });
-      setEvalStatusMsg(`Run ${res.runId} completed. Extraction matches: ${res.passedCases}/${res.totalCases} • Holdout (answer not in prompt): ${res.holdoutPassed ?? 0}/${res.holdoutCases ?? 0} • Leveled-cost MAPE: ${res.leveledCostMape}% • Exclusion recall: ${Math.round(res.scopeRecallAvg * 100)}%`);
+      setEvalStatusMsg(`Run ${res.runId} completed. Extraction matches: ${res.passedCases}/${res.totalCases} • Holdout (answer not in prompt): ${res.holdoutPassed ?? 0}/${res.holdoutCases ?? 0} • Leveled-cost MAPE: ${res.leveledCostMape}% • Exclusion recall: ${Math.round(res.scopeRecallAvg * 100)}%${res.payAppReview ? ` • Pay-app review fixtures: ${res.payAppReview.passedCases}/${res.payAppReview.totalCases} (${res.payAppReview.overallScore}%)` : ""}`);
     } catch (err: any) {
       setEvalStatusMsg(`Evaluation failed: ${err.message || err}`);
     } finally {
@@ -411,6 +412,8 @@ export const SponsorDiagnosticsView: React.FC = () => {
             </p>
           </div>
         )}
+
+        <PayAppEvalPanel run={latestEvalData?.payAppReviewRun} />
 
         {/* 10-Case Comparative Ground-Truth Table */}
         {latestEvalData?.traces && latestEvalData.traces.length > 0 && (

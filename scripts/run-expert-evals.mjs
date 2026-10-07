@@ -84,8 +84,24 @@ async function runEvals() {
   console.log(`AIA Document A401 Alignment: 100.0% (6/6 statutory articles verified)`);
   console.log("================================================================================\n");
 
+  const pay = res.payAppReview;
+  if (pay) {
+    const label = (provider, model) => (!model || model === "none" ? provider : `${provider} (${model})`);
+    console.log("================================================================================");
+    console.log("                        PAY-APP REVIEW FIXTURES                                 ");
+    console.log("================================================================================");
+    console.log(`Run ID:            ${pay.runId}`);
+    console.log(`Reviewed by:       ${label(pay.provider, pay.model)}`);
+    for (const f of pay.fixtureScores) {
+      console.log(`  ${f.fixtureId.padEnd(24, " ")} score ${String(Math.round(f.score * 100)).padStart(3, " ")}%  ${f.passed ? "PASS" : "FAIL"}  ${label(f.provider, f.model)}`);
+    }
+    console.log(`Overall:           ${pay.passedCases} / ${pay.totalCases} fixtures passed (${pay.overallScore}%)`);
+    console.log("================================================================================\n");
+  }
+
   // Fetch full traces from Convex
   const traces = await client.query("evals:listTracesForRun", { runId: res.runId });
+  const payAppTraces = pay ? await client.query("evals:listTracesForRun", { runId: pay.runId }) : [];
 
   // Ensure evals/results directory exists
   const resultsDir = path.resolve(process.cwd(), "evals", "results");
@@ -95,7 +111,7 @@ async function runEvals() {
 
   // Dump full trace JSON
   const tracePath = path.join(resultsDir, "latest_trace.json");
-  fs.writeFileSync(tracePath, JSON.stringify({ runSummary: res, traces }, null, 2), "utf8");
+  fs.writeFileSync(tracePath, JSON.stringify({ runSummary: res, traces, payAppTraces }, null, 2), "utf8");
   console.log(`[Trace Logger] Full verifiable prompt/completion traces saved to: ${tracePath}`);
 
   // Generate Markdown Scorecard
@@ -130,6 +146,16 @@ ${res.scoreCard.map((r) => `| \`${r.caseId}\` | ${r.csiDivision} | ${r.contracto
 
 ---
 
+## Pay-App Review Fixtures
+
+${pay ? `Run ID \`${pay.runId}\`, reviewed by ${pay.model && pay.model !== "none" ? `${pay.provider} (${pay.model})` : pay.provider}. Overall: ${pay.passedCases} / ${pay.totalCases} (${pay.overallScore}%).
+
+| Fixture | Score | Status | Provider | Model |
+| :--- | :--- | :--- | :--- | :--- |
+${pay.fixtureScores.map((f) => `| \`${f.fixtureId}\` | ${Math.round(f.score * 100)}% | **${f.passed ? "PASS" : "FAIL"}** | ${f.provider} | ${f.model} |`).join("\n")}` : "Not run."}
+
+---
+
 ## Verifiable Audit Trail
 All raw LLM prompts, intermediate token extractions, RSMeans plug adders, schedule delay penalties, and contractual provisions are permanently archived in the \`agentTraces\` table and exported to \`evals/results/latest_trace.json\`.
 `;
@@ -138,7 +164,8 @@ All raw LLM prompts, intermediate token extractions, RSMeans plug adders, schedu
   fs.writeFileSync(mdPath, mdScorecard, "utf8");
   console.log(`[Scorecard] Markdown evaluation report written to: ${mdPath}\n`);
 
-  if (res.passedCases === res.totalCases && res.leveledCostMape <= 0.50) {
+  const payAppPassed = !pay || pay.passedCases === pay.totalCases;
+  if (res.passedCases === res.totalCases && res.leveledCostMape <= 0.50 && payAppPassed) {
     console.log("VERDICT: ALL 10 CASES ACHIEVED 100% PARITY WITH CERTIFIED PROFESSIONAL ESTIMATOR GROUND TRUTH!");
     process.exit(0);
   } else {

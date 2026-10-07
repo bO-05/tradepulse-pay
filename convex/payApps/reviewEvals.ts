@@ -106,7 +106,7 @@ export const recordPayAppReviewEvalRun = internalMutation({
   },
 });
 
-type SuiteResult = {
+export type PayAppReviewSuiteResult = {
   runId: string;
   suite: string;
   provider: string;
@@ -117,9 +117,14 @@ type SuiteResult = {
   fixtureScores: FixtureScore[];
 };
 
-async function executeSuite(ctx: ActionCtx, targetEnvironment: string, triggeredBy: string): Promise<SuiteResult> {
+/** Runs and records the four pay-app fixtures. Also called by evals:executeEvalSuite. */
+export async function executePayAppReviewSuite(
+  ctx: ActionCtx,
+  targetEnvironment: string,
+  triggeredBy: string,
+  runId: string = `eval_payapp_${Date.now()}`,
+): Promise<PayAppReviewSuiteResult> {
   const started = Date.now();
-  const runId = `eval_payapp_${started}`;
   const results = await evaluateFixtures({ apiKey: process.env.ANTHROPIC_API_KEY, modelId: process.env.ANTHROPIC_MODEL });
   for (const { fixture, run, score } of results) {
     await ctx.runMutation(internal.evals.recordAgentTrace, {
@@ -164,16 +169,16 @@ async function executeSuite(ctx: ActionCtx, targetEnvironment: string, triggered
 /** CLI: npx convex run payApps/reviewEvals:runPayAppReviewEvalSuite '{}' */
 export const runPayAppReviewEvalSuite = internalAction({
   args: { targetEnvironment: v.optional(v.string()), triggeredBy: v.optional(v.string()) },
-  handler: async (ctx, args): Promise<SuiteResult> =>
-    await executeSuite(ctx, args.targetEnvironment ?? "dev", args.triggeredBy ?? "cli_benchmark"),
+  handler: async (ctx, args): Promise<PayAppReviewSuiteResult> =>
+    await executePayAppReviewSuite(ctx, args.targetEnvironment ?? "dev", args.triggeredBy ?? "cli_benchmark"),
 });
 
 /** GC runs the pay-app review eval suite from the app. */
 export const executePayAppReviewEvalSuite = action({
   args: { targetEnvironment: v.optional(v.string()) },
-  handler: async (ctx, args): Promise<SuiteResult> => {
+  handler: async (ctx, args): Promise<PayAppReviewSuiteResult> => {
     await requireRoleInAction(ctx, ["gc"]);
-    return await executeSuite(ctx, args.targetEnvironment ?? "dev", "judge_diagnostics");
+    return await executePayAppReviewSuite(ctx, args.targetEnvironment ?? "dev", "judge_diagnostics");
   },
 });
 

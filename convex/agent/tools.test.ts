@@ -57,7 +57,26 @@ describe("propose-only custom tools", () => {
     // One license check per run, reused by every tool.
     expect(checkLicense).toHaveBeenCalledTimes(1);
     expect(insertProposal.mock.calls.map((c) => c[0].kind)).toEqual(["payout", "capture", "reschedule", "hold"]);
-    expect(calls.map((c) => c.tool)).toEqual(["proposePayout", "proposeCapture", "proposeReschedule", "proposeHold", "checkLicense"]);
+    expect(calls.map((c) => c.tool)).toEqual(["checkLicense", "proposePayout", "proposeCapture", "proposeReschedule", "proposeHold", "checkLicense"]);
+    // The check proposePayout triggered is recorded with its input and resulting status.
+    expect(calls[0]).toMatchObject({
+      source: "model",
+      input: { contractorName: "Rosendin Electric, Inc.", licenseNumber: "142881", triggeredBy: "proposePayout" },
+    });
+    expect(JSON.parse(calls[0].output)).toMatchObject({ status: "active", licenseNumber: "142881" });
+  });
+
+  test("an explicit checkLicense first is recorded once and not repeated by later payout or hold", async () => {
+    const checkLicense = vi.fn(async () => LICENSE);
+    const insertProposal = vi.fn(async (i: { kind: string }) => ({ ok: true as const, proposalId: `p-${i.kind}`, kind: i.kind, flags: [], duplicate: false }));
+    const calls: ToolCallRecord[] = [];
+    const tools = createProposeTools({ checkLicense, insertProposal }, (r) => calls.push(r));
+    await tools.checkLicense.execute!({ contractorName: "Rosendin", licenseNumber: "142881" }, opts);
+    await tools.proposePayout.execute!({ rationale: "r" }, opts);
+    await tools.proposeHold.execute!({ rationale: "r" }, opts);
+    expect(checkLicense).toHaveBeenCalledTimes(1);
+    expect(calls.map((c) => c.tool)).toEqual(["checkLicense", "proposePayout", "proposeHold"]);
+    expect(calls[0].input).toEqual({ contractorName: "Rosendin", licenseNumber: "142881" });
   });
 
   test("tools.ts and proposalDb.ts never reach a money-moving function", () => {

@@ -175,6 +175,41 @@ describe("CSLB license check through KERNEL", () => {
     expect(all.every((r) => r.browserDeleted === true)).toBe(true);
   });
 
+  test("a browser created after the 30 s timeout is still deleted and the result stays unverified", async () => {
+    const s = await setup("142881");
+    kernelMock.create.mockImplementationOnce(
+      () => new Promise((resolve) => setTimeout(() => resolve({ session_id: "sess_late", browser_live_view_url: LIVE_URL }), 45_000)),
+    );
+    servePage("142881");
+    const pending = s.t.action(internal.kernel.licenseCheck.checkLicenseNow, { contractorId: s.contractorId });
+    await vi.advanceTimersByTimeAsync(30_001);
+    expect(kernelMock.deleteByID).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(15_000);
+    const res = await pending;
+
+    expect(kernelMock.deleteByID).toHaveBeenCalledTimes(1);
+    expect(kernelMock.deleteByID).toHaveBeenCalledWith("sess_late");
+    expect(kernelMock.execute).not.toHaveBeenCalled();
+    expect(res.status).toBe("unverified");
+    const [row] = await rows(s.t, s.contractorId);
+    expect(row).toMatchObject({ phase: "done", status: "unverified", browserDeleted: true });
+    expect(row.rawSummary).toMatch(/timed out/);
+  });
+
+  test("a browser creation that fails after the timeout leaves nothing to delete", async () => {
+    const s = await setup("142881");
+    kernelMock.create.mockImplementationOnce(
+      () => new Promise((_, reject) => setTimeout(() => reject(new Error("socket hang up")), 50_000)),
+    );
+    const pending = s.t.action(internal.kernel.licenseCheck.checkLicenseNow, { contractorId: s.contractorId });
+    await vi.advanceTimersByTimeAsync(60_000);
+    const res = await pending;
+    expect(res.status).toBe("unverified");
+    expect(kernelMock.deleteByID).not.toHaveBeenCalled();
+    const [row] = await rows(s.t, s.contractorId);
+    expect(row).toMatchObject({ phase: "done", status: "unverified" });
+  });
+
   test("without KERNEL_API_KEY no browser is created and the result is unverified", async () => {
     vi.stubEnv("KERNEL_API_KEY", "");
     const s = await setup("142881");

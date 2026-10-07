@@ -118,14 +118,49 @@ const rationaleSchema = z
 /** Shared state of one run: the license check result, reused by proposePayout. */
 export type ProposeSession = { license: LicenseToolResult | null };
 
-export function createProposeTools(deps: ProposeToolDeps, record: Recorder, session: ProposeSession = { license: null }) {
-  const ensureLicense = async (): Promise<LicenseToolResult> => {
-    if (session.license === null) session.license = await deps.checkLicense();
-    return session.license;
+export function licenseToolOutput(license: LicenseToolResult) {
+  return {
+    contractorName: license.contractorName,
+    licenseNumber: license.licenseNumber,
+    status: license.status,
+    checkedAt: new Date(license.checkedAt).toISOString(),
+    cached: license.cached,
+    summary: license.rawSummary.slice(0, 600),
   };
+}
 
+/**
+ * The single place a run's license check happens. A check the model did not ask for directly
+ * (a propose tool needing it, or the code policy after the loop) is still recorded as a
+ * checkLicense call, so every trace shows the contractor/license input and resulting status.
+ */
+export async function ensureSessionLicense(
+  session: ProposeSession,
+  checkLicense: () => Promise<LicenseToolResult>,
+  record: Recorder,
+  implicit: { source: ToolCallRecord["source"]; triggeredBy: string } | null,
+): Promise<LicenseToolResult> {
+  if (session.license !== null) return session.license;
+  const license = await checkLicense();
+  session.license = license;
+  if (implicit !== null) {
+    record({
+      tool: "checkLicense",
+      source: implicit.source,
+      input: { contractorName: license.contractorName, licenseNumber: license.licenseNumber, triggeredBy: implicit.triggeredBy },
+      output: JSON.stringify(licenseToolOutput(license)),
+      at: Date.now(),
+    });
+  }
+  return license;
+}
+
+export function createProposeTools(deps: ProposeToolDeps, record: Recorder, session: ProposeSession = { license: null }) {
   const propose = (kind: ProposeKind, name: string) => async (input: { rationale: string }) => {
-    const licenseCheckId = kind === "payout" || kind === "hold" ? (await ensureLicense()).checkId : session.license?.checkId;
+    const licenseCheckId =
+      kind === "payout" || kind === "hold"
+        ? (await ensureSessionLicense(session, deps.checkLicense, record, { source: "model", triggeredBy: name })).checkId
+        : session.license?.checkId;
     const res = await deps.insertProposal({ kind, rationale: input.rationale ?? "", licenseCheckId });
     const output = res.ok
       ? { ok: true, proposalId: res.proposalId, kind: res.kind, amountCents: res.amountCents ?? null, flags: res.flags, status: "pending", note: "Pending GC approval. No money moved." }
@@ -143,15 +178,8 @@ export function createProposeTools(deps: ProposeToolDeps, record: Recorder, sess
         licenseNumber: z.string().describe("CA license number on file"),
       }),
       execute: async (input: { contractorName: string; licenseNumber: string }) => {
-        const license = await ensureLicense();
-        const output = {
-          contractorName: license.contractorName,
-          licenseNumber: license.licenseNumber,
-          status: license.status,
-          checkedAt: new Date(license.checkedAt).toISOString(),
-          cached: license.cached,
-          summary: license.rawSummary.slice(0, 600),
-        };
+        const license = await ensureSessionLicense(session, deps.checkLicense, record, null);
+        const output = licenseToolOutput(license);
         record({ tool: "checkLicense", source: "model", input, output: JSON.stringify(output), at: Date.now() });
         return output;
       },

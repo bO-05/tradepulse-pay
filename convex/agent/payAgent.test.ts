@@ -7,6 +7,7 @@ import schema from "../schema";
 import { agentIdProfile, syncAgentProfile } from "../lib/agentAccess";
 import { signInAs } from "../lib/testIdentity";
 import { clearPayPalTokenCache } from "../payments/paypalClient";
+import { CSLB_FIXTURES } from "../kernel/cslbFixtures";
 import { CUSTOM_TOOL_NAMES, READ_ONLY_TOOLKIT_TOOLS } from "./tools";
 
 const generateTextMock = vi.hoisted(() => vi.fn());
@@ -14,6 +15,14 @@ vi.mock("ai", async (importOriginal) => {
   const actual = await importOriginal<typeof import("ai")>();
   return { ...actual, generateText: generateTextMock };
 });
+
+const kernelMock = vi.hoisted(() => ({ create: vi.fn(), execute: vi.fn(), deleteByID: vi.fn() }));
+vi.mock("@onkernel/sdk", () => ({
+  default: class {
+    browsers = { create: kernelMock.create, deleteByID: kernelMock.deleteByID, playwright: { execute: kernelMock.execute } };
+  },
+}));
+const KERNEL_FAKE_KEY = "kernel-agent-test-key-not-real";
 
 const modules = import.meta.glob("/convex/**/*.ts");
 const SUB_EMAIL = "sub1-sandbox@paypal.test";
@@ -50,6 +59,9 @@ let fake: ReturnType<typeof fakePayPal>;
 beforeEach(() => {
   vi.useFakeTimers();
   generateTextMock.mockReset();
+  kernelMock.create.mockReset();
+  kernelMock.execute.mockReset();
+  kernelMock.deleteByID.mockReset();
   vi.stubEnv("PAYPAL_CLIENT_ID", "test-client");
   vi.stubEnv("PAYPAL_CLIENT_SECRET", "test-secret-value");
   vi.stubEnv("PAYPAL_ENV", "sandbox");
@@ -262,6 +274,57 @@ describe("pay agent run", () => {
     expect(check.output).toContain('"status":"active"');
     expect(JSON.stringify(trace)).not.toMatch(/sk-ant-|A21AA|test-secret-value/);
     expect(fake.moneyCalls()).toHaveLength(0);
+  });
+
+  test("a payout proposed before checkLicense still records one checkLicense entry with input and status, and KERNEL runs once", async () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "sk-ant-test-not-real");
+    vi.stubEnv("ANTHROPIC_MODEL", "claude-sonnet-5-5");
+    vi.stubEnv("KERNEL_API_KEY", KERNEL_FAKE_KEY);
+    kernelMock.create.mockResolvedValue({ session_id: "sess_agent", browser_live_view_url: "https://live.kernel.test/v" });
+    kernelMock.execute.mockResolvedValue({ success: true, result: CSLB_FIXTURES["142881"] });
+    kernelMock.deleteByID.mockResolvedValue(undefined);
+    const s = await setup({ license: null });
+    await s.t.run(async (ctx) => ctx.db.patch(s.agreement.contractorId, { licenseNumber: "142881" }));
+    const [a, b] = s.sov;
+    generateTextMock.mockImplementation(async (opts: { tools?: Record<string, { execute: (i: unknown, o: unknown) => Promise<unknown> }> }) => {
+      if (!opts.tools) {
+        return {
+          output: {
+            lines: [
+              { sovLineId: a._id, verdict: "ok", recommendedPctToDate: 0.2, reason: "ok" },
+              { sovLineId: b._id, verdict: "ok", recommendedPctToDate: 0.6, reason: "ok" },
+            ],
+            lienWaiverMissing: false,
+            licenseIssue: false,
+            notes: "",
+          },
+          usage: { inputTokens: 10, outputTokens: 10 },
+          response: { modelId: "claude-sonnet-5-5" },
+        };
+      }
+      const o = { toolCallId: "x", messages: [] };
+      await opts.tools.proposePayout.execute({ rationale: "Pay the reviewed amount." }, o);
+      await opts.tools.proposeHold.execute({ rationale: "Hold for review." }, o);
+      await opts.tools.checkLicense.execute({ contractorName: "Rosendin Electric, Inc.", licenseNumber: "142881" }, o);
+      return { text: "done", steps: [{}, {}], totalUsage: { inputTokens: 50, outputTokens: 5 }, response: { modelId: "claude-sonnet-5-5" } };
+    });
+    const payAppId = await submitAndRun(s);
+    const st = await state(s, payAppId);
+
+    expect(kernelMock.create).toHaveBeenCalledTimes(1);
+    expect(kernelMock.deleteByID).toHaveBeenCalledWith("sess_agent");
+    const trace = st.traces.find((r) => r.status.startsWith("AGENT_PROPOSED"))!;
+    const calls = trace.parsedOutput.toolCalls as { tool: string; source: string; input: string; output: string }[];
+    expect(calls.map((c) => c.tool).slice(0, 2)).toEqual(["checkLicense", "proposePayout"]);
+    const implicit = calls[0];
+    expect(implicit.source).toBe("model");
+    expect(JSON.parse(implicit.input)).toMatchObject({ contractorName: "Rosendin Electric, Inc.", licenseNumber: "142881", triggeredBy: "proposePayout" });
+    expect(JSON.parse(implicit.output)).toMatchObject({ status: "active", licenseNumber: "142881", cached: false });
+    // The model's later explicit call reuses the run's result and is recorded as its own call.
+    expect(calls.filter((c) => c.tool === "checkLicense")).toHaveLength(2);
+    expect(trace.parsedOutput.license).toMatchObject({ status: "active", licenseNumber: "142881" });
+    expect(JSON.stringify(trace)).not.toMatch(/sk-ant-|A21AA|test-secret-value/);
+    expect(JSON.stringify(trace)).not.toContain(KERNEL_FAKE_KEY);
   });
 
   test("an expired license holds the payout: flagged, hold proposal, review licenseIssue, approval refused without override", async () => {

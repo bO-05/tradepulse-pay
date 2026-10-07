@@ -10,6 +10,7 @@ import type { LicenseCheckResult } from "../kernel/licenseCheck";
 import { buildAgentPrompt, PAY_AGENT_SYSTEM_PROMPT, policyRationale, runAgentLoop, MAX_AGENT_STEPS } from "./agentLoop";
 import {
   createProposeTools,
+  ensureSessionLicense,
   READ_ONLY_TOOLKIT_ACTIONS,
   scrubSecrets,
   toTraceString,
@@ -112,25 +113,15 @@ async function runAgent(ctx: ActionCtx, payAppId: Id<"payApplications">): Promis
 
   // Code policy: the license is always checked, and any proposal the plan requires but the model
   // skipped is made deterministically and labeled as such in the trace.
-  if (session.license === null) {
-    const license = await checkLicense();
-    session.license = license;
-    calls.push({
-      tool: "checkLicense",
-      source: "code_policy",
-      input: { contractorName: license.contractorName, licenseNumber: license.licenseNumber },
-      output: JSON.stringify({ status: license.status, checkedAt: new Date(license.checkedAt).toISOString(), cached: license.cached }),
-      at: Date.now(),
-    });
-  }
+  const license = await ensureSessionLicense(session, checkLicense, record, { source: "code_policy", triggeredBy: "code_policy" });
   const { required, made } = await ctx.runQuery(internal.agent.proposalDb.requiredProposalKinds, {
     payAppId,
     runId,
-    licenseCheckId: session.license.checkId as Id<"licenseChecks">,
+    licenseCheckId: license.checkId as Id<"licenseChecks">,
   });
   for (const kind of required as ProposeKind[]) {
     if (made.includes(kind)) continue;
-    const input = { kind, rationale: policyRationale(kind), licenseCheckId: session.license.checkId };
+    const input = { kind, rationale: policyRationale(kind), licenseCheckId: license.checkId };
     const res = await insertProposal(input, "code_policy");
     calls.push({
       tool: `propose${kind[0].toUpperCase()}${kind.slice(1)}`,
@@ -146,7 +137,7 @@ async function runAgent(ctx: ActionCtx, payAppId: Id<"payApplications">): Promis
     await ctx.runQuery(internal.agent.proposalDb.requiredProposalKinds, {
       payAppId,
       runId,
-      licenseCheckId: session.license.checkId as Id<"licenseChecks">,
+      licenseCheckId: license.checkId as Id<"licenseChecks">,
     })
   ).made;
   await ctx.runMutation(internal.agent.proposalDb.storeAgentTrace, {
@@ -165,10 +156,10 @@ async function runAgent(ctx: ActionCtx, payAppId: Id<"payApplications">): Promis
         toolCalls: calls.map((c) => ({ tool: c.tool, source: c.source, input: toTraceString(c.input, secrets), output: toTraceString(c.output, secrets), at: c.at })),
         proposalKinds: proposals,
         license: {
-          checkId: session.license.checkId,
-          licenseNumber: session.license.licenseNumber,
-          status: session.license.status,
-          checkedAt: session.license.checkedAt,
+          checkId: license.checkId,
+          licenseNumber: license.licenseNumber,
+          status: license.status,
+          checkedAt: license.checkedAt,
         },
         tools: Object.keys(tools),
       },

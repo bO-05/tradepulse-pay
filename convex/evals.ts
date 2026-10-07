@@ -3,6 +3,7 @@ import { requireRole, requireRoleInAction } from "./lib/roles";
 import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
 import { OFFLINE_RULES_ENGINE } from "./lib/aiLabels";
+import { executePayAppReviewSuite, PAY_APP_REVIEW_SUITE } from "./payApps/reviewEvals";
 
 export interface EvalMetricResult {
   caseId: string;
@@ -107,8 +108,9 @@ export const getLatestEvalRun = query({
       .order("desc")
       .take(50);
     const latestRun = recentRuns.find((r) => r.suite === undefined);
+    const payAppReviewRun = recentRuns.find((r) => r.suite === PAY_APP_REVIEW_SUITE) ?? null;
 
-    if (!latestRun) return null;
+    if (!latestRun) return payAppReviewRun ? { run: null, traces: [], payAppReviewRun } : null;
 
     const traces = await ctx.db
       .query("agentTraces")
@@ -118,6 +120,7 @@ export const getLatestEvalRun = query({
     return {
       run: latestRun,
       traces,
+      payAppReviewRun,
     };
   },
 });
@@ -780,6 +783,10 @@ Insurance: fully compliant with a $5,000,000 excess umbrella policy naming GC an
       holdoutMape: Math.round(holdoutMape * 100) / 100,
     });
 
+    // The pay-app review fixtures are part of the same suite; they keep their own evalRuns row
+    // because the bid-leveling metrics above do not apply to them.
+    const payAppReview = await executePayAppReviewSuite(ctx, targetEnv, triggeredBy, `${runId}_payapp`);
+
     return {
       success: true,
       runId,
@@ -796,6 +803,7 @@ Insurance: fully compliant with a $5,000,000 excess umbrella policy naming GC an
       holdoutMape: Math.round(holdoutMape * 100) / 100,
       scoreCard: results,
       tracesCount: results.length,
+      payAppReview,
     };
   },
 });
