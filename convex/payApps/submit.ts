@@ -6,7 +6,7 @@ import { requireRole, type Viewer } from "../lib/roles";
 import { formatCents } from "../lib/money";
 import { viewerAgentAuditFields, type AgentAuditFields } from "../lib/agentAudit";
 import {
-  priorBillingByLine,
+  sovBaselineByLine,
   validatePayApp,
   WITHDRAWABLE_PAY_APP_STATUSES,
   type SovLineContext,
@@ -31,9 +31,9 @@ async function sovContext(ctx: QueryCtx, agreementId: Id<"agreements">) {
     .query("scheduleOfValues")
     .withIndex("by_agreementId_and_lineNo", (q) => q.eq("agreementId", agreementId))
     .take(500);
-  const prior = priorBillingByLine(await billingPayAppHistory(ctx, agreementId));
+  const baseline = sovBaselineByLine(await billingPayAppHistory(ctx, agreementId), sov);
   return sov.map((s) => {
-    const p = prior.get(s._id) ?? { billedCents: 0, pctToDate: 0 };
+    const b = baseline.get(s._id)!;
     return {
       _id: s._id,
       lineNo: s.lineNo,
@@ -41,9 +41,10 @@ async function sovContext(ctx: QueryCtx, agreementId: Id<"agreements">) {
       csiCode: s.csiCode ?? null,
       excludedScope: s.excludedScope,
       scheduledValueCents: s.scheduledValueCents,
-      previouslyBilledCents: p.billedCents,
-      remainingCents: Math.max(0, s.scheduledValueCents - p.billedCents),
-      previousPctToDate: p.pctToDate,
+      previouslyBilledCents: b.previouslyBilledCents,
+      pendingRequestedCents: b.pendingRequestedCents,
+      remainingCents: b.remainingCents,
+      previousPctToDate: b.previousPctToDate,
     };
   });
 }

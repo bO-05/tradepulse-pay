@@ -16,7 +16,10 @@ export type SovLineContext = {
   lineNo: number;
   description: string;
   scheduledValueCents: number;
+  /** Approved billing to date (see sovBaselineByLine). */
   previouslyBilledCents: number;
+  /** Requested on earlier pay apps that are still open; counts against what remains. */
+  pendingRequestedCents: number;
 };
 
 export type PayAppFieldError = { field: string; message: string };
@@ -49,17 +52,26 @@ export function approvedTotalFor(app: { finalApproval?: { totalCents: number } |
   return app.finalApproval.totalCents;
 }
 
+export type PriorBillingLine = {
+  /** Final GC-approved cents of approved or paid pay apps: the billed-to-date baseline. */
+  approvedCents: number;
+  /** Requested cents of pay apps still awaiting a decision; reserved, never part of the baseline. */
+  pendingRequestedCents: number;
+};
+
+const NO_PRIOR_BILLING: PriorBillingLine = { approvedCents: 0, pendingRequestedCents: 0 };
+
 /**
- * Per SOV line: cents already billed by open or approved pay apps (the final
- * approved cents once an app is approved) and the highest % to date claimed.
- * An approved app without a final allocation throws, unless `unresolvedApprovedAs: "requested"`
- * asks for its requested cents as a conservative upper bound.
+ * Per SOV line: the final approved cents of approved or paid pay apps, and the requested cents of
+ * pay apps still open. Withdrawn and rejected apps count for nothing. An approved app without a final
+ * allocation throws, unless `unresolvedApprovedAs: "requested"` asks for its requested cents as a
+ * conservative upper bound (counted as pending, so it limits what remains but is not a baseline).
  */
 export function priorBillingByLine(
   payApps: readonly PriorPayApp[],
   opts: { unresolvedApprovedAs?: "throw" | "requested" } = {},
-): Map<string, { billedCents: number; pctToDate: number }> {
-  const out = new Map<string, { billedCents: number; pctToDate: number }>();
+): Map<string, PriorBillingLine> {
+  const out = new Map<string, PriorBillingLine>();
   for (const app of payApps) {
     if (!BILLING_PAY_APP_STATUSES.has(app.status)) continue;
     const isApproved = APPROVED_PAY_APP_STATUSES.has(app.status);
@@ -67,15 +79,61 @@ export function priorBillingByLine(
     const useApproved = isApproved && !!app.finalApproval;
     const approved = new Map((app.finalApproval?.lines ?? []).map((l) => [l.sovLineId, l.approvedCents]));
     for (const line of app.lines) {
-      const cents = useApproved ? (approved.get(line.sovLineId) ?? 0) : line.requestedCents;
-      const prev = out.get(line.sovLineId) ?? { billedCents: 0, pctToDate: 0 };
-      out.set(line.sovLineId, {
-        billedCents: prev.billedCents + cents,
-        pctToDate: Math.max(prev.pctToDate, line.pctCompleteToDate),
-      });
+      const prev = out.get(line.sovLineId) ?? NO_PRIOR_BILLING;
+      out.set(
+        line.sovLineId,
+        useApproved
+          ? { ...prev, approvedCents: prev.approvedCents + (approved.get(line.sovLineId) ?? 0) }
+          : { ...prev, pendingRequestedCents: prev.pendingRequestedCents + line.requestedCents },
+      );
     }
   }
   return out;
+}
+
+/** Cents a line's earlier pay apps hold against its scheduled value: approved plus still pending. */
+export function committedCents(prior: PriorBillingLine | undefined): number {
+  return prior ? prior.approvedCents + prior.pendingRequestedCents : 0;
+}
+
+/** Approved cents as a percent (0-100, two decimals) of the line's scheduled value. */
+export function approvedPctToDate(approvedCents: number, scheduledValueCents: number): number {
+  if (scheduledValueCents <= 0 || approvedCents <= 0) return 0;
+  const hundredths = Math.min(10_000, Math.round((approvedCents * 10_000) / scheduledValueCents));
+  return hundredths / 100;
+}
+
+export type SovBaseline = {
+  previouslyBilledCents: number;
+  previousPctToDate: number;
+  pendingRequestedCents: number;
+  remainingCents: number;
+};
+
+/**
+ * The one previous-to-date baseline per SOV line shared by the sub portal form, submit validation
+ * and the AI review: approved billing only. Pending requests reduce what remains but never raise
+ * the baseline, and the percent comes from approved cents, not from any percentage a request claimed.
+ */
+export function sovBaselineByLine(
+  payApps: readonly PriorPayApp[],
+  sov: readonly { _id: string; scheduledValueCents: number }[],
+): Map<string, SovBaseline> {
+  const prior = priorBillingByLine(payApps);
+  return new Map(
+    sov.map((s) => {
+      const p = prior.get(s._id) ?? NO_PRIOR_BILLING;
+      return [
+        s._id,
+        {
+          previouslyBilledCents: p.approvedCents,
+          previousPctToDate: approvedPctToDate(p.approvedCents, s.scheduledValueCents),
+          pendingRequestedCents: p.pendingRequestedCents,
+          remainingCents: Math.max(0, s.scheduledValueCents - committedCents(p)),
+        },
+      ];
+    }),
+  );
 }
 
 function isPercent(n: unknown): n is number {
@@ -136,7 +194,10 @@ export function validatePayApp(
       errors.push({ field, message: `${label}: requested amount cannot be negative.` });
       ok = false;
     } else {
-      const remaining = Math.max(0, sovLine.scheduledValueCents - sovLine.previouslyBilledCents);
+      const remaining = Math.max(
+        0,
+        sovLine.scheduledValueCents - sovLine.previouslyBilledCents - sovLine.pendingRequestedCents,
+      );
       if (line.requestedCents > remaining) {
         errors.push({
           field,

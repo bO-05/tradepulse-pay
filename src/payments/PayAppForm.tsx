@@ -179,7 +179,12 @@ export function PayAppForm({ agreements }: { agreements: AgreementOption[] }) {
                     <td className="py-2 pr-3 text-right">{formatCents(s.scheduledValueCents)}</td>
                     <td className="py-2 pr-3 text-right">
                       {formatCents(s.previouslyBilledCents)}
-                      {s.previousPctToDate > 0 ? <span className="block text-xs text-slate-400">{s.previousPctToDate}% to date</span> : null}
+                      {s.previousPctToDate > 0 ? (
+                        <span className="block text-xs text-slate-400">{s.previousPctToDate}% approved to date</span>
+                      ) : null}
+                      {s.pendingRequestedCents > 0 ? (
+                        <span className="block text-xs text-amber-300/80">{formatCents(s.pendingRequestedCents)} pending review</span>
+                      ) : null}
                     </td>
                     <td className="py-2 pr-3 text-right">{formatCents(s.remainingCents)}</td>
                     <td className="py-2 pr-3 text-right">

@@ -3,7 +3,7 @@
  * complete and Rough-in is under way (milestones support 30% on base lines),
  * billed four ways. Each fixture lists the verdict expected on every line.
  */
-import { buildReviewLines, type LineVerdict, type ReviewContext, type ReviewMilestone } from "./reviewMath";
+import { buildReviewLines, type LineVerdict, type ReviewContext, type ReviewMilestone, type ReviewPrior } from "./reviewMath";
 import { percentageOfCents } from "../lib/money";
 
 const SOV = [
@@ -28,9 +28,9 @@ const MILESTONES: ReviewMilestone[] = [
   { milestoneId: "fx-ms-4", name: "Closeout", order: 4, status: "planned", amountCents: 13_575_000, sovLineIds: BASE_IDS },
 ];
 /** Line 1 and 2 were each billed 10% on the previous pay app. */
-const PRIOR = new Map([
-  ["fx-sov-1", { billedCents: 3_400_000, pctToDate: 10 }],
-  ["fx-sov-2", { billedCents: 3_000_000, pctToDate: 10 }],
+const PRIOR = new Map<string, ReviewPrior>([
+  ["fx-sov-1", { previouslyBilledCents: 3_400_000, previousPctToDate: 10, pendingRequestedCents: 0 }],
+  ["fx-sov-2", { previouslyBilledCents: 3_000_000, previousPctToDate: 10, pendingRequestedCents: 0 }],
 ]);
 
 type FixtureLine = { sovLineId: string; pctToDate: number; requestedCents?: number };
@@ -38,11 +38,12 @@ type FixtureLine = { sovLineId: string; pctToDate: number; requestedCents?: numb
 function fixtureContext(lines: FixtureLine[], opts: { lienWaiver: boolean; notes: string }): ReviewContext {
   const submitted = lines.map((l) => {
     const sov = SOV.find((s) => s._id === l.sovLineId)!;
-    const prior = PRIOR.get(l.sovLineId) ?? { billedCents: 0, pctToDate: 0 };
-    const requestedCents = l.requestedCents ?? Math.max(0, percentageOfCents(sov.scheduledValueCents, l.pctToDate) - prior.billedCents);
+    const prior = PRIOR.get(l.sovLineId) ?? { previouslyBilledCents: 0, previousPctToDate: 0, pendingRequestedCents: 0 };
+    const requestedCents =
+      l.requestedCents ?? Math.max(0, percentageOfCents(sov.scheduledValueCents, l.pctToDate) - prior.previouslyBilledCents);
     return {
       sovLineId: l.sovLineId,
-      pctCompleteThisPeriod: Math.max(0, l.pctToDate - prior.pctToDate),
+      pctCompleteThisPeriod: Math.max(0, l.pctToDate - prior.previousPctToDate),
       pctCompleteToDate: l.pctToDate,
       requestedCents,
     };

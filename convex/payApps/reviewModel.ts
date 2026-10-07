@@ -47,6 +47,8 @@ Verdicts, checked in this order:
 - "front_loaded": within the ceiling, but the claim is at least double otherLinesProgressPct (the progress of the rest of the job) and at least 15 percentage points above it, with otherLinesProgressPct above 0. Recommend about otherLinesProgressPct (never below the previous percent to date).
 - "ok": none of the above. Recommend the claimed percent to date.
 
+previouslyBilled and previousPctToDate are what the GC approved on earlier pay apps (approved cents over scheduled value), not what earlier requests claimed. pendingEarlierRequests is requested on earlier pay apps not yet decided; it is not progress to date.
+
 Also set lienWaiverMissing (true when no lien waiver was provided) and licenseIssue (true unless latestLicenseCheck exists and its status is active; code enforces this). Use the pay-app notes, prior pay apps and agreement terms as supporting evidence.`;
 
 const pctLabel = (f: number) => `${Math.round(f * 1000) / 10}%`;
@@ -84,6 +86,7 @@ export function buildReviewPrompt(context: ReviewContext): string {
       scheduledValue: formatCents(l.scheduledValueCents),
       previouslyBilled: formatCents(l.previouslyBilledCents),
       previousPctToDate: l.previousPctToDate,
+      pendingEarlierRequests: formatCents(l.pendingRequestedCents),
       claimedPctThisPeriod: l.claimedPctThisPeriod,
       claimedPctToDate: l.claimedPctToDate,
       requested: formatCents(l.requestedCents),

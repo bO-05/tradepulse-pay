@@ -2,7 +2,7 @@ import type { Doc } from "../_generated/dataModel";
 import { agreementContractSumCents } from "../payments/sov";
 import { retainagePercentFor } from "../payments/payoutMath";
 import { buildReviewLines, type ReviewContext } from "./reviewMath";
-import { APPROVED_PAY_APP_STATUSES, approvedTotalFor, priorBillingByLine } from "./validation";
+import { APPROVED_PAY_APP_STATUSES, approvedTotalFor, sovBaselineByLine } from "./validation";
 
 /**
  * Assembles what the reviewer sees from stored rows. Only pay apps created
@@ -21,7 +21,7 @@ export function buildReviewContext(input: {
   const earlier = input.agreementPayApps.filter(
     (p) => p._id !== payApp._id && (p.createdAt < payApp.createdAt || (p.createdAt === payApp.createdAt && p._creationTime < payApp._creationTime)),
   );
-  const prior = priorBillingByLine(earlier);
+  const prior = sovBaselineByLine(earlier, input.sov);
   const milestones = [...input.milestones].sort((a, b) => a.order - b.order);
   return {
     agreement: {

@@ -1,9 +1,9 @@
 import { describe, expect, test } from "vitest";
-import { priorBillingByLine, validatePayApp, type SovLineContext } from "./validation";
+import { approvedPctToDate, priorBillingByLine, sovBaselineByLine, validatePayApp, type SovLineContext } from "./validation";
 
 const sov: SovLineContext[] = [
-  { _id: "s1", lineNo: 1, description: "Rough-in", scheduledValueCents: 100_000, previouslyBilledCents: 0 },
-  { _id: "s2", lineNo: 2, description: "Trim", scheduledValueCents: 50_000, previouslyBilledCents: 40_000 },
+  { _id: "s1", lineNo: 1, description: "Rough-in", scheduledValueCents: 100_000, previouslyBilledCents: 0, pendingRequestedCents: 0 },
+  { _id: "s2", lineNo: 2, description: "Trim", scheduledValueCents: 50_000, previouslyBilledCents: 30_000, pendingRequestedCents: 10_000 },
 ];
 const line = (over: Partial<{ sovLineId: string; pctCompleteThisPeriod: number; pctCompleteToDate: number; requestedCents: number }> = {}) => ({
   sovLineId: "s1",
@@ -63,7 +63,7 @@ describe("validatePayApp", () => {
 });
 
 describe("priorBillingByLine", () => {
-  test("counts open and approved apps, ignores withdrawn and rejected, prefers approved cents", () => {
+  test("separates approved cents from pending requests and ignores withdrawn and rejected", () => {
     const l = (sovLineId: string, requestedCents: number, pctCompleteToDate = 10) => ({ sovLineId, requestedCents, pctCompleteToDate });
     const m = priorBillingByLine([
       { status: "submitted", lines: [l("s1", 1_000)] },
@@ -71,13 +71,59 @@ describe("priorBillingByLine", () => {
       { status: "rejected", lines: [l("s1", 5_000, 90)] },
       { status: "approved", lines: [l("s1", 3_000, 30)], finalApproval: { lines: [{ sovLineId: "s1", approvedCents: 2_000 }] } },
     ]);
-    expect(m.get("s1")).toEqual({ billedCents: 3_000, pctToDate: 30 });
+    expect(m.get("s1")).toEqual({ approvedCents: 2_000, pendingRequestedCents: 1_000 });
   });
 
   test("an approved app without a final approval fails closed unless asked for its requested cents", () => {
     const l = (sovLineId: string, requestedCents: number) => ({ sovLineId, requestedCents, pctCompleteToDate: 10 });
     const legacy = [{ status: "paid", lines: [l("s1", 4_000)] }];
     expect(() => priorBillingByLine(legacy)).toThrow(/no recorded final GC-approved amount/);
-    expect(priorBillingByLine(legacy, { unresolvedApprovedAs: "requested" }).get("s1")).toEqual({ billedCents: 4_000, pctToDate: 10 });
+    expect(priorBillingByLine(legacy, { unresolvedApprovedAs: "requested" }).get("s1")).toEqual({
+      approvedCents: 0,
+      pendingRequestedCents: 4_000,
+    });
+  });
+});
+
+describe("sovBaselineByLine", () => {
+  const sovRows = [{ _id: "s1", scheduledValueCents: 100_000 }];
+  const l = (requestedCents: number, pctCompleteToDate: number) => ({ sovLineId: "s1", requestedCents, pctCompleteToDate });
+
+  test("an overbilled request edited down sets the baseline from approved cents, not the claimed percent", () => {
+    const b = sovBaselineByLine(
+      [{ status: "approved", lines: [l(30_000, 30)], finalApproval: { lines: [{ sovLineId: "s1", approvedCents: 12_345 }] } }],
+      sovRows,
+    ).get("s1")!;
+    expect(b).toEqual({ previouslyBilledCents: 12_345, previousPctToDate: 12.35, pendingRequestedCents: 0, remainingCents: 87_655 });
+  });
+
+  test("rejected, withdrawn and pending requests never raise the baseline", () => {
+    const b = sovBaselineByLine(
+      [
+        { status: "rejected", lines: [l(90_000, 90)] },
+        { status: "withdrawn", lines: [l(80_000, 80)] },
+        { status: "under_review", lines: [l(20_000, 20)] },
+      ],
+      sovRows,
+    ).get("s1")!;
+    expect(b).toEqual({ previouslyBilledCents: 0, previousPctToDate: 0, pendingRequestedCents: 20_000, remainingCents: 80_000 });
+  });
+
+  test("a line with no history has a zero baseline and its full scheduled value remaining", () => {
+    expect(sovBaselineByLine([], sovRows).get("s1")).toEqual({
+      previouslyBilledCents: 0,
+      previousPctToDate: 0,
+      pendingRequestedCents: 0,
+      remainingCents: 100_000,
+    });
+  });
+});
+
+describe("approvedPctToDate", () => {
+  test("is approved cents over scheduled value, two decimals, capped at 100", () => {
+    expect(approvedPctToDate(25_000, 100_000)).toBe(25);
+    expect(approvedPctToDate(1, 300)).toBe(0.33);
+    expect(approvedPctToDate(100_000, 100_000)).toBe(100);
+    expect(approvedPctToDate(5, 0)).toBe(0);
   });
 });

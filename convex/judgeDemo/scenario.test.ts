@@ -2,9 +2,9 @@ import { describe, expect, test } from "vitest";
 import { DEMO_CHANGE_ORDER, DEMO_CONTRACT_SUM, demoAgreementNumber, demoEditedApprovalCents, demoPayAppLines, type DemoSovLine } from "./scenario";
 
 const sov: DemoSovLine[] = [
-  { _id: "a", description: "1600A main switchboard & transformers", excludedScope: false, scheduledValueCents: 2_200_000, previouslyBilledCents: 0, previousPctToDate: 0 },
-  { _id: "b", description: "Closeout: testing, commissioning & O&M manuals", excludedScope: false, scheduledValueCents: 500_000, previouslyBilledCents: 0, previousPctToDate: 0 },
-  { _id: "c", description: "Seismic bracing", excludedScope: true, scheduledValueCents: 450_000, previouslyBilledCents: 0, previousPctToDate: 0 },
+  { _id: "a", description: "1600A main switchboard & transformers", excludedScope: false, scheduledValueCents: 2_200_000, previouslyBilledCents: 0, previousPctToDate: 0, pendingRequestedCents: 0, remainingCents: 2_200_000 },
+  { _id: "b", description: "Closeout: testing, commissioning & O&M manuals", excludedScope: false, scheduledValueCents: 500_000, previouslyBilledCents: 0, previousPctToDate: 0, pendingRequestedCents: 0, remainingCents: 500_000 },
+  { _id: "c", description: "Seismic bracing", excludedScope: true, scheduledValueCents: 450_000, previouslyBilledCents: 0, previousPctToDate: 0, pendingRequestedCents: 0, remainingCents: 450_000 },
 ];
 
 describe("judge demo scenario", () => {
@@ -27,11 +27,17 @@ describe("judge demo scenario", () => {
   });
 
   test("agent lines account for what was already billed and never exceed the remaining value", () => {
-    const billed = sov.map((s) => (s._id === "a" ? { ...s, previouslyBilledCents: 88_000, previousPctToDate: 4 } : s));
+    const billed = sov.map((s) => (s._id === "a" ? { ...s, previouslyBilledCents: 88_000, previousPctToDate: 4, remainingCents: 2_112_000 } : s));
     const a = demoPayAppLines("agent", billed).find((l) => l.sovLineId === "a")!;
     expect(a).toEqual({ sovLineId: "a", pctCompleteThisPeriod: 26, pctCompleteToDate: 30, requestedCents: 572_000 });
-    const full = sov.map((s) => ({ ...s, previouslyBilledCents: s.scheduledValueCents, previousPctToDate: 100 }));
+    const full = sov.map((s) => ({ ...s, previouslyBilledCents: s.scheduledValueCents, previousPctToDate: 100, remainingCents: 0 }));
     expect(demoPayAppLines("agent", full)).toEqual([]);
+  });
+
+  test("a pending honest request reduces the agent's amount without raising its previous percent", () => {
+    const pending = sov.map((s) => (s._id === "a" ? { ...s, pendingRequestedCents: 88_000, remainingCents: 2_112_000 } : s));
+    const a = demoPayAppLines("agent", pending).find((l) => l.sovLineId === "a")!;
+    expect(a).toEqual({ sovLineId: "a", pctCompleteThisPeriod: 30, pctCompleteToDate: 30, requestedCents: 572_000 });
   });
 
   test("edited approval is 90% rounded down to whole dollars", () => {

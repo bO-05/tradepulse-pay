@@ -205,7 +205,13 @@ describe("submitPayApplication", () => {
       }),
     ).rejects.toThrow(/remaining scheduled value of \$0\.00/);
     const ctxView = await sub1.as.query(api.payApps.submit.payAppFormContext, { agreementId: agreement._id });
-    expect(ctxView!.sovLines[0]).toMatchObject({ previouslyBilledCents: full, remainingCents: 0, previousPctToDate: 100 });
+    // The open request reserves the whole line but is not approved billing, so the baseline stays at 0.
+    expect(ctxView!.sovLines[0]).toMatchObject({
+      previouslyBilledCents: 0,
+      pendingRequestedCents: full,
+      remainingCents: 0,
+      previousPctToDate: 0,
+    });
     expect(await countPayApps(t)).toBe(1);
   });
 
@@ -252,7 +258,11 @@ describe("withdrawPayApplication", () => {
 
     // A withdrawn app no longer counts against the remaining scheduled value.
     const form = await sub1.as.query(api.payApps.submit.payAppFormContext, { agreementId: agreement._id });
-    expect(form!.sovLines[0].previouslyBilledCents).toBe(0);
+    expect(form!.sovLines[0]).toMatchObject({
+      previouslyBilledCents: 0,
+      pendingRequestedCents: 0,
+      remainingCents: form!.sovLines[0].scheduledValueCents,
+    });
   });
 
   test("only submitted or under_review apps can be withdrawn; GC and owner cannot withdraw", async () => {

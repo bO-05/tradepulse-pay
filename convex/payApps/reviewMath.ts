@@ -37,9 +37,12 @@ export type ReviewLine = {
   description: string;
   excludedScope: boolean;
   scheduledValueCents: number;
+  /** GC-approved cents billed to date on earlier pay apps. */
   previouslyBilledCents: number;
-  /** Fraction 0-1, highest % to date claimed on earlier pay apps. */
+  /** Fraction 0-1: approved cents to date over scheduled value (never a percentage a request claimed). */
   previousPctToDate: number;
+  /** Requested on earlier pay apps still awaiting a decision; not part of the baseline. */
+  pendingRequestedCents: number;
   /** Fractions 0-1 as submitted on this pay app. */
   claimedPctThisPeriod: number;
   claimedPctToDate: number;
@@ -126,18 +129,21 @@ export function normalizePct(fraction: number): number {
 }
 
 /**
- * approvedCents = clamp(round(scheduledValueCents × recommendedPctToDate) − previouslyBilledCents, 0, requestedCents).
+ * approvedCents = clamp(round(scheduledValueCents × recommendedPctToDate) − previouslyBilledCents − pendingRequestedCents,
+ * 0, requestedCents). Earlier pending requests are subtracted so two open pay apps cannot both be
+ * paid for the same progress.
  * Rounding is half-up in exact integer arithmetic on the basis-point fraction.
  */
 export function approvedCentsFor(input: {
   scheduledValueCents: number;
   recommendedPctToDate: number;
   previouslyBilledCents: number;
+  pendingRequestedCents?: number;
   requestedCents: number;
 }): number {
   const bps = BigInt(toBasisPoints(input.recommendedPctToDate));
   const earned = Number((BigInt(input.scheduledValueCents) * bps + 5_000n) / 10_000n);
-  const due = earned - input.previouslyBilledCents;
+  const due = earned - input.previouslyBilledCents - (input.pendingRequestedCents ?? 0);
   return Math.min(Math.max(due, 0), Math.max(0, input.requestedCents));
 }
 
@@ -173,14 +179,18 @@ export type SovRowInput = {
   scheduledValueCents: number;
 };
 
+export type ReviewPrior = { previouslyBilledCents: number; previousPctToDate: number; pendingRequestedCents: number };
+
+const NO_PRIOR: ReviewPrior = { previouslyBilledCents: 0, previousPctToDate: 0, pendingRequestedCents: 0 };
+
 /**
- * Builds the per-line review inputs for the submitted lines. `prior` holds the
- * cents billed and highest % to date (0-100) per line on earlier pay apps.
+ * Builds the per-line review inputs for the submitted lines. `prior` is the baseline from earlier
+ * pay apps (sovBaselineByLine): approved cents, approved % to date (0-100) and pending requests.
  */
 export function buildReviewLines(input: {
   sov: readonly SovRowInput[];
   milestones: readonly ReviewMilestone[];
-  prior: ReadonlyMap<string, { billedCents: number; pctToDate: number }>;
+  prior: ReadonlyMap<string, ReviewPrior>;
   lines: readonly { sovLineId: string; pctCompleteThisPeriod: number; pctCompleteToDate: number; requestedCents: number }[];
 }): ReviewLine[] {
   const byId = new Map(input.sov.map((s) => [s._id, s]));
@@ -188,7 +198,7 @@ export function buildReviewLines(input: {
   const progressOf = (s: SovRowInput) => {
     const line = submitted.get(s._id);
     if (line) return clamp01(line.pctCompleteToDate / 100);
-    return clamp01((input.prior.get(s._id)?.pctToDate ?? 0) / 100);
+    return clamp01((input.prior.get(s._id)?.previousPctToDate ?? 0) / 100);
   };
   const closeoutBlocked = earlierMilestonesIncomplete(input.milestones);
   const out: ReviewLine[] = [];
@@ -199,15 +209,16 @@ export function buildReviewLines(input: {
     const otherValue = others.reduce((a, s) => a + s.scheduledValueCents, 0);
     const otherProgress =
       otherValue > 0 ? others.reduce((a, s) => a + s.scheduledValueCents * progressOf(s), 0) / otherValue : 0;
-    const prior = input.prior.get(sov._id) ?? { billedCents: 0, pctToDate: 0 };
+    const prior = input.prior.get(sov._id) ?? NO_PRIOR;
     out.push({
       sovLineId: sov._id,
       lineNo: sov.lineNo,
       description: sov.description,
       excludedScope: sov.excludedScope,
       scheduledValueCents: sov.scheduledValueCents,
-      previouslyBilledCents: prior.billedCents,
-      previousPctToDate: normalizePct(prior.pctToDate / 100),
+      previouslyBilledCents: prior.previouslyBilledCents,
+      previousPctToDate: normalizePct(prior.previousPctToDate / 100),
+      pendingRequestedCents: prior.pendingRequestedCents,
       claimedPctThisPeriod: normalizePct(line.pctCompleteThisPeriod / 100),
       claimedPctToDate: normalizePct(line.pctCompleteToDate / 100),
       requestedCents: line.requestedCents,
@@ -343,6 +354,7 @@ export function finalizeReview(context: ReviewContext, judgement: ReviewJudgemen
             scheduledValueCents: line.scheduledValueCents,
             recommendedPctToDate: recommended,
             previouslyBilledCents: line.previouslyBilledCents,
+            pendingRequestedCents: line.pendingRequestedCents,
             requestedCents: line.requestedCents,
           });
     return { sovLineId: line.sovLineId, verdict, recommendedPctToDate: recommended, approvedCents, reason };

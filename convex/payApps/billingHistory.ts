@@ -3,7 +3,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
 import { effectiveAmount } from "../agent/proposalMath";
 import { allocateApprovedTotal, type AllocationResult } from "./approvalAllocation";
-import { APPROVED_PAY_APP_STATUSES, BILLING_PAY_APP_STATUSES, priorBillingByLine } from "./validation";
+import { APPROVED_PAY_APP_STATUSES, BILLING_PAY_APP_STATUSES, committedCents, priorBillingByLine } from "./validation";
 
 /**
  * Upper bound on billing pay apps read for one agreement. Past it the history is refused rather
@@ -67,7 +67,7 @@ async function rebuildFinalApproval(
   const result = allocateApprovedTotal(
     payApp.lines.map((l) => {
       const s = sov.get(l.sovLineId);
-      const remaining = s ? Math.max(0, s.scheduledValueCents - (prior.get(l.sovLineId)?.billedCents ?? 0)) : 0;
+      const remaining = s ? Math.max(0, s.scheduledValueCents - committedCents(prior.get(l.sovLineId))) : 0;
       return {
         sovLineId: l.sovLineId,
         lineNo: s?.lineNo ?? 0,
@@ -159,7 +159,7 @@ export async function allocateFinalApproval(ctx: QueryCtx, payApp: Doc<"payAppli
   return allocateApprovedTotal(
     payApp.lines.map((l) => {
       const s = sov.get(l.sovLineId);
-      const remaining = s ? Math.max(0, s.scheduledValueCents - (prior.get(l.sovLineId)?.billedCents ?? 0)) : 0;
+      const remaining = s ? Math.max(0, s.scheduledValueCents - committedCents(prior.get(l.sovLineId))) : 0;
       return {
         sovLineId: l.sovLineId,
         lineNo: s?.lineNo ?? 0,

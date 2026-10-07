@@ -60,20 +60,21 @@ export type DemoSovLine = {
   scheduledValueCents: number;
   previouslyBilledCents: number;
   previousPctToDate: number;
+  pendingRequestedCents: number;
+  remainingCents: number;
 };
 
 const CLOSEOUT = /\bclose-?out\b|commissioning|o&m/i;
 
-/** Pay-app lines for a stand-in: requested cents = scheduled × target − already billed, within what remains. */
+/** Pay-app lines for a stand-in: requested cents = scheduled × target − approved and pending, within what remains. */
 export function demoPayAppLines(kind: DemoPayAppKind, sov: readonly DemoSovLine[]) {
   const t = DEMO_TARGET_PCT[kind];
   const lines = [];
   for (const s of sov) {
     const target = s.excludedScope ? t.excluded : CLOSEOUT.test(s.description) ? t.closeout : t.base;
     const toDate = Math.max(target, s.previousPctToDate);
-    const remaining = Math.max(0, s.scheduledValueCents - s.previouslyBilledCents);
-    const due = percentageOfCents(s.scheduledValueCents, toDate) - s.previouslyBilledCents;
-    const requestedCents = Math.min(Math.max(0, due), remaining);
+    const due = percentageOfCents(s.scheduledValueCents, toDate) - s.previouslyBilledCents - s.pendingRequestedCents;
+    const requestedCents = Math.min(Math.max(0, due), s.remainingCents);
     const pctCompleteThisPeriod = Math.max(0, toDate - s.previousPctToDate);
     if (requestedCents === 0 && pctCompleteThisPeriod === 0) continue;
     lines.push({ sovLineId: s._id, pctCompleteThisPeriod, pctCompleteToDate: toDate, requestedCents });
