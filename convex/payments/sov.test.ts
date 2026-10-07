@@ -123,6 +123,175 @@ describe("SOV and milestone generation on execution", () => {
   });
 });
 
+const VOID_REASON = "Executed against the wrong bid revision";
+const CRANE = { description: "Crane hoisting excluded", costImpact: 45000, severity: "critical", isWaived: false };
+
+async function auditTitles(t: ReturnType<typeof newTest>, agreementId: string) {
+  return await t.run(async (ctx) => {
+    const rows = await ctx.db.query("auditLogs").collect();
+    return rows.filter((r) => r.agreementId === agreementId).map((r) => r.title);
+  });
+}
+
+describe("SOV regeneration when the award changes", () => {
+  test("a same-total re-award with different exclusions and lead weeks regenerates SOV and milestone dates", async () => {
+    const t = newTest();
+    const demo = await seedDemo(t);
+    const gc = await signInAs(t, "gc");
+    await gc.as.mutation(api.agreements.executeAgreement, { agreementId: demo.agreement._id });
+    const before = await rowsFor(t, demo.agreement._id);
+    expect(before.sov.some((r) => r.excludedScope)).toBe(false);
+
+    await gc.as.mutation(api.agreements.voidExecutedAgreement, { agreementId: demo.agreement._id, reason: VOID_REASON });
+    const bid = await t.run(async (ctx) => (await ctx.db.get(demo.agreement.bidId))!);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(bid._id, {
+        identifiedExclusions: [CRANE],
+        longLeadEquipmentWeeks: bid.longLeadEquipmentWeeks + 6,
+      });
+    });
+    await gc.as.mutation(api.agreements.generateAgreement, {
+      bidId: demo.agreement.bidId,
+      tradePackageId: demo.agreement.tradePackageId,
+    });
+    const reAwarded = await t.run(async (ctx) => (await ctx.db.get(demo.agreement._id))!);
+    expect(reAwarded.status).toBe("generated");
+    expect(reAwarded.contractSum).toBe(demo.agreement.contractSum);
+
+    await gc.as.mutation(api.agreements.executeAgreement, { agreementId: demo.agreement._id });
+    const after = await rowsFor(t, demo.agreement._id);
+    const excluded = after.sov.filter((r) => r.excludedScope);
+    expect(excluded).toHaveLength(1);
+    expect(excluded[0].scheduledValueCents).toBe(4_500_000);
+    expect(after.sov.reduce((a, r) => a + r.scheduledValueCents, 0)).toBe(Math.round(demo.agreement.contractSum * 100));
+    const rough = (rows: typeof after) => rows.milestones.find((m) => m.name === "Rough-in")!;
+    const mob = (rows: typeof after) => rows.milestones.find((m) => m.name === "Mobilization")!;
+    expect(rough(after).plannedDate - mob(after).plannedDate).toBe(
+      rough(before).plannedDate - mob(before).plannedDate + 6 * 7 * 86_400_000,
+    );
+    expect(after.milestones.every((m) => m.sovLineIds.every((id) => !excluded.some((e) => e._id === id)))).toBe(true);
+  });
+
+  test("execute regenerates rows whose recorded source no longer matches the award", async () => {
+    const t = newTest();
+    const demo = await seedDemo(t);
+    const gc = await signInAs(t, "gc");
+    await gc.as.mutation(api.agreements.executeAgreement, { agreementId: demo.agreement._id });
+    const before = await rowsFor(t, demo.agreement._id);
+    // Rows left behind by a status change that bypassed cleanup.
+    await t.run(async (ctx) => {
+      await ctx.db.patch(demo.agreement._id, { status: "generated" });
+      await ctx.db.patch(demo.agreement.bidId, { identifiedExclusions: [CRANE] });
+    });
+    await gc.as.mutation(api.agreements.executeAgreement, { agreementId: demo.agreement._id });
+    const after = await rowsFor(t, demo.agreement._id);
+    expect(after.sov.filter((r) => r.excludedScope)).toHaveLength(1);
+    expect(after.sov.some((r) => before.sov.some((b) => b._id === r._id))).toBe(false);
+    expect(after.milestones).toHaveLength(4);
+    expect(after.sov.reduce((a, r) => a + r.scheduledValueCents, 0)).toBe(Math.round(demo.agreement.contractSum * 100));
+  });
+
+  test("re-executing with an unchanged source keeps the same row ids", async () => {
+    const t = newTest();
+    const demo = await seedDemo(t);
+    const gc = await signInAs(t, "gc");
+    await gc.as.mutation(api.agreements.executeAgreement, { agreementId: demo.agreement._id });
+    const before = await rowsFor(t, demo.agreement._id);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(demo.agreement._id, { status: "generated" });
+    });
+    await gc.as.mutation(api.agreements.executeAgreement, { agreementId: demo.agreement._id });
+    const after = await rowsFor(t, demo.agreement._id);
+    expect(after.sov.map((r) => r._id)).toEqual(before.sov.map((r) => r._id));
+    expect(after.milestones.map((r) => r._id)).toEqual(before.milestones.map((r) => r._id));
+  });
+
+  test("voiding or regenerating to unexecuted removes SOV and milestones when nothing was billed", async () => {
+    const t = newTest();
+    const demo = await seedDemo(t);
+    const gc = await signInAs(t, "gc");
+    await gc.as.mutation(api.agreements.executeAgreement, { agreementId: demo.agreement._id });
+    await gc.as.mutation(api.agreements.voidExecutedAgreement, { agreementId: demo.agreement._id, reason: VOID_REASON });
+    let rows = await rowsFor(t, demo.agreement._id);
+    expect(rows.sov).toHaveLength(0);
+    expect(rows.milestones).toHaveLength(0);
+
+    // Rows left on a not-yet-executed agreement are cleared when it is regenerated.
+    await t.run(async (ctx) => {
+      await ctx.db.patch(demo.agreement._id, { status: "executed", executedAt: Date.now() });
+    });
+    await gc.as.mutation(api.agreements.executeAgreement, { agreementId: demo.agreement._id });
+    await t.run(async (ctx) => {
+      await ctx.db.patch(demo.agreement._id, { status: "generated" });
+    });
+    expect((await rowsFor(t, demo.agreement._id)).sov.length).toBeGreaterThan(0);
+    await gc.as.mutation(api.agreements.generateAgreement, {
+      bidId: demo.agreement.bidId,
+      tradePackageId: demo.agreement.tradePackageId,
+    });
+    rows = await rowsFor(t, demo.agreement._id);
+    expect(rows.sov).toHaveLength(0);
+    expect(rows.milestones).toHaveLength(0);
+  });
+
+  test("with a payment recorded, a changed award keeps the rows and writes an audit warning", async () => {
+    const t = newTest();
+    const demo = await seedDemo(t);
+    const gc = await signInAs(t, "gc");
+    await gc.as.mutation(api.agreements.executeAgreement, { agreementId: demo.agreement._id });
+    const before = await rowsFor(t, demo.agreement._id);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("payments", {
+        agreementId: demo.agreement._id,
+        milestoneId: before.milestones[0]._id,
+        kind: "funding",
+        status: "authorized",
+        grossCents: before.milestones[0].amountCents,
+        retainageCents: 0,
+        netCents: before.milestones[0].amountCents,
+        idempotencyKey: "test-funding-1",
+        createdAt: Date.now(),
+      });
+      await ctx.db.patch(demo.agreement.bidId, { identifiedExclusions: [CRANE] });
+    });
+    await gc.as.mutation(api.agreements.executeAgreement, { agreementId: demo.agreement._id });
+    const after = await rowsFor(t, demo.agreement._id);
+    expect(after.sov).toEqual(before.sov);
+    expect(after.milestones).toEqual(before.milestones);
+    expect(await auditTitles(t, demo.agreement._id)).toContain(`Schedule of values kept: ${demo.agreement.agreementNumber}`);
+  });
+
+  test("with a pay application recorded, voiding keeps the rows and writes an audit warning", async () => {
+    const t = newTest();
+    const demo = await seedDemo(t);
+    const gc = await signInAs(t, "gc");
+    const sub = await signInAs(t, "sub", { contractorId: demo.rosendinId });
+    await gc.as.mutation(api.agreements.executeAgreement, { agreementId: demo.agreement._id });
+    const before = await rowsFor(t, demo.agreement._id);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("payApplications", {
+        agreementId: demo.agreement._id,
+        subUserId: sub.userId,
+        periodLabel: "Period 1",
+        lines: [
+          { sovLineId: before.sov[0]._id, pctCompleteThisPeriod: 10, pctCompleteToDate: 10, requestedCents: 1_000 },
+        ],
+        requestedTotalCents: 1_000,
+        notes: "",
+        lienWaiver: true,
+        status: "submitted",
+        submittedBy: { userId: sub.userId, actorType: "human" },
+        createdAt: Date.now(),
+      });
+    });
+    await gc.as.mutation(api.agreements.voidExecutedAgreement, { agreementId: demo.agreement._id, reason: VOID_REASON });
+    const after = await rowsFor(t, demo.agreement._id);
+    expect(after.sov).toEqual(before.sov);
+    expect(after.milestones).toEqual(before.milestones);
+    expect(await auditTitles(t, demo.agreement._id)).toContain(`Schedule of values kept: ${demo.agreement.agreementNumber}`);
+  });
+});
+
 describe("agreement ledger", () => {
   test("a newly executed agreement shows zero billed, paid and retainage and the full balance", async () => {
     const t = newTest();

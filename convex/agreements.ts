@@ -3,7 +3,7 @@ import { requireRole } from "./lib/roles";
 import { v, ConvexError } from "convex/values";
 import { DEFAULT_GENERAL_CONTRACTOR, validateProjectText } from "./validation";
 import { LIQUIDATED_DAMAGES_PER_DAY, RETAINAGE_PERCENT } from "./terms";
-import { ensureSovAndMilestones } from "./payments/sov";
+import { ensureSovAndMilestones, removeSovAndMilestonesIfUnbilled } from "./payments/sov";
 
 /**
  * AIA Document A401™ - 2017 Standard Form of Agreement Between Contractor and Subcontractor.
@@ -142,6 +142,7 @@ export const generateAgreement = mutation({
         scopeSummary: tradePkg.scopeSummary,
         mandatoryInclusions: tradePkg.mandatoryInclusions,
       });
+      await removeSovAndMilestonesIfUnbilled(ctx, existing._id);
 
       await ctx.db.insert("auditLogs", {
         projectId: project._id,
@@ -277,6 +278,7 @@ export const voidExecutedAgreement = mutation({
     }
 
     await ctx.db.patch(args.agreementId, { status: "superseded" });
+    await removeSovAndMilestonesIfUnbilled(ctx, args.agreementId);
     const bid = await ctx.db.get(agreement.bidId);
     if (bid) await ctx.db.patch(bid._id, { isAwarded: false });
     const pkg = await ctx.db.get(agreement.tradePackageId);

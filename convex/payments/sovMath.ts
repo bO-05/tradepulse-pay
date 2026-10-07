@@ -113,6 +113,33 @@ export function buildSovLines(input: {
   return lines;
 }
 
+/**
+ * Canonical description of everything the SOV and milestones are derived from
+ * (awarded bid, contract sum, bid lines, leveled exclusions and their plugs,
+ * lead weeks). Two awards with the same total but different scope differ here.
+ */
+export function sovSourceFingerprint(input: {
+  bidId: string;
+  contractSumCents: number;
+  lineItems: readonly BidLineItemInput[];
+  exclusions: readonly BidExclusionInput[];
+  leadWeeks: number;
+}): string {
+  return JSON.stringify({
+    v: 1,
+    bid: input.bidId,
+    sum: input.contractSumCents,
+    lines: input.lineItems.map((li) => [li.item.trim(), nonNegativeCents(li.totalCost)]),
+    excl: input.exclusions.map((ex) => [
+      ex.canonicalCode ?? null,
+      ex.description.trim(),
+      ex.isWaived ? 0 : nonNegativeCents(ex.costImpact),
+      ex.isWaived === true,
+    ]),
+    lead: Number.isFinite(input.leadWeeks) && input.leadWeeks > 0 ? input.leadWeeks : 0,
+  });
+}
+
 /** Default milestones in order, with their share of the contract sum in basis points. */
 export const DEFAULT_MILESTONES = [
   { name: "Mobilization", order: 1, shareBps: 1000 },

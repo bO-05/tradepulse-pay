@@ -149,6 +149,8 @@ export default defineSchema({
     scheduledValueCents: v.number(),
     excludedScope: v.boolean(),
     sourceBidLineRef: v.optional(v.string()),
+    // Canonical JSON of the award inputs the SOV and milestones were generated from.
+    sourceFingerprint: v.optional(v.string()),
   }).index("by_agreementId_and_lineNo", ["agreementId", "lineNo"]),
 
   milestones: defineTable({

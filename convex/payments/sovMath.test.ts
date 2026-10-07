@@ -5,6 +5,7 @@ import {
   allocateCents,
   buildSovLines,
   planMilestoneDates,
+  sovSourceFingerprint,
   splitMilestoneAmounts,
 } from "./sovMath";
 
@@ -98,6 +99,31 @@ describe("buildSovLines", () => {
     expect(sum(lines.map((l) => l.scheduledValueCents))).toBe(100_001);
   });
 
+  test("the remainder lands on the last base-scope line while exclusions keep their exact plugs", () => {
+    const lines = buildSovLines({
+      contractSumCents: 1_000_000_07,
+      lineItems: [
+        { item: "A", totalCost: 300 },
+        { item: "B", totalCost: 300 },
+        { item: "C", totalCost: 300 },
+      ],
+      exclusions: [
+        { description: "X", costImpact: 1234.57 },
+        { description: "Y", costImpact: 99.99 },
+      ],
+      tradeName: "T",
+    });
+    const base = lines.filter((l) => !l.excludedScope);
+    const excluded = lines.filter((l) => l.excludedScope);
+    expect(excluded.map((l) => l.scheduledValueCents)).toEqual([123_457, 9_999]);
+    const baseTotal = 1_000_000_07 - 123_457 - 9_999;
+    const floor = Math.floor(baseTotal / 3);
+    expect(base.map((l) => l.scheduledValueCents)).toEqual([floor, floor, baseTotal - 2 * floor]);
+    expect(baseTotal % 3).not.toBe(0);
+    expect(lines[lines.length - 1].excludedScope).toBe(true);
+    expect(sum(lines.map((l) => l.scheduledValueCents))).toBe(1_000_000_07);
+  });
+
   test("plugs larger than the contract sum are scaled so the total still matches", () => {
     const lines = buildSovLines({
       contractSumCents: 5_000,
@@ -113,6 +139,26 @@ describe("buildSovLines", () => {
     expect(lines).toEqual([
       expect.objectContaining({ lineNo: 1, scheduledValueCents: 12_345, excludedScope: false }),
     ]);
+  });
+});
+
+describe("sovSourceFingerprint", () => {
+  const base = {
+    bidId: "bid1",
+    contractSumCents: 100_000,
+    lineItems: [{ item: "A", totalCost: 1000 }],
+    exclusions: [{ description: "Crane", costImpact: 450 }],
+    leadWeeks: 8,
+  };
+
+  test("is stable for the same inputs and changes when scope or lead time changes at the same total", () => {
+    expect(sovSourceFingerprint(base)).toBe(sovSourceFingerprint({ ...base }));
+    expect(sovSourceFingerprint({ ...base, exclusions: [] })).not.toBe(sovSourceFingerprint(base));
+    expect(
+      sovSourceFingerprint({ ...base, exclusions: [{ description: "Crane", costImpact: 450, isWaived: true }] }),
+    ).not.toBe(sovSourceFingerprint(base));
+    expect(sovSourceFingerprint({ ...base, leadWeeks: 12 })).not.toBe(sovSourceFingerprint(base));
+    expect(sovSourceFingerprint({ ...base, bidId: "bid2" })).not.toBe(sovSourceFingerprint(base));
   });
 });
 
