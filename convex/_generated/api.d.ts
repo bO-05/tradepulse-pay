@@ -21,6 +21,7 @@ import type * as emailActions from "../emailActions.js";
 import type * as evals from "../evals.js";
 import type * as files from "../files.js";
 import type * as http from "../http.js";
+import type * as lib_money from "../lib/money.js";
 import type * as llmRouter from "../llmRouter.js";
 import type * as projects from "../projects.js";
 import type * as realDocuments from "../realDocuments.js";
@@ -51,6 +52,7 @@ declare const fullApi: ApiFromModules<{
   evals: typeof evals;
   files: typeof files;
   http: typeof http;
+  "lib/money": typeof lib_money;
   llmRouter: typeof llmRouter;
   projects: typeof projects;
   realDocuments: typeof realDocuments;

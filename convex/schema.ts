@@ -1,7 +1,326 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { authTables } from "@convex-dev/auth/server";
+
+export const roleValidator = v.union(v.literal("gc"), v.literal("sub"), v.literal("owner"));
+export const actorTypeValidator = v.union(v.literal("human"), v.literal("agent"));
+
+export const milestoneStatusValidator = v.union(
+  v.literal("planned"),
+  v.literal("funding"),
+  v.literal("funded"),
+  v.literal("funding_expired"),
+  v.literal("in_progress"),
+  v.literal("complete"),
+  v.literal("paid"),
+);
+
+export const payAppStatusValidator = v.union(
+  v.literal("submitted"),
+  v.literal("under_review"),
+  v.literal("reviewed"),
+  v.literal("approved"),
+  v.literal("rejected"),
+  v.literal("withdrawn"),
+  v.literal("paid"),
+);
+
+export const proposalKindValidator = v.union(
+  v.literal("capture"),
+  v.literal("payout"),
+  v.literal("retainage_release"),
+  v.literal("reschedule"),
+  v.literal("hold"),
+);
+
+export const proposalStatusValidator = v.union(
+  v.literal("pending"),
+  v.literal("approved"),
+  v.literal("rejected"),
+  v.literal("executed"),
+  v.literal("failed"),
+  v.literal("cancelled"),
+);
+
+export const paymentKindValidator = v.union(
+  v.literal("funding"),
+  v.literal("payout"),
+  v.literal("retainage_release"),
+);
+
+// Union of the funding lifecycle and the payout lifecycle; the per-kind legal
+// transitions are enforced by convex/payments/stateMachine.ts, not the schema.
+export const paymentStatusValidator = v.union(
+  v.literal("created"),
+  v.literal("approved"),
+  v.literal("authorized"),
+  v.literal("partially_captured"),
+  v.literal("captured"),
+  v.literal("voided"),
+  v.literal("expired"),
+  v.literal("pending"),
+  v.literal("success"),
+  v.literal("unclaimed"),
+  v.literal("returned"),
+  v.literal("failed"),
+);
+
+export const changeOrderStatusValidator = v.union(
+  v.literal("draft"),
+  v.literal("invoiced"),
+  v.literal("paid"),
+  v.literal("cancelled"),
+);
+
+export const licenseStatusValidator = v.union(
+  v.literal("active"),
+  v.literal("expired"),
+  v.literal("suspended"),
+  v.literal("not_found"),
+  v.literal("unverified"),
+);
+
+export const lineVerdictValidator = v.union(
+  v.literal("ok"),
+  v.literal("overbilled"),
+  v.literal("excluded_scope"),
+  v.literal("front_loaded"),
+  v.literal("out_of_sequence"),
+);
 
 export default defineSchema({
+  ...authTables,
+
+  // Convex Auth users, extended with AgentID agent identity claims. Missing
+  // claims are stored as undefined (field absent), never null.
+  users: defineTable({
+    name: v.optional(v.string()),
+    image: v.optional(v.string()),
+    email: v.optional(v.string()),
+    emailVerificationTime: v.optional(v.number()),
+    phone: v.optional(v.string()),
+    phoneVerificationTime: v.optional(v.number()),
+    isAnonymous: v.optional(v.boolean()),
+    actorType: v.optional(actorTypeValidator),
+    agentSub: v.optional(v.string()),
+    ownerSub: v.optional(v.string()),
+    ownerName: v.optional(v.string()),
+    ownerEmail: v.optional(v.string()),
+  })
+    .index("email", ["email"])
+    .index("phone", ["phone"]),
+
+  userProfiles: defineTable({
+    userId: v.id("users"),
+    role: roleValidator,
+    displayName: v.string(),
+    contractorId: v.optional(v.id("contractors")),
+    paypalEmail: v.optional(v.string()),
+    actorType: v.optional(actorTypeValidator),
+    agentEmail: v.optional(v.string()),
+    ownerEmail: v.optional(v.string()),
+    ownerName: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_contractorId", ["contractorId"])
+    .index("by_role", ["role"]),
+
+  // GC-managed authorization of AgentID billing agents to act for a sub.
+  agentLinks: defineTable({
+    agentEmail: v.string(), // lowercased
+    contractorId: v.id("contractors"),
+    agreementId: v.optional(v.id("agreements")),
+    status: v.union(v.literal("active"), v.literal("revoked")),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    revokedBy: v.optional(v.id("users")),
+    revokedAt: v.optional(v.number()),
+  })
+    .index("by_agentEmail_and_status", ["agentEmail", "status"])
+    .index("by_contractorId", ["contractorId"]),
+
+  // Schedule of values; lines sum exactly to the agreement contract sum.
+  scheduleOfValues: defineTable({
+    agreementId: v.id("agreements"),
+    lineNo: v.number(),
+    description: v.string(),
+    csiCode: v.optional(v.string()),
+    scheduledValueCents: v.number(),
+    excludedScope: v.boolean(),
+    sourceBidLineRef: v.optional(v.string()),
+  }).index("by_agreementId_and_lineNo", ["agreementId", "lineNo"]),
+
+  milestones: defineTable({
+    agreementId: v.id("agreements"),
+    name: v.string(),
+    order: v.number(),
+    plannedDate: v.number(),
+    amountCents: v.number(),
+    status: milestoneStatusValidator,
+    sovLineIds: v.array(v.id("scheduleOfValues")),
+  }).index("by_agreementId_and_order", ["agreementId", "order"]),
+
+  payApplications: defineTable({
+    agreementId: v.id("agreements"),
+    subUserId: v.id("users"),
+    periodLabel: v.string(),
+    lines: v.array(
+      v.object({
+        sovLineId: v.id("scheduleOfValues"),
+        pctCompleteThisPeriod: v.number(), // percent 0-100
+        pctCompleteToDate: v.number(), // percent 0-100
+        requestedCents: v.number(),
+      }),
+    ),
+    requestedTotalCents: v.number(),
+    notes: v.string(),
+    lienWaiver: v.boolean(),
+    status: payAppStatusValidator,
+    submittedBy: v.object({
+      userId: v.id("users"),
+      actorType: actorTypeValidator,
+      agentEmail: v.optional(v.string()),
+      ownerEmail: v.optional(v.string()),
+      ownerName: v.optional(v.string()),
+    }),
+    // Dollar figures here are computed by code from the model's percentages;
+    // the model never authors amounts.
+    review: v.optional(
+      v.object({
+        engine: v.string(), // model id, or "Offline rules engine"
+        lines: v.array(
+          v.object({
+            sovLineId: v.id("scheduleOfValues"),
+            verdict: lineVerdictValidator,
+            recommendedPctToDate: v.number(),
+            approvedCents: v.number(),
+            reason: v.string(),
+          }),
+        ),
+        flags: v.object({
+          lienWaiverMissing: v.boolean(),
+          licenseIssue: v.boolean(),
+          notes: v.string(),
+        }),
+        approvedTotalCents: v.number(),
+        traceRunId: v.optional(v.string()),
+        reviewedAt: v.number(),
+      }),
+    ),
+    withdrawnAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_agreementId", ["agreementId"])
+    .index("by_agreementId_and_status", ["agreementId", "status"])
+    .index("by_subUserId", ["subUserId"])
+    .index("by_status", ["status"]),
+
+  agentProposals: defineTable({
+    payAppId: v.optional(v.id("payApplications")),
+    agreementId: v.id("agreements"),
+    milestoneId: v.optional(v.id("milestones")),
+    kind: proposalKindValidator,
+    amountCents: v.optional(v.number()),
+    rationale: v.string(),
+    flags: v.array(v.string()),
+    status: proposalStatusValidator,
+    decidedBy: v.optional(v.id("users")),
+    decidedAt: v.optional(v.number()),
+    editedAmountCents: v.optional(v.number()),
+    paymentId: v.optional(v.id("payments")),
+    error: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_status", ["status"])
+    .index("by_agreementId_and_status", ["agreementId", "status"])
+    .index("by_payAppId", ["payAppId"]),
+
+  payments: defineTable({
+    agreementId: v.id("agreements"),
+    milestoneId: v.optional(v.id("milestones")),
+    payAppId: v.optional(v.id("payApplications")),
+    proposalId: v.optional(v.id("agentProposals")),
+    kind: paymentKindValidator,
+    status: paymentStatusValidator,
+    paypalOrderId: v.optional(v.string()),
+    paypalAuthorizationId: v.optional(v.string()),
+    authorizationExpiresAt: v.optional(v.number()),
+    honorPeriodEndsAt: v.optional(v.number()),
+    paypalCaptureId: v.optional(v.string()),
+    paypalPayoutBatchId: v.optional(v.string()),
+    paypalPayoutItemId: v.optional(v.string()),
+    grossCents: v.number(),
+    retainageCents: v.number(),
+    netCents: v.number(),
+    capturedCents: v.optional(v.number()),
+    idempotencyKey: v.string(),
+    error: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_agreementId", ["agreementId"])
+    .index("by_milestoneId", ["milestoneId"])
+    .index("by_payAppId", ["payAppId"])
+    .index("by_idempotencyKey", ["idempotencyKey"])
+    .index("by_paypalOrderId", ["paypalOrderId"])
+    .index("by_paypalAuthorizationId", ["paypalAuthorizationId"])
+    .index("by_paypalCaptureId", ["paypalCaptureId"])
+    .index("by_paypalPayoutBatchId", ["paypalPayoutBatchId"])
+    .index("by_paypalPayoutItemId", ["paypalPayoutItemId"])
+    .index("by_kind_and_status", ["kind", "status"]),
+
+  // Balance = sum of deltaCents (+held / -released).
+  retainageLedger: defineTable({
+    agreementId: v.id("agreements"),
+    paymentId: v.optional(v.id("payments")),
+    deltaCents: v.number(),
+    reason: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_agreementId", ["agreementId"])
+    .index("by_paymentId", ["paymentId"]),
+
+  changeOrders: defineTable({
+    agreementId: v.id("agreements"),
+    number: v.number(),
+    description: v.string(),
+    amountCents: v.number(),
+    status: changeOrderStatusValidator,
+    paypalInvoiceId: v.optional(v.string()),
+    payerViewUrl: v.optional(v.string()),
+    createdBy: v.optional(v.id("users")),
+    createdAt: v.number(),
+    paidAt: v.optional(v.number()),
+  })
+    .index("by_agreementId_and_number", ["agreementId", "number"])
+    .index("by_paypalInvoiceId", ["paypalInvoiceId"])
+    .index("by_status", ["status"]),
+
+  // eventId is unique by convention: writers must check by_eventId before insert.
+  paypalEvents: defineTable({
+    eventId: v.string(),
+    eventType: v.string(),
+    resourceId: v.optional(v.string()),
+    receivedAt: v.number(),
+    verified: v.boolean(),
+    processed: v.boolean(),
+    error: v.optional(v.string()),
+  })
+    .index("by_eventId", ["eventId"])
+    .index("by_receivedAt", ["receivedAt"]),
+
+  // CSLB license lookups via KERNEL, cached 24h.
+  licenseChecks: defineTable({
+    contractorId: v.id("contractors"),
+    licenseNumber: v.string(),
+    state: v.literal("CA"),
+    status: licenseStatusValidator,
+    rawSummary: v.string(),
+    liveViewUrl: v.optional(v.string()),
+    checkedAt: v.number(),
+  }).index("by_contractorId_and_checkedAt", ["contractorId", "checkedAt"]),
+
   // Commercial construction project root
   projects: defineTable({
     title: v.string(), // e.g. "The Domain Tower B - Commercial MEP"
