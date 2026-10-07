@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
 import { query } from "../_generated/server";
 import { canViewAgreement, requireRole } from "../lib/roles";
+import { isCaptureCollected } from "./captureSettlement";
 import { BALANCE_FORMULA, computeLedgerTotals } from "./ledgerTotals";
 import { attemptsFor, checkRetry } from "./payoutRetryMath";
 import { retainagePercentFor } from "./payoutMath";
@@ -140,7 +141,9 @@ export const getAgreementLedger = query({
       changeOrders,
     });
     const capturedReleaseIds = new Set<string>();
-    for (const p of payments) for (const c of p.captures ?? []) if (c.releasePaymentId) capturedReleaseIds.add(c.releasePaymentId);
+    for (const p of payments) {
+      for (const c of p.captures ?? []) if (c.releasePaymentId && isCaptureCollected(c.status)) capturedReleaseIds.add(c.releasePaymentId);
+    }
     const payouts = payments.filter((p) => p.kind === "payout");
     const retryInfo = (p: Doc<"payments">) => {
       const rootId = p.retryOfPaymentId ?? p._id;

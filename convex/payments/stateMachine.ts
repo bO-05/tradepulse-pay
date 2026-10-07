@@ -4,6 +4,8 @@ import { ConvexError } from "convex/values";
  * Pure transition tables for payments and milestones (architecture §4).
  * funding: created → approved → authorized → (partially_captured) → captured | voided | expired | failed
  * payout / retainage_release: created → pending → success | failed | unclaimed | returned
+ * A payout whose capture PayPal reports PENDING waits in capture_pending: back to created (then paid)
+ * when the capture completes, or failed when it is denied.
  */
 
 export type PaymentKind = "funding" | "payout" | "retainage_release";
@@ -16,7 +18,7 @@ export type FundingStatus =
   | "voided"
   | "expired"
   | "failed";
-export type PayoutStatus = "created" | "pending" | "success" | "failed" | "unclaimed" | "returned";
+export type PayoutStatus = "created" | "capture_pending" | "pending" | "success" | "failed" | "unclaimed" | "returned";
 export type PaymentStatus = FundingStatus | PayoutStatus;
 
 export type MilestoneStatus = "planned" | "funding" | "funded" | "funding_expired" | "in_progress" | "complete" | "paid";
@@ -34,7 +36,8 @@ const FUNDING: Record<FundingStatus, readonly FundingStatus[]> = {
 };
 
 const PAYOUT: Record<PayoutStatus, readonly PayoutStatus[]> = {
-  created: ["pending", "failed"],
+  created: ["pending", "failed", "capture_pending"],
+  capture_pending: ["created", "failed"],
   pending: ["success", "failed", "unclaimed", "returned"],
   // An unclaimed item is either claimed later, returned after 30 days, or cancelled.
   unclaimed: ["success", "returned", "failed"],

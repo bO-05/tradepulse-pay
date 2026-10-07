@@ -59,6 +59,7 @@ export const paymentStatusValidator = v.union(
   v.literal("voided"),
   v.literal("expired"),
   v.literal("pending"),
+  v.literal("capture_pending"),
   v.literal("success"),
   v.literal("unclaimed"),
   v.literal("returned"),
@@ -285,6 +286,8 @@ export default defineSchema({
     reauthorizeError: v.optional(v.string()),
     reauthorizeRetryAfter: v.optional(v.number()),
     expiredAt: v.optional(v.number()),
+    // Funding rows: set before the remainder void is sent; new releases are refused while it is set.
+    closingAt: v.optional(v.number()),
     idempotencyKey: v.string(),
     error: v.optional(v.string()),
     // False once any PayPal write for this payment succeeded but its auditLogs entry could not be stored.
@@ -347,6 +350,7 @@ export default defineSchema({
     error: v.optional(v.string()),
   })
     .index("by_eventId", ["eventId"])
+    .index("by_resourceId", ["resourceId"])
     .index("by_receivedAt", ["receivedAt"]),
 
   // CSLB license lookups via KERNEL, cached 24h.

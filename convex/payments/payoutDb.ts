@@ -2,6 +2,7 @@ import { ConvexError, v, type Infer } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
 import { toDollarString } from "../lib/money";
+import { isCaptureCollected } from "./captureSettlement";
 import { moveMilestone } from "./releaseDb";
 import { RETAINAGE_REVERSING_STATUSES, isMilestoneFullyPaid } from "./payoutMath";
 import { assertPaymentTransition, canTransitionPayment, type PayoutStatus } from "./stateMachine";
@@ -50,9 +51,15 @@ export const beginPayout = internalMutation({
     if (p.fundingPaymentId) {
       const funding = await ctx.db.get(p.fundingPaymentId);
       const releaseId = p.retryOfPaymentId ?? p._id;
-      const captured = (funding?.captures ?? []).some((c) => c.releasePaymentId === releaseId);
-      if (!captured) {
+      const capture = (funding?.captures ?? []).find((c) => c.releasePaymentId === releaseId);
+      if (!capture) {
         throw new ConvexError({ code: "NOT_CAPTURED", message: "The release amount has not been captured yet; the sub was not paid." });
+      }
+      if (!isCaptureCollected(capture.status)) {
+        throw new ConvexError({
+          code: "NOT_CAPTURED",
+          message: `PayPal reports the capture as ${capture.status}; the sub is only paid once the capture completes.`,
+        });
       }
     }
     if (!p.receiverEmail) {

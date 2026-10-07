@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx } from "../_generated/server";
+import { applyCaptureStatus, isSettlementEvent } from "./captureSettlement";
 import { applyInvoiceStatusTo } from "./changeOrderDb";
 import { applyPayoutStatusTo } from "./payoutDb";
 import { payoutStatusFromPayPal } from "./payoutMath";
@@ -15,7 +16,8 @@ import { isHandledEventType, parseWebhookEvent, type ParsedWebhookEvent } from "
  * only for changes PayPal reports later (payout item settlement, invoice payment, voids, denials).
  */
 
-type DispatchOutcome = { changed: boolean; error?: string };
+/** deferred: the event could not be applied yet and stays unprocessed (processed=false) until it can. */
+type DispatchOutcome = { changed: boolean; error?: string; deferred?: boolean };
 
 async function eventRow(ctx: MutationCtx, eventId: string): Promise<Doc<"paypalEvents"> | null> {
   return await ctx.db
@@ -45,10 +47,24 @@ function unmatched(e: ParsedWebhookEvent): DispatchOutcome {
   return { changed: false, error: `No stored record matches ${e.eventType} resource ${e.resourceId ?? "(none)"}.` };
 }
 
+const CAPTURED_FUNDING_STATUSES = ["partially_captured", "captured", "voided", "expired"] as const;
+
 async function fundingForCapture(ctx: MutationCtx, e: ParsedWebhookEvent): Promise<Doc<"payments"> | null> {
   const byAuth = await paymentBy(ctx, "paypalAuthorizationId", e.authorizationId);
   if (byAuth !== null) return byAuth;
-  return await paymentBy(ctx, "paypalCaptureId", e.captureId);
+  const byLatest = await paymentBy(ctx, "paypalCaptureId", e.captureId);
+  if (byLatest !== null || !e.captureId) return byLatest;
+  // paypalCaptureId holds only the latest capture; an earlier one (e.g. a refund's up link) is found in captures[].
+  const captureId = e.captureId;
+  for (const status of CAPTURED_FUNDING_STATUSES) {
+    const rows = await ctx.db
+      .query("payments")
+      .withIndex("by_kind_and_status", (q) => q.eq("kind", "funding").eq("status", status))
+      .take(1000);
+    const hit = rows.find((p) => (p.captures ?? []).some((c) => c.captureId === captureId));
+    if (hit) return hit;
+  }
+  return null;
 }
 
 async function onAuthorization(ctx: MutationCtx, e: ParsedWebhookEvent): Promise<DispatchOutcome> {
@@ -70,21 +86,18 @@ async function onAuthorization(ctx: MutationCtx, e: ParsedWebhookEvent): Promise
 async function onCapture(ctx: MutationCtx, e: ParsedWebhookEvent): Promise<DispatchOutcome> {
   const funding = await fundingForCapture(ctx, e);
   if (funding === null || funding.kind !== "funding") return unmatched(e);
-  const captures = funding.captures ?? [];
-  const i = captures.findIndex((c) => c.captureId === e.captureId);
-  // The webhook can beat the capture action's own write; that write records the capture.
-  if (i < 0) return { changed: false };
+  if (!e.captureId) return unmatched(e);
   const status = e.resourceStatus ?? (e.eventType === "PAYMENT.CAPTURE.DENIED" ? "DENIED" : "COMPLETED");
-  if (captures[i].status === status) return { changed: false };
-  const next = captures.map((c, j) => (j === i ? { ...c, status } : c));
   const error =
     e.eventType === "PAYMENT.CAPTURE.DENIED"
       ? `PayPal denied capture ${e.captureId}.`
       : e.eventType === "PAYMENT.CAPTURE.REFUNDED"
         ? `PayPal reported capture ${e.captureId} as refunded.`
-        : funding.error;
-  await ctx.db.patch(funding._id, { captures: next, error, updatedAt: Date.now() });
-  return { changed: true };
+        : undefined;
+  const out = await applyCaptureStatus(ctx, funding, e.captureId, status, error);
+  // The webhook can beat the capture action's own write; recordCapture applies the kept settlement event.
+  if (!out.found) return { changed: false, deferred: isSettlementEvent(e.eventType) };
+  return { changed: out.changed };
 }
 
 async function onPayoutItem(ctx: MutationCtx, e: ParsedWebhookEvent): Promise<DispatchOutcome> {
@@ -190,7 +203,7 @@ export const processVerifiedEvent = internalMutation({
       eventType: parsed.eventType,
       resourceId: parsed.resourceId,
       verified: true,
-      processed: true,
+      processed: out.deferred !== true,
       error: out.error,
     };
     // A row left by an earlier unverified or failed delivery of the same id is upgraded, keeping one row per id.

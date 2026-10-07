@@ -30,6 +30,7 @@ import type * as lib_money from "../lib/money.js";
 import type * as lib_roles from "../lib/roles.js";
 import type * as lib_testIdentity from "../lib/testIdentity.js";
 import type * as llmRouter from "../llmRouter.js";
+import type * as payments_captureSettlement from "../payments/captureSettlement.js";
 import type * as payments_captures from "../payments/captures.js";
 import type * as payments_cascade from "../payments/cascade.js";
 import type * as payments_changeOrderDb from "../payments/changeOrderDb.js";
@@ -103,6 +104,7 @@ declare const fullApi: ApiFromModules<{
   "lib/roles": typeof lib_roles;
   "lib/testIdentity": typeof lib_testIdentity;
   llmRouter: typeof llmRouter;
+  "payments/captureSettlement": typeof payments_captureSettlement;
   "payments/captures": typeof payments_captures;
   "payments/cascade": typeof payments_cascade;
   "payments/changeOrderDb": typeof payments_changeOrderDb;

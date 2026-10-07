@@ -1,7 +1,8 @@
 import { ConvexError, v, type Infer } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx } from "../_generated/server";
-import { assertPaymentTransition, canTransitionMilestone, type MilestoneStatus } from "./stateMachine";
+import { isCaptureDenied, settleRelease, takeEarlySettlement } from "./captureSettlement";
+import { assertPaymentTransition, canTransitionMilestone, canTransitionPayment, type MilestoneStatus } from "./stateMachine";
 import {
   checkCaptureAmount,
   computePayoutSplit,
@@ -17,6 +18,11 @@ import {
  */
 
 const CAPTURABLE: readonly string[] = ["authorized", "partially_captured"];
+/** Release states during which money may still move for the release; closing the milestone waits for them. */
+const IN_FLIGHT_RELEASE: readonly string[] = ["created", "capture_pending"];
+
+const CLOSING_MESSAGE =
+  "This milestone is being closed (its uncaptured remainder is being voided), so no new release can start. Retry Close milestone if it did not finish.";
 
 function notCapturableMessage(funding: Doc<"payments">): string {
   if (funding.status === "expired") {
@@ -102,7 +108,7 @@ export const beginRelease = internalMutation({
     const agreement = await ctx.db.get(milestone.agreementId);
     if (agreement === null) throw new ConvexError({ code: "NOT_FOUND", message: "Agreement not found." });
 
-    const inFlight = (await milestonePayouts(ctx, milestone._id)).find((p) => p.status === "created");
+    const inFlight = (await milestonePayouts(ctx, milestone._id)).find((p) => IN_FLIGHT_RELEASE.includes(p.status));
     if (inFlight) return { state: "busy", paymentId: inFlight._id, actor: args.actor };
 
     const funding = await fundedPaymentFor(ctx, milestone._id);
@@ -115,6 +121,7 @@ export const beginRelease = internalMutation({
             : notCapturableMessage(funding),
       });
     }
+    if (funding.closingAt !== undefined) throw new ConvexError({ code: "CLOSING", message: CLOSING_MESSAGE });
     const check = checkCaptureAmount(args.amountCents, remainingAuthorizedCents(funding));
     if (!check.ok) throw new ConvexError({ code: "INVALID_AMOUNT", message: check.message });
 
@@ -163,7 +170,7 @@ export const releaseRow = internalQuery({
 });
 
 const beginCaptureResult = v.union(
-  v.object({ state: v.literal("done"), captureId: v.string(), finalCapture: v.boolean() }),
+  v.object({ state: v.literal("done"), captureId: v.string(), finalCapture: v.boolean(), captureStatus: v.string() }),
   v.object({
     state: v.literal("capture"),
     authorizationId: v.string(),
@@ -188,13 +195,14 @@ export const beginCapture = internalMutation({
       throw new ConvexError({ code: "NOT_FOUND", message: "Funding payment not found." });
     }
     const prior = (funding.captures ?? []).find((c) => c.requestKey === args.requestKey);
-    if (prior) return { state: "done", captureId: prior.captureId, finalCapture: prior.finalCapture };
+    if (prior) return { state: "done", captureId: prior.captureId, finalCapture: prior.finalCapture, captureStatus: prior.status };
     if (!funding.paypalAuthorizationId || !CAPTURABLE.includes(funding.status)) {
       throw new ConvexError({
         code: "NOT_CAPTURABLE",
         message: notCapturableMessage(funding),
       });
     }
+    if (funding.closingAt !== undefined) throw new ConvexError({ code: "CLOSING", message: CLOSING_MESSAGE });
     const check = checkCaptureAmount(args.amountCents, remainingAuthorizedCents(funding));
     if (!check.ok) throw new ConvexError({ code: "INVALID_AMOUNT", message: check.message });
     const agreement = await ctx.db.get(funding.agreementId);
@@ -209,6 +217,10 @@ export const beginCapture = internalMutation({
   },
 });
 
+/**
+ * Stores a capture PayPal returned. A settlement webhook that arrived first decides its status. A PENDING
+ * capture parks the release in capture_pending; a denied one fails it. Returns the stored capture status.
+ */
 export const recordCapture = internalMutation({
   args: {
     fundingPaymentId: v.id("payments"),
@@ -220,16 +232,20 @@ export const recordCapture = internalMutation({
     releasePaymentId: v.optional(v.id("payments")),
     auditRecorded: v.boolean(),
   },
-  returns: v.null(),
+  returns: v.object({ captureStatus: v.string() }),
   handler: async (ctx, args) => {
     const funding = await ctx.db.get(args.fundingPaymentId);
     if (funding === null) throw new ConvexError({ code: "NOT_FOUND", message: "Funding payment not found." });
     const captures = funding.captures ?? [];
-    if (captures.some((c) => c.requestKey === args.requestKey || c.captureId === args.captureId)) return null;
+    const stored = captures.find((c) => c.requestKey === args.requestKey || c.captureId === args.captureId);
+    if (stored) return { captureStatus: stored.status };
     const to = args.finalCapture ? "captured" : "partially_captured";
-    assertPaymentTransition("funding", funding.status, to);
+    // PayPal applied this capture, so it is recorded even if the authorization was voided or expired meanwhile.
+    const closedMeanwhile = !canTransitionPayment("funding", funding.status, to) && (funding.status === "voided" || funding.status === "expired");
+    if (!closedMeanwhile) assertPaymentTransition("funding", funding.status, to);
+    const captureStatus = (await takeEarlySettlement(ctx, args.captureId)) ?? args.captureStatus;
     await ctx.db.patch(funding._id, {
-      status: to,
+      ...(closedMeanwhile ? {} : { status: to }),
       paypalCaptureId: args.captureId,
       capturedCents: (funding.capturedCents ?? 0) + args.amountCents,
       captures: [
@@ -239,18 +255,31 @@ export const recordCapture = internalMutation({
           amountCents: args.amountCents,
           requestKey: args.requestKey,
           finalCapture: args.finalCapture,
-          status: args.captureStatus,
+          status: captureStatus,
           releasePaymentId: args.releasePaymentId,
           capturedAt: Date.now(),
         },
       ],
-      error: undefined,
+      error: isCaptureDenied(captureStatus) ? `PayPal denied capture ${args.captureId}.` : undefined,
       auditRecorded: funding.auditRecorded === false ? false : args.auditRecorded,
       updatedAt: Date.now(),
     });
     // Fully captured: nothing more can be released, so the milestone's money is complete.
-    await moveMilestone(ctx, funding.milestoneId, args.finalCapture ? "complete" : "in_progress");
-    return null;
+    if (!closedMeanwhile) await moveMilestone(ctx, funding.milestoneId, args.finalCapture ? "complete" : "in_progress");
+    if (captureStatus === "PENDING" && args.releasePaymentId) {
+      const release = await ctx.db.get(args.releasePaymentId);
+      if (release !== null && release.kind === "payout" && release.status === "created") {
+        assertPaymentTransition("payout", "created", "capture_pending");
+        await ctx.db.patch(release._id, {
+          status: "capture_pending",
+          error: undefined,
+          updatedAt: Date.now(),
+        });
+      }
+    } else {
+      await settleRelease(ctx, args.releasePaymentId, args.captureId, captureStatus);
+    }
+    return { captureStatus };
   },
 });
 
@@ -307,11 +336,12 @@ export const beginVoid = internalMutation({
             : `Only a partially captured authorization can be closed (this one is ${funding.status}).`,
       });
     }
-    if ((await milestonePayouts(ctx, milestoneId)).some((p) => p.status === "created")) {
+    if ((await milestonePayouts(ctx, milestoneId)).some((p) => IN_FLIGHT_RELEASE.includes(p.status))) {
       throw new ConvexError({ code: "RELEASE_IN_PROGRESS", message: "A release is still being processed. Try again when it finishes." });
     }
     const agreement = await ctx.db.get(funding.agreementId);
     if (agreement === null) throw new ConvexError({ code: "NOT_FOUND", message: "Agreement not found." });
+    await ctx.db.patch(funding._id, { closingAt: Date.now(), updatedAt: Date.now() });
     return {
       state: "void",
       fundingPaymentId: funding._id,
@@ -346,7 +376,8 @@ export const recordVoidFailure = internalMutation({
   returns: v.null(),
   handler: async (ctx, { fundingPaymentId, error }) => {
     const funding = await ctx.db.get(fundingPaymentId);
-    if (funding !== null) await ctx.db.patch(funding._id, { error, updatedAt: Date.now() });
+    // PayPal rejected the void, so the authorization is still open and releases may continue.
+    if (funding !== null) await ctx.db.patch(funding._id, { error, closingAt: undefined, updatedAt: Date.now() });
     return null;
   },
 });

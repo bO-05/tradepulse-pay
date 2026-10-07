@@ -2,6 +2,7 @@ import { ConvexError, v } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
 import { internalMutation } from "../_generated/server";
 import { formatCents } from "../lib/money";
+import { isCaptureCollected } from "./captureSettlement";
 import { attemptsFor, checkRetry, retryKey } from "./payoutRetryMath";
 import { receiverFor } from "./releaseDb";
 
@@ -30,7 +31,7 @@ export const beginPayoutRetry = internalMutation({
       root._id,
     );
     const funding = await ctx.db.get(root.fundingPaymentId);
-    const captured = (funding?.captures ?? []).some((c) => c.releasePaymentId === root._id);
+    const captured = (funding?.captures ?? []).some((c) => c.releasePaymentId === root._id && isCaptureCollected(c.status));
     const check = checkRetry(attempts, root._id, captured);
     if (!check.ok) throw new ConvexError({ code: check.code, message: check.message });
 

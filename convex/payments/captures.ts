@@ -3,6 +3,7 @@ import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { env, internalAction, type ActionCtx } from "../_generated/server";
 import { toPayPalString } from "../lib/money";
+import { isCaptureDenied } from "./captureSettlement";
 import type { BeginCapture, BeginVoid } from "./releaseDb";
 import { payPalClientForAction, type PayPalErrorData } from "./paypalClient";
 
@@ -18,7 +19,15 @@ export function paypalErrorData(e: unknown): PayPalErrorData | null {
   return null;
 }
 
-export type CaptureResult = { captureId: string; finalCapture: boolean; alreadyCaptured: boolean };
+/** captureStatus is the stored PayPal capture status: COMPLETED pays out now, PENDING waits for settlement. */
+export type CaptureResult = { captureId: string; finalCapture: boolean; alreadyCaptured: boolean; captureStatus: string };
+
+function deniedCaptureError(captureId: string, status: string): ConvexError<{ code: string; message: string }> {
+  return new ConvexError({
+    code: "CAPTURE_FAILED",
+    message: `PayPal denied capture ${captureId} (${status}). Nothing was collected and the sub was not paid.`,
+  });
+}
 
 /**
  * Captures `amountCents` from the funding payment's authorization. final_capture is true only when the
@@ -40,7 +49,10 @@ export async function captureApproved(
     amountCents: args.amountCents,
     requestKey: args.requestKey,
   });
-  if (begun.state === "done") return { captureId: begun.captureId, finalCapture: begun.finalCapture, alreadyCaptured: true };
+  if (begun.state === "done") {
+    if (isCaptureDenied(begun.captureStatus)) throw deniedCaptureError(begun.captureId, begun.captureStatus);
+    return { captureId: begun.captureId, finalCapture: begun.finalCapture, alreadyCaptured: true, captureStatus: begun.captureStatus };
+  }
 
   const paypal = payPalClientForAction(ctx, env, {
     actor: args.actor,
@@ -83,7 +95,7 @@ export async function captureApproved(
     await fail(message);
     throw new ConvexError({ code: "CAPTURE_FAILED", message });
   }
-  await ctx.runMutation(internal.payments.releaseDb.recordCapture, {
+  const recorded: { captureStatus: string } = await ctx.runMutation(internal.payments.releaseDb.recordCapture, {
     fundingPaymentId: args.paymentId,
     captureId: capture.id,
     captureStatus: capture.status,
@@ -93,7 +105,8 @@ export async function captureApproved(
     releasePaymentId: args.releasePaymentId,
     auditRecorded: out.auditRecorded,
   });
-  return { captureId: capture.id, finalCapture: begun.finalCapture, alreadyCaptured: false };
+  if (isCaptureDenied(recorded.captureStatus)) throw deniedCaptureError(capture.id, recorded.captureStatus);
+  return { captureId: capture.id, finalCapture: begun.finalCapture, alreadyCaptured: false, captureStatus: recorded.captureStatus };
 }
 
 /** Voids the uncaptured remainder of a partially captured milestone authorization. */
@@ -135,7 +148,7 @@ export const captureApprovedInternal = internalAction({
     requestKey: v.string(),
     actor: v.optional(v.string()),
   },
-  returns: v.object({ captureId: v.string(), finalCapture: v.boolean(), alreadyCaptured: v.boolean() }),
+  returns: v.object({ captureId: v.string(), finalCapture: v.boolean(), alreadyCaptured: v.boolean(), captureStatus: v.string() }),
   handler: async (ctx, args): Promise<CaptureResult> =>
     await captureApproved(ctx, { ...args, actor: args.actor ?? "system:internal" }),
 });

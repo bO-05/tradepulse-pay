@@ -1,10 +1,11 @@
 import { ConvexError, v, type Infer } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
-import { action, internalAction, internalQuery, type ActionCtx } from "../_generated/server";
+import { action, env, internalAction, internalQuery, type ActionCtx } from "../_generated/server";
 import { requireRoleInAction } from "../lib/roles";
 import { captureApproved, voidRemainder } from "./captures";
 import { payoutSub, refreshPayout } from "./payouts";
+import { payPalClientForAction } from "./paypalClient";
 import type { BeginRelease } from "./releaseDb";
 
 /**
@@ -50,6 +51,16 @@ async function executeRelease(ctx: ActionCtx, paymentId: Id<"payments">, actor: 
     actor,
     releasePaymentId: paymentId,
   });
+  if (capture.captureStatus === "PENDING") {
+    return {
+      state: "pending",
+      paymentId,
+      status: "capture_pending",
+      captureId: capture.captureId,
+      message:
+        "Capture pending: PayPal has not completed the capture yet, so the sub was not paid. The payout is sent automatically when PayPal completes it; use Refresh status to check.",
+    };
+  }
   const payout = await payoutSub(ctx, { paymentId, actor });
   if (payout.deferred) {
     return {
@@ -125,6 +136,30 @@ export const closeMilestone = action({
     const viewer = await requireRoleInAction(ctx, ["gc"]);
     const actor: string = await ctx.runQuery(internal.payments.release.actorForUser, { userId: viewer.userId });
     return await voidRemainder(ctx, { milestoneId, actor });
+  },
+});
+
+/** GETs the capture behind a capture_pending release and applies it: COMPLETED sends the payout, DENIED fails it. */
+export const refreshCaptureStatus = action({
+  args: { paymentId: v.id("payments") },
+  returns: v.object({ captureStatus: v.string(), status: v.string() }),
+  handler: async (ctx, { paymentId }): Promise<{ captureStatus: string; status: string }> => {
+    await requireRoleInAction(ctx, ["gc"]);
+    const found = await ctx.runQuery(internal.payments.captureSettlement.captureForRelease, { paymentId });
+    if (found === null) throw new ConvexError({ code: "NOT_FOUND", message: "This release has no stored capture yet." });
+    const paypal = payPalClientForAction(ctx, env, { actor: "system:capture-refresh" });
+    const { data } = await paypal.request<{ status?: string }>({
+      method: "GET",
+      path: `/v2/payments/captures/${encodeURIComponent(found.captureId)}`,
+    });
+    const captureStatus = data?.status ?? found.captureStatus;
+    await ctx.runMutation(internal.payments.captureSettlement.applyCaptureSettlement, {
+      fundingPaymentId: found.fundingPaymentId,
+      captureId: found.captureId,
+      status: captureStatus,
+    });
+    const row = await ctx.runQuery(internal.payments.releaseDb.releaseRow, { paymentId });
+    return { captureStatus, status: row?.status ?? found.releaseStatus };
   },
 });
 

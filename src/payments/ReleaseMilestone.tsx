@@ -39,6 +39,7 @@ function newRequestKey(): string {
 
 export const BADGE: Record<string, { label: string; cls: string }> = {
   created: { label: "Processing", cls: "bg-slate-800 text-slate-200 border-slate-600" },
+  capture_pending: { label: "Capture pending", cls: "bg-amber-950 text-amber-200 border-amber-800" },
   pending: { label: "Payout pending", cls: "bg-amber-950 text-amber-200 border-amber-800" },
   success: { label: "Paid", cls: "bg-emerald-950 text-emerald-300 border-emerald-800" },
   unclaimed: { label: "Unclaimed", cls: "bg-orange-950 text-orange-200 border-orange-800" },
@@ -49,6 +50,7 @@ export const BADGE: Record<string, { label: string; cls: string }> = {
 /** Releases (capture + payout) recorded for a milestone; GC gets refresh/retry controls. */
 export function ReleaseList({ milestone, canRelease }: { milestone: ReleasableMilestone; canRelease: boolean }) {
   const refresh = useAction(api.payments.release.refreshPayoutStatus);
+  const refreshCapture = useAction(api.payments.release.refreshCaptureStatus);
   const resume = useAction(api.payments.release.resumeRelease);
   const retryPayout = useAction(api.payments.payoutRetry.retryPayout);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -115,6 +117,17 @@ export function ReleaseList({ milestone, canRelease }: { milestone: ReleasableMi
                 {busyId === r.paymentId ? "Refreshing…" : "Refresh status"}
               </button>
             )}
+            {canRelease && r.status === "capture_pending" && (
+              <button
+                type="button"
+                data-testid="refresh-capture-button"
+                disabled={busyId !== null}
+                onClick={() => void run(r.paymentId, () => refreshCapture({ paymentId: r.paymentId }))}
+                className="rounded px-2 py-0.5 border border-slate-600 text-slate-200 disabled:opacity-50"
+              >
+                {busyId === r.paymentId ? "Refreshing…" : "Refresh status"}
+              </button>
+            )}
             {canRelease && r.canRetryPayout && (
               <button
                 type="button"
@@ -160,7 +173,7 @@ export function ReleaseControl({ milestone, retainagePercent }: { milestone: Rel
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const requestKey = useRef(newRequestKey());
-  const inFlight = busy || milestone.releases.some((r) => r.status === "created");
+  const inFlight = busy || milestone.releases.some((r) => r.status === "created" || r.status === "capture_pending");
 
   if (!funding || !funding.paypalAuthorizationId || !CAPTURABLE.has(funding.status)) return null;
 

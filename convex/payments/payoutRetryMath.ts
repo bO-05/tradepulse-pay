@@ -9,7 +9,7 @@
 export type ReleaseAttempt = { _id: string; status: string; retryOfPaymentId?: string };
 
 /** Payout states that mean money is out with PayPal or about to be: a retry would risk paying twice. */
-export const BLOCKING_PAYOUT_STATUSES: readonly string[] = ["created", "pending", "success", "unclaimed"];
+export const BLOCKING_PAYOUT_STATUSES: readonly string[] = ["created", "capture_pending", "pending", "success", "unclaimed"];
 /** Final states after which the sub has not been paid and nothing is in flight. */
 export const RETRYABLE_PAYOUT_STATUSES: readonly string[] = ["failed", "returned"];
 
