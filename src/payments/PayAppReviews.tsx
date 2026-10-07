@@ -4,6 +4,7 @@ import { useState } from "react";
 import { api } from "../../convex/_generated/api";
 import { readableError } from "./FundMilestone";
 import { formatCents, formatDate } from "./format";
+import { LicenseCheckPanel } from "./LicenseCheck";
 
 type PayAppWithReview = FunctionReturnType<typeof api.payApps.review.listAgreementPayApps>[number];
 
@@ -21,6 +22,15 @@ const VERDICT_LABEL: Record<string, string> = {
   excluded_scope: "excluded scope",
   front_loaded: "front-loaded",
   out_of_sequence: "out of sequence",
+};
+
+const LICENSE_FLAG_TEXT: Record<string, string> = {
+  none: "No license check yet",
+  unverified: "Unverified",
+  expired: "Expired",
+  suspended: "Suspended",
+  inactive: "Inactive",
+  not_found: "Not found at CSLB",
 };
 
 const pct = (fraction: number) => `${Math.round(fraction * 1000) / 10}%`;
@@ -118,7 +128,11 @@ export function PayAppReviewCard({ payApp, canRerun }: { payApp: PayAppWithRevie
             ) : null}
             {review.flags.licenseIssue ? (
               <span className="rounded-full border border-rose-800 bg-rose-950 px-2 py-0.5 text-rose-200" data-testid="flag-license-issue">
-                License issue
+                License issue: {LICENSE_FLAG_TEXT[review.flags.licenseStatus ?? "none"] ?? "Unverified"}
+              </span>
+            ) : review.flags.licenseStatus === "active" ? (
+              <span className="rounded-full border border-emerald-800 bg-emerald-950 px-2 py-0.5 text-emerald-200" data-testid="flag-license-active">
+                License: CSLB active
               </span>
             ) : null}
           </div>
@@ -185,7 +199,7 @@ export function PayAppReviewCard({ payApp, canRerun }: { payApp: PayAppWithRevie
 }
 
 /** GC section of the agreement ledger: every pay application and its review. */
-export function AgreementPayAppReviews({ agreementId }: { agreementId: string }) {
+export function AgreementPayAppReviews({ agreementId, contractorId }: { agreementId: string; contractorId: string }) {
   const payApps = useQuery(api.payApps.review.listAgreementPayApps, { agreementId });
   return (
     <section aria-labelledby="ledger-payapps" className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
@@ -196,6 +210,7 @@ export function AgreementPayAppReviews({ agreementId }: { agreementId: string })
         Each submitted pay application is reviewed line by line. The reviewer recommends a percent complete; approved
         amounts are computed by code as round(scheduled value × recommended %) − previously billed, capped at the request.
       </p>
+      <LicenseCheckPanel contractorId={contractorId} />
       {payApps === undefined ? (
         <p className="text-sm text-slate-400" role="status">Loading pay applications…</p>
       ) : payApps.length === 0 ? (

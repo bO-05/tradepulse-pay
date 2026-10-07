@@ -47,7 +47,7 @@ Verdicts, checked in this order:
 - "front_loaded": within the ceiling, but the claim is at least double otherLinesProgressPct (the progress of the rest of the job) and at least 15 percentage points above it, with otherLinesProgressPct above 0. Recommend about otherLinesProgressPct (never below the previous percent to date).
 - "ok": none of the above. Recommend the claimed percent to date.
 
-Also set lienWaiverMissing (true when no lien waiver was provided) and licenseIssue (true when the latest license check is expired, suspended or not found). Use the pay-app notes, prior pay apps and agreement terms as supporting evidence.`;
+Also set lienWaiverMissing (true when no lien waiver was provided) and licenseIssue (true unless latestLicenseCheck exists and its status is active; code enforces this). Use the pay-app notes, prior pay apps and agreement terms as supporting evidence.`;
 
 const pctLabel = (f: number) => `${Math.round(f * 1000) / 10}%`;
 

@@ -16,6 +16,7 @@ function ledgerAgreementSummary(a: Doc<"agreements">) {
     projectId: a.projectId,
     projectTitle: a.projectTitle,
     subcontractorName: a.subcontractorName,
+    contractorId: a.contractorId,
     csiDivision: a.csiDivision,
     tradeName: a.tradeName,
     status: a.status,

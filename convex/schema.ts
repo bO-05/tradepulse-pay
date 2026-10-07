@@ -77,6 +77,7 @@ export const licenseStatusValidator = v.union(
   v.literal("active"),
   v.literal("expired"),
   v.literal("suspended"),
+  v.literal("inactive"),
   v.literal("not_found"),
   v.literal("unverified"),
 );
@@ -108,6 +109,8 @@ export const payAppReviewValidator = v.object({
   flags: v.object({
     lienWaiverMissing: v.boolean(),
     licenseIssue: v.boolean(),
+    /** Latest completed license check status at review time, or "none" when no check exists. */
+    licenseStatus: v.optional(v.union(licenseStatusValidator, v.literal("none"))),
     notes: v.string(),
   }),
   approvedTotalCents: v.number(),
@@ -364,8 +367,20 @@ export default defineSchema({
     status: licenseStatusValidator,
     rawSummary: v.string(),
     liveViewUrl: v.optional(v.string()),
+    /** Start time while running; completion time once done. */
     checkedAt: v.number(),
-  }).index("by_contractorId_and_checkedAt", ["contractorId", "checkedAt"]),
+    /** "running" while the KERNEL browser is open. Rows without a phase are complete. */
+    phase: v.optional(v.union(v.literal("running"), v.literal("done"))),
+    startedAt: v.optional(v.number()),
+    durationMs: v.optional(v.number()),
+    kernelSessionId: v.optional(v.string()),
+    browserDeleted: v.optional(v.boolean()),
+    trigger: v.optional(v.string()),
+    /** Set by the internal clearLicenseCache helper; the row stays as history but is no longer reused. */
+    cacheCleared: v.optional(v.boolean()),
+  })
+    .index("by_contractorId_and_checkedAt", ["contractorId", "checkedAt"])
+    .index("by_contractorId_and_licenseNumber_and_checkedAt", ["contractorId", "licenseNumber", "checkedAt"]),
 
   // Commercial construction project root
   projects: defineTable({

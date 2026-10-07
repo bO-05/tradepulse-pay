@@ -1,6 +1,7 @@
 import { query, mutation, internalQuery, internalMutation, type MutationCtx } from "./_generated/server";
 import { requireRole } from "./lib/roles";
 import { linkDemoProfiles } from "./demoAccounts";
+import { applyDemoLicenseNumbers } from "./kernel/demoLicenses";
 import { remapAgentLinks, snapshotActiveAgentLinks } from "./lib/agentLinkRemap";
 import { v, ConvexError } from "convex/values";
 import { generateAiaA401AgreementText } from "./agreements";
@@ -981,6 +982,7 @@ Furnish and install 1600A main service switchboard, 480/277V step-down distribut
 async function reseedAndRelink(ctx: MutationCtx, args: { force?: boolean }) {
   const links = await snapshotActiveAgentLinks(ctx);
   const result = await seedDemoProject(ctx, args);
+  await applyDemoLicenseNumbers(ctx);
   await linkDemoProfiles(ctx);
   await remapAgentLinks(ctx, links);
   return result;

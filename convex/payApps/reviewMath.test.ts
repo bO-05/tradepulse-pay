@@ -149,6 +149,42 @@ describe("finalizeReview applies code policy to model output", () => {
     expect(finalizeReview(f.context, base()).flags.lienWaiverMissing).toBe(false);
   });
 
+  const withLicense = (status: string | null) => ({
+    ...f.context,
+    license: status === null ? null : { licenseNumber: "142881", status, checkedAt: 1, summary: "CSLB" },
+  });
+
+  test.each([
+    [null, "none"],
+    ["unverified", "unverified"],
+    ["expired", "expired"],
+    ["suspended", "suspended"],
+    ["inactive", "inactive"],
+    ["not_found", "not_found"],
+    ["something-new", "unverified"],
+  ])("license %s is an issue whatever the model says (status %s)", (status, shown) => {
+    for (const modelFlag of [false, true]) {
+      const flags = finalizeReview(withLicense(status), { ...base(), licenseIssue: modelFlag }).flags;
+      expect(flags).toMatchObject({ licenseIssue: true, licenseStatus: shown });
+    }
+  });
+
+  test("only an active CSLB result clears the license flag, even if the model raises it", () => {
+    const flags = finalizeReview(withLicense("active"), { ...base(), licenseIssue: true }).flags;
+    expect(flags).toMatchObject({ licenseIssue: false, licenseStatus: "active" });
+  });
+
+  test("the rules engine path agrees with the AI path on the license flag", () => {
+    for (const status of [null, "unverified", "expired", "active"]) {
+      const ctx = withLicense(status);
+      const offline = finalizeReview(ctx, rulesEngineJudgement(ctx)).flags;
+      const ai = finalizeReview(ctx, { ...base(), licenseIssue: false }).flags;
+      expect(offline.licenseIssue).toBe(ai.licenseIssue);
+      expect(offline.licenseStatus).toBe(ai.licenseStatus);
+    }
+    expect(rulesEngineJudgement(withLicense(null)).notes).toContain("License: no license check yet.");
+  });
+
   test("a judgement that skips a submitted line is rejected", () => {
     const j = base();
     j.lines = j.lines.slice(1);

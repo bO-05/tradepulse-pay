@@ -226,3 +226,14 @@ test("Offline fallbacks are labeled 'Offline rules engine' and never claim an Op
   expect(find("llmRouter.ts", convexSources)).toContain("provider: OFFLINE_RULES_ENGINE");
   expect(find("lib/aiLabels.ts", libConvexSources)).toContain('OFFLINE_RULES_ENGINE = "Offline rules engine"');
 });
+
+test("License UI never calls a license verified; only an active CSLB result is shown as positive", async () => {
+  const license = (await import("./payments/LicenseCheck.tsx?raw")).default as string;
+  const reviews = (await import("./payments/PayAppReviews.tsx?raw")).default as string;
+  for (const src of [license, reviews]) {
+    expect(src).not.toMatch(/>\s*Verified\b|"Verified"|License verified/);
+  }
+  expect(license).toContain('unverified: { label: "License unverified"');
+  expect(license).toContain('none: { label: "No license check yet"');
+  expect(reviews).toContain('none: "No license check yet"');
+});

@@ -139,6 +139,75 @@ describe("pay-app review on submit", () => {
     expect(JSON.stringify(traces[0])).not.toContain("test-key-not-real");
   });
 
+  test("licenseIssue comes from the stored license check on both paths, overriding the model", async () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "test-key-not-real");
+    vi.stubEnv("ANTHROPIC_MODEL", "claude-sonnet-5-5");
+    const s = await setup();
+    const [a, b] = s.sov;
+    const modelSays = (licenseIssue: boolean) =>
+      generateTextMock.mockImplementationOnce(async () => ({
+        output: {
+          lines: [
+            { sovLineId: a._id, verdict: "ok", recommendedPctToDate: 0.2, reason: "ok" },
+            { sovLineId: b._id, verdict: "overbilled", recommendedPctToDate: 0.3, reason: "ceiling" },
+            { sovLineId: s.excludedLineId, verdict: "excluded_scope", recommendedPctToDate: 0, reason: "excluded" },
+          ],
+          lienWaiverMissing: true,
+          licenseIssue,
+          notes: "",
+        },
+        usage: { inputTokens: 1, outputTokens: 1 },
+        response: { modelId: "claude-sonnet-5-5" },
+      }));
+
+    modelSays(false);
+    const noCheck = await submitAndReview(s);
+    expect(noCheck.row.review!.provider).toBe("Anthropic");
+    expect(noCheck.row.review!.flags).toMatchObject({ licenseIssue: true, licenseStatus: "none" });
+
+    const addCheck = (status: "active" | "expired", phase?: "running") =>
+      s.t.run(async (ctx) =>
+        ctx.db.insert("licenseChecks", {
+          contractorId: s.agreement.contractorId,
+          licenseNumber: "142881",
+          state: "CA",
+          status,
+          rawSummary: "CSLB",
+          checkedAt: Date.now(),
+          ...(phase ? { phase } : {}),
+        }),
+      );
+    await addCheck("active");
+    modelSays(true);
+    const res = await s.gc.as.action(api.payApps.review.rerunPayAppReview, { payAppId: noCheck.payAppId });
+    expect(res.reviewed).toBe(true);
+    let row = (await s.t.run(async (ctx) => ctx.db.get(noCheck.payAppId)))!;
+    expect(row.review!.flags).toMatchObject({ licenseIssue: false, licenseStatus: "active" });
+
+    // A running check is not a result; the latest completed one still counts.
+    vi.advanceTimersByTime(1000);
+    await addCheck("expired", "running");
+    vi.unstubAllEnvs();
+    await s.gc.as.action(api.payApps.review.rerunPayAppReview, { payAppId: noCheck.payAppId });
+    row = (await s.t.run(async (ctx) => ctx.db.get(noCheck.payAppId)))!;
+    expect(row.review!.provider).toBe("Offline rules engine");
+    expect(row.review!.flags).toMatchObject({ licenseIssue: false, licenseStatus: "active" });
+
+    vi.advanceTimersByTime(1000);
+    await addCheck("expired");
+    await s.gc.as.action(api.payApps.review.rerunPayAppReview, { payAppId: noCheck.payAppId });
+    row = (await s.t.run(async (ctx) => ctx.db.get(noCheck.payAppId)))!;
+    expect(row.review!.flags).toMatchObject({ licenseIssue: true, licenseStatus: "expired" });
+  });
+
+  test("the offline rules engine flags a missing license check", async () => {
+    const s = await setup();
+    const { row } = await submitAndReview(s);
+    expect(row.review!.provider).toBe("Offline rules engine");
+    expect(row.review!.flags).toMatchObject({ licenseIssue: true, licenseStatus: "none" });
+    expect(row.review!.flags.notes).toContain("License: no license check yet.");
+  });
+
   test("an invalid model id falls back to the rules engine without leaking the model name", async () => {
     vi.stubEnv("ANTHROPIC_API_KEY", "test-key-not-real");
     vi.stubEnv("ANTHROPIC_MODEL", "claude-does-not-exist");

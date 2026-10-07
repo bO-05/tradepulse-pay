@@ -5,6 +5,7 @@ import { action, internalAction, internalMutation, internalQuery, query, type Ac
 import { requireRole, requireRoleInAction } from "../lib/roles";
 import { formatCents } from "../lib/money";
 import { payAppReviewValidator } from "../schema";
+import { latestCompletedCheck } from "../kernel/licenseChecks";
 import { buildReviewContext } from "./reviewContext";
 import type { ReviewContext } from "./reviewMath";
 import { runPayAppReview, type ReviewRun } from "./reviewModel";
@@ -42,11 +43,7 @@ export const loadReviewInputs = internalQuery({
       .query("payApplications")
       .withIndex("by_agreementId", (q) => q.eq("agreementId", agreement._id))
       .take(500);
-    const license = await ctx.db
-      .query("licenseChecks")
-      .withIndex("by_contractorId_and_checkedAt", (q) => q.eq("contractorId", agreement.contractorId))
-      .order("desc")
-      .first();
+    const license = await latestCompletedCheck(ctx, agreement.contractorId);
     return {
       context: buildReviewContext({ payApp, agreement, sov, milestones, agreementPayApps, license }),
       meta: {

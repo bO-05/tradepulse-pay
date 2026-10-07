@@ -270,7 +270,7 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
         )}
       </section>
 
-      {canFund ? <AgreementPayAppReviews agreementId={agreement._id} /> : null}
+      {canFund ? <AgreementPayAppReviews agreementId={agreement._id} contractorId={agreement.contractorId} /> : null}
 
       <AgreementChangeOrders agreementId={agreement._id} />
     </div>

@@ -94,11 +94,22 @@ export type FinalReviewLine = {
 
 export type FinalReview = {
   lines: FinalReviewLine[];
-  flags: { lienWaiverMissing: boolean; licenseIssue: boolean; notes: string };
+  flags: { lienWaiverMissing: boolean; licenseIssue: boolean; licenseStatus: ReviewLicenseStatus; notes: string };
   approvedTotalCents: number;
 };
 
-const LICENSE_PROBLEMS = new Set(["expired", "suspended", "not_found"]);
+const KNOWN_LICENSE_STATUSES = ["active", "expired", "suspended", "inactive", "not_found", "unverified"] as const;
+export type ReviewLicenseStatus = (typeof KNOWN_LICENSE_STATUSES)[number] | "none";
+
+const LICENSE_STATUS_TEXT: Record<ReviewLicenseStatus, string> = {
+  none: "no license check yet",
+  active: "active (CSLB)",
+  expired: "expired",
+  suspended: "suspended",
+  inactive: "inactive",
+  not_found: "not found at CSLB",
+  unverified: "unverified",
+};
 
 function clamp01(n: number): number {
   if (!Number.isFinite(n)) return 0;
@@ -220,8 +231,21 @@ export function isFrontLoaded(line: ReviewLine): boolean {
   );
 }
 
+/** Status of the latest completed check; unknown values are treated as unverified. */
+export function reviewLicenseStatus(license: ReviewContext["license"]): ReviewLicenseStatus {
+  if (license === null) return "none";
+  return (KNOWN_LICENSE_STATUSES as readonly string[]).includes(license.status)
+    ? (license.status as ReviewLicenseStatus)
+    : "unverified";
+}
+
+/** Only an active CSLB result clears the license flag; a missing or failed check is an issue. */
 export function licenseHasIssue(license: ReviewContext["license"]): boolean {
-  return license !== null && LICENSE_PROBLEMS.has(license.status);
+  return reviewLicenseStatus(license) !== "active";
+}
+
+export function licenseStatusText(status: ReviewLicenseStatus): string {
+  return LICENSE_STATUS_TEXT[status];
 }
 
 /** Deterministic verdicts used when no AI provider responds. Mirrors the rules the model is given. */
@@ -272,7 +296,7 @@ export function rulesEngineJudgement(context: ReviewContext): ReviewJudgement {
   const notes = [
     `${flagged} of ${lines.length} line(s) flagged by deterministic rules.`,
     context.payApp.lienWaiver ? "" : "Lien waiver missing.",
-    licenseIssue ? `License status: ${context.license?.status}.` : "",
+    licenseIssue ? `License: ${licenseStatusText(reviewLicenseStatus(context.license))}.` : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -288,7 +312,8 @@ export class IncompleteJudgementError extends Error {
  * Requires exactly one verdict per submitted line. Excluded-scope SOV lines are
  * always "excluded_scope" with 0 approved; an "overbilled" recommendation never
  * exceeds the milestone ceiling; no recommendation exceeds what was claimed.
- * The lien-waiver flag is the submitted fact, and a known bad license is always flagged.
+ * The lien-waiver and license flags are decided by code, never by the model:
+ * the license flag is set unless the latest completed check is active.
  */
 export function finalizeReview(context: ReviewContext, judgement: ReviewJudgement): FinalReview {
   const verdicts = new Map<string, ReviewJudgement["lines"][number]>();
@@ -326,7 +351,8 @@ export function finalizeReview(context: ReviewContext, judgement: ReviewJudgemen
     lines,
     flags: {
       lienWaiverMissing: !context.payApp.lienWaiver,
-      licenseIssue: judgement.licenseIssue || licenseHasIssue(context.license),
+      licenseIssue: licenseHasIssue(context.license),
+      licenseStatus: reviewLicenseStatus(context.license),
       notes: judgement.notes.trim(),
     },
     approvedTotalCents: lines.reduce((a, l) => a + l.approvedCents, 0),
