@@ -7,12 +7,17 @@ export type AreaId =
   | "sub-portal"
   | "owner-portal"
   | "billing-agents"
+  | "dashboard"
   | "agreement"
-  | "ledger";
+  | "ledger"
+  | "access-denied";
 
-export type NavItem = { area: Exclude<AreaId, "agreement" | "ledger">; label: string; hash: string };
+export type NavItem = { area: Exclude<AreaId, "agreement" | "ledger" | "access-denied">; label: string; hash: string };
 
 export type Route = { area: AreaId; agreementId?: string };
+
+/** Areas whose direct route shows an access-denied page (instead of the role home) to roles without them. */
+const DENY_WHEN_DISALLOWED = new Set<AreaId>(["dashboard"]);
 
 const AREA_HASH: Record<NavItem["area"], string> = {
   procurement: "#/procurement",
@@ -21,11 +26,12 @@ const AREA_HASH: Record<NavItem["area"], string> = {
   "sub-portal": "#/portal",
   "owner-portal": "#/projects",
   "billing-agents": "#/billing-agents",
+  dashboard: "#/dashboard",
 };
 
 /**
- * Role-based navigation. Later areas (payments workspace, approval inbox,
- * billing agents, dashboard) register here with the roles allowed to see them.
+ * Role-based navigation: each area is registered with the roles allowed to see it.
+ * Subs (and their billing agents) have no dashboard; the owner's dashboard is read-only.
  */
 export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
   gc: [
@@ -34,12 +40,16 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { area: "inbox", label: "Approval inbox", hash: AREA_HASH.inbox },
     { area: "owner-portal", label: "Projects overview", hash: AREA_HASH["owner-portal"] },
     { area: "billing-agents", label: "Billing agents", hash: AREA_HASH["billing-agents"] },
+    { area: "dashboard", label: "Dashboard", hash: AREA_HASH.dashboard },
   ],
   sub: [
     { area: "sub-portal", label: "My agreements & pay applications", hash: AREA_HASH["sub-portal"] },
     { area: "payments", label: "Payments", hash: AREA_HASH.payments },
   ],
-  owner: [{ area: "owner-portal", label: "Projects & change orders", hash: AREA_HASH["owner-portal"] }],
+  owner: [
+    { area: "owner-portal", label: "Projects & change orders", hash: AREA_HASH["owner-portal"] },
+    { area: "dashboard", label: "Dashboard", hash: AREA_HASH.dashboard },
+  ],
 };
 
 export function agreementHash(agreementId: string): string {
@@ -68,6 +78,7 @@ export function resolveRoute(role: Role, hash: string): Route {
   const parsed = parseHash(hash);
   if (parsed?.area === "agreement" || parsed?.area === "ledger") return parsed;
   if (parsed && nav.some((item) => item.area === parsed.area)) return parsed;
+  if (parsed && DENY_WHEN_DISALLOWED.has(parsed.area)) return { area: "access-denied" };
   return { area: nav[0].area };
 }
 

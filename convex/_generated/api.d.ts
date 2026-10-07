@@ -23,6 +23,7 @@ import type * as contractorDiscovery from "../contractorDiscovery.js";
 import type * as contractors from "../contractors.js";
 import type * as coordination from "../coordination.js";
 import type * as crons from "../crons.js";
+import type * as dashboard_queries from "../dashboard/queries.js";
 import type * as demoAccounts from "../demoAccounts.js";
 import type * as email from "../email.js";
 import type * as emailActions from "../emailActions.js";
@@ -124,6 +125,7 @@ declare const fullApi: ApiFromModules<{
   contractors: typeof contractors;
   coordination: typeof coordination;
   crons: typeof crons;
+  "dashboard/queries": typeof dashboard_queries;
   demoAccounts: typeof demoAccounts;
   email: typeof email;
   emailActions: typeof emailActions;

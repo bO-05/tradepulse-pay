@@ -1,5 +1,5 @@
 import { useAuthActions } from "@convex-dev/auth/react";
-import type { ReactNode } from "react";
+import { lazy, Suspense, type ReactNode } from "react";
 import { AgreementLedgerView } from "../payments/AgreementLedgerView";
 import { AgreementSummaryView } from "../payments/AgreementSummaryView";
 import { ApprovalInbox } from "../payments/inbox/ApprovalInbox";
@@ -9,6 +9,8 @@ import { SubPortal } from "../payments/SubPortal";
 import { BillingAgentsView } from "./BillingAgentsView";
 import { NAV_BY_ROLE, resolveRoute, type Role } from "./navigation";
 import { useHash } from "./useHash";
+
+const PaymentsDashboard = lazy(() => import("../dashboard/PaymentsDashboard"));
 
 const ROLE_LABEL: Record<Role, string> = { gc: "General contractor", sub: "Subcontractor", owner: "Owner" };
 
@@ -34,6 +36,24 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
   else if (route.area === "payments") content = <PaymentsWorkspace />;
   else if (route.area === "billing-agents") content = <BillingAgentsView />;
   else if (route.area === "inbox") content = <ApprovalInbox />;
+  else if (route.area === "dashboard")
+    content = (
+      <Suspense fallback={<p className="text-sm text-slate-400">Loading dashboard…</p>}>
+        <PaymentsDashboard />
+      </Suspense>
+    );
+  else if (route.area === "access-denied")
+    content = (
+      <div role="alert" className="max-w-xl rounded-2xl border border-rose-800 bg-rose-950/40 p-6" data-testid="access-denied">
+        <h1 className="text-lg font-semibold text-rose-200">Access denied</h1>
+        <p className="mt-2 text-sm text-slate-300">
+          This area is not available to your role.{" "}
+          <a href={homeHash} className="text-emerald-300 underline">
+            Back to {nav[0].label}
+          </a>
+        </p>
+      </div>
+    );
   else if (route.area === "ledger") {
     const backHash = nav.find((item) => item.area === "payments")?.hash ?? homeHash;
     content = <AgreementLedgerView agreementId={route.agreementId ?? ""} backHash={backHash} />;

@@ -3,9 +3,16 @@ import { agreementHash, ledgerHash, NAV_BY_ROLE, parseHash, resolveRoute, signIn
 
 describe("role navigation", () => {
   test("GC gets procurement, payments and the read-only overview; sub and owner never get procurement", () => {
-    expect(NAV_BY_ROLE.gc.map((i) => i.area)).toEqual(["procurement", "payments", "inbox", "owner-portal", "billing-agents"]);
+    expect(NAV_BY_ROLE.gc.map((i) => i.area)).toEqual([
+      "procurement",
+      "payments",
+      "inbox",
+      "owner-portal",
+      "billing-agents",
+      "dashboard",
+    ]);
     expect(NAV_BY_ROLE.sub.map((i) => i.area)).toEqual(["sub-portal", "payments"]);
-    expect(NAV_BY_ROLE.owner.map((i) => i.area)).toEqual(["owner-portal"]);
+    expect(NAV_BY_ROLE.owner.map((i) => i.area)).toEqual(["owner-portal", "dashboard"]);
   });
 
   test("disallowed or unknown areas fall back to the role's home", () => {
@@ -21,6 +28,14 @@ describe("role navigation", () => {
     expect(resolveRoute("gc", "#/inbox")).toEqual({ area: "inbox" });
     expect(resolveRoute("sub", "#/inbox")).toEqual({ area: "sub-portal" });
     expect(resolveRoute("owner", "#/inbox")).toEqual({ area: "owner-portal" });
+  });
+
+  test("dashboard: GC and owner reach it, a sub's direct route is access denied", () => {
+    expect(parseHash("#/dashboard")).toEqual({ area: "dashboard" });
+    expect(resolveRoute("gc", "#/dashboard")).toEqual({ area: "dashboard" });
+    expect(resolveRoute("owner", "#/dashboard")).toEqual({ area: "dashboard" });
+    expect(resolveRoute("sub", "#/dashboard")).toEqual({ area: "access-denied" });
+    expect(NAV_BY_ROLE.sub.some((i) => i.area === "dashboard")).toBe(false);
   });
 
   test("agreement deep links round-trip for every role (access is enforced by the backend)", () => {
