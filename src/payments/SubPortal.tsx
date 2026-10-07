@@ -112,9 +112,10 @@ export function SubPortal() {
                   <td className="py-2 pr-3" data-testid="sub-payapp-status">
                     {p.status}
                     {p.withdrawnAt ? <span className="block text-xs text-slate-400">on {formatDate(p.withdrawnAt)}</span> : null}
+                    {p.rejectedAt ? <span className="block text-xs text-slate-400">on {formatDate(p.rejectedAt)}</span> : null}
                   </td>
                   <td className="py-2 pr-3 text-xs" data-testid="sub-payapp-outcome">
-                    <PayAppOutcome status={p.status} outcome={p.outcome} />
+                    <PayAppOutcome status={p.status} outcome={p.outcome} rejectionReason={p.rejectionReason} />
                   </td>
                   <td className="py-2 pr-3">{formatDate(p.createdAt)}</td>
                   <td className="py-2 pr-3 text-xs">
@@ -143,8 +144,19 @@ type Outcome = {
   payoutStatus: string | null;
 } | null;
 
-function PayAppOutcome({ status, outcome }: { status: string; outcome: Outcome }) {
-  if (status === "rejected") return <span className="text-rose-300">Rejected by the GC; nothing was paid.</span>;
+function PayAppOutcome({ status, outcome, rejectionReason }: { status: string; outcome: Outcome; rejectionReason: string | null }) {
+  if (status === "rejected") {
+    return (
+      <span className="text-rose-300">
+        Rejected by the GC; nothing was paid.
+        {rejectionReason ? (
+          <span className="block text-slate-300" data-testid="sub-payapp-rejection-reason">
+            Reason: {rejectionReason}
+          </span>
+        ) : null}
+      </span>
+    );
+  }
   if (outcome && outcome.approvedGrossCents !== null) {
     return (
       <dl className="grid grid-cols-[auto_auto] gap-x-2 tabular-nums">

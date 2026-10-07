@@ -40,7 +40,7 @@ export function buildReviewContext(input: {
       periodLabel: p.periodLabel,
       status: p.status,
       requestedTotalCents: p.requestedTotalCents,
-      approvedTotalCents: p.review?.approvedTotalCents ?? null,
+      approvedTotalCents: p.finalApproval?.totalCents ?? p.review?.approvedTotalCents ?? null,
     })),
     license: input.license
       ? {

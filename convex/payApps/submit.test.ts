@@ -276,3 +276,75 @@ describe("withdrawPayApplication", () => {
     expect((await t.run(async (ctx) => ctx.db.get(payAppId)))!.status).toBe("withdrawn");
   });
 });
+
+describe("billing history beyond the first 500 applications", () => {
+  async function insertHistory(
+    t: T,
+    agreementId: Id<"agreements">,
+    subUserId: Id<"users">,
+    sovLineId: Id<"scheduleOfValues">,
+    rows: { status: "withdrawn" | "rejected" | "submitted"; requestedCents: number; count: number },
+  ) {
+    await t.run(async (ctx) => {
+      for (let i = 0; i < rows.count; i++) {
+        await ctx.db.insert("payApplications", {
+          agreementId,
+          subUserId,
+          periodLabel: `History ${rows.status} ${i}`,
+          lines: [{ sovLineId, pctCompleteThisPeriod: 1, pctCompleteToDate: 1, requestedCents: rows.requestedCents }],
+          requestedTotalCents: rows.requestedCents,
+          notes: "",
+          lienWaiver: true,
+          status: rows.status,
+          submittedBy: { userId: subUserId, actorType: "human" },
+          createdAt: Date.now(),
+        });
+      }
+    });
+  }
+
+  const oneLine = (agreementId: string, sovLineId: Id<"scheduleOfValues">, cents: number) => ({
+    agreementId,
+    periodLabel: `Line-only ${cents}`,
+    lines: [{ sovLineId, pctCompleteThisPeriod: 100, pctCompleteToDate: 100, requestedCents: cents }],
+    notes: "",
+    lienWaiver: true,
+  });
+
+  test("withdrawn and rejected applications cannot hide a later reservation", async () => {
+    const { t, sub1, agreement, sov } = await setup();
+    const line = sov[0];
+    await insertHistory(t, agreement._id, sub1.userId, line._id, { status: "withdrawn", requestedCents: line.scheduledValueCents, count: 520 });
+    await insertHistory(t, agreement._id, sub1.userId, line._id, { status: "rejected", requestedCents: line.scheduledValueCents, count: 20 });
+    // Application 541 reserves the whole line.
+    await sub1.as.mutation(api.payApps.submit.submitPayApplication, oneLine(agreement._id, line._id, line.scheduledValueCents));
+    await expect(sub1.as.mutation(api.payApps.submit.submitPayApplication, oneLine(agreement._id, line._id, 1))).rejects.toThrow(
+      /exceeds the remaining scheduled value/,
+    );
+    const form = await sub1.as.query(api.payApps.submit.payAppFormContext, { agreementId: agreement._id });
+    expect(form!.sovLines.find((l) => l._id === line._id)!.remainingCents).toBe(0);
+  });
+
+  test("more than 500 open applications are all counted", async () => {
+    const { t, sub1, agreement, sov } = await setup();
+    const line = sov[0];
+    const each = Math.floor(line.scheduledValueCents / 600);
+    await insertHistory(t, agreement._id, sub1.userId, line._id, { status: "submitted", requestedCents: each, count: 600 });
+    const remaining = line.scheduledValueCents - each * 600;
+    await expect(sub1.as.mutation(api.payApps.submit.submitPayApplication, oneLine(agreement._id, line._id, remaining + 1))).rejects.toThrow(
+      /exceeds the remaining scheduled value/,
+    );
+    if (remaining > 0) await sub1.as.mutation(api.payApps.submit.submitPayApplication, oneLine(agreement._id, line._id, remaining));
+  });
+
+  test("a billing history too large to read completely fails closed", async () => {
+    const { t, sub1, agreement, sov } = await setup();
+    const { MAX_BILLING_HISTORY } = await import("./billingHistory");
+    await insertHistory(t, agreement._id, sub1.userId, sov[0]._id, { status: "submitted", requestedCents: 0, count: MAX_BILLING_HISTORY + 1 });
+    const before = await countPayApps(t);
+    await expect(sub1.as.mutation(api.payApps.submit.submitPayApplication, oneLine(agreement._id, sov[1]._id, 1))).rejects.toThrow(
+      /billing history is too large to verify/,
+    );
+    expect(await countPayApps(t)).toBe(before);
+  });
+});

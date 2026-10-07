@@ -217,6 +217,17 @@ export default defineSchema({
       ownerName: v.optional(v.string()),
     }),
     review: v.optional(payAppReviewValidator),
+    // The GC's final approved split, which billing math uses; review.lines keeps the recommendation.
+    finalApproval: v.optional(
+      v.object({
+        totalCents: v.number(),
+        lines: v.array(v.object({ sovLineId: v.id("scheduleOfValues"), approvedCents: v.number() })),
+        approvedBy: v.id("users"),
+        approvedAt: v.number(),
+      }),
+    ),
+    rejectedAt: v.optional(v.number()),
+    rejectionReason: v.optional(v.string()),
     withdrawnAt: v.optional(v.number()),
     createdAt: v.number(),
   })

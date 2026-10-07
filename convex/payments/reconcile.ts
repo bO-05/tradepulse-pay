@@ -3,6 +3,7 @@ import { internal } from "../_generated/api";
 import type { Doc } from "../_generated/dataModel";
 import { env, internalAction, internalQuery } from "../_generated/server";
 import { fromPayPalString } from "../lib/money";
+import { approvedTotalFor } from "../payApps/validation";
 import { changeOrderStatusFromInvoice } from "./changeOrderMath";
 import { computeLedgerTotals, type LedgerTotals } from "./ledgerTotals";
 import { payoutStatusFromPayPal } from "./payoutMath";
@@ -59,7 +60,7 @@ function rawSums(rows: Rows) {
     if (r.paymentId && releaseIds.has(r.paymentId)) released -= r.deltaCents;
   }
   for (const a of rows.payApps) {
-    if (a.status === "approved" || a.status === "paid") billed += a.review?.approvedTotalCents ?? a.requestedTotalCents;
+    if (a.status === "approved" || a.status === "paid") billed += approvedTotalFor(a);
   }
   for (const c of rows.changeOrders) {
     if (c.status === "invoiced") coInvoiced += c.amountCents;

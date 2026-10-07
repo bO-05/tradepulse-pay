@@ -10,6 +10,7 @@ import { checkEditedAmount, chooseCaptureMilestone, effectiveAmount } from "../a
 import { startRelease } from "../payments/release";
 import { computePayoutSplit, isValidRequestKey, remainingAuthorizedCents, retainagePercentFor } from "../payments/payoutMath";
 import { finishProposal, syncProposalForPayment } from "./proposalSync";
+import { allocateFinalApproval } from "./billingHistory";
 import { payAppView, sovMapFor } from "./review";
 
 /**
@@ -51,6 +52,47 @@ async function moneyPair(ctx: MutationCtx, p: Doc<"agentProposals">) {
   const all = await payAppProposals(ctx, p.payAppId);
   const sameRun = all.filter((x) => x.agentRunId === p.agentRunId && x.status === "pending");
   return { capture: sameRun.find((x) => x.kind === "capture"), payout: sameRun.find((x) => x.kind === "payout") };
+}
+
+const MAX_REJECTION_REASON_LENGTH = 500;
+
+function rejectionReason(given: string | undefined, fallback: string): string {
+  const trimmed = (given ?? "").trim().slice(0, MAX_REJECTION_REASON_LENGTH);
+  return trimmed === "" ? fallback : trimmed;
+}
+
+/** The final per-line split of an approved total, or a readable INVALID_AMOUNT error. */
+async function finalAllocation(ctx: MutationCtx, payApp: Doc<"payApplications">, amountCents: number) {
+  const result = await allocateFinalApproval(ctx, payApp, amountCents);
+  if (!result.ok) throw new ConvexError({ code: "INVALID_AMOUNT", message: result.message });
+  return result.lines.map((l) => ({ sovLineId: l.sovLineId as Id<"scheduleOfValues">, approvedCents: l.approvedCents }));
+}
+
+/**
+ * Once a reviewed pay app has no pending proposal left and no approved payment, it is finalized as
+ * rejected so it stops reserving scheduled value. Moves no money.
+ */
+async function finalizeIfNothingActionable(
+  ctx: MutationCtx,
+  payAppId: Id<"payApplications">,
+  reason: string,
+  actor: string,
+): Promise<boolean> {
+  const payApp = await ctx.db.get(payAppId);
+  if (payApp === null || payApp.status !== "reviewed") return false;
+  const rows = (await payAppProposals(ctx, payAppId)).filter((r) => r.status !== "cancelled");
+  if (rows.some((r) => r.status === "pending")) return false;
+  if (rows.some((r) => MONEY_KINDS.has(r.kind) && (r.status === "approved" || r.status === "executed"))) return false;
+  await ctx.db.patch(payApp._id, { status: "rejected", rejectedAt: Date.now(), rejectionReason: reason });
+  await audit(
+    ctx,
+    payApp.agreementId,
+    "pay_app_rejected",
+    "Pay application rejected",
+    `${payApp.periodLabel}: no actionable proposals remain (${reason}); no money moved.`,
+    actor,
+  );
+  return true;
 }
 
 async function audit(
@@ -220,6 +262,7 @@ export const approveProposal = mutation({
       await finishProposal(ctx, { ...p, status: "approved" }, "executed", {
         detail: `${p.kind} accepted by the GC; no money moved.`,
       });
+      await finalizeIfNothingActionable(ctx, payApp._id, `The GC accepted the ${p.kind}; no payment was approved.`, actor);
       return { scheduled: false };
     }
 
@@ -235,6 +278,7 @@ export const approveProposal = mutation({
     }
     const amountCents = effectiveAmount(payout) ?? 0;
     if (amountCents <= 0) throw new ConvexError({ code: "INVALID_AMOUNT", message: "The proposal has no amount to pay." });
+    const finalLines = await finalAllocation(ctx, payApp, amountCents);
 
     const rows = await milestonePlanRows(ctx, payApp.agreementId);
     const preferred = rows.find(
@@ -244,7 +288,7 @@ export const approveProposal = mutation({
         ["authorized", "partially_captured"].includes(m.funding.status) &&
         remainingAuthorizedCents(m.funding) >= amountCents,
     );
-    const billed = (payApp.review?.lines ?? []).filter((l) => l.approvedCents > 0).map((l) => l.sovLineId as string);
+    const billed = finalLines.filter((l) => l.approvedCents > 0).map((l) => l.sovLineId as string);
     const milestone = preferred ?? chooseCaptureMilestone(rows, billed, amountCents);
     if (milestone === null) {
       throw new ConvexError({
@@ -262,7 +306,10 @@ export const approveProposal = mutation({
     };
     await ctx.db.patch(payout._id, decision);
     if (capture) await ctx.db.patch(capture._id, decision);
-    await ctx.db.patch(payApp._id, { status: "approved" });
+    await ctx.db.patch(payApp._id, {
+      status: "approved",
+      finalApproval: { totalCents: amountCents, lines: finalLines, approvedBy: viewer.userId, approvedAt: now },
+    });
     await audit(
       ctx,
       payApp.agreementId,
@@ -295,6 +342,7 @@ export const editProposal = mutation({
     if (payApp === null) throw new ConvexError({ code: "NOT_FOUND", message: "Pay application not found." });
     const check = checkEditedAmount(args.amountCents, payApp.requestedTotalCents);
     if (!check.ok) throw new ConvexError({ code: "INVALID_AMOUNT", message: check.message });
+    await finalAllocation(ctx, payApp, check.amountCents);
     const { capture, payout } = await moneyPair(ctx, p);
     for (const row of [capture, payout]) {
       if (row) await ctx.db.patch(row._id, { editedAmountCents: check.amountCents });
@@ -316,23 +364,31 @@ async function rejectRows(ctx: MutationCtx, rows: Doc<"agentProposals">[], userI
   for (const r of rows) await ctx.db.patch(r._id, { status: "rejected", decidedBy: userId, decidedAt: now });
 }
 
-/** Rejects a proposal (a capture or payout rejects its pair). Nothing moves. */
+/**
+ * Rejects a proposal (a capture or payout rejects its pair). Nothing moves. When no actionable
+ * proposal is left, the pay app is finalized as rejected with the reason.
+ */
 export const rejectProposal = mutation({
-  args: { proposalId: v.string() },
+  args: { proposalId: v.string(), reason: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const viewer = await requireRole(ctx, ["gc"]);
     const p = await loadProposal(ctx, args.proposalId);
     if (p.status !== "pending") throw notPending(p);
     const rows = MONEY_KINDS.has(p.kind) ? Object.values(await moneyPair(ctx, p)).filter((r) => r !== undefined) : [p];
     await rejectRows(ctx, rows, viewer.userId);
-    await audit(ctx, p.agreementId, "proposal_rejected", "Proposal rejected", `GC rejected the ${rows.map((r) => r.kind).join(" + ")} proposal; no money moved.`, viewer.user.email ?? `user:${viewer.userId}`);
-    return { rejected: rows.length };
+    const actor = viewer.user.email ?? `user:${viewer.userId}`;
+    const kinds = rows.map((r) => r.kind).join(" + ");
+    await audit(ctx, p.agreementId, "proposal_rejected", "Proposal rejected", `GC rejected the ${kinds} proposal; no money moved.`, actor);
+    const payAppRejected = p.payAppId
+      ? await finalizeIfNothingActionable(ctx, p.payAppId, rejectionReason(args.reason, `The GC rejected the ${kinds} proposal.`), actor)
+      : false;
+    return { rejected: rows.length, payAppRejected };
   },
 });
 
 /** Rejects a reviewed pay application and all its pending proposals. Nothing moves. */
 export const rejectPayApp = mutation({
-  args: { payAppId: v.string() },
+  args: { payAppId: v.string(), reason: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const viewer = await requireRole(ctx, ["gc"]);
     const id = ctx.db.normalizeId("payApplications", args.payAppId);
@@ -343,7 +399,11 @@ export const rejectPayApp = mutation({
     }
     const pending = (await payAppProposals(ctx, payApp._id)).filter((r) => r.status === "pending");
     await rejectRows(ctx, pending, viewer.userId);
-    await ctx.db.patch(payApp._id, { status: "rejected" });
+    await ctx.db.patch(payApp._id, {
+      status: "rejected",
+      rejectedAt: Date.now(),
+      rejectionReason: rejectionReason(args.reason, "The GC rejected the pay application."),
+    });
     await audit(
       ctx,
       payApp.agreementId,

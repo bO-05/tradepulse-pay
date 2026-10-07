@@ -32,18 +32,34 @@ type PriorPayApp = {
   status: string;
   lines: readonly { sovLineId: string; requestedCents: number; pctCompleteToDate: number }[];
   review?: { lines: readonly { sovLineId: string; approvedCents: number }[] } | null;
+  finalApproval?: { lines: readonly { sovLineId: string; approvedCents: number }[] } | null;
 };
 
+/** The per-line cents an approved pay app bills: the GC's final allocation, else the review recommendation. */
+function approvedLinesFor(app: PriorPayApp) {
+  return app.finalApproval?.lines ?? app.review?.lines ?? null;
+}
+
+/** Total billed by an approved or paid pay app: the GC's final total, else the review's, else the request. */
+export function approvedTotalFor(app: {
+  requestedTotalCents: number;
+  review?: { approvedTotalCents: number } | null;
+  finalApproval?: { totalCents: number } | null;
+}): number {
+  return app.finalApproval?.totalCents ?? app.review?.approvedTotalCents ?? app.requestedTotalCents;
+}
+
 /**
- * Per SOV line: cents already billed by open or approved pay apps (approved
- * amount once an approved app has a review) and the highest % to date claimed.
+ * Per SOV line: cents already billed by open or approved pay apps (the final
+ * approved cents once an app is approved) and the highest % to date claimed.
  */
 export function priorBillingByLine(payApps: readonly PriorPayApp[]): Map<string, { billedCents: number; pctToDate: number }> {
   const out = new Map<string, { billedCents: number; pctToDate: number }>();
   for (const app of payApps) {
     if (!BILLING_PAY_APP_STATUSES.has(app.status)) continue;
-    const useApproved = (app.status === "approved" || app.status === "paid") && app.review;
-    const approved = new Map((app.review?.lines ?? []).map((l) => [l.sovLineId, l.approvedCents]));
+    const approvedLines = approvedLinesFor(app);
+    const useApproved = (app.status === "approved" || app.status === "paid") && approvedLines !== null;
+    const approved = new Map((approvedLines ?? []).map((l) => [l.sovLineId, l.approvedCents]));
     for (const line of app.lines) {
       const cents = useApproved ? (approved.get(line.sovLineId) ?? 0) : line.requestedCents;
       const prev = out.get(line.sovLineId) ?? { billedCents: 0, pctToDate: 0 };

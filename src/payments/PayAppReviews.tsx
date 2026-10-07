@@ -114,9 +114,22 @@ export function PayAppReviewCard({ payApp, canRerun }: { payApp: PayAppWithRevie
               {review ? formatCents(review.approvedTotalCents) : "—"}
             </dd>
           </div>
+          {payApp.finalApproval ? (
+            <div>
+              <dt className="text-xs text-slate-400">Final approved (GC)</dt>
+              <dd className="tabular-nums font-semibold text-emerald-200" data-testid="payapp-final-approved-total">
+                {formatCents(payApp.finalApproval.totalCents)}
+              </dd>
+            </div>
+          ) : null}
         </dl>
       </header>
 
+      {payApp.status === "rejected" && payApp.rejectionReason ? (
+        <p className="text-xs text-rose-300" data-testid="payapp-rejection-reason">
+          Rejected: {payApp.rejectionReason}
+        </p>
+      ) : null}
       {review ? (
         <>
           <ReviewSource review={review} />
@@ -152,7 +165,8 @@ export function PayAppReviewCard({ payApp, canRerun }: { payApp: PayAppWithRevie
               <th className="py-2 pr-3 font-medium text-right">Claimed to date</th>
               <th className="py-2 pr-3 font-medium text-right">Recommended to date</th>
               <th className="py-2 pr-3 font-medium text-right">Requested</th>
-              <th className="py-2 pr-3 font-medium text-right">Approved</th>
+              <th className="py-2 pr-3 font-medium text-right">Recommended</th>
+              {payApp.finalApproval ? <th className="py-2 pr-3 font-medium text-right">Final approved</th> : null}
               <th className="py-2 pr-3 font-medium">Verdict and reason</th>
             </tr>
           </thead>
@@ -169,6 +183,11 @@ export function PayAppReviewCard({ payApp, canRerun }: { payApp: PayAppWithRevie
                 <td className="py-2 pr-3 text-right tabular-nums" data-testid="payapp-line-approved">
                   {l.review ? formatCents(l.review.approvedCents) : "—"}
                 </td>
+                {payApp.finalApproval ? (
+                  <td className="py-2 pr-3 text-right tabular-nums" data-testid="payapp-line-final-approved">
+                    {formatCents(l.finalApprovedCents ?? 0)}
+                  </td>
+                ) : null}
                 <td className="py-2 pr-3">
                   {l.review ? (
                     <>

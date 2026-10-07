@@ -104,6 +104,8 @@ export const mySubPortal = query({
         outcome: outcomes.get(p._id) ?? null,
         canWithdraw: WITHDRAWABLE_PAY_APP_STATUSES.has(p.status),
         withdrawnAt: p.withdrawnAt ?? null,
+        rejectedAt: p.rejectedAt ?? null,
+        rejectionReason: p.status === "rejected" ? (p.rejectionReason ?? null) : null,
         createdAt: p.createdAt,
       })),
     };

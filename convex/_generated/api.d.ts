@@ -41,6 +41,8 @@ import type * as lib_money from "../lib/money.js";
 import type * as lib_roles from "../lib/roles.js";
 import type * as lib_testIdentity from "../lib/testIdentity.js";
 import type * as llmRouter from "../llmRouter.js";
+import type * as payApps_approvalAllocation from "../payApps/approvalAllocation.js";
+import type * as payApps_billingHistory from "../payApps/billingHistory.js";
 import type * as payApps_proposalSync from "../payApps/proposalSync.js";
 import type * as payApps_proposals from "../payApps/proposals.js";
 import type * as payApps_review from "../payApps/review.js";
@@ -138,6 +140,8 @@ declare const fullApi: ApiFromModules<{
   "lib/roles": typeof lib_roles;
   "lib/testIdentity": typeof lib_testIdentity;
   llmRouter: typeof llmRouter;
+  "payApps/approvalAllocation": typeof payApps_approvalAllocation;
+  "payApps/billingHistory": typeof payApps_billingHistory;
   "payApps/proposalSync": typeof payApps_proposalSync;
   "payApps/proposals": typeof payApps_proposals;
   "payApps/review": typeof payApps_review;

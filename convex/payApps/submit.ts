@@ -10,6 +10,7 @@ import {
   WITHDRAWABLE_PAY_APP_STATUSES,
   type SovLineContext,
 } from "./validation";
+import { billingPayAppHistory } from "./billingHistory";
 
 const NOT_OWN_AGREEMENT = "Forbidden: you can only submit pay applications for your own agreements.";
 const NOT_OWN_PAY_APP = "Forbidden: you can only withdraw your own pay applications.";
@@ -29,11 +30,7 @@ async function sovContext(ctx: QueryCtx, agreementId: Id<"agreements">) {
     .query("scheduleOfValues")
     .withIndex("by_agreementId_and_lineNo", (q) => q.eq("agreementId", agreementId))
     .take(500);
-  const payApps = await ctx.db
-    .query("payApplications")
-    .withIndex("by_agreementId", (q) => q.eq("agreementId", agreementId))
-    .take(500);
-  const prior = priorBillingByLine(payApps);
+  const prior = priorBillingByLine(await billingPayAppHistory(ctx, agreementId));
   return sov.map((s) => {
     const p = prior.get(s._id) ?? { billedCents: 0, pctToDate: 0 };
     return {

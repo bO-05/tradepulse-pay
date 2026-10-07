@@ -409,3 +409,193 @@ describe("GC approval inbox", () => {
     expect(proposal).toMatchObject({ source: "gc_ledger", kind: "payout", status: "executed", decidedBy: s.gc.userId, amountCents: 50_000 });
   });
 });
+
+/** A follow-up pay app billing `cents` on SOV line b only. */
+function lineBArgs(s: Setup, cents: number) {
+  return {
+    agreementId: s.agreement._id,
+    periodLabel: `Follow-up ${cents}`,
+    lines: [{ sovLineId: s.sov[1]._id, pctCompleteThisPeriod: 1, pctCompleteToDate: 100, requestedCents: cents }],
+    notes: "",
+    lienWaiver: true,
+  };
+}
+
+describe("final approved allocation", () => {
+  test("a downward edit stores the final per-line split, keeps the recommendation, and frees the difference for later billing", async () => {
+    const s = await setup();
+    const payAppId = await submitAndRun(s);
+    const st = await state(s, payAppId);
+    const recommended = st.payApp.review!.lines.map((l) => ({ sovLineId: l.sovLineId, approvedCents: l.approvedCents }));
+    const recommendedB = recommended.find((l) => l.sovLineId === s.sov[1]._id)!.approvedCents;
+    const edited = Math.floor(st.payApp.review!.approvedTotalCents / 2) + 1;
+    await s.gc.as.mutation(api.payApps.proposals.editProposal, { proposalId: st.byKind("payout")!._id, amountCents: edited });
+    await s.gc.as.mutation(api.payApps.proposals.approveProposal, { proposalId: st.byKind("payout")!._id });
+    await s.t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    const after = await state(s, payAppId);
+    const final = after.payApp.finalApproval!;
+    expect(final).toMatchObject({ totalCents: edited, approvedBy: s.gc.userId });
+    expect(final.lines.reduce((a, l) => a + l.approvedCents, 0)).toBe(edited);
+    for (const l of final.lines) expect(Number.isSafeInteger(l.approvedCents)).toBe(true);
+    // The AI review's recommendation stays for audit.
+    expect(after.payApp.review!.lines.map((l) => ({ sovLineId: l.sovLineId, approvedCents: l.approvedCents }))).toEqual(recommended);
+    const finalB = final.lines.find((l) => l.sovLineId === s.sov[1]._id)!.approvedCents;
+    expect(finalB).toBeLessThan(recommendedB);
+    expect(after.payouts[0]).toMatchObject({ grossCents: edited });
+
+    const inbox = await s.gc.as.query(api.payApps.proposals.listInbox, {});
+    const view = inbox.find((i) => i.payApp._id === payAppId)!.payApp;
+    expect(view.finalApproval).toMatchObject({ totalCents: edited });
+    const viewB = view.lines.find((l) => l.sovLineId === s.sov[1]._id)!;
+    expect(viewB).toMatchObject({ finalApprovedCents: finalB, review: expect.objectContaining({ approvedCents: recommendedB }) });
+
+    const trueRemaining = s.sov[1].scheduledValueCents - finalB;
+    expect(await errorText(s.sub1.as.mutation(api.payApps.submit.submitPayApplication, lineBArgs(s, trueRemaining + 1)))).toMatch(
+      /exceeds the remaining scheduled value/,
+    );
+    const nextId = await s.sub1.as.mutation(api.payApps.submit.submitPayApplication, lineBArgs(s, trueRemaining));
+    expect(nextId).toBeTruthy();
+    // The next review sees the final approved cents as previously billed.
+    const inputs = await s.t.query(internal.payApps.review.loadReviewInputs, { payAppId: nextId });
+    const reviewB = inputs!.context.lines.find((l) => l.sovLineId === s.sov[1]._id)!;
+    expect(reviewB.previouslyBilledCents).toBe(finalB);
+    expect(inputs!.context.priorPayApps.find((p) => p.periodLabel === st.payApp.periodLabel)!.approvedTotalCents).toBe(edited);
+
+    const ledger = await s.gc.as.query(api.payments.ledger.getAgreementLedger, { agreementId: s.agreement._id });
+    expect(ledger!.totals.billedCents).toBe(edited);
+  });
+
+  test("an upward edit bills the edited per-line cents, so a later application cannot overbill", async () => {
+    const s = await setup();
+    const payAppId = await submitAndRun(s);
+    const st = await state(s, payAppId);
+    const requestedB = st.payApp.lines.find((l) => l.sovLineId === s.sov[1]._id)!.requestedCents;
+    const recommendedB = st.payApp.review!.lines.find((l) => l.sovLineId === s.sov[1]._id)!.approvedCents;
+    expect(recommendedB).toBeLessThan(requestedB);
+    await s.gc.as.mutation(api.payApps.proposals.editProposal, { proposalId: st.byKind("payout")!._id, amountCents: st.payApp.requestedTotalCents });
+    await s.gc.as.mutation(api.payApps.proposals.approveProposal, { proposalId: st.byKind("payout")!._id });
+
+    const after = await state(s, payAppId);
+    expect(after.payApp.finalApproval!.lines.find((l) => l.sovLineId === s.sov[1]._id)!.approvedCents).toBe(requestedB);
+    const trueRemaining = s.sov[1].scheduledValueCents - requestedB;
+    expect(await errorText(s.sub1.as.mutation(api.payApps.submit.submitPayApplication, lineBArgs(s, trueRemaining + 1)))).toMatch(
+      /exceeds the remaining scheduled value/,
+    );
+    await s.sub1.as.mutation(api.payApps.submit.submitPayApplication, lineBArgs(s, trueRemaining));
+  });
+
+  test("an edit beyond what the lines can still bill is refused", async () => {
+    const s = await setup();
+    const payAppId = await submitAndRun(s);
+    const st = await state(s, payAppId);
+    // Another approved pay app already billed most of line b, leaving less than this one requested.
+    await s.t.run(async (ctx) => {
+      await ctx.db.insert("payApplications", {
+        agreementId: s.agreement._id,
+        subUserId: s.sub1.userId,
+        periodLabel: "Earlier approved",
+        lines: [{ sovLineId: s.sov[1]._id, pctCompleteThisPeriod: 30, pctCompleteToDate: 30, requestedCents: 1 }],
+        requestedTotalCents: 1,
+        notes: "",
+        lienWaiver: true,
+        status: "approved",
+        submittedBy: { userId: s.sub1.userId, actorType: "human" },
+        finalApproval: {
+          totalCents: s.sov[1].scheduledValueCents - 100,
+          lines: [{ sovLineId: s.sov[1]._id, approvedCents: s.sov[1].scheduledValueCents - 100 }],
+          approvedBy: s.gc.userId,
+          approvedAt: Date.now(),
+        },
+        createdAt: Date.now(),
+      });
+    });
+    const requestedA = st.payApp.lines.find((l) => l.sovLineId === s.sov[0]._id)!.requestedCents;
+    expect(
+      await errorText(s.gc.as.mutation(api.payApps.proposals.editProposal, { proposalId: st.byKind("payout")!._id, amountCents: requestedA + 101 })),
+    ).toMatch(/can still bill/);
+    await s.gc.as.mutation(api.payApps.proposals.editProposal, { proposalId: st.byKind("payout")!._id, amountCents: requestedA + 100 });
+  });
+});
+
+describe("rejection finalizes the pay app", () => {
+  test("rejecting the capture/payout pair rejects the pay app, releases its billing and shows the reason to the sub", async () => {
+    const s = await setup();
+    const payAppId = await submitAndRun(s);
+    const st = await state(s, payAppId);
+    const requestedB = st.payApp.lines.find((l) => l.sovLineId === s.sov[1]._id)!.requestedCents;
+    const res = await s.gc.as.mutation(api.payApps.proposals.rejectProposal, { proposalId: st.byKind("capture")!._id, reason: "Line 2 is not installed yet." });
+    expect(res).toEqual({ rejected: 2, payAppRejected: true });
+    const after = await state(s, payAppId);
+    expect(after.payApp).toMatchObject({ status: "rejected", rejectionReason: "Line 2 is not installed yet." });
+    expect(after.payApp.rejectedAt).toBeGreaterThan(0);
+    for (const p of after.proposals) expect(p).toMatchObject({ status: "rejected", decidedBy: s.gc.userId });
+    expect(after.payouts).toHaveLength(0);
+    expect(fake.moneyCalls()).toHaveLength(0);
+
+    const portal = await s.sub1.as.query(api.portal.mySubPortal, {});
+    expect(portal.payApplications.find((p) => p._id === payAppId)).toMatchObject({ status: "rejected", rejectionReason: "Line 2 is not installed yet." });
+    // The rejected request no longer reserves line b.
+    await s.sub1.as.mutation(api.payApps.submit.submitPayApplication, lineBArgs(s, s.sov[1].scheduledValueCents));
+    expect(requestedB).toBeGreaterThan(0);
+  });
+
+  test("hold path: the pay app stays reviewed while a proposal is pending, then is rejected when the last one is rejected", async () => {
+    const s = await setup({ license: "expired" });
+    const payAppId = await submitAndRun(s);
+    const st = await state(s, payAppId);
+    expect(st.byKind("hold")!.status).toBe("pending");
+    const first = await s.gc.as.mutation(api.payApps.proposals.rejectProposal, { proposalId: st.byKind("payout")!._id });
+    expect(first).toEqual({ rejected: 2, payAppRejected: false });
+    expect((await state(s, payAppId)).payApp.status).toBe("reviewed");
+    const second = await s.gc.as.mutation(api.payApps.proposals.rejectProposal, { proposalId: st.byKind("hold")!._id });
+    expect(second).toEqual({ rejected: 1, payAppRejected: true });
+    const after = await state(s, payAppId);
+    expect(after.payApp).toMatchObject({ status: "rejected", rejectionReason: "The GC rejected the hold proposal." });
+    const portal = await s.sub1.as.query(api.portal.mySubPortal, {});
+    expect(portal.payApplications.find((p) => p._id === payAppId)).toMatchObject({ status: "rejected", rejectionReason: "The GC rejected the hold proposal." });
+    expect(fake.moneyCalls()).toHaveLength(0);
+  });
+
+  test("hold path: rejecting the hold first keeps the pay app open for the pending pair, and rejecting the pair finalizes it", async () => {
+    const s = await setup({ license: "expired" });
+    const payAppId = await submitAndRun(s);
+    const st = await state(s, payAppId);
+    expect((await s.gc.as.mutation(api.payApps.proposals.rejectProposal, { proposalId: st.byKind("hold")!._id })).payAppRejected).toBe(false);
+    expect((await s.gc.as.mutation(api.payApps.proposals.rejectProposal, { proposalId: st.byKind("payout")!._id })).payAppRejected).toBe(true);
+    expect((await state(s, payAppId)).payApp.status).toBe("rejected");
+  });
+
+  test("reschedule path: rejecting the pair, then accepting the reschedule, finalizes the pay app without payment", async () => {
+    const s = await setup();
+    const payAppId = await submitAndRun(s);
+    const st = await state(s, payAppId);
+    const rescheduleId = await s.t.run(async (ctx) =>
+      ctx.db.insert("agentProposals", {
+        payAppId,
+        agreementId: s.agreement._id,
+        kind: "reschedule",
+        rationale: "Line 2 billed ahead of its milestone.",
+        flags: [],
+        status: "pending",
+        source: "agent",
+        agentRunId: st.byKind("payout")!.agentRunId,
+        createdAt: Date.now(),
+      }),
+    );
+    expect((await s.gc.as.mutation(api.payApps.proposals.rejectProposal, { proposalId: st.byKind("payout")!._id })).payAppRejected).toBe(false);
+    await s.gc.as.mutation(api.payApps.proposals.approveProposal, { proposalId: rescheduleId });
+    const after = await state(s, payAppId);
+    expect(after.payApp).toMatchObject({ status: "rejected", rejectionReason: "The GC accepted the reschedule; no payment was approved." });
+    expect(after.payouts).toHaveLength(0);
+  });
+
+  test("rejecting the remaining hold after the pair was approved leaves the pay app approved", async () => {
+    const s = await setup({ license: "expired" });
+    const payAppId = await submitAndRun(s);
+    const st = await state(s, payAppId);
+    await s.gc.as.mutation(api.payApps.proposals.approveProposal, { proposalId: st.byKind("payout")!._id, overrideLicenseHold: true });
+    expect((await s.gc.as.mutation(api.payApps.proposals.rejectProposal, { proposalId: st.byKind("hold")!._id })).payAppRejected).toBe(false);
+    expect((await state(s, payAppId)).payApp.status).toBe("approved");
+  });
+});

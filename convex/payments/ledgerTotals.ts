@@ -1,10 +1,12 @@
 import { sumCents } from "../lib/money";
 import { attemptsFor } from "./payoutRetryMath";
+import { approvedTotalFor } from "../payApps/validation";
 
 export type LedgerPayApp = {
   status: string;
   requestedTotalCents: number;
   review?: { approvedTotalCents: number } | null;
+  finalApproval?: { totalCents: number } | null;
 };
 export type LedgerPayment = {
   _id?: string;
@@ -47,7 +49,7 @@ const OPEN_AUTHORIZATION_STATUSES = new Set(["authorized", "partially_captured"]
 const VOID_CAPTURE_STATUSES = new Set(["DENIED", "DECLINED", "FAILED"]);
 
 /**
- * Billed = approved pay applications (approved amount when reviewed); funded = open authorization
+ * Billed = approved pay applications (final GC-approved amount, else the review's); funded = open authorization
  * remainders; captured = recorded captures; paid = net of successful payouts and retainage releases;
  * retainage held = ledger balance; balance = contract sum − (paid + retainage held).
  */
@@ -61,7 +63,7 @@ export function computeLedgerTotals(input: {
   const billedCents = sumCents(
     input.payApps
       .filter((p) => BILLED_PAY_APP_STATUSES.has(p.status))
-      .map((p) => p.review?.approvedTotalCents ?? p.requestedTotalCents),
+      .map(approvedTotalFor),
   );
   const funding = input.payments.filter((p) => p.kind === "funding");
   const fundedCents = sumCents(

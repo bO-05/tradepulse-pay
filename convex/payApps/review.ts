@@ -6,6 +6,7 @@ import { requireRole, requireRoleInAction } from "../lib/roles";
 import { formatCents } from "../lib/money";
 import { payAppReviewValidator } from "../schema";
 import { latestCompletedCheck } from "../kernel/licenseChecks";
+import { billingPayAppHistory } from "./billingHistory";
 import { buildReviewContext } from "./reviewContext";
 import type { ReviewContext } from "./reviewMath";
 import { runPayAppReview, type ReviewRun } from "./reviewModel";
@@ -39,10 +40,7 @@ export const loadReviewInputs = internalQuery({
       .query("milestones")
       .withIndex("by_agreementId_and_order", (q) => q.eq("agreementId", agreement._id))
       .take(50);
-    const agreementPayApps = await ctx.db
-      .query("payApplications")
-      .withIndex("by_agreementId", (q) => q.eq("agreementId", agreement._id))
-      .take(500);
+    const agreementPayApps = await billingPayAppHistory(ctx, agreement._id);
     const license = await latestCompletedCheck(ctx, agreement.contractorId);
     return {
       context: buildReviewContext({ payApp, agreement, sov, milestones, agreementPayApps, license }),
@@ -227,6 +225,7 @@ export const normalizePayAppId = internalQuery({
 /** A pay application with line details and its stored review, as the GC sees it. */
 export async function payAppView(ctx: QueryCtx, p: Doc<"payApplications">, sovById: Map<string, Doc<"scheduleOfValues">>) {
   const reviewLines = new Map((p.review?.lines ?? []).map((l) => [l.sovLineId as string, l]));
+  const finalLines = new Map((p.finalApproval?.lines ?? []).map((l) => [l.sovLineId as string, l.approvedCents]));
   const submitter = p.submittedBy.actorType === "human" ? await ctx.db.get(p.submittedBy.userId) : null;
   return {
     _id: p._id,
@@ -237,6 +236,9 @@ export async function payAppView(ctx: QueryCtx, p: Doc<"payApplications">, sovBy
     lienWaiver: p.lienWaiver,
     notes: p.notes,
     createdAt: p.createdAt,
+    finalApproval: p.finalApproval ? { totalCents: p.finalApproval.totalCents, approvedAt: p.finalApproval.approvedAt } : null,
+    rejectedAt: p.rejectedAt ?? null,
+    rejectionReason: p.rejectionReason ?? null,
     submittedBy: {
       actorType: p.submittedBy.actorType,
       agentEmail: p.submittedBy.agentEmail ?? null,
@@ -255,6 +257,7 @@ export async function payAppView(ctx: QueryCtx, p: Doc<"payApplications">, sovBy
         pctCompleteThisPeriod: l.pctCompleteThisPeriod,
         pctCompleteToDate: l.pctCompleteToDate,
         requestedCents: l.requestedCents,
+        finalApprovedCents: finalLines.get(l.sovLineId) ?? null,
         review: r
           ? { verdict: r.verdict, recommendedPctToDate: r.recommendedPctToDate, approvedCents: r.approvedCents, reason: r.reason }
           : null,
