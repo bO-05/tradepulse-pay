@@ -6,6 +6,7 @@ import { components, internal } from "./_generated/api";
 import { getRealDocumentPdfBytes } from "./realDocuments";
 import { auth } from "./auth";
 import { paypalWebhook } from "./payments/webhook";
+import { studioPreflight, studioProxy } from "./dashboard/studioProxy";
 
 const http = httpRouter();
 
@@ -19,6 +20,10 @@ http.route({
   method: "POST",
   handler: paypalWebhook,
 });
+
+// AG Studio chat LLM proxy: requires the Convex Auth token (GC or owner); the Anthropic key stays server-side.
+http.route({ path: "/ai/studio", method: "POST", handler: studioProxy });
+http.route({ path: "/ai/studio", method: "OPTIONS", handler: studioPreflight });
 
 // Inbound AgentMail Webhook. Never mutate procurement records without Svix verification.
 http.route({

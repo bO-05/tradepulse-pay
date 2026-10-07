@@ -386,14 +386,30 @@ describe("static guard sweep over convex/**", () => {
     expect(fns.filter((f) => !GUARD.test(f.body)).map((f) => f.name)).toEqual([]);
   });
 
-  test("the only exported httpAction is the PayPal webhook, which verifies the signature before any write", () => {
+  test("exported httpActions are the PayPal webhook (signature verified before any write) and the auth-gated Studio AI proxy", () => {
     const http = publicExports().filter((f) => f.kind === "httpAction");
-    expect(http.map((f) => f.name)).toEqual(["payments/webhook:paypalWebhook"]);
-    const body = http[0].body;
-    const verifyAt = body.search(/verif/i);
-    const writeAt = body.search(/runMutation|runAction/);
+    expect(http.map((f) => f.name).sort()).toEqual([
+      "dashboard/studioProxy:studioPreflight",
+      "dashboard/studioProxy:studioProxy",
+      "payments/webhook:paypalWebhook",
+    ]);
+    const byName = new Map(http.map((f) => [f.name, f.body]));
+
+    const webhook = byName.get("payments/webhook:paypalWebhook")!;
+    const verifyAt = webhook.search(/verif/i);
+    const writeAt = webhook.search(/runMutation|runAction/);
     expect(verifyAt).toBeGreaterThan(-1);
     expect(writeAt === -1 || verifyAt < writeAt).toBe(true);
+
+    const proxy = byName.get("dashboard/studioProxy:studioProxy")!;
+    const identityAt = proxy.search(/getUserIdentity/);
+    const roleAt = proxy.search(/requireRoleForAction/);
+    const fetchAt = proxy.search(/\bfetch\(/);
+    expect(identityAt).toBeGreaterThan(-1);
+    expect(roleAt).toBeGreaterThan(identityAt);
+    expect(fetchAt).toBeGreaterThan(roleAt);
+    expect(proxy).not.toMatch(/runMutation|runAction/);
+    expect(byName.get("dashboard/studioProxy:studioPreflight")!).not.toMatch(/runQuery|runMutation|runAction|fetch\(/);
   });
 
   test("seed and test-only helpers are internal functions", () => {

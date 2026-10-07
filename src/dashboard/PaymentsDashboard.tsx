@@ -1,11 +1,14 @@
-import { useQuery } from "convex/react";
-import { useMemo, useState } from "react";
-import { AgStudioAiModule, enableStudioDevValidations } from "ag-studio";
+import { useAuthToken } from "@convex-dev/auth/react";
+import { useConvex, useQuery } from "convex/react";
+import { useMemo, useRef, useState } from "react";
+import { AgStudioAiModule, enableStudioDevValidations, type AgAiHarnessSetup } from "ag-studio";
 import { AgStudio, AgStudioProvider } from "ag-studio-react";
 import { api } from "../../convex/_generated/api";
 import { formatCents } from "../../convex/lib/money";
+import { createTradePulseHarness } from "./aiHarness";
 import { buildDashboardData, dashboardTotals } from "./dataSources";
 import { DASHBOARD_INITIAL_STATE } from "./layout";
+import { createConvexStudioAdapter, studioProxyUrl } from "./studioAdapter";
 import { StudioIsland } from "./StudioIsland";
 import { tradePulseStudioTheme } from "./theme";
 import { dashboardWidgets, type DashboardRegistry } from "./widgets";
@@ -23,6 +26,22 @@ export default function PaymentsDashboard() {
   const data = useMemo(() => (raw ? buildDashboardData(raw) : undefined), [raw]);
   const totals = useMemo(() => (raw ? dashboardTotals(raw) : undefined), [raw]);
   const [editing, setEditing] = useState(false);
+  const convex = useConvex();
+  const token = useAuthToken();
+  const tokenRef = useRef(token);
+  tokenRef.current = token;
+  // Built once: Studio would rebuild the harness (and drop the open chat) on a new `ai` value.
+  const ai = useMemo<AgAiHarnessSetup>(() => {
+    const adapter = createConvexStudioAdapter({
+      url: studioProxyUrl({
+        VITE_CONVEX_SITE_URL: import.meta.env.VITE_CONVEX_SITE_URL as string | undefined,
+        VITE_CONVEX_URL: import.meta.env.VITE_CONVEX_URL as string | undefined,
+      }),
+      getToken: () => tokenRef.current,
+    });
+    const loadPaySummary = () => convex.query(api.dashboard.payAgent.getPaySummary, {});
+    return (params) => createTradePulseHarness(params, { adapter, loadPaySummary });
+  }, [convex]);
 
   if (raw === undefined || data === undefined || totals === undefined) {
     return <p className="text-sm text-slate-400">Loading dashboard…</p>;
@@ -71,6 +90,7 @@ export default function PaymentsDashboard() {
               theme={tradePulseStudioTheme}
               widgets={dashboardWidgets}
               initialState={DASHBOARD_INITIAL_STATE}
+              ai={ai}
             />
           </div>
         </AgStudioProvider>
