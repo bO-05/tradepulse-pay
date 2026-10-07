@@ -498,13 +498,23 @@ export default defineSchema({
 
   // Live Reactive Activity Audit Stream
   auditLogs: defineTable({
-    projectId: v.id("projects"),
+    // Optional because some PayPal writes (e.g. webhook signature checks) happen before a project is known.
+    projectId: v.optional(v.id("projects")),
     tradePackageId: v.optional(v.id("tradePackages")),
-    eventType: v.string(), // "rfq_dispatched" | "rfi_clarified" | "quote_received" | "bid_leveled" | "contract_awarded" | "file_uploaded" | "compliance_audit" | "cron_executed"
+    eventType: v.string(), // "rfq_dispatched" | "rfi_clarified" | "quote_received" | "bid_leveled" | "contract_awarded" | "file_uploaded" | "compliance_audit" | "cron_executed" | "paypal_write"
     title: v.string(),
     description: v.string(),
     actor: v.string(),
     timestamp: v.number(),
+    // PayPal write metadata (never tokens, secrets or request bodies).
+    operation: v.optional(v.string()),
+    httpMethod: v.optional(v.string()),
+    httpStatus: v.optional(v.number()),
+    paypalRequestId: v.optional(v.string()),
+    paypalDebugId: v.optional(v.string()),
+    paypalResourceId: v.optional(v.string()),
+    attempts: v.optional(v.number()),
+    agreementId: v.optional(v.id("agreements")),
   })
     .index("by_project", ["projectId"])
     .index("by_package", ["tradePackageId"])
