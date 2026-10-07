@@ -37,6 +37,8 @@ export type PayPalAuditEntry = {
   paypalDebugId?: string;
   resourceId?: string;
   errorName?: string;
+  /** "indeterminate": no readable response arrived, so PayPal may or may not have applied the write. */
+  outcome?: "succeeded" | "failed" | "indeterminate";
   via: "rest" | "sdk";
 };
 export type PayPalAuditSink = (entry: PayPalAuditEntry) => Promise<void> | void;
@@ -70,6 +72,8 @@ export type PayPalResponse<T> = {
   data: T;
   requestId?: string;
   debugId?: string;
+  /** Set on writes: false when the auditLogs entry could not be persisted (the PayPal result is still valid). */
+  auditRecorded?: boolean;
 };
 
 export type PayPalErrorData = {
@@ -80,7 +84,38 @@ export type PayPalErrorData = {
   issues: string[];
   debugId?: string;
   message: string;
+  paypalRequestId?: string;
+  auditRecorded?: boolean;
 };
+
+/** Raised when no readable PayPal response arrived. For writes, retry with the same `paypalRequestId`. */
+export type PayPalNetworkErrorData = {
+  code: "PAYPAL_NETWORK_ERROR";
+  operation: string;
+  attempts: number;
+  errorClass: string;
+  message: string;
+  paypalRequestId?: string;
+  auditRecorded?: boolean;
+};
+
+function errorClassOf(e: unknown): string {
+  return e instanceof Error ? e.name : typeof e;
+}
+
+function networkError(operation: string, attempts: number, cause: unknown, what: string): ConvexError<PayPalNetworkErrorData> {
+  return new ConvexError<PayPalNetworkErrorData>({
+    code: "PAYPAL_NETWORK_ERROR",
+    operation,
+    attempts,
+    errorClass: errorClassOf(cause),
+    message: `PayPal ${operation} failed: ${what} after ${attempts} attempt${attempts === 1 ? "" : "s"} (${cause instanceof Error ? cause.message : "unknown error"}).`,
+  });
+}
+
+function isNetworkError(e: unknown): e is ConvexError<PayPalNetworkErrorData> {
+  return e instanceof ConvexError && (e.data as { code?: unknown } | undefined)?.code === "PAYPAL_NETWORK_ERROR";
+}
 
 type CachedToken = { accessToken: string; refreshAtMs: number };
 
@@ -185,6 +220,10 @@ export async function withPayPalErrors<T>(operation: string, call: () => Promise
       let body: unknown = e.result;
       if (body === undefined && typeof e.body === "string") body = parseJson(e.body);
       throw payPalError(operation, e.statusCode, body, headerValue(e.headers, "paypal-debug-id"));
+    }
+    // The SDK's HTTP layer wraps errors thrown by sdkFetch; surface the original readable ConvexError.
+    for (let c: unknown = e, depth = 0; c instanceof Error && depth < 5; c = (c as { cause?: unknown }).cause, depth++) {
+      if (isNetworkError(c)) throw c;
     }
     throw e;
   }
@@ -302,9 +341,15 @@ export class PayPalClient {
   /**
    * Sends one logical request, retrying 429/5xx and network errors with exponential backoff
    * (at most MAX_ATTEMPTS sends). The same idempotency key is reused on every attempt.
+   * `onUnauthorized` (one token refresh after a 401) consumes an attempt from the same budget.
    */
-  private async sendWithBackoff(operation: string, send: () => Promise<Response>): Promise<{ response: Response; attempts: number }> {
+  private async sendWithBackoff(
+    operation: string,
+    send: () => Promise<Response>,
+    onUnauthorized?: () => Promise<void>,
+  ): Promise<{ response: Response; attempts: number }> {
     let lastNetworkError: unknown;
+    let refreshed = false;
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       let response: Response | undefined;
       try {
@@ -312,6 +357,12 @@ export class PayPalClient {
         lastNetworkError = undefined;
       } catch (e) {
         lastNetworkError = e;
+      }
+      if (response?.status === 401 && onUnauthorized && !refreshed && attempt < MAX_ATTEMPTS) {
+        refreshed = true;
+        await response.text().catch(() => undefined);
+        await onUnauthorized();
+        continue;
       }
       const retryable = response === undefined || isRetryable(response.status);
       if (!retryable || attempt === MAX_ATTEMPTS) {
@@ -327,21 +378,50 @@ export class PayPalClient {
       await response?.text().catch(() => undefined);
       await this.sleep(delay);
     }
-    throw new ConvexError({
-      code: "PAYPAL_NETWORK_ERROR",
-      operation,
-      message: `PayPal ${operation} failed: network error after ${MAX_ATTEMPTS} attempts (${lastNetworkError instanceof Error ? lastNetworkError.message : "unknown error"}).`,
-    });
+    throw networkError(operation, MAX_ATTEMPTS, lastNetworkError, "network error");
   }
 
-  private async recordAudit(entry: PayPalAuditEntry): Promise<void> {
-    if (!this.audit) return;
-    try {
-      await this.audit(entry);
-    } catch (e) {
-      // The PayPal write already happened; losing the audit row must not turn it into a reported failure.
-      console.error(`PayPal audit write failed for ${entry.operation} (${entry.paypalRequestId ?? "no request id"}):`, e instanceof Error ? e.message : e);
+  /**
+   * Audit entries whose auditLogs write failed even after one retry. The PayPal results they describe are
+   * still valid; callers can persist these elsewhere (SDK calls have no result object to flag).
+   */
+  readonly unrecordedAudits: PayPalAuditEntry[] = [];
+
+  /** Persists one audit entry, retrying once. Never throws: the PayPal outcome must not be masked or repeated. */
+  private async recordAudit(entry: PayPalAuditEntry): Promise<boolean> {
+    if (!this.audit) return false;
+    let lastError: unknown;
+    for (let i = 0; i < 2; i++) {
+      try {
+        await this.audit(entry);
+        return true;
+      } catch (e) {
+        lastError = e;
+      }
     }
+    this.unrecordedAudits.push(entry);
+    console.error(
+      `PayPal audit not recorded: operation=${entry.operation} PayPal-Request-Id=${entry.paypalRequestId ?? "none"} ` +
+        `resource=${entry.resourceId ?? "none"} status=${entry.status} outcome=${entry.outcome ?? (entry.ok ? "succeeded" : "failed")} ` +
+        `error=${errorClassOf(lastError)}`,
+    );
+    return false;
+  }
+
+  /** Audits a write that got no readable response, then returns the error to throw (carrying the request id for a safe retry). */
+  private async indeterminateWrite(
+    e: ConvexError<PayPalNetworkErrorData>,
+    base: Pick<PayPalAuditEntry, "operation" | "method" | "path" | "via"> & { paypalRequestId?: string },
+  ): Promise<ConvexError<PayPalNetworkErrorData>> {
+    const auditRecorded = await this.recordAudit({
+      ...base,
+      status: 0,
+      ok: false,
+      attempts: e.data.attempts,
+      errorName: e.data.errorClass,
+      outcome: "indeterminate",
+    });
+    return new ConvexError<PayPalNetworkErrorData>({ ...e.data, paypalRequestId: base.paypalRequestId, auditRecorded });
   }
 
   /** REST helper for endpoints the Server SDK does not cover (Payouts, Invoicing, webhook verification). */
@@ -353,37 +433,47 @@ export class PayPalClient {
     for (const [k, val] of Object.entries(req.query ?? {})) if (val !== undefined) url.searchParams.set(k, String(val));
     const payload = req.body === undefined ? undefined : JSON.stringify(req.body);
 
-    const sendOnce = async (accessToken: string) =>
-      this.sendWithBackoff(operation, () =>
-        this.fetchImpl(url.toString(), {
-          method: req.method,
-          headers: {
-            ...req.headers,
-            Authorization: `Bearer ${accessToken}`,
-            Accept: "application/json",
-            ...(payload !== undefined ? { "Content-Type": "application/json" } : {}),
-            ...(requestId ? { "PayPal-Request-Id": requestId } : {}),
-          },
-          body: payload,
-        }),
-      );
-
     let token = await this.getAccessToken();
-    let { response, attempts } = await sendOnce(token);
-    if (response.status === 401) {
-      await response.text().catch(() => undefined);
-      this.invalidateToken(token);
-      token = await this.getAccessToken();
-      const retry = await sendOnce(token);
-      response = retry.response;
-      attempts += retry.attempts;
+    const auditBase = { operation, method: req.method, path: url.pathname, paypalRequestId: requestId, via: "rest" as const };
+
+    let response: Response;
+    let attempts: number;
+    let body: unknown;
+    try {
+      ({ response, attempts } = await this.sendWithBackoff(
+        operation,
+        () =>
+          this.fetchImpl(url.toString(), {
+            method: req.method,
+            headers: {
+              ...req.headers,
+              Authorization: `Bearer ${token}`,
+              Accept: "application/json",
+              ...(payload !== undefined ? { "Content-Type": "application/json" } : {}),
+              ...(requestId ? { "PayPal-Request-Id": requestId } : {}),
+            },
+            body: payload,
+          }),
+        async () => {
+          this.invalidateToken(token);
+          token = await this.getAccessToken();
+        },
+      ));
+      try {
+        body = parseJson(await response.text());
+      } catch (e) {
+        throw networkError(operation, attempts, e, "response body could not be read");
+      }
+    } catch (e) {
+      if (isWrite && isNetworkError(e)) throw await this.indeterminateWrite(e, auditBase);
+      throw e;
     }
 
-    const body = parseJson(await response.text());
     const debugId = response.headers.get("paypal-debug-id") ?? undefined;
     const error = response.ok ? undefined : payPalError(operation, response.status, body, debugId);
+    let auditRecorded: boolean | undefined;
     if (isWrite) {
-      await this.recordAudit({
+      auditRecorded = await this.recordAudit({
         operation,
         method: req.method,
         path: url.pathname,
@@ -394,11 +484,15 @@ export class PayPalClient {
         paypalDebugId: debugId,
         resourceId: response.ok ? resourceIdFrom(body) : undefined,
         errorName: error?.data.name,
+        outcome: response.ok ? "succeeded" : "failed",
         via: "rest",
       });
     }
-    if (error) throw error;
-    return { status: response.status, data: body as T, requestId, debugId };
+    if (error) {
+      if (isWrite) throw new ConvexError<PayPalErrorData>({ ...error.data, paypalRequestId: requestId, auditRecorded });
+      throw error;
+    }
+    return { status: response.status, data: body as T, requestId, debugId, ...(isWrite ? { auditRecorded } : {}) };
   }
 
   /** Fetch used by the Server SDK: adds PayPal-Request-Id to writes that lack one, applies backoff and audits writes. */
@@ -413,26 +507,40 @@ export class PayPalClient {
     const path = new URL(original.url).pathname;
     const operation = operationFor(method, path);
 
-    const { response, attempts } = await this.sendWithBackoff(operation, () =>
-      this.fetchImpl(original.url, { method, headers, body: bodyText === "" ? undefined : bodyText }),
-    );
-    if (isWrite) {
-      const parsed = parseJson(await response.clone().text());
-      await this.recordAudit({
-        operation,
-        method,
-        path,
-        status: response.status,
-        ok: response.ok,
-        attempts,
-        paypalRequestId: requestId,
-        paypalDebugId: response.headers.get("paypal-debug-id") ?? undefined,
-        resourceId: response.ok ? resourceIdFrom(parsed) : undefined,
-        errorName: response.ok ? undefined : payPalError(operation, response.status, parsed).data.name,
-        via: "sdk",
-      });
+    const send = () => this.fetchImpl(original.url, { method, headers, body: bodyText === "" ? undefined : bodyText });
+    if (!isWrite) return (await this.sendWithBackoff(operation, send)).response;
+
+    let response: Response;
+    let attempts: number;
+    let text: string;
+    try {
+      ({ response, attempts } = await this.sendWithBackoff(operation, send));
+      try {
+        text = await response.text();
+      } catch (e) {
+        throw networkError(operation, attempts, e, "response body could not be read");
+      }
+    } catch (e) {
+      if (isNetworkError(e)) throw await this.indeterminateWrite(e, { operation, method, path, paypalRequestId: requestId, via: "sdk" });
+      throw e;
     }
-    return response;
+    const parsed = parseJson(text);
+    await this.recordAudit({
+      operation,
+      method,
+      path,
+      status: response.status,
+      ok: response.ok,
+      attempts,
+      paypalRequestId: requestId,
+      paypalDebugId: response.headers.get("paypal-debug-id") ?? undefined,
+      resourceId: response.ok ? resourceIdFrom(parsed) : undefined,
+      errorName: response.ok ? undefined : payPalError(operation, response.status, parsed).data.name,
+      outcome: response.ok ? "succeeded" : "failed",
+      via: "sdk",
+    });
+    // The body was consumed above, so hand the SDK an equivalent response.
+    return new Response(text.length > 0 ? text : null, { status: response.status, statusText: response.statusText, headers: response.headers });
   };
 
   /**

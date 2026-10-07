@@ -449,3 +449,287 @@ describe("operationFor", () => {
     expect(operationFor(method, path)).toBe(op);
   });
 });
+
+type NetworkErrorData = {
+  code: string;
+  attempts: number;
+  errorClass: string;
+  paypalRequestId?: string;
+  auditRecorded?: boolean;
+  message: string;
+};
+
+/** Client whose audit sink fails the first `failures` calls (Infinity = always). */
+function clientWithFlakyAudit(fetchImpl: ReturnType<typeof fakePayPal>["fetchImpl"] | ((input: string | URL | Request, init?: RequestInit) => Promise<Response>), failures: number) {
+  const audits: PayPalAuditEntry[] = [];
+  const sleeps: number[] = [];
+  let calls = 0;
+  const client = createPayPalClient({
+    clientId: CLIENT_ID,
+    clientSecret: CLIENT_SECRET,
+    fetch: fetchImpl,
+    sleep: async (ms) => void sleeps.push(ms),
+    audit: async (entry) => {
+      calls++;
+      if (calls <= failures) throw new Error("auditLogs insert failed");
+      audits.push(entry);
+    },
+  });
+  return { client, audits, sleeps, auditCalls: () => calls };
+}
+
+function networkDownFetch() {
+  const apiCalls: Recorded[] = [];
+  const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+    const req = new Request(input, init);
+    if (req.url.endsWith("/v1/oauth2/token")) return json(200, { access_token: TOKEN_A, expires_in: 32400 });
+    apiCalls.push({ url: req.url, method: req.method, headers: Object.fromEntries(req.headers), body: await req.text() });
+    throw new TypeError("fetch failed");
+  });
+  return { fetchImpl, apiCalls };
+}
+
+function brokenBody(status: number): Response {
+  const stream = new ReadableStream({
+    start(c) {
+      c.error(new TypeError("terminated"));
+    },
+  });
+  return new Response(stream, { status, headers: { "content-type": "application/json" } });
+}
+
+describe("audit persistence failures", () => {
+  test("REST: a sink that rejects once is retried; one audit row and the PayPal result are returned", async () => {
+    const fake = fakePayPal({ responders: [() => json(201, { id: "BATCH-1" })] });
+    const { client, audits } = clientWithFlakyAudit(fake.fetchImpl, 1);
+    const res = await client.request<{ id: string }>({ method: "POST", path: "/v1/payments/payouts", requestId: "po_1" });
+    expect(res.data.id).toBe("BATCH-1");
+    expect(res.auditRecorded).toBe(true);
+    expect(audits).toHaveLength(1);
+    expect(audits[0]).toMatchObject({ paypalRequestId: "po_1", outcome: "succeeded" });
+    expect(fake.apiCalls).toHaveLength(1);
+    expect(client.unrecordedAudits).toHaveLength(0);
+  });
+
+  test("REST: a sink that always rejects returns the result with auditRecorded false and no second send", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const fake = fakePayPal({ responders: [() => json(201, { id: "BATCH-2" })] });
+      const { client, audits, auditCalls } = clientWithFlakyAudit(fake.fetchImpl, Infinity);
+      const res = await client.request<{ id: string }>({ method: "POST", path: "/v1/payments/payouts", requestId: "po_2" });
+      expect(res.status).toBe(201);
+      expect(res.data.id).toBe("BATCH-2");
+      expect(res.auditRecorded).toBe(false);
+      expect(fake.apiCalls).toHaveLength(1);
+      expect(audits).toHaveLength(0);
+      expect(auditCalls()).toBe(2);
+      expect(client.unrecordedAudits).toEqual([expect.objectContaining({ paypalRequestId: "po_2", resourceId: "BATCH-2" })]);
+      const logged = errSpy.mock.calls.map((c) => c.join(" ")).join("\n");
+      expect(logged).toContain("paypal.payouts.create");
+      expect(logged).toContain("po_2");
+      expect(logged).toContain("BATCH-2");
+      expect(logged).toContain("status=201");
+      for (const secret of [TOKEN_A, CLIENT_SECRET, CLIENT_ID]) expect(logged).not.toContain(secret);
+    } finally {
+      errSpy.mockRestore();
+    }
+  });
+
+  test("SDK: a sink that rejects once is retried; one audit row and the SDK result are returned", async () => {
+    const fake = fakePayPal({ responders: [() => json(201, { id: "ORDER-5", status: "COMPLETED" })] });
+    const { client, audits } = clientWithFlakyAudit(fake.fetchImpl, 1);
+    const res = await client.sdk().orders.authorizeOrder({ id: "ORDER-5", paypalRequestId: "fund_5" });
+    expect(res.result.id).toBe("ORDER-5");
+    expect(audits).toHaveLength(1);
+    expect(audits[0]).toMatchObject({ via: "sdk", paypalRequestId: "fund_5", resourceId: "ORDER-5" });
+    expect(fake.apiCalls).toHaveLength(1);
+  });
+
+  test("SDK: a sink that always rejects still returns the result, records it as unrecorded, and sends once", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const fake = fakePayPal({ responders: [() => json(201, { id: "ORDER-6", status: "COMPLETED" })] });
+      const { client, audits } = clientWithFlakyAudit(fake.fetchImpl, Infinity);
+      const res = await client.sdk().orders.authorizeOrder({ id: "ORDER-6", paypalRequestId: "fund_6" });
+      expect(res.result.status).toBe("COMPLETED");
+      expect(fake.apiCalls).toHaveLength(1);
+      expect(audits).toHaveLength(0);
+      expect(client.unrecordedAudits).toEqual([expect.objectContaining({ via: "sdk", paypalRequestId: "fund_6" })]);
+      expect(errSpy).toHaveBeenCalled();
+    } finally {
+      errSpy.mockRestore();
+    }
+  });
+});
+
+describe("indeterminate writes", () => {
+  test("REST POST network failure x3: 3 sends, one indeterminate audit, readable ConvexError with the request id", async () => {
+    const net = networkDownFetch();
+    const { client, audits } = clientWithFlakyAudit(net.fetchImpl, 0);
+    const err = await catchError(client.request({ method: "POST", path: "/v1/payments/payouts", requestId: "po_net" }));
+
+    expect(net.apiCalls).toHaveLength(MAX_ATTEMPTS);
+    expect(new Set(net.apiCalls.map((c) => c.headers["paypal-request-id"]))).toEqual(new Set(["po_net"]));
+    expect(audits).toEqual([
+      expect.objectContaining({
+        operation: "paypal.payouts.create",
+        outcome: "indeterminate",
+        ok: false,
+        status: 0,
+        attempts: 3,
+        paypalRequestId: "po_net",
+        errorName: "TypeError",
+        via: "rest",
+      }),
+    ]);
+    expect(JSON.stringify(audits)).not.toContain(TOKEN_A);
+    expect(err).toBeInstanceOf(ConvexError);
+    expect((err as ConvexError<NetworkErrorData>).data).toMatchObject({
+      code: "PAYPAL_NETWORK_ERROR",
+      attempts: 3,
+      paypalRequestId: "po_net",
+      auditRecorded: true,
+      message: expect.stringContaining("network error after 3 attempts"),
+    });
+
+    // A caller retry with the returned request id reuses the same PayPal-Request-Id.
+    const retryId = (err as ConvexError<NetworkErrorData>).data.paypalRequestId;
+    await catchError(client.request({ method: "POST", path: "/v1/payments/payouts", requestId: retryId }));
+    expect(new Set(net.apiCalls.map((c) => c.headers["paypal-request-id"]))).toEqual(new Set(["po_net"]));
+  });
+
+  test("REST body-read failure on a write is audited as indeterminate", async () => {
+    const fake = fakePayPal({ responders: [() => brokenBody(201)] });
+    const { client, audits } = clientWithFlakyAudit(fake.fetchImpl, 0);
+    const err = await catchError(client.request({ method: "POST", path: "/v2/invoicing/invoices/INV-1/send", requestId: "inv_1" }));
+    expect(fake.apiCalls).toHaveLength(1);
+    expect(audits).toEqual([expect.objectContaining({ outcome: "indeterminate", paypalRequestId: "inv_1", attempts: 1 })]);
+    expect((err as ConvexError<NetworkErrorData>).data).toMatchObject({
+      code: "PAYPAL_NETWORK_ERROR",
+      paypalRequestId: "inv_1",
+      message: expect.stringContaining("response body could not be read"),
+    });
+  });
+
+  test("REST GET network failure is not audited", async () => {
+    const net = networkDownFetch();
+    const { client, audits } = clientWithFlakyAudit(net.fetchImpl, 0);
+    await catchError(client.request({ method: "GET", path: "/v1/payments/payouts/B" }));
+    expect(audits).toHaveLength(0);
+  });
+
+  test("SDK POST network failure x3: 3 sends, one indeterminate audit, readable ConvexError via withPayPalErrors", async () => {
+    const net = networkDownFetch();
+    const { client, audits } = clientWithFlakyAudit(net.fetchImpl, 0);
+    const err = await catchError(
+      withPayPalErrors("paypal.authorizations.capture", () =>
+        client.sdk().payments.captureAuthorizedPayment({ authorizationId: "A1", paypalRequestId: "cap_net" }),
+      ),
+    );
+    expect(net.apiCalls).toHaveLength(MAX_ATTEMPTS);
+    expect(new Set(net.apiCalls.map((c) => c.headers["paypal-request-id"]))).toEqual(new Set(["cap_net"]));
+    expect(audits).toEqual([
+      expect.objectContaining({
+        operation: "paypal.authorizations.capture",
+        outcome: "indeterminate",
+        attempts: 3,
+        paypalRequestId: "cap_net",
+        via: "sdk",
+      }),
+    ]);
+    expect(err).toBeInstanceOf(ConvexError);
+    expect((err as ConvexError<NetworkErrorData>).data).toMatchObject({ code: "PAYPAL_NETWORK_ERROR", paypalRequestId: "cap_net" });
+  });
+
+  test("SDK body-read failure on a write is audited as indeterminate", async () => {
+    const fake = fakePayPal({ responders: [() => brokenBody(201)] });
+    const { client, audits } = clientWithFlakyAudit(fake.fetchImpl, 0);
+    const err = await catchError(
+      withPayPalErrors("paypal.orders.capture", () => client.sdk().orders.captureOrder({ id: "O1", paypalRequestId: "cap_body" })),
+    );
+    expect(fake.apiCalls).toHaveLength(1);
+    expect(audits).toEqual([expect.objectContaining({ outcome: "indeterminate", paypalRequestId: "cap_body", via: "sdk" })]);
+    expect((err as ConvexError<NetworkErrorData>).data).toMatchObject({ code: "PAYPAL_NETWORK_ERROR" });
+  });
+});
+
+describe("one retry budget across 401 refresh and 429/5xx", () => {
+  const twoTokens = [
+    { access_token: TOKEN_A, expires_in: 32400 },
+    { access_token: TOKEN_B, expires_in: 32400 },
+  ];
+
+  test("REST 401 then 429 then 500: 3 sends total, backoff continues", async () => {
+    const fake = fakePayPal({
+      tokens: twoTokens,
+      responders: [
+        () => json(401, { error: "invalid_token" }),
+        () => json(429, { name: "RATE_LIMIT_REACHED" }),
+        () => json(500, { name: "INTERNAL_SERVER_ERROR" }),
+        () => json(201, { id: "never" }),
+      ],
+    });
+    const { client, sleeps, audits } = makeClient(fake);
+    const err = await catchError(client.request({ method: "POST", path: "/v1/payments/payouts", requestId: "po_b" }));
+    expect(fake.apiCalls).toHaveLength(3);
+    expect(fake.apiCalls.map((c) => c.headers.authorization)).toEqual([`Bearer ${TOKEN_A}`, `Bearer ${TOKEN_B}`, `Bearer ${TOKEN_B}`]);
+    expect(sleeps).toEqual([1000]);
+    expect((err as ConvexError<PayPalErrorData>).data).toMatchObject({ status: 500, paypalRequestId: "po_b" });
+    expect(audits).toEqual([expect.objectContaining({ status: 500, attempts: 3, outcome: "failed" })]);
+  });
+
+  test("REST 401 then repeated 503: 3 sends total", async () => {
+    const fake = fakePayPal({
+      tokens: twoTokens,
+      responders: [() => json(401, { error: "invalid_token" }), () => json(503, { name: "SERVICE_UNAVAILABLE" })],
+    });
+    const { client } = makeClient(fake);
+    await catchError(client.request({ method: "POST", path: "/v1/payments/payouts", requestId: "po_c" }));
+    expect(fake.apiCalls).toHaveLength(3);
+  });
+
+  test("REST 429 then 401 then 503s: 3 sends total and only one token refresh", async () => {
+    const fake = fakePayPal({
+      tokens: twoTokens,
+      responders: [
+        () => json(429, { name: "RATE_LIMIT_REACHED" }),
+        () => json(401, { error: "invalid_token" }),
+        () => json(503, { name: "SERVICE_UNAVAILABLE" }),
+      ],
+    });
+    const { client, sleeps } = makeClient(fake);
+    await catchError(client.request({ method: "POST", path: "/v1/payments/payouts", requestId: "po_d" }));
+    expect(fake.apiCalls).toHaveLength(3);
+    expect(fake.tokenCalls).toHaveLength(2);
+    expect(sleeps).toEqual([500]);
+  });
+
+  test("SDK 401 then 429 then 500: at most 3 sends total", async () => {
+    const fake = fakePayPal({
+      tokens: twoTokens,
+      responders: [
+        () => json(401, { name: "AUTHENTICATION_FAILURE" }),
+        () => json(429, { name: "RATE_LIMIT_REACHED" }),
+        () => json(500, { name: "INTERNAL_SERVER_ERROR" }),
+        () => json(201, { id: "never" }),
+      ],
+    });
+    const { client } = makeClient(fake);
+    await catchError(
+      withPayPalErrors("paypal.orders.capture", () => client.sdk().orders.captureOrder({ id: "O2", paypalRequestId: "cap_b" })),
+    );
+    expect(fake.apiCalls.length).toBeLessThanOrEqual(MAX_ATTEMPTS);
+  });
+
+  test("SDK 429 then 500 then 500: exactly 3 sends", async () => {
+    const fake = fakePayPal({
+      responders: [() => json(429, { name: "RATE_LIMIT_REACHED" }), () => json(500, { name: "INTERNAL_SERVER_ERROR" })],
+    });
+    const { client, audits } = makeClient(fake);
+    await catchError(
+      withPayPalErrors("paypal.orders.capture", () => client.sdk().orders.captureOrder({ id: "O3", paypalRequestId: "cap_c" })),
+    );
+    expect(fake.apiCalls).toHaveLength(3);
+    expect(audits).toEqual([expect.objectContaining({ status: 500, attempts: 3, via: "sdk" })]);
+  });
+});

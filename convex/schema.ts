@@ -514,6 +514,7 @@ export default defineSchema({
     paypalDebugId: v.optional(v.string()),
     paypalResourceId: v.optional(v.string()),
     attempts: v.optional(v.number()),
+    paypalOutcome: v.optional(v.union(v.literal("succeeded"), v.literal("failed"), v.literal("indeterminate"))),
     agreementId: v.optional(v.id("agreements")),
   })
     .index("by_project", ["projectId"])

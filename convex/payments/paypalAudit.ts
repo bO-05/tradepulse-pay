@@ -12,6 +12,7 @@ export const paypalAuditEntryValidator = v.object({
   paypalDebugId: v.optional(v.string()),
   resourceId: v.optional(v.string()),
   errorName: v.optional(v.string()),
+  outcome: v.optional(v.union(v.literal("succeeded"), v.literal("failed"), v.literal("indeterminate"))),
   via: v.union(v.literal("rest"), v.literal("sdk")),
 });
 
@@ -25,9 +26,14 @@ export const record = internalMutation({
   },
   returns: v.id("auditLogs"),
   handler: async (ctx, { entry, actor, projectId, agreementId }) => {
-    const outcome = entry.ok ? "succeeded" : `failed${entry.errorName ? ` (${entry.errorName})` : ""}`;
+    const indeterminate = entry.outcome === "indeterminate";
+    const outcome = indeterminate
+      ? `outcome unknown${entry.errorName ? ` (${entry.errorName})` : ""}`
+      : entry.ok
+        ? "succeeded"
+        : `failed${entry.errorName ? ` (${entry.errorName})` : ""}`;
     const parts = [
-      `${entry.method} ${entry.path} -> HTTP ${entry.status}`,
+      `${entry.method} ${entry.path} -> ${indeterminate ? "no readable response" : `HTTP ${entry.status}`}`,
       `attempts ${entry.attempts}`,
       entry.paypalRequestId ? `PayPal-Request-Id ${entry.paypalRequestId}` : undefined,
       entry.resourceId ? `resource ${entry.resourceId}` : undefined,
@@ -48,6 +54,7 @@ export const record = internalMutation({
       paypalDebugId: entry.paypalDebugId,
       paypalResourceId: entry.resourceId,
       attempts: entry.attempts,
+      paypalOutcome: entry.outcome ?? (entry.ok ? "succeeded" : "failed"),
     });
   },
 });
