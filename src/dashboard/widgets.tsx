@@ -325,7 +325,8 @@ export const RETAINAGE_GAUGE_DEFINITION: RetainageGaugeDefinition = {
       type: "field",
       supportedRoles: ["numeric"],
       requires: { cardinality: "one" },
-      aiDescription: "Retainage released so far: retainage.released with sum.",
+      aiDescription:
+        "Retainage released so far: retainage.released with sum (only retainage-release entries, net of failed releases; equals the ledger's released total).",
     },
     cap: {
       type: "field",

@@ -46,6 +46,20 @@ const PAID_PAYMENT_KINDS = new Set(["payout", "retainage_release"]);
 const OPEN_AUTHORIZATION_STATUSES = new Set(["authorized", "partially_captured"]);
 const VOID_CAPTURE_STATUSES = new Set(["DENIED", "DECLINED", "FAILED"]);
 
+export function retainageReleaseIds(payments: readonly LedgerPayment[]): Set<string | undefined> {
+  return new Set(payments.filter((p) => p.kind === "retainage_release").map((p) => p._id));
+}
+
+/**
+ * Cents of retainage one ledger entry released. Only entries of retainage_release payments count:
+ * the release debit counts as released and the restoring credit of a failed or returned release
+ * cancels it, while payout-credit reversals only reduce the amount held.
+ */
+export function retainageReleasedCentsOf(row: LedgerRetainageRow, releaseIds: Set<string | undefined>): number {
+  if (row.paymentId === undefined || !releaseIds.has(row.paymentId)) return 0;
+  return row.deltaCents === 0 ? 0 : -row.deltaCents;
+}
+
 /**
  * Billed = approved pay applications at their final GC-approved amount; funded = open authorization
  * remainders; captured = recorded captures; paid = net of successful payouts and retainage releases;
@@ -82,10 +96,8 @@ export function computeLedgerTotals(input: {
       .map((p) => p.netCents),
   );
   const retainageHeldCents = sumCents(input.retainage.map((r) => r.deltaCents));
-  const releaseIds = new Set(input.payments.filter((p) => p.kind === "retainage_release").map((p) => p._id));
-  const retainageReleasedCents = -sumCents(
-    input.retainage.filter((r) => r.paymentId !== undefined && releaseIds.has(r.paymentId)).map((r) => r.deltaCents),
-  );
+  const releaseIds = retainageReleaseIds(input.payments);
+  const retainageReleasedCents = sumCents(input.retainage.map((r) => retainageReleasedCentsOf(r, releaseIds)));
   const changeOrders = input.changeOrders ?? [];
   const changeOrdersInvoicedCents = sumCents(changeOrders.filter((c) => c.status === "invoiced").map((c) => c.amountCents));
   const changeOrdersPaidCents = sumCents(changeOrders.filter((c) => c.status === "paid").map((c) => c.amountCents));

@@ -6,7 +6,7 @@ export type DashboardRaw = FunctionReturnType<typeof api.dashboard.queries.getDa
 
 /** Payment kinds whose successful net reaches the subcontractor (same rule as the agreement ledger). */
 const PAID_KINDS = new Set(["payout", "retainage_release"]);
-/** Pay applications still waiting on a GC decision. */
+/** Pay applications still waiting on a GC decision (same set as convex/dashboard/queries.ts). */
 export const PENDING_PAY_APP_STATUSES = new Set(["submitted", "under_review", "reviewed"]);
 
 const dollars = (cents: number) => centsToDollarsForDisplay(cents);
@@ -35,17 +35,29 @@ function verdictFlags(app: DashboardRaw["payApps"][number]): string {
 }
 
 /**
- * The KPI figures in cents, computed the way the Studio KPI tiles aggregate the rows.
- * Used by tests and as the source of truth the tiles must match.
+ * The KPI figures in cents, computed the way the Studio KPI tiles and the retainage gauge
+ * aggregate the rows. They must equal the server's ledger totals (`raw.totals`).
  */
 export function dashboardTotals(raw: Pick<DashboardRaw, "payments" | "payApps" | "retainage">) {
   return {
     totalPaidCents: sumCents(raw.payments.map(paidNetCents)),
     retainageHeldCents: sumCents(raw.retainage.map((r) => r.deltaCents)),
+    retainageReleasedCents: sumCents(raw.retainage.map((r) => r.releasedCents)),
     pendingPayAppCents: sumCents(
       raw.payApps.filter((a) => PENDING_PAY_APP_STATUSES.has(a.status)).map((a) => a.requestedCents),
     ),
   };
+}
+
+/** The visible notice shown when the server hit a read safety bound instead of dropping rows silently. */
+export function incompleteNotice(incomplete: DashboardRaw["incomplete"]): string {
+  const parts = ["Data incomplete: the payment history is larger than the dashboard can read in one query."];
+  if (incomplete.agreementsTruncated) parts.push("Only the newest agreements are included.");
+  if (incomplete.agreementNumbers.length > 0) {
+    parts.push(`The oldest rows are left out for ${incomplete.agreementNumbers.join(", ")}.`);
+  }
+  parts.push("Totals understate the full ledger.");
+  return parts.join(" ");
 }
 
 const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
@@ -125,9 +137,10 @@ export function buildDashboardData(raw: DashboardRaw) {
     date: isoDate(r.createdAt),
     month: isoMonth(r.createdAt),
     reason: r.reason,
+    paymentKind: r.paymentKind ?? "none",
     balance: dollars(r.deltaCents),
-    withheld: dollars(Math.max(0, r.deltaCents)),
-    released: dollars(Math.max(0, -r.deltaCents)),
+    withheld: dollars(r.withheldCents),
+    released: dollars(r.releasedCents),
   }));
   const changeOrders = raw.changeOrders.map((c) => ({
     changeOrderId: c.changeOrderId,
@@ -221,7 +234,8 @@ export function buildDashboardData(raw: DashboardRaw) {
       {
         id: "retainage",
         name: "Retainage ledger",
-        description: "Signed ledger entries: positive = withheld, negative = released. Balance sum = retainage held.",
+        description:
+          "Signed ledger entries. Balance sum = retainage held. Released counts only retainage-release entries (a failed release's restoring credit cancels it); payout reversals lower withheld, not released. Held = withheld − released.",
         data: retainage,
         fields: [
           text("entryId", "Entry ID"),
@@ -229,9 +243,10 @@ export function buildDashboardData(raw: DashboardRaw) {
           date("date", "Date"),
           text("month", "Month"),
           text("reason", "Reason"),
+          text("paymentKind", "Payment kind"),
           money("balance", "Retainage held", "Signed delta; the sum is the retainage currently held."),
-          money("withheld", "Withheld"),
-          money("released", "Released"),
+          money("withheld", "Withheld", "Withheld from payouts, net of failed or returned payout reversals."),
+          money("released", "Released", "Released at closeout, net of failed or returned releases."),
         ],
       },
       {

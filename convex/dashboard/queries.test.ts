@@ -5,6 +5,8 @@ import { api, internal } from "../_generated/api";
 import schema from "../schema";
 import { agentIdProfile, syncAgentProfile } from "../lib/agentAccess";
 import { signInAs } from "../lib/testIdentity";
+import { createReadBudget, loadAgreementHistory } from "../payments/agreementHistory";
+import type { Id } from "../_generated/dataModel";
 
 const modules = import.meta.glob("/convex/**/*.ts");
 type T = TestConvex<typeof schema>;
@@ -138,4 +140,148 @@ describe("dashboard data", () => {
       await expect(caller.query(api.dashboard.queries.getDashboardData, {})).rejects.toThrow(/Forbidden|Not authenticated/);
     }
   });
+
+  test("reads past 500 payments: a later payout changes totals and counts, matching the ledger", async () => {
+    const { t, gc, agreement } = await setup();
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 520; i++) {
+        await ctx.db.insert("payments", {
+          agreementId: agreement._id,
+          kind: "payout",
+          status: "success",
+          grossCents: 100,
+          retainageCents: 0,
+          netCents: 100,
+          idempotencyKey: `bulk-${i}`,
+          createdAt: Date.now(),
+        });
+      }
+    });
+    const before = await gc.as.query(api.dashboard.queries.getDashboardData, {});
+    const mineBefore = before.payments.filter((p) => p.agreementId === agreement._id);
+    expect(mineBefore).toHaveLength(522);
+    expect(before.incomplete.truncated).toBe(false);
+
+    const lateId = await t.run(async (ctx) =>
+      ctx.db.insert("payments", {
+        agreementId: agreement._id,
+        kind: "payout",
+        status: "success",
+        grossCents: 12_345,
+        retainageCents: 0,
+        netCents: 12_345,
+        idempotencyKey: "late-payout",
+        createdAt: Date.now(),
+      }),
+    );
+    const after = await gc.as.query(api.dashboard.queries.getDashboardData, {});
+    expect(after.payments.filter((p) => p.agreementId === agreement._id)).toHaveLength(523);
+    expect(after.payments.some((p) => p.paymentId === lateId)).toBe(true);
+    expect(after.totals.paidCents - before.totals.paidCents).toBe(12_345);
+
+    const ledger = (await gc.as.query(api.payments.ledger.getAgreementLedger, { agreementId: agreement._id }))!;
+    const row = after.agreements.find((a) => a.agreementId === agreement._id)!;
+    expect(row.totals).toEqual(ledger.totals);
+    expect(ledger.totals.paidCents).toBe(90_000 + 520 * 100 + 12_345);
+    expect(ledger.historyTruncated).toBe(false);
+  });
+
+  test("history past a safety bound keeps the newest rows and is flagged truncated", async () => {
+    const { t, agreement } = await setup();
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 6; i++) {
+        await ctx.db.insert("payments", {
+          agreementId: agreement._id,
+          kind: "payout",
+          status: "success",
+          grossCents: 1,
+          retainageCents: 0,
+          netCents: 1,
+          idempotencyKey: `bounded-${i}`,
+          createdAt: Date.now(),
+        });
+      }
+      const all = await loadAgreementHistory(ctx, agreement._id);
+      expect(all.truncated).toBe(false);
+      expect(all.payments).toHaveLength(8);
+      const bounded = await loadAgreementHistory(ctx, agreement._id, createReadBudget(5));
+      expect(bounded.truncated).toBe(true);
+      expect(bounded.payments.map((p) => p.idempotencyKey)).toEqual(all.payments.slice(-5).map((p) => p.idempotencyKey));
+    });
+  });
+
+  test("voiding a paid agreement with held retainage keeps its money in the totals, labeled superseded", async () => {
+    const { gc, owner, agreement } = await setup();
+    const before = await gc.as.query(api.dashboard.queries.getDashboardData, {});
+    await gc.as.mutation(api.agreements.voidExecutedAgreement, {
+      agreementId: agreement._id,
+      reason: "Executed against the wrong bid by mistake",
+    });
+    const after = await gc.as.query(api.dashboard.queries.getDashboardData, {});
+    const row = after.agreements.find((a) => a.agreementId === agreement._id)!;
+    expect(row.status).toBe("superseded");
+    expect(row.totals.paidCents).toBe(90_000);
+    expect(row.totals.retainageHeldCents).toBe(10_000);
+    expect(after.totals.paidCents).toBe(before.totals.paidCents);
+    expect(after.totals.retainageHeldCents).toBe(before.totals.retainageHeldCents);
+    expect(after.payments.filter((p) => p.agreementId === agreement._id)).toHaveLength(2);
+    expect(after.retainage.filter((r) => r.agreementId === agreement._id)).toHaveLength(1);
+    const asOwner = await owner.as.query(api.dashboard.queries.getDashboardData, {});
+    expect(asOwner.readOnly).toBe(true);
+    expect(asOwner.totals).toEqual(after.totals);
+    const summary = await gc.as.query(api.dashboard.payAgent.getPaySummary, {});
+    expect(summary.agreements.find((a) => a.agreementId === agreement._id)).toMatchObject({ status: "superseded" });
+  });
+
+  test("retainage held/released match the ledger after a payout reversal and a failed release restoration", async () => {
+    const { t, gc, agreement } = await setup();
+    await t.run(async (ctx) => {
+      const now = Date.now();
+      const pay = (kind: "payout" | "retainage_release", status: "success" | "failed" | "returned", netCents: number, key: string) =>
+        ctx.db.insert("payments", {
+          agreementId: agreement._id,
+          kind,
+          status,
+          grossCents: netCents,
+          retainageCents: kind === "payout" ? 5_000 : 0,
+          netCents,
+          idempotencyKey: key,
+          createdAt: now,
+        });
+      const entry = (paymentId: Id<"payments">, deltaCents: number, reason: string) =>
+        ctx.db.insert("retainageLedger", { agreementId: agreement._id, paymentId, deltaCents, reason, createdAt: now });
+      const failedPayout = await pay("payout", "failed", 45_000, "rev-payout");
+      await entry(failedPayout, 5_000, "withheld");
+      await entry(failedPayout, -5_000, "Retainage credit reversed: payout failed");
+      const failedRelease = await pay("retainage_release", "returned", 3_000, "rev-release");
+      await entry(failedRelease, -3_000, "released");
+      await entry(failedRelease, 3_000, "Retainage release returned: the amount is held again");
+      const release = await pay("retainage_release", "success", 2_000, "ok-release");
+      await entry(release, -2_000, "released");
+    });
+    const data = await gc.as.query(api.dashboard.queries.getDashboardData, {});
+    const ledger = (await gc.as.query(api.payments.ledger.getAgreementLedger, { agreementId: agreement._id }))!;
+    expect(ledger.totals.retainageHeldCents).toBe(8_000);
+    expect(ledger.totals.retainageReleasedCents).toBe(2_000);
+    const rows = data.retainage.filter((r) => r.agreementId === agreement._id);
+    const sum = (pick: (r: (typeof rows)[number]) => number) => rows.reduce((acc, r) => acc + pick(r), 0);
+    expect(sum((r) => r.deltaCents)).toBe(8_000);
+    expect(sum((r) => r.releasedCents)).toBe(2_000);
+    expect(sum((r) => r.withheldCents) - sum((r) => r.releasedCents)).toBe(8_000);
+    expect(rows.find((r) => r.reason.startsWith("Retainage credit reversed"))).toMatchObject({
+      paymentKind: "payout",
+      releasedCents: 0,
+    });
+    const row = data.agreements.find((a) => a.agreementId === agreement._id)!;
+    expect(row.totals.retainageHeldCents).toBe(ledger.totals.retainageHeldCents);
+    expect(row.totals.retainageReleasedCents).toBe(ledger.totals.retainageReleasedCents);
+    expect(data.totals.retainageReleasedCents).toBe(sum((r) => r.releasedCents) + otherReleased(data, agreement._id));
+  });
 });
+
+function otherReleased(
+  data: { retainage: { agreementId: string; releasedCents: number }[] },
+  agreementId: string,
+): number {
+  return data.retainage.filter((r) => r.agreementId !== agreementId).reduce((acc, r) => acc + r.releasedCents, 0);
+}

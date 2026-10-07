@@ -2,31 +2,24 @@ import type { Doc } from "../_generated/dataModel";
 import { query, type QueryCtx } from "../_generated/server";
 import { formatCents, sumCents } from "../lib/money";
 import { requireRole } from "../lib/roles";
-import { loadBillingHistory } from "../payApps/billingHistory";
-import { computeLedgerTotals } from "../payments/ledgerTotals";
+import {
+  createReadBudget,
+  hasFinancialHistory,
+  loadAgreementFinancials,
+  loadAgreementPayApps,
+  type ReadBudget,
+} from "../payments/agreementHistory";
 import { retainagePercentFor } from "../payments/payoutMath";
-import { agreementContractSumCents } from "../payments/sov";
+import { DASHBOARD_MAX_AGREEMENTS, DASHBOARD_READ_BUDGET } from "./queries";
 
-const MAX_AGREEMENTS = 200;
-
-async function agreementPayRow(ctx: QueryCtx, a: Doc<"agreements">) {
-  const [payments, retainage, changeOrders, billing] = await Promise.all([
-    ctx.db.query("payments").withIndex("by_agreementId", (q) => q.eq("agreementId", a._id)).take(500),
-    ctx.db.query("retainageLedger").withIndex("by_agreementId", (q) => q.eq("agreementId", a._id)).take(1000),
-    ctx.db
-      .query("changeOrders")
-      .withIndex("by_agreementId_and_number", (q) => q.eq("agreementId", a._id))
-      .take(500),
-    loadBillingHistory(ctx, a._id),
-  ]);
-  const totals = computeLedgerTotals({
-    contractSumCents: agreementContractSumCents(a),
-    payApps: billing.rows,
-    payments,
-    retainage,
-    changeOrders,
-  });
+async function agreementPayRow(ctx: QueryCtx, a: Doc<"agreements">, budget: ReadBudget) {
+  const fin = await loadAgreementFinancials(ctx, a, budget);
+  const apps = await loadAgreementPayApps(ctx, a._id, budget);
+  const truncated = fin.truncated || apps.truncated;
+  if (a.status === "superseded" && !truncated && !hasFinancialHistory(fin.history, apps.rows.length)) return null;
+  const { totals } = fin;
   return {
+    truncated,
     agreementId: a._id,
     agreementNumber: a.agreementNumber,
     subcontractor: a.subcontractorName,
@@ -48,7 +41,7 @@ async function agreementPayRow(ctx: QueryCtx, a: Doc<"agreements">) {
   };
 }
 
-type PayRow = Awaited<ReturnType<typeof agreementPayRow>>;
+type PayRow = NonNullable<Awaited<ReturnType<typeof agreementPayRow>>>;
 
 function subcontractorTotals(subcontractor: string, list: PayRow[]) {
   const sum = (pick: (t: PayRow["totalsCents"]) => number) => sumCents(list.map((r) => pick(r.totalsCents)));
@@ -73,22 +66,31 @@ function subcontractorTotals(subcontractor: string, list: PayRow[]) {
 }
 
 /**
- * Ledger totals per live agreement and per subcontractor for the Studio "TradePulse pay agent".
- * Each amount is the same computeLedgerTotals figure the agreement ledger view shows, summed in
+ * Ledger totals per agreement and per subcontractor for the Studio "TradePulse pay agent". Voided
+ * agreements stay in when they carry money history. Each amount is the same computeLedgerTotals figure the agreement ledger view shows, summed in
  * integer cents and pre-formatted so the model quotes Convex numbers instead of doing arithmetic.
  */
 export const getPaySummary = query({
   args: {},
   handler: async (ctx) => {
     await requireRole(ctx, ["gc", "owner"]);
-    const all = await ctx.db.query("agreements").order("desc").take(MAX_AGREEMENTS);
+    const newest = await ctx.db.query("agreements").order("desc").take(DASHBOARD_MAX_AGREEMENTS + 1);
+    const agreementsTruncated = newest.length > DASHBOARD_MAX_AGREEMENTS;
+    const all = newest.slice(0, DASHBOARD_MAX_AGREEMENTS);
+    const budget = createReadBudget(DASHBOARD_READ_BUDGET - all.length);
     const rows: PayRow[] = [];
     for (const a of all) {
-      if (a.status !== "superseded") rows.push(await agreementPayRow(ctx, a));
+      const row = await agreementPayRow(ctx, a, budget);
+      if (row !== null) rows.push(row);
     }
     const bySub = new Map<string, PayRow[]>();
     for (const r of rows) bySub.set(r.subcontractor, [...(bySub.get(r.subcontractor) ?? []), r]);
     const subcontractors = [...bySub.entries()].map(([name, list]) => subcontractorTotals(name, list));
-    return { generatedAt: Date.now(), subcontractors, agreements: rows };
+    return {
+      generatedAt: Date.now(),
+      incomplete: agreementsTruncated || rows.some((r) => r.truncated),
+      subcontractors,
+      agreements: rows,
+    };
   },
 });

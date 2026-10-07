@@ -27,7 +27,7 @@ export function describePaySummary(summary: PaySummary, query?: string): string 
     const names = summary.agreements.map((r) => r.subcontractor).filter(Boolean);
     return query
       ? `No agreement matches "${query}". Subcontractors on record: ${[...new Set(names)].join(", ") || "none"}.`
-      : "There are no live agreements.";
+      : "There are no agreements.";
   }
   const subs = new Set(rows.map((r) => r.subcontractor));
   const totals = summary.subcontractors
@@ -47,6 +47,9 @@ export function describePaySummary(summary: PaySummary, query?: string): string 
   });
   return [
     `Source: TradePulse Convex payment ledger (live). ${rows.length} agreement(s).`,
+    ...(summary.incomplete
+      ? ["DATA INCOMPLETE: the history exceeded a safety bound, so these totals understate the full ledger. Say so in the answer."]
+      : []),
     "Subcontractor totals (computed by Convex in integer cents; quote these for a subcontractor-level question):",
     ...totals.map((t) => `- ${t}`),
     "Per agreement:",

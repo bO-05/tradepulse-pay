@@ -4,6 +4,7 @@ import { query } from "../_generated/server";
 import { canViewAgreement, requireRole } from "../lib/roles";
 import { loadBillingHistory, unresolvedApprovalMessage } from "../payApps/billingHistory";
 import { isCaptureCollected } from "./captureSettlement";
+import { HISTORY_TRUNCATED_MESSAGE, loadAgreementHistory } from "./agreementHistory";
 import { BALANCE_FORMULA, computeLedgerTotals } from "./ledgerTotals";
 import { attemptsFor, checkRetry } from "./payoutRetryMath";
 import { retainagePercentFor } from "./payoutMath";
@@ -110,18 +111,8 @@ export const getAgreementLedger = query({
       .withIndex("by_agreementId_and_order", (q) => q.eq("agreementId", id))
       .take(50);
     const billing = await loadBillingHistory(ctx, id);
-    const payments = await ctx.db
-      .query("payments")
-      .withIndex("by_agreementId", (q) => q.eq("agreementId", id))
-      .take(500);
-    const retainage = await ctx.db
-      .query("retainageLedger")
-      .withIndex("by_agreementId", (q) => q.eq("agreementId", id))
-      .take(1000);
-    const changeOrders = await ctx.db
-      .query("changeOrders")
-      .withIndex("by_agreementId_and_number", (q) => q.eq("agreementId", id))
-      .take(500);
+    const history = await loadAgreementHistory(ctx, id);
+    const { payments, retainage, changeOrders } = history;
 
     const summary = ledgerAgreementSummary(agreement);
     // Latest funding attempt per milestone (payments come back in creation order).
@@ -163,7 +154,11 @@ export const getAgreementLedger = query({
       retainageReleasableCents: releasableRetainageCents(payments, retainage),
       balanceFormula: BALANCE_FORMULA,
       // Approved pay apps whose final amount is unknown are left out of billed; listed so it is not silent.
-      billingAttention: billing.unresolved.map(unresolvedApprovalMessage),
+      billingAttention: [
+        ...billing.unresolved.map(unresolvedApprovalMessage),
+        ...(history.truncated ? [HISTORY_TRUNCATED_MESSAGE] : []),
+      ],
+      historyTruncated: history.truncated,
       retainageReleases: retainageReleases.map((p) => releaseSummary(p, isGc || viewer.role === "sub")),
       retainageLedger: retainage.map((r) => ({
         _id: r._id,

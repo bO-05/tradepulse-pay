@@ -6,7 +6,7 @@ import { AgStudio, AgStudioProvider } from "ag-studio-react";
 import { api } from "../../convex/_generated/api";
 import { formatCents } from "../../convex/lib/money";
 import { createTradePulseHarness } from "./aiHarness";
-import { buildDashboardData, dashboardTotals } from "./dataSources";
+import { buildDashboardData, incompleteNotice } from "./dataSources";
 import { DASHBOARD_INITIAL_STATE } from "./layout";
 import { createConvexStudioAdapter, studioProxyUrl } from "./studioAdapter";
 import { StudioIsland } from "./StudioIsland";
@@ -24,7 +24,6 @@ if (import.meta.env.DEV) enableStudioDevValidations();
 export default function PaymentsDashboard() {
   const raw = useQuery(api.dashboard.queries.getDashboardData, {});
   const data = useMemo(() => (raw ? buildDashboardData(raw) : undefined), [raw]);
-  const totals = useMemo(() => (raw ? dashboardTotals(raw) : undefined), [raw]);
   const [editing, setEditing] = useState(false);
   const convex = useConvex();
   const token = useAuthToken();
@@ -43,10 +42,11 @@ export default function PaymentsDashboard() {
     return (params) => createTradePulseHarness(params, { adapter, loadPaySummary });
   }, [convex]);
 
-  if (raw === undefined || data === undefined || totals === undefined) {
+  if (raw === undefined || data === undefined) {
     return <p className="text-sm text-slate-400">Loading dashboard…</p>;
   }
 
+  const { totals, incomplete } = raw;
   const readOnly = raw.readOnly;
   const mode = !readOnly && editing ? "edit" : "view";
 
@@ -56,8 +56,9 @@ export default function PaymentsDashboard() {
         <div>
           <h1 className="text-xl font-semibold">Payments dashboard</h1>
           <p className="text-xs text-slate-400" data-testid="dashboard-convex-totals">
-            Live from Convex · paid {formatCents(totals.totalPaidCents)} · retainage held{" "}
-            {formatCents(totals.retainageHeldCents)} · pending pay apps {formatCents(totals.pendingPayAppCents)} ·{" "}
+            Live from Convex · paid {formatCents(totals.paidCents)} · retainage held{" "}
+            {formatCents(totals.retainageHeldCents)} · released {formatCents(totals.retainageReleasedCents)} · pending
+            pay apps {formatCents(totals.pendingPayAppCents)} ·{" "}
             {raw.payments.length} payments, {raw.payApps.length} pay apps, {raw.retainage.length} retainage entries,{" "}
             {raw.changeOrders.length} change orders
           </p>
@@ -81,6 +82,15 @@ export default function PaymentsDashboard() {
           )}
         </div>
       </header>
+      {incomplete.truncated ? (
+        <p
+          role="alert"
+          className="rounded-lg border border-amber-600 bg-amber-950/40 px-3 py-2 text-xs text-amber-200"
+          data-testid="dashboard-data-incomplete"
+        >
+          {incompleteNotice(incomplete)}
+        </p>
+      ) : null}
       <StudioIsland style={{ height: "calc(100vh - 150px)", minHeight: 640 }}>
         <AgStudioProvider licenseKey={import.meta.env.VITE_AG_STUDIO_LICENSE_KEY} modules={STUDIO_MODULES}>
           <div style={{ height: "100%" }} data-testid="ag-studio-dashboard">
