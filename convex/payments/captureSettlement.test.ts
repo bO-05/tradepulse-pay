@@ -352,3 +352,113 @@ describe("refunds of older captures", () => {
     expect(r.funding.error).toMatch(/refunded/);
   });
 });
+
+describe("capture status never moves back to PENDING", () => {
+  const capturePosts = () => fake.posts(/\/v2\/payments\/authorizations\/[^/]+\/capture$/);
+
+  test("a stale PENDING refresh applied after the COMPLETED webhook does not undo settlement", async () => {
+    const { t, gc, milestoneId } = await setup();
+    fake.state.captureStatus = "PENDING";
+    const out = await gc.as.action(api.payments.release.releaseAndPay, { milestoneId, amountCents: 600_000, requestKey: "test-key-stale1" });
+    expect(out.status).toBe("capture_pending");
+    const captureId = out.captureId!;
+
+    // Hold the PENDING GET response that "Refresh status" has already read.
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    let held!: () => void;
+    const reachedGet = new Promise<void>((resolve) => (held = resolve));
+    const inner = fake.fetchImpl.getMockImplementation()!;
+    let paused = false;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const res = await inner(input, init);
+        const path = new URL(new Request(input, init).url).pathname;
+        if (!paused && path === `/v2/payments/captures/${captureId}`) {
+          paused = true;
+          held();
+          await gate;
+        }
+        return res;
+      }),
+    );
+    const refresh = gc.as.action(api.payments.release.refreshCaptureStatus, { paymentId: out.paymentId });
+    await reachedGet;
+
+    fake.captureStatusById.set(captureId, "COMPLETED");
+    await dispatch(t, captureEvent("WH-STALE-1", "COMPLETED", captureId));
+    let r = await rows(t, milestoneId);
+    expect(r.funding.captures?.[0].status).toBe("COMPLETED");
+    expect(r.payouts[0].status).toBe("created");
+
+    release();
+    const refreshed = await refresh;
+    expect(refreshed.captureStatus).toBe("COMPLETED");
+    r = await rows(t, milestoneId);
+    expect(r.funding.captures?.[0].status).toBe("COMPLETED");
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    r = await rows(t, milestoneId);
+    expect(r.funding.captures).toHaveLength(1);
+    expect(r.funding.captures?.[0].status).toBe("COMPLETED");
+    expect(capturePosts()).toHaveLength(1);
+    expect(payoutPosts()).toHaveLength(1);
+    expect(r.payouts).toHaveLength(1);
+    expect(r.payouts[0].status).toBe("success");
+    expect(r.ledger).toHaveLength(1);
+    expect(r.ledger[0]).toMatchObject({ paymentId: r.payouts[0]._id, deltaCents: 60_000 });
+  });
+
+  test.each(["COMPLETED", "DECLINED", "REFUNDED", "PARTIALLY_REFUNDED"])(
+    "a later PENDING refresh or webhook keeps a %s capture terminal",
+    async (terminal) => {
+      const { t, gc, milestoneId, fundingId } = await setup();
+      const out = await gc.as.action(api.payments.release.releaseAndPay, { milestoneId, amountCents: 600_000, requestKey: `test-key-term-${terminal}` });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      const captureId = out.captureId!;
+      await t.run(async (ctx) => {
+        const f = (await ctx.db.get(fundingId))!;
+        await ctx.db.patch(fundingId, { captures: f.captures!.map((c) => ({ ...c, status: terminal })) });
+      });
+
+      const applied = await t.mutation(internal.payments.captureSettlement.applyCaptureSettlement, {
+        fundingPaymentId: fundingId,
+        captureId,
+        status: "PENDING",
+      });
+      expect(applied).toEqual({ changed: false, status: terminal });
+
+      // Webhooks go through the same guard; here a capture event whose resource still reads PENDING.
+      await dispatch(t, {
+        id: `WH-PEND-${terminal}`,
+        event_type: "PAYMENT.CAPTURE.COMPLETED",
+        resource: { id: captureId, status: "PENDING", supplementary_data: { related_ids: { authorization_id: AUTH_ID } } },
+      });
+      fake.captureStatusById.set(captureId, "PENDING");
+      const refreshed = await gc.as.action(api.payments.release.refreshCaptureStatus, { paymentId: out.paymentId });
+      expect(refreshed.captureStatus).toBe(terminal);
+      const r = await rows(t, milestoneId);
+      expect(r.funding.captures?.[0].status).toBe(terminal);
+      expect(payoutPosts()).toHaveLength(1);
+    },
+  );
+
+  test("a release left created with a collected capture is paid by Retry release without a new capture", async () => {
+    const { t, gc, milestoneId } = await setup();
+    fake.state.captureStatus = "PENDING";
+    const out = await gc.as.action(api.payments.release.releaseAndPay, { milestoneId, amountCents: 600_000, requestKey: "test-key-stuck1" });
+    // The COMPLETED webhook moves the release to created; its scheduled payout never runs here.
+    await dispatch(t, captureEvent("WH-STUCK-1", "COMPLETED", out.captureId!));
+    expect((await rows(t, milestoneId)).payouts[0].status).toBe("created");
+
+    vi.advanceTimersByTime(61_000);
+    await gc.as.action(api.payments.release.resumeRelease, { paymentId: out.paymentId });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const r = await rows(t, milestoneId);
+    expect(capturePosts()).toHaveLength(1);
+    expect(payoutPosts()).toHaveLength(1);
+    expect(r.payouts[0].status).toBe("success");
+    expect(r.ledger).toHaveLength(1);
+  });
+});

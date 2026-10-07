@@ -161,12 +161,12 @@ export const refreshCaptureStatus = action({
       method: "GET",
       path: `/v2/payments/captures/${encodeURIComponent(found.captureId)}`,
     });
-    const captureStatus = data?.status ?? found.captureStatus;
-    await ctx.runMutation(internal.payments.captureSettlement.applyCaptureSettlement, {
+    const applied = await ctx.runMutation(internal.payments.captureSettlement.applyCaptureSettlement, {
       fundingPaymentId: found.fundingPaymentId,
       captureId: found.captureId,
-      status: captureStatus,
+      status: data?.status ?? found.captureStatus,
     });
+    const captureStatus = applied.status;
     const row = await ctx.runQuery(internal.payments.releaseDb.releaseRow, { paymentId });
     return { captureStatus, status: row?.status ?? found.releaseStatus };
   },

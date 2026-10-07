@@ -66,17 +66,33 @@ export async function settleRelease(
   return false;
 }
 
+/**
+ * A capture that left PENDING never goes back: a PENDING GET response or event read before the
+ * settlement committed is stale, and applying it would un-collect money a payout may already be queued for.
+ */
+export function isStaleCaptureStatus(stored: string, incoming: string): boolean {
+  return incoming === "PENDING" && stored !== "PENDING";
+}
+
 /** Stores a capture's new PayPal status on its funding row and settles the release it funds. */
 export async function applyCaptureStatus(
   ctx: MutationCtx,
   funding: Doc<"payments">,
   captureId: string,
-  status: string,
+  incomingStatus: string,
   error?: string,
-): Promise<{ found: boolean; changed: boolean }> {
+): Promise<{ found: boolean; changed: boolean; status?: string }> {
   const captures = funding.captures ?? [];
   const i = captures.findIndex((c) => c.captureId === captureId);
   if (i < 0) return { found: false, changed: false };
+  let status = incomingStatus;
+  if (isStaleCaptureStatus(captures[i].status, incomingStatus)) {
+    console.warn(
+      `Ignored stale capture status for ${captureId}: stored ${captures[i].status}, received ${incomingStatus}.`,
+    );
+    status = captures[i].status;
+    error = undefined;
+  }
   let changed = false;
   if (captures[i].status !== status) {
     const next = captures.map((c, j) => (j === i ? { ...c, status } : c));
@@ -84,7 +100,7 @@ export async function applyCaptureStatus(
     changed = true;
   }
   const settled = await settleRelease(ctx, captures[i].releasePaymentId, captureId, status);
-  return { found: true, changed: changed || settled };
+  return { found: true, changed: changed || settled, status };
 }
 
 /**
@@ -124,12 +140,12 @@ export const captureForRelease = internalQuery({
 /** Applies a capture status read from PayPal (GET /v2/payments/captures/{id}). */
 export const applyCaptureSettlement = internalMutation({
   args: { fundingPaymentId: v.id("payments"), captureId: v.string(), status: v.string() },
-  returns: v.object({ changed: v.boolean() }),
+  returns: v.object({ changed: v.boolean(), status: v.string() }),
   handler: async (ctx, args) => {
     const funding = await ctx.db.get(args.fundingPaymentId);
-    if (funding === null || funding.kind !== "funding") return { changed: false };
+    if (funding === null || funding.kind !== "funding") return { changed: false, status: args.status };
     const error = isCaptureDenied(args.status) ? `PayPal denied capture ${args.captureId}.` : undefined;
     const out = await applyCaptureStatus(ctx, funding, args.captureId, args.status, error);
-    return { changed: out.changed };
+    return { changed: out.changed, status: out.status ?? args.status };
   },
 });
