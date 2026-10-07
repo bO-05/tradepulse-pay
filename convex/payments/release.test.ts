@@ -550,6 +550,42 @@ describe("retry payout of a captured release", () => {
     expect((await errorOf(s2.gc.as.action(api.payments.payoutRetry.retryPayout, { paymentId: failed._id }))).data.code).toBe("NOT_CAPTURED");
   });
 
+  test("resuming an interrupted payout-only retry pays with its own sender_batch_id and never captures again", async () => {
+    const s = await setup({ authorizedCents: 2_000_000 });
+    fake.state.defaultItemStatus = "FAILED";
+    await s.gc.as.action(api.payments.release.releaseAndPay, { milestoneId: s.milestone._id, amountCents: 1_000_000, requestKey: key("rr") });
+    await s.t.finishAllScheduledFunctions(vi.runAllTimers);
+    fake.state.defaultItemStatus = "SUCCESS";
+    const { t, gc, agreement, milestone } = s;
+    const original = (await rows(t, milestone._id)).payouts[0];
+    expect(original.status).toBe("failed");
+
+    // The retry row is created, then the action dies before PayPal answers the payout.
+    const begun = await t.mutation(internal.payments.payoutRetryDb.beginPayoutRetry, { paymentId: original._id, actor: "test" });
+    const capturesBefore = fake.posts(/\/capture$/).length;
+    const capturedBefore = (await rows(t, milestone._id)).funding.captures ?? [];
+    // The resume also loses PayPal's first response, so it resolves through the duplicate sender_batch_id.
+    fake.state.dropNextPayoutResponse = true;
+    const p = gc.as.action(api.payments.release.resumeRelease, { paymentId: begun.retryPaymentId });
+    await vi.advanceTimersByTimeAsync(5_000);
+    const out = await p;
+    expect(out).toMatchObject({ state: "pending", paymentId: begun.retryPaymentId });
+    expect(fake.posts(/\/capture$/)).toHaveLength(capturesBefore);
+    const r = await rows(t, milestone._id);
+    expect(r.funding.captures ?? []).toEqual(capturedBefore);
+    expect(begun.idempotencyKey).toBe(`${original.idempotencyKey}_r1`);
+    const retryBatches = [...fake.batches.values()].filter((b) => b.senderBatchId === begun.idempotencyKey);
+    expect(retryBatches).toHaveLength(1);
+    expect(out.batchId).toBe(retryBatches[0].id);
+    for (const c of fake.posts(/^\/v1\/payments\/payouts$/).slice(-2)) expect(c.requestId).toBe(begun.idempotencyKey);
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const ledger = await gc.as.query(api.payments.ledger.getAgreementLedger, { agreementId: agreement._id });
+    expect(ledger?.totals).toMatchObject({ capturedCents: 1_000_000, paidCents: 900_000, capturedNotPaidCents: 0 });
+    const paid = (await rows(t, milestone._id)).payouts.filter((p) => p.status === "success");
+    expect(paid.map((p) => p._id)).toEqual([begun.retryPaymentId]);
+  });
+
   test("a second failure allows _r2; subs, owners and anonymous callers cannot retry", async () => {
     const { t, gc, original } = await failedRelease();
     fake.state.defaultItemStatus = "FAILED";

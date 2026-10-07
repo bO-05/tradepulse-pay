@@ -44,6 +44,11 @@ async function executeRelease(ctx: ActionCtx, paymentId: Id<"payments">, actor: 
     };
   }
   if (row.fundingPaymentId === null) throw new ConvexError({ code: "INVALID_STATE", message: "This release has no funding authorization." });
+  if (row.retryOfPaymentId !== null) {
+    // A payout retry pays from the original release's capture (beginPayout checks it); capturing here
+    // would take the gross from the authorization a second time.
+    return await sendPayout(ctx, paymentId, actor);
+  }
   const capture = await captureApproved(ctx, {
     paymentId: row.fundingPaymentId,
     amountCents: row.grossCents,
@@ -61,13 +66,17 @@ async function executeRelease(ctx: ActionCtx, paymentId: Id<"payments">, actor: 
         "Capture pending: PayPal has not completed the capture yet, so the sub was not paid. The payout is sent automatically when PayPal completes it; use Refresh status to check.",
     };
   }
+  return await sendPayout(ctx, paymentId, actor, capture.captureId);
+}
+
+async function sendPayout(ctx: ActionCtx, paymentId: Id<"payments">, actor: string, captureId?: string): Promise<ReleaseResult> {
   const payout = await payoutSub(ctx, { paymentId, actor });
   if (payout.deferred) {
     return {
       state: "pending",
       paymentId,
       status: payout.status,
-      captureId: capture.captureId,
+      captureId,
       message: "Captured. PayPal reported insufficient funds for the payout right away; it is retried automatically.",
     };
   }
@@ -75,7 +84,7 @@ async function executeRelease(ctx: ActionCtx, paymentId: Id<"payments">, actor: 
     state: payout.status === "success" ? "paid" : "pending",
     paymentId,
     status: payout.status,
-    captureId: capture.captureId,
+    captureId,
     batchId: payout.batchId,
     ...(payout.duplicate ? { message: "PayPal already had this payout batch; it was not sent twice." } : {}),
   };

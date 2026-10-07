@@ -47,11 +47,6 @@ export async function deleteAgreementPaymentRows(ctx: MutationCtx, agreementId: 
   return n;
 }
 
-/** Audit entries about money (PayPal writes, retries, watcher runs on an agreement) survive project resets. */
-export function isPaymentHistory(log: { eventType: string; agreementId?: Id<"agreements"> }): boolean {
-  return log.eventType === "paypal_write" || log.eventType === "payout_retry" || log.agreementId !== undefined;
-}
-
 /** Deletes an agreement and every per-agreement payment row that references it. */
 export async function deleteAgreementCascade(ctx: MutationCtx, agreementId: Id<"agreements">): Promise<void> {
   await deleteAgreementPaymentRows(ctx, agreementId);

@@ -301,10 +301,10 @@ export const JudgeSimulationDock: React.FC<JudgeSimulationDockProps> = ({
                   Reset Demo Project Seed
                 </div>
                 <p className="text-xs text-slate-300 mb-2 leading-relaxed">
-                  Restore the shared demo project to its seeded baseline. This clears live bids, audit logs, and contractor statuses on the demo only.
+                  Restore the shared demo project to its seeded baseline. This clears live bids and contractor statuses on the demo only; audit history is kept but no longer shown.
                 </p>
                 <div className="bg-slate-900 p-2 rounded text-[11px] text-slate-400 mb-2.5 border border-slate-800 font-mono">
-                  Resets the shared seeded demo project to its baseline (live bids, audit logs, and contractor statuses). Custom projects are not modified.
+                  Resets the shared seeded demo project to its baseline (live bids and contractor statuses; audit history is kept). Custom projects are not modified.
                 </div>
               </div>
               <button
@@ -337,7 +337,7 @@ export const JudgeSimulationDock: React.FC<JudgeSimulationDockProps> = ({
       <ConfirmDialog
         open={isResetConfirmOpen}
         title="Reset the shared demo project?"
-        description="This restores the seeded demo project to its baseline and clears live bids, audit logs, and contractor statuses on the demo only. Custom projects are not modified."
+        description="This restores the seeded demo project to its baseline and clears live bids and contractor statuses on the demo only. Audit history is kept but no longer shown. Custom projects are not modified."
         confirmLabel="Reset demo project"
         onCancel={() => setIsResetConfirmOpen(false)}
         onConfirm={async () => {

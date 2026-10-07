@@ -14,7 +14,9 @@ export const listRecentLogs = query({
   handler: async (ctx, args) => {
     const maxLimit = args.limit ?? 50;
 
+    // Audit history outlives deleted projects but is not shown for them.
     if (args.projectId) {
+      if ((await ctx.db.get(args.projectId)) === null) return [];
       return await ctx.db
         .query("auditLogs")
         .withIndex("by_project", (q) => q.eq("projectId", args.projectId!))
@@ -22,10 +24,25 @@ export const listRecentLogs = query({
         .take(maxLimit);
     }
 
-    return await ctx.db
+    const recent = await ctx.db
       .query("auditLogs")
       .order("desc")
       .take(maxLimit);
+    const live = new Map<string, boolean>();
+    const visible = [];
+    for (const log of recent) {
+      if (log.projectId === undefined) {
+        visible.push(log);
+        continue;
+      }
+      let exists = live.get(log.projectId);
+      if (exists === undefined) {
+        exists = (await ctx.db.get(log.projectId)) !== null;
+        live.set(log.projectId, exists);
+      }
+      if (exists) visible.push(log);
+    }
+    return visible;
   },
 });
 

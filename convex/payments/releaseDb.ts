@@ -163,6 +163,7 @@ export const releaseRow = internalQuery({
       idempotencyKey: p.idempotencyKey,
       fundingPaymentId: p.fundingPaymentId ?? null,
       milestoneId: p.milestoneId ?? null,
+      retryOfPaymentId: p.retryOfPaymentId ?? null,
       paypalPayoutBatchId: p.paypalPayoutBatchId ?? null,
       error: p.error ?? null,
     };

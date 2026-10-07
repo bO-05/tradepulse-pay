@@ -145,6 +145,63 @@ describe("agreement cascade delete", () => {
     }
   });
 
+  test("a force reseed and a project delete keep every auditLogs row, PayPal and ordinary", async () => {
+    const { t, gc, agreement } = await seededWithMoney();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("auditLogs", {
+        projectId: agreement.projectId,
+        eventType: "contractor_invited",
+        title: "Contractor invited",
+        description: "ordinary project history",
+        actor: "test",
+        timestamp: Date.now(),
+      });
+    });
+    const allIds = async () => (await t.run(async (ctx) => await ctx.db.query("auditLogs").collect())).map((l) => l._id);
+    const before = await allIds();
+    expect(before.length).toBeGreaterThan(2);
+    const ordinary = await t.run(async (ctx) =>
+      (await ctx.db.query("auditLogs").collect()).filter((l) => l.eventType !== "paypal_write" && l.agreementId === undefined),
+    );
+    expect(ordinary.length).toBeGreaterThan(0);
+
+    await gc.as.mutation(api.projects.seedInitialData, { force: true });
+    const afterReseed = await allIds();
+    expect(afterReseed).toEqual(expect.arrayContaining(before));
+
+    const projectId = await gc.as.mutation(api.projects.createProject, {
+      title: "Audit retention project",
+      location: "Austin, TX",
+      projectType: "Commercial",
+      estBudget: 1_000_000,
+      targetCompletionWeeks: 10,
+      specDocumentText: "test",
+      isDemoProject: false,
+    });
+    const project = { _id: projectId };
+    await t.run(async (ctx) => {
+      await ctx.db.insert("auditLogs", {
+        projectId: project._id,
+        eventType: "rfi_clarified",
+        title: "RFI clarified",
+        description: "ordinary project history",
+        actor: "test",
+        timestamp: Date.now(),
+      });
+    });
+    const beforeDelete = await allIds();
+    await gc.as.mutation(api.projects.deleteProject, { projectId: project._id });
+    expect(await allIds()).toEqual(expect.arrayContaining(beforeDelete));
+
+    // History of deleted projects is kept but no longer listed.
+    const listed = await gc.as.query(api.auditLogs.listRecentLogs, { limit: 500 });
+    expect(listed.length).toBeGreaterThan(0);
+    for (const l of listed) {
+      if (l.projectId) expect(await t.run(async (ctx) => await ctx.db.get(l.projectId!))).not.toBeNull();
+    }
+    expect(await gc.as.query(api.auditLogs.listRecentLogs, { projectId: project._id })).toEqual([]);
+  });
+
   test("deleting a trade package removes its agreements' payment rows", async () => {
     const { t, gc, agreement } = await seededWithMoney();
     // Executed agreements block deletion, so void the status for this check.

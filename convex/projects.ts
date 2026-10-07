@@ -5,7 +5,7 @@ import { remapAgentLinks, snapshotActiveAgentLinks } from "./lib/agentLinkRemap"
 import { v, ConvexError } from "convex/values";
 import { generateAiaA401AgreementText } from "./agreements";
 import { getRealDocumentPdfBytes } from "./realDocuments";
-import { deleteAgreementCascade, deleteContractorCascade, isPaymentHistory } from "./payments/cascade";
+import { deleteAgreementCascade, deleteContractorCascade } from "./payments/cascade";
 
 /**
  * Seed metadata must equal the bytes actually served by the document endpoints,
@@ -218,14 +218,7 @@ async function seedDemoProject(ctx: MutationCtx, args: { force?: boolean }) {
           await ctx.db.delete(f._id);
         }
 
-        const logs = await ctx.db
-          .query("auditLogs")
-          .withIndex("by_project", (q) => q.eq("projectId", proj._id))
-          .collect();
-        for (const l of logs) {
-          if (!isPaymentHistory(l)) await ctx.db.delete(l._id);
-        }
-
+        // auditLogs are kept as history; listRecentLogs hides entries of deleted projects.
         await ctx.db.delete(proj._id);
       }
 
@@ -1087,13 +1080,7 @@ export const deleteProject = mutation({
       await ctx.db.delete(f._id);
     }
 
-    const logs = await ctx.db
-      .query("auditLogs")
-      .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
-      .collect();
-    for (const l of logs) {
-      if (!isPaymentHistory(l)) await ctx.db.delete(l._id);
-    }
+    // auditLogs are kept as history; listRecentLogs hides entries of deleted projects.
 
     // A3-07: clash resolutions belonged to the project and were left orphaned.
     const clashResolutions = await ctx.db
