@@ -44,3 +44,23 @@ export const backdateAuthorization = internalMutation({
     };
   },
 });
+
+/**
+ * Validator-only helper: ages a created retainage release so it reads as interrupted ("Resume release").
+ * Create the row with the real begin step and no send, then backdate it:
+ *   npx convex run payments/retainageDb:beginRetainageRelease '{"agreementId":"<id>"}'
+ *   npx convex run payments/testing:backdateRetainageRelease '{"paymentId":"<id>","ageMs":600000}'
+ */
+export const backdateRetainageRelease = internalMutation({
+  args: { paymentId: v.id("payments"), ageMs: v.number() },
+  returns: v.object({ paymentId: v.id("payments"), status: v.string(), updatedAt: v.number() }),
+  handler: async (ctx, { paymentId, ageMs }) => {
+    const p = await ctx.db.get(paymentId);
+    if (p === null || p.kind !== "retainage_release" || p.status !== "created" || p.paypalPayoutBatchId) {
+      throw new ConvexError({ code: "NOT_FOUND", message: "No created retainage release without a PayPal batch." });
+    }
+    const at = Date.now() - ageMs;
+    await ctx.db.patch(p._id, { createdAt: Math.min(p.createdAt, at), updatedAt: at });
+    return { paymentId: p._id, status: p.status, updatedAt: at };
+  },
+});

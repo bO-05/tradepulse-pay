@@ -1,7 +1,8 @@
 import { useAction } from "convex/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
+import { isInterruptedRelease } from "../../convex/payments/retainageMath";
 import { readableError } from "./FundMilestone";
 import { formatCents, formatDate } from "./format";
 import { BADGE, type MilestoneRelease } from "./ReleaseMilestone";
@@ -68,36 +69,68 @@ export function RetainageReleaseList({ releases, canRefresh }: { releases: Miles
   );
 }
 
-/** GC-only closeout control: pays the sub the whole retainage balance once. Disabled when nothing is held. */
+/** Re-renders every 15 s while `active`, so a created release flips to resumable without a data change. */
+function useNow(active: boolean): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) return;
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), 15_000);
+    return () => clearInterval(id);
+  }, [active]);
+  return now;
+}
+
+/**
+ * GC-only closeout control: pays the sub the releasable retainage once. Disabled when nothing is releasable.
+ * A release interrupted before PayPal answered gets "Resume release", which re-sends the same batch.
+ */
 export function RetainageReleaseControl({
   agreementId,
   balanceCents,
+  releasableCents,
   releases,
 }: {
   agreementId: Id<"agreements">;
   balanceCents: number;
+  releasableCents: number;
   releases: MilestoneRelease[];
 }) {
   const releaseRetainage = useAction(api.payments.retainage.releaseRetainage);
+  const resumeRelease = useAction(api.payments.retainage.resumeRetainageRelease);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const inFlight = releases.some((r) => r.status === "created");
-  const disabled = busy || inFlight || balanceCents <= 0;
+  const created = releases.filter((r) => r.status === "created");
+  const now = useNow(created.length > 0);
+  const interrupted = created.find((r) => isInterruptedRelease(r, now));
+  const inFlight = created.length > 0;
+  const disabled = busy || inFlight || releasableCents <= 0;
+  const waitingCents = balanceCents - releasableCents;
 
-  async function release() {
-    if (disabled) return;
+  async function run(call: () => Promise<{ message: string }>) {
     setBusy(true);
     setNotice(null);
     setError(null);
     try {
-      const out = await releaseRetainage({ agreementId });
+      const out = await call();
       setNotice(out.message);
     } catch (e) {
       setError(readableError(e));
     } finally {
       setBusy(false);
     }
+  }
+
+  function hint(): string {
+    if (interrupted) return `A ${formatCents(interrupted.netCents)} retainage release was interrupted before PayPal answered. Resume it to send the same batch; it is never paid twice.`;
+    if (inFlight) return "A retainage release is being processed.";
+    if (balanceCents <= 0) return "Nothing to release: no retainage is held.";
+    if (releasableCents <= 0) return `${formatCents(balanceCents)} held, none releasable yet: it waits for the sub payouts it came from to succeed at PayPal.`;
+    if (waitingCents > 0) {
+      return `${formatCents(balanceCents)} held, ${formatCents(releasableCents)} releasable now. ${formatCents(waitingCents)} waits for pending or unclaimed sub payouts to succeed.`;
+    }
+    return `Closeout: pays the sub ${formatCents(releasableCents)} in one PayPal payout.`;
   }
 
   return (
@@ -107,17 +140,24 @@ export function RetainageReleaseControl({
           type="button"
           data-testid="release-retainage-button"
           disabled={disabled}
-          onClick={() => void release()}
+          onClick={() => void (disabled ? undefined : run(() => releaseRetainage({ agreementId })))}
           className="rounded-lg px-3 py-1.5 text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {busy ? "Releasing…" : "Release retainage"}
+          {busy && !interrupted ? "Releasing…" : "Release retainage"}
         </button>
+        {interrupted && (
+          <button
+            type="button"
+            data-testid="resume-retainage-button"
+            disabled={busy}
+            onClick={() => void run(() => resumeRelease({ paymentId: interrupted.paymentId }))}
+            className="rounded-lg px-3 py-1.5 text-sm font-semibold border border-amber-500 text-amber-200 hover:bg-amber-500/10 disabled:opacity-50"
+          >
+            {busy ? "Resuming…" : "Resume release"}
+          </button>
+        )}
         <span className="text-xs text-slate-400" data-testid="retainage-release-hint">
-          {balanceCents > 0
-            ? inFlight
-              ? "A retainage release is being processed."
-              : `Closeout: pays the sub ${formatCents(balanceCents)} in one PayPal payout.`
-            : "Nothing to release: no retainage is held."}
+          {hint()}
         </span>
       </div>
       {notice && (

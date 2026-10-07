@@ -213,11 +213,21 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
           <span className="font-semibold tabular-nums" data-testid="retainage-released">
             {formatCents(ledger.retainageReleasedCents)}
           </span>
+          {ledger.retainageReleasableCents !== totals.retainageHeldCents && (
+            <>
+              {" "}
+              · Releasable now:{" "}
+              <span className="font-semibold tabular-nums" data-testid="retainage-releasable">
+                {formatCents(ledger.retainageReleasableCents)}
+              </span>
+            </>
+          )}
         </p>
         {canReleaseRetainage && (
           <RetainageReleaseControl
             agreementId={agreement._id}
             balanceCents={totals.retainageHeldCents}
+            releasableCents={ledger.retainageReleasableCents}
             releases={retainageReleases}
           />
         )}

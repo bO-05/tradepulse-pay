@@ -7,6 +7,7 @@ import type { Id } from "../_generated/dataModel";
 import schema from "../schema";
 import { signInAs } from "../lib/testIdentity";
 import { clearPayPalTokenCache } from "./paypalClient";
+import { RESUME_RELEASE_AFTER_MS } from "./retainageMath";
 
 const modules = import.meta.glob("/convex/**/*.ts");
 
@@ -736,6 +737,114 @@ describe("retainage release", () => {
     expect(r.releases).toHaveLength(1);
     expect(r.releases[0]._id).toBe(out.paymentId);
     expect(r.ledger.filter((l) => l.paymentId === r.releases[0]._id).map((l) => l.deltaCents)).toEqual([-150_000]);
+    expect(r.balance).toBe(0);
+  });
+
+  test("retainage credited by an unclaimed source payout is not releasable, so its later return cannot drive the ledger negative", async () => {
+    const { t, gc, milestone, agreement } = await setup({ authorizedCents: 2_000_000 });
+    await gc.as.action(api.payments.release.releaseAndPay, { milestoneId: milestone._id, amountCents: 1_000_000, requestKey: key("ok") });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    fake.state.defaultItemStatus = "UNCLAIMED";
+    await gc.as.action(api.payments.release.releaseAndPay, { milestoneId: milestone._id, amountCents: 500_000, requestKey: key("unc") });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const unclaimed = (await rows(t, milestone._id)).payouts.find((p) => p.status === "unclaimed")!;
+    expect(unclaimed.grossCents).toBe(500_000);
+    expect((await releaseRows(t, agreement._id)).balance).toBe(150_000);
+
+    const view = await gc.as.query(api.payments.ledger.getAgreementLedger, { agreementId: agreement._id });
+    expect(view?.totals.retainageHeldCents).toBe(150_000);
+    expect(view?.retainageReleasableCents).toBe(100_000);
+
+    fake.state.defaultItemStatus = "SUCCESS";
+    const out = await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id });
+    expect(out.amountCents).toBe(100_000);
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect((await releaseRows(t, agreement._id)).balance).toBe(50_000);
+    // The unclaimed credit is still not releasable.
+    expect((await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id })).state).toBe("nothing_to_release");
+
+    await t.mutation(internal.payments.payoutDb.applyPayoutStatus, { paymentId: unclaimed._id, status: "returned", itemStatus: "RETURNED" });
+    const r = await releaseRows(t, agreement._id);
+    expect(r.balance).toBe(0);
+    let running = 0;
+    for (const l of [...r.ledger].sort((a, b) => a._creationTime - b._creationTime)) {
+      running += l.deltaCents;
+      expect(running).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  test("an unclaimed source payout that is later claimed becomes releasable", async () => {
+    const { t, gc, milestone, agreement } = await setup({ authorizedCents: 1_000_000 });
+    fake.state.defaultItemStatus = "UNCLAIMED";
+    await gc.as.action(api.payments.release.releaseAndPay, { milestoneId: milestone._id, amountCents: 500_000, requestKey: key("cl") });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const before = payoutPosts().length;
+    expect((await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id })).state).toBe("nothing_to_release");
+    expect(payoutPosts()).toHaveLength(before);
+
+    const source = (await rows(t, milestone._id)).payouts[0];
+    await t.mutation(internal.payments.payoutDb.applyPayoutStatus, { paymentId: source._id, status: "success", itemStatus: "SUCCESS" });
+    fake.state.defaultItemStatus = "SUCCESS";
+    const out = await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id });
+    expect(out.amountCents).toBe(50_000);
+  });
+
+  test("an interrupted created release offers resume only once it is stale, and resuming reuses the row and key", async () => {
+    const { t, gc, sub, agreement } = await withBalance();
+    const begun = await t.mutation(internal.payments.retainageDb.beginRetainageRelease, { agreementId: agreement._id });
+    expect(begun.state).toBe("new");
+    if (begun.state !== "new") throw new Error("expected a new release");
+    const row = (await releaseRows(t, agreement._id)).releases[0];
+
+    let view = await gc.as.query(api.payments.ledger.getAgreementLedger, { agreementId: agreement._id });
+    expect(view?.retainageReleases[0]).toMatchObject({ status: "created", updatedAt: row.createdAt });
+    // Too early: the action that created it may still be talking to PayPal.
+    const early = await errorOf(gc.as.action(api.payments.retainage.resumeRetainageRelease, { paymentId: begun.paymentId }));
+    expect(early.data.code).toBe("RELEASE_IN_PROGRESS");
+
+    vi.advanceTimersByTime(RESUME_RELEASE_AFTER_MS + 1_000);
+    for (const role of ["sub", "owner", null] as const) {
+      const caller = role === null ? t : role === "sub" ? sub.as : (await signInAs(t, role)).as;
+      const err = await errorOf(caller.action(api.payments.retainage.resumeRetainageRelease, { paymentId: begun.paymentId }));
+      expect(String(err.data?.message ?? err.message)).toMatch(/Not authenticated|Forbidden/);
+    }
+    const before = payoutPosts().length;
+    const out = await gc.as.action(api.payments.retainage.resumeRetainageRelease, { paymentId: begun.paymentId });
+    expect(out).toMatchObject({ paymentId: begun.paymentId, amountCents: 150_000 });
+    const posts = payoutPosts().slice(before);
+    expect(posts).toHaveLength(1);
+    expect((posts[0].body as { sender_batch_header: { sender_batch_id: string } }).sender_batch_header.sender_batch_id).toBe(row.idempotencyKey);
+
+    // Resuming again hits the stored batch: no second POST, no second debit.
+    await gc.as.action(api.payments.retainage.resumeRetainageRelease, { paymentId: begun.paymentId });
+    expect(payoutPosts().slice(before)).toHaveLength(1);
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const r = await releaseRows(t, agreement._id);
+    expect(r.releases).toHaveLength(1);
+    expect(r.releases[0].status).toBe("success");
+    expect(r.ledger.filter((l) => l.paymentId === row._id).map((l) => l.deltaCents)).toEqual([-150_000]);
+    expect(r.balance).toBe(0);
+    view = await gc.as.query(api.payments.ledger.getAgreementLedger, { agreementId: agreement._id });
+    expect(view?.retainageReleasableCents).toBe(0);
+  });
+
+  test("resuming a release whose batch PayPal created before the interruption resolves the duplicate 400", async () => {
+    const { t, gc, agreement } = await withBalance();
+    const begun = await t.mutation(internal.payments.retainageDb.beginRetainageRelease, { agreementId: agreement._id });
+    if (begun.state !== "new") throw new Error("expected a new release");
+    const row = (await releaseRows(t, agreement._id)).releases[0];
+    // PayPal accepted the batch, but the response never reached the action.
+    fake.batches.set("BATCH-PRE", { id: "BATCH-PRE", senderBatchId: row.idempotencyKey, senderItemId: row._id, receiver: SUB_EMAIL, value: "1500.00" });
+    vi.advanceTimersByTime(RESUME_RELEASE_AFTER_MS + 1_000);
+
+    const out = await gc.as.action(api.payments.retainage.resumeRetainageRelease, { paymentId: begun.paymentId });
+    expect(out.batchId).toBe("BATCH-PRE");
+    expect(out.message).toMatch(/not sent twice/);
+    expect(fake.batches.size).toBe(3);
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const r = await releaseRows(t, agreement._id);
+    expect(r.releases[0]).toMatchObject({ status: "success", paypalPayoutBatchId: "BATCH-PRE" });
+    expect(r.ledger.filter((l) => l.paymentId === row._id).map((l) => l.deltaCents)).toEqual([-150_000]);
     expect(r.balance).toBe(0);
   });
 

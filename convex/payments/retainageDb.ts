@@ -2,20 +2,21 @@ import { ConvexError, v, type Infer } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
 import { receiverFor } from "./releaseDb";
+import { isInterruptedRelease, releasableRetainageCents } from "./retainageMath";
 
 /**
  * Database side of the closeout retainage release (architecture §4 step 4). One agreement has one sub,
- * so a release pays that sub the agreement's whole ledger balance through one retainage_release payment.
+ * so a release pays that sub the agreement's releasable retainage (retainageMath.releasableRetainageCents)
+ * through one retainage_release payment.
  * The matching negative ledger row is written when PayPal accepts the batch (payoutDb.recordPayoutCreated),
- * which brings the balance to 0; that is what keeps a second release from paying anything.
+ * which takes the releasable amount to 0; that is what keeps a second release from paying anything.
  */
 
-export async function retainageBalanceCents(ctx: MutationCtx, agreementId: Id<"agreements">): Promise<number> {
-  const rows = await ctx.db
+async function ledgerRows(ctx: MutationCtx, agreementId: Id<"agreements">) {
+  return await ctx.db
     .query("retainageLedger")
     .withIndex("by_agreementId", (q) => q.eq("agreementId", agreementId))
     .take(1000);
-  return rows.reduce((acc, r) => acc + r.deltaCents, 0);
 }
 
 const beginRetainageResult = v.union(
@@ -44,7 +45,7 @@ export const beginRetainageRelease = internalMutation({
     const inFlight = releases.find((p) => p.status === "created");
     if (inFlight) return { state: "in_flight", paymentId: inFlight._id, amountCents: inFlight.netCents };
 
-    const balanceCents = await retainageBalanceCents(ctx, agreementId);
+    const balanceCents = releasableRetainageCents(payments, await ledgerRows(ctx, agreementId));
     if (balanceCents <= 0) return { state: "nothing_to_release", balanceCents };
 
     const receiverEmail = await receiverFor(ctx, agreement.contractorId);
@@ -66,5 +67,27 @@ export const beginRetainageRelease = internalMutation({
       createdAt: Date.now(),
     });
     return { state: "new", paymentId, amountCents: balanceCents };
+  },
+});
+
+/**
+ * Guard for the GC "Resume release" control: only an interrupted created release (no batch id and stale,
+ * see retainageMath) may be resumed. The caller then re-sends the same row, so sender_batch_id is unchanged.
+ */
+export const checkResumableRelease = internalMutation({
+  args: { paymentId: v.id("payments") },
+  returns: v.object({ amountCents: v.number() }),
+  handler: async (ctx, { paymentId }) => {
+    const p = await ctx.db.get(paymentId);
+    if (p === null || p.kind !== "retainage_release") {
+      throw new ConvexError({ code: "NOT_FOUND", message: "Retainage release not found." });
+    }
+    if (p.status === "created" && !p.paypalPayoutBatchId && !isInterruptedRelease(p, Date.now())) {
+      throw new ConvexError({
+        code: "RELEASE_IN_PROGRESS",
+        message: "This retainage release is still being sent to PayPal. Try resuming in a few minutes if it stays here.",
+      });
+    }
+    return { amountCents: p.netCents };
   },
 });

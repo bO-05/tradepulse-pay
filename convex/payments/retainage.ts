@@ -28,21 +28,25 @@ async function releaseRetainageFor(ctx: ActionCtx, agreementId: Id<"agreements">
   if (begun.state === "nothing_to_release") {
     return { state: "nothing_to_release", amountCents: 0, message: "No retainage is held on this agreement; nothing was sent to PayPal." };
   }
-  const payout = await payoutSub(ctx, { paymentId: begun.paymentId, actor });
-  const amount = formatCents(begun.amountCents);
+  return await sendRelease(ctx, begun.paymentId, begun.amountCents, actor);
+}
+
+async function sendRelease(ctx: ActionCtx, paymentId: Id<"payments">, amountCents: number, actor: string): Promise<RetainageResult> {
+  const payout = await payoutSub(ctx, { paymentId, actor });
+  const amount = formatCents(amountCents);
   if (payout.deferred) {
     return {
       state: "pending",
-      paymentId: begun.paymentId,
-      amountCents: begun.amountCents,
+      paymentId,
+      amountCents,
       status: payout.status,
       message: `PayPal reported insufficient funds for the ${amount} retainage release; it is retried automatically.`,
     };
   }
   return {
     state: payout.status === "success" ? "paid" : "pending",
-    paymentId: begun.paymentId,
-    amountCents: begun.amountCents,
+    paymentId,
+    amountCents,
     status: payout.status,
     batchId: payout.batchId,
     message:
@@ -59,6 +63,23 @@ export const releaseRetainage = action({
     const viewer = await requireRoleInAction(ctx, ["gc"]);
     const actor: string = await ctx.runQuery(internal.payments.release.actorForUser, { userId: viewer.userId });
     return await releaseRetainageFor(ctx, agreementId, actor);
+  },
+});
+
+/**
+ * GC "Resume release" for a release left created when its action died before PayPal answered. Re-sends the
+ * same row, so the same sender_batch_id goes out and a batch PayPal already made resolves via duplicate 400.
+ */
+export const resumeRetainageRelease = action({
+  args: { paymentId: v.id("payments") },
+  returns: retainageResult,
+  handler: async (ctx, { paymentId }): Promise<RetainageResult> => {
+    const viewer = await requireRoleInAction(ctx, ["gc"]);
+    const actor: string = await ctx.runQuery(internal.payments.release.actorForUser, { userId: viewer.userId });
+    const { amountCents }: { amountCents: number } = await ctx.runMutation(internal.payments.retainageDb.checkResumableRelease, {
+      paymentId,
+    });
+    return await sendRelease(ctx, paymentId, amountCents, actor);
   },
 });
 

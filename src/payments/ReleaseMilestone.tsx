@@ -18,6 +18,7 @@ export type MilestoneRelease = {
   receiverEmail: string | null;
   error: string | null;
   createdAt: number;
+  updatedAt?: number;
   retryOfPaymentId?: Id<"payments"> | null;
   captured?: boolean;
   canRetryPayout?: boolean;

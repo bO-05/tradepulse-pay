@@ -6,6 +6,7 @@ import { isCaptureCollected } from "./captureSettlement";
 import { BALANCE_FORMULA, computeLedgerTotals } from "./ledgerTotals";
 import { attemptsFor, checkRetry } from "./payoutRetryMath";
 import { retainagePercentFor } from "./payoutMath";
+import { releasableRetainageCents } from "./retainageMath";
 import { agreementContractSumCents } from "./sov";
 
 function ledgerAgreementSummary(a: Doc<"agreements">) {
@@ -55,6 +56,7 @@ function releaseSummary(p: Doc<"payments">, showReceiver: boolean, retry?: { cap
     receiverEmail: showReceiver ? (p.receiverEmail ?? null) : null,
     error: p.error ?? null,
     createdAt: p.createdAt,
+    updatedAt: p.updatedAt ?? p.createdAt,
     retryOfPaymentId: p.retryOfPaymentId ?? null,
     captured: retry?.captured ?? false,
     canRetryPayout: retry?.canRetryPayout ?? false,
@@ -159,6 +161,7 @@ export const getAgreementLedger = query({
       canRelease: isGc,
       canReleaseRetainage: isGc,
       retainageReleasedCents: totals.retainageReleasedCents,
+      retainageReleasableCents: releasableRetainageCents(payments, retainage),
       balanceFormula: BALANCE_FORMULA,
       retainageReleases: retainageReleases.map((p) => releaseSummary(p, isGc || viewer.role === "sub")),
       retainageLedger: retainage.map((r) => ({
