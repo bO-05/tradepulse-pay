@@ -3,6 +3,7 @@ import type { Doc } from "./_generated/dataModel";
 import { query } from "./_generated/server";
 import { canViewAgreement, requireRole } from "./lib/roles";
 import { changeOrderView } from "./payments/changeOrderDb";
+import { WITHDRAWABLE_PAY_APP_STATUSES } from "./payApps/validation";
 
 function agreementSummary(a: Doc<"agreements">) {
   return {
@@ -55,9 +56,18 @@ export const mySubPortal = query({
       payApplications: payApps.map((p) => ({
         _id: p._id,
         agreementId: p.agreementId,
+        agreementNumber: visible.find((a) => a._id === p.agreementId)?.agreementNumber ?? "",
         periodLabel: p.periodLabel,
         requestedTotalCents: p.requestedTotalCents,
+        lienWaiver: p.lienWaiver,
         status: p.status,
+        submittedBy: {
+          actorType: p.submittedBy.actorType,
+          agentEmail: p.submittedBy.agentEmail ?? null,
+          onBehalfOf: p.submittedBy.ownerName ?? p.submittedBy.ownerEmail ?? null,
+        },
+        canWithdraw: WITHDRAWABLE_PAY_APP_STATUSES.has(p.status),
+        withdrawnAt: p.withdrawnAt ?? null,
         createdAt: p.createdAt,
       })),
     };
