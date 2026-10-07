@@ -3,6 +3,7 @@ export type Role = "gc" | "sub" | "owner";
 export type AreaId =
   | "procurement"
   | "payments"
+  | "inbox"
   | "sub-portal"
   | "owner-portal"
   | "billing-agents"
@@ -16,6 +17,7 @@ export type Route = { area: AreaId; agreementId?: string };
 const AREA_HASH: Record<NavItem["area"], string> = {
   procurement: "#/procurement",
   payments: "#/payments",
+  inbox: "#/inbox",
   "sub-portal": "#/portal",
   "owner-portal": "#/projects",
   "billing-agents": "#/billing-agents",
@@ -29,6 +31,7 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
   gc: [
     { area: "procurement", label: "Procurement", hash: AREA_HASH.procurement },
     { area: "payments", label: "Payments", hash: AREA_HASH.payments },
+    { area: "inbox", label: "Approval inbox", hash: AREA_HASH.inbox },
     { area: "owner-portal", label: "Projects overview", hash: AREA_HASH["owner-portal"] },
     { area: "billing-agents", label: "Billing agents", hash: AREA_HASH["billing-agents"] },
   ],

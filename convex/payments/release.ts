@@ -90,7 +90,7 @@ async function sendPayout(ctx: ActionCtx, paymentId: Id<"payments">, actor: stri
   };
 }
 
-async function startRelease(
+export async function startRelease(
   ctx: ActionCtx,
   args: {
     milestoneId: Id<"milestones">;
@@ -122,7 +122,25 @@ export const releaseAndPay = action({
   handler: async (ctx, args): Promise<ReleaseResult> => {
     const viewer = await requireRoleInAction(ctx, ["gc"]);
     const actor: string = await ctx.runQuery(internal.payments.release.actorForUser, { userId: viewer.userId });
-    return await startRelease(ctx, { ...args, actor });
+    // A ledger release is recorded as a GC-approved payout proposal, so every capture and payout
+    // goes through the proposal approve/execute path.
+    const proposalId: Id<"agentProposals"> = await ctx.runMutation(internal.payApps.proposals.ledgerReleaseProposal, {
+      ...args,
+      userId: viewer.userId,
+    });
+    try {
+      const result = await startRelease(ctx, { ...args, actor, proposalId });
+      await ctx.runMutation(internal.payApps.proposals.settleProposalExecution, { proposalId, requestKey: args.requestKey });
+      return result;
+    } catch (e) {
+      const message = e instanceof ConvexError ? String((e.data as { message?: string }).message ?? "") : "";
+      await ctx.runMutation(internal.payApps.proposals.settleProposalExecution, {
+        proposalId,
+        requestKey: args.requestKey,
+        error: (message || "The release failed.").slice(0, 500),
+      });
+      throw e;
+    }
   },
 });
 

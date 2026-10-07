@@ -11,6 +11,14 @@ vi.mock("ai", async (importOriginal) => {
   return { ...actual, generateText: generateTextMock };
 });
 
+// The pay agent scheduled after each review has its own tests (agent/payAgent.test.ts); here it is a
+// no-op so these tests see only the review's model calls, traces and license flags.
+vi.mock("../agent/payAgent", async () => {
+  const { internalAction } = await import("../_generated/server");
+  const { v } = await import("convex/values");
+  return { runPayAgent: internalAction({ args: { payAppId: v.id("payApplications") }, handler: async () => null }) };
+});
+
 const modules = import.meta.glob("/convex/**/*.ts");
 
 beforeEach(() => {

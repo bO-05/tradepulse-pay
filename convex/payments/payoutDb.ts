@@ -2,6 +2,7 @@ import { ConvexError, v, type Infer } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
 import { toDollarString } from "../lib/money";
+import { syncProposalForPayment } from "../payApps/proposalSync";
 import { isCaptureCollected } from "./captureSettlement";
 import { moveMilestone } from "./releaseDb";
 import { RETAINAGE_REVERSING_STATUSES, isMilestoneFullyPaid } from "./payoutMath";
@@ -146,6 +147,7 @@ export const recordPayoutCreated = internalMutation({
         });
       }
     }
+    await syncProposalForPayment(ctx, p._id);
     return null;
   },
 });
@@ -171,6 +173,7 @@ export const recordPayoutFailure = internalMutation({
     if (p === null || p.status !== "created" || p.paypalPayoutBatchId) return null;
     assertPaymentTransition(p.kind, "created", "failed");
     await ctx.db.patch(p._id, { status: "failed", error, updatedAt: Date.now() });
+    await syncProposalForPayment(ctx, p._id);
     return null;
   },
 });

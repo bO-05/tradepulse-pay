@@ -7,9 +7,11 @@
  *
  *   npx convex run payApps/reviewScenario:seedReviewScenario '{}'
  *   npx convex run payApps/reviewScenario:seedReviewScenario '{"suffix":"02"}'
+ *   npx convex run payApps/reviewScenario:seedReviewScenario '{"suffix":"TDI01","contractor":"tdindustries"}'
  *
  * A suffix seeds a separate agreement (A401-DEMO-PAYREVIEW-<suffix>) so a
- * scenario can start from no prior billing.
+ * scenario can start from no prior billing. `contractor: "tdindustries"` seeds the same
+ * agreement for sub2's contractor, whose CSLB license is expired.
  */
 import { ConvexError, v } from "convex/values";
 import { internalMutation, internalQuery } from "../_generated/server";
@@ -20,7 +22,11 @@ import { RETAINAGE_PERCENT } from "../terms";
 export const REVIEW_SCENARIO_AGREEMENT_NUMBER = "A401-DEMO-PAYREVIEW-01";
 const AGREEMENT_PREFIX = "A401-DEMO-PAYREVIEW-";
 const SUFFIX_PATTERN = /^[0-9A-Z]{1,8}$/;
-const CONTRACTOR_NAME = "Rosendin Electric, Inc.";
+const CONTRACTORS = {
+  rosendin: "Rosendin Electric, Inc.",
+  // CSLB #512239 is expired, so this agreement exercises the license hold on payouts.
+  tdindustries: "TDIndustries, Inc.",
+} as const;
 
 const LINE_ITEMS = [
   { item: "1600A main switchboard & transformers", totalCost: 340_000 },
@@ -37,8 +43,9 @@ const SEISMIC_EXCLUSION = {
 };
 
 export const seedReviewScenario = internalMutation({
-  args: { suffix: v.optional(v.string()) },
+  args: { suffix: v.optional(v.string()), contractor: v.optional(v.union(v.literal("rosendin"), v.literal("tdindustries"))) },
   handler: async (ctx, args) => {
+    const contractorName = CONTRACTORS[args.contractor ?? "rosendin"];
     const suffix = (args.suffix ?? "01").trim().toUpperCase();
     if (!SUFFIX_PATTERN.test(suffix)) throw new ConvexError("suffix must be 1-8 letters or digits.");
     const agreementNumber = `${AGREEMENT_PREFIX}${suffix}`;
@@ -48,8 +55,8 @@ export const seedReviewScenario = internalMutation({
       .first();
     if (existing) return { agreementId: existing._id, agreementNumber, created: false };
 
-    const contractorId = await findDemoContractorId(ctx, CONTRACTOR_NAME);
-    if (!contractorId) throw new ConvexError(`Demo contractor ${CONTRACTOR_NAME} not found; run demoAccounts:seedDemo first.`);
+    const contractorId = await findDemoContractorId(ctx, contractorName);
+    if (!contractorId) throw new ConvexError(`Demo contractor ${contractorName} not found; run demoAccounts:seedDemo first.`);
     const now = Date.now();
     const baseBid = LINE_ITEMS.reduce((a, l) => a + l.totalCost, 0);
     const contractSum = baseBid + SEISMIC_EXCLUSION.costImpact;
@@ -80,7 +87,7 @@ export const seedReviewScenario = internalMutation({
     const bidId = await ctx.db.insert("bids", {
       tradePackageId,
       contractorId,
-      subcontractorName: CONTRACTOR_NAME,
+      subcontractorName: contractorName,
       baseBidAmount: baseBid,
       lineItems: LINE_ITEMS.map((l) => ({ item: l.item, unit: "LS", quantity: 1, unitCost: l.totalCost, totalCost: l.totalCost })),
       identifiedExclusions: [SEISMIC_EXCLUSION],
@@ -100,7 +107,7 @@ export const seedReviewScenario = internalMutation({
       contractorId,
       agreementNumber,
       documentTitle: "Subcontract agreement (demo data)",
-      subcontractorName: CONTRACTOR_NAME,
+      subcontractorName: contractorName,
       generalContractorName: "Austin Commercial, LP",
       projectTitle: "Demo · Pay-app review scenario",
       projectLocation: "Austin, TX",

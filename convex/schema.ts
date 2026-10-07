@@ -239,6 +239,16 @@ export default defineSchema({
     editedAmountCents: v.optional(v.number()),
     paymentId: v.optional(v.id("payments")),
     error: v.optional(v.string()),
+    // Who wrote the proposal: the pay agent's model, the code policy filling a required proposal the
+    // model skipped, or a GC release started from the agreement ledger.
+    source: v.optional(v.union(v.literal("agent"), v.literal("code_policy"), v.literal("gc_ledger"))),
+    agentRunId: v.optional(v.string()),
+    licenseStatus: v.optional(v.string()),
+    licenseCheckId: v.optional(v.id("licenseChecks")),
+    paypalCaptureId: v.optional(v.string()),
+    captureStatus: v.optional(v.string()),
+    overrideLicenseHold: v.optional(v.boolean()),
+    executedAt: v.optional(v.number()),
     createdAt: v.number(),
   })
     .index("by_status", ["status"])

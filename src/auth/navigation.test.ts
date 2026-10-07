@@ -3,7 +3,7 @@ import { agreementHash, ledgerHash, NAV_BY_ROLE, parseHash, resolveRoute, signIn
 
 describe("role navigation", () => {
   test("GC gets procurement, payments and the read-only overview; sub and owner never get procurement", () => {
-    expect(NAV_BY_ROLE.gc.map((i) => i.area)).toEqual(["procurement", "payments", "owner-portal", "billing-agents"]);
+    expect(NAV_BY_ROLE.gc.map((i) => i.area)).toEqual(["procurement", "payments", "inbox", "owner-portal", "billing-agents"]);
     expect(NAV_BY_ROLE.sub.map((i) => i.area)).toEqual(["sub-portal", "payments"]);
     expect(NAV_BY_ROLE.owner.map((i) => i.area)).toEqual(["owner-portal"]);
   });
@@ -18,6 +18,9 @@ describe("role navigation", () => {
     expect(resolveRoute("gc", "#/billing-agents")).toEqual({ area: "billing-agents" });
     expect(resolveRoute("sub", "#/billing-agents")).toEqual({ area: "sub-portal" });
     expect(resolveRoute("owner", "#/billing-agents")).toEqual({ area: "owner-portal" });
+    expect(resolveRoute("gc", "#/inbox")).toEqual({ area: "inbox" });
+    expect(resolveRoute("sub", "#/inbox")).toEqual({ area: "sub-portal" });
+    expect(resolveRoute("owner", "#/inbox")).toEqual({ area: "owner-portal" });
   });
 
   test("agreement deep links round-trip for every role (access is enforced by the backend)", () => {

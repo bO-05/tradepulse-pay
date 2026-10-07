@@ -1,7 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import { internal } from "../_generated/api";
-import { action, internalAction, internalMutation, internalQuery, query, type ActionCtx } from "../_generated/server";
+import { action, internalAction, internalMutation, internalQuery, query, type ActionCtx, type QueryCtx } from "../_generated/server";
 import { requireRole, requireRoleInAction } from "../lib/roles";
 import { formatCents } from "../lib/money";
 import { payAppReviewValidator } from "../schema";
@@ -128,6 +128,7 @@ export const storeReview = internalMutation({
       actor: args.review.engine,
       timestamp: now,
     });
+    await ctx.scheduler.runAfter(0, internal.agent.payAgent.runPayAgent, { payAppId: payApp._id });
     return { stored: true };
   },
 });
@@ -223,6 +224,65 @@ export const normalizePayAppId = internalQuery({
   handler: async (ctx, args) => ctx.db.normalizeId("payApplications", args.payAppId),
 });
 
+/** A pay application with line details and its stored review, as the GC sees it. */
+export async function payAppView(ctx: QueryCtx, p: Doc<"payApplications">, sovById: Map<string, Doc<"scheduleOfValues">>) {
+  const reviewLines = new Map((p.review?.lines ?? []).map((l) => [l.sovLineId as string, l]));
+  const submitter = p.submittedBy.actorType === "human" ? await ctx.db.get(p.submittedBy.userId) : null;
+  return {
+    _id: p._id,
+    agreementId: p.agreementId,
+    periodLabel: p.periodLabel,
+    status: p.status,
+    requestedTotalCents: p.requestedTotalCents,
+    lienWaiver: p.lienWaiver,
+    notes: p.notes,
+    createdAt: p.createdAt,
+    submittedBy: {
+      actorType: p.submittedBy.actorType,
+      agentEmail: p.submittedBy.agentEmail ?? null,
+      onBehalfOf: p.submittedBy.ownerName ?? p.submittedBy.ownerEmail ?? null,
+      userEmail: submitter?.email ?? null,
+    },
+    lines: p.lines.map((l) => {
+      const s = sovById.get(l.sovLineId);
+      const r = reviewLines.get(l.sovLineId);
+      return {
+        sovLineId: l.sovLineId,
+        lineNo: s?.lineNo ?? 0,
+        description: s?.description ?? "Unknown line",
+        excludedScope: s?.excludedScope ?? false,
+        scheduledValueCents: s?.scheduledValueCents ?? 0,
+        pctCompleteThisPeriod: l.pctCompleteThisPeriod,
+        pctCompleteToDate: l.pctCompleteToDate,
+        requestedCents: l.requestedCents,
+        review: r
+          ? { verdict: r.verdict, recommendedPctToDate: r.recommendedPctToDate, approvedCents: r.approvedCents, reason: r.reason }
+          : null,
+      };
+    }),
+    review: p.review
+      ? {
+          engine: p.review.engine,
+          provider: p.review.provider,
+          model: p.review.model,
+          fallbackReason: p.review.fallbackReason ?? null,
+          flags: p.review.flags,
+          approvedTotalCents: p.review.approvedTotalCents,
+          traceRunId: p.review.traceRunId ?? null,
+          reviewedAt: p.review.reviewedAt,
+        }
+      : null,
+  };
+}
+
+export async function sovMapFor(ctx: QueryCtx, agreementId: Id<"agreements">) {
+  const sov = await ctx.db
+    .query("scheduleOfValues")
+    .withIndex("by_agreementId_and_lineNo", (q) => q.eq("agreementId", agreementId))
+    .take(500);
+  return new Map(sov.map((s) => [s._id as string, s]));
+}
+
 /** GC view of an agreement's pay applications with line details and the stored review. */
 export const listAgreementPayApps = query({
   args: { agreementId: v.string() },
@@ -230,61 +290,12 @@ export const listAgreementPayApps = query({
     await requireRole(ctx, ["gc"]);
     const agreementId = ctx.db.normalizeId("agreements", args.agreementId);
     if (agreementId === null) return [];
-    const sov = await ctx.db
-      .query("scheduleOfValues")
-      .withIndex("by_agreementId_and_lineNo", (q) => q.eq("agreementId", agreementId))
-      .take(500);
-    const sovById = new Map(sov.map((s) => [s._id as string, s]));
+    const sovById = await sovMapFor(ctx, agreementId);
     const payApps = await ctx.db
       .query("payApplications")
       .withIndex("by_agreementId", (q) => q.eq("agreementId", agreementId))
       .order("desc")
       .take(100);
-    return payApps.map((p) => {
-      const reviewLines = new Map((p.review?.lines ?? []).map((l) => [l.sovLineId as string, l]));
-      return {
-        _id: p._id,
-        periodLabel: p.periodLabel,
-        status: p.status,
-        requestedTotalCents: p.requestedTotalCents,
-        lienWaiver: p.lienWaiver,
-        notes: p.notes,
-        createdAt: p.createdAt,
-        submittedBy: {
-          actorType: p.submittedBy.actorType,
-          agentEmail: p.submittedBy.agentEmail ?? null,
-          onBehalfOf: p.submittedBy.ownerName ?? p.submittedBy.ownerEmail ?? null,
-        },
-        lines: p.lines.map((l) => {
-          const s = sovById.get(l.sovLineId);
-          const r = reviewLines.get(l.sovLineId);
-          return {
-            sovLineId: l.sovLineId,
-            lineNo: s?.lineNo ?? 0,
-            description: s?.description ?? "Unknown line",
-            excludedScope: s?.excludedScope ?? false,
-            scheduledValueCents: s?.scheduledValueCents ?? 0,
-            pctCompleteThisPeriod: l.pctCompleteThisPeriod,
-            pctCompleteToDate: l.pctCompleteToDate,
-            requestedCents: l.requestedCents,
-            review: r
-              ? { verdict: r.verdict, recommendedPctToDate: r.recommendedPctToDate, approvedCents: r.approvedCents, reason: r.reason }
-              : null,
-          };
-        }),
-        review: p.review
-          ? {
-              engine: p.review.engine,
-              provider: p.review.provider,
-              model: p.review.model,
-              fallbackReason: p.review.fallbackReason ?? null,
-              flags: p.review.flags,
-              approvedTotalCents: p.review.approvedTotalCents,
-              traceRunId: p.review.traceRunId ?? null,
-              reviewedAt: p.review.reviewedAt,
-            }
-          : null,
-      };
-    });
+    return await Promise.all(payApps.map((p) => payAppView(ctx, p, sovById)));
   },
 });

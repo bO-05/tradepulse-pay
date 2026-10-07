@@ -8,6 +8,11 @@
  * @module
  */
 
+import type * as agent_agentLoop from "../agent/agentLoop.js";
+import type * as agent_payAgent from "../agent/payAgent.js";
+import type * as agent_proposalDb from "../agent/proposalDb.js";
+import type * as agent_proposalMath from "../agent/proposalMath.js";
+import type * as agent_tools from "../agent/tools.js";
 import type * as agentLinks from "../agentLinks.js";
 import type * as agentmailApi from "../agentmailApi.js";
 import type * as agreements from "../agreements.js";
@@ -36,6 +41,8 @@ import type * as lib_money from "../lib/money.js";
 import type * as lib_roles from "../lib/roles.js";
 import type * as lib_testIdentity from "../lib/testIdentity.js";
 import type * as llmRouter from "../llmRouter.js";
+import type * as payApps_proposalSync from "../payApps/proposalSync.js";
+import type * as payApps_proposals from "../payApps/proposals.js";
 import type * as payApps_review from "../payApps/review.js";
 import type * as payApps_reviewContext from "../payApps/reviewContext.js";
 import type * as payApps_reviewEvalFixtures from "../payApps/reviewEvalFixtures.js";
@@ -98,6 +105,11 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  "agent/agentLoop": typeof agent_agentLoop;
+  "agent/payAgent": typeof agent_payAgent;
+  "agent/proposalDb": typeof agent_proposalDb;
+  "agent/proposalMath": typeof agent_proposalMath;
+  "agent/tools": typeof agent_tools;
   agentLinks: typeof agentLinks;
   agentmailApi: typeof agentmailApi;
   agreements: typeof agreements;
@@ -126,6 +138,8 @@ declare const fullApi: ApiFromModules<{
   "lib/roles": typeof lib_roles;
   "lib/testIdentity": typeof lib_testIdentity;
   llmRouter: typeof llmRouter;
+  "payApps/proposalSync": typeof payApps_proposalSync;
+  "payApps/proposals": typeof payApps_proposals;
   "payApps/review": typeof payApps_review;
   "payApps/reviewContext": typeof payApps_reviewContext;
   "payApps/reviewEvalFixtures": typeof payApps_reviewEvalFixtures;

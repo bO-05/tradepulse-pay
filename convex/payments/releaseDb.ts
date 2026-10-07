@@ -1,6 +1,7 @@
 import { ConvexError, v, type Infer } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx } from "../_generated/server";
+import { syncProposalForPayment } from "../payApps/proposalSync";
 import { isCaptureDenied, settleRelease, takeEarlySettlement } from "./captureSettlement";
 import { assertPaymentTransition, canTransitionMilestone, canTransitionPayment, type MilestoneStatus } from "./stateMachine";
 import {
@@ -301,6 +302,7 @@ export const recordCaptureFailure = internalMutation({
       if (release !== null && release.status === "created") {
         assertPaymentTransition("payout", "created", "failed");
         await ctx.db.patch(release._id, { status: "failed", error: args.error, updatedAt: now });
+        await syncProposalForPayment(ctx, release._id);
       }
     }
     return null;

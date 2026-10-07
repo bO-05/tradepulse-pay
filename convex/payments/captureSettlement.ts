@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx } from "../_generated/server";
+import { syncProposalForPayment } from "../payApps/proposalSync";
 import { assertPaymentTransition } from "./stateMachine";
 
 /**
@@ -51,6 +52,7 @@ export async function settleRelease(
       error: `PayPal denied capture ${captureId} (${captureStatus}). Nothing was collected, so the sub was not paid and no retainage was withheld.`,
       updatedAt: now,
     });
+    await syncProposalForPayment(ctx, release._id);
     return true;
   }
   if (captureStatus === "COMPLETED" && release.status === "capture_pending") {

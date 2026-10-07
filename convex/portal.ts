@@ -23,6 +23,33 @@ function agreementSummary(a: Doc<"agreements">) {
   };
 }
 
+/**
+ * What the sub was approved and paid on one pay app: the GC-approved gross with retainage and net
+ * from its payout payment, or the reviewed amount while it awaits a decision.
+ */
+function payAppOutcome(payments: Doc<"payments">[]) {
+  const payout = payments
+    .filter((x) => x.kind === "payout" && x.status !== "failed")
+    .sort((a, b) => b.createdAt - a.createdAt)[0];
+  if (payout) {
+    return {
+      approvedGrossCents: payout.grossCents,
+      retainageHeldCents: payout.retainageCents,
+      netCents: payout.netCents,
+      netPaid: payout.status === "success",
+      payoutStatus: payout.paypalItemStatus ?? payout.status,
+    };
+  }
+  const failed = payments.find((x) => x.kind === "payout" && x.status === "failed");
+  return {
+    approvedGrossCents: null,
+    retainageHeldCents: null,
+    netCents: null,
+    netPaid: false,
+    payoutStatus: failed ? "failed" : null,
+  };
+}
+
 /** Sub portal: the caller's own contractor, agreements and pay applications. */
 export const mySubPortal = query({
   args: {},
@@ -48,6 +75,14 @@ export const mySubPortal = query({
       payApps.push(...rows);
     }
     payApps.sort((a, b) => b.createdAt - a.createdAt);
+    const outcomes = new Map<string, ReturnType<typeof payAppOutcome>>();
+    for (const p of payApps) {
+      const payments = await ctx.db
+        .query("payments")
+        .withIndex("by_payAppId", (q) => q.eq("payAppId", p._id))
+        .take(50);
+      outcomes.set(p._id, payAppOutcome(payments));
+    }
     return {
       displayName: viewer.profile.displayName,
       contractorName: contractor?.companyName ?? null,
@@ -66,6 +101,7 @@ export const mySubPortal = query({
           agentEmail: p.submittedBy.agentEmail ?? null,
           onBehalfOf: p.submittedBy.ownerName ?? p.submittedBy.ownerEmail ?? null,
         },
+        outcome: outcomes.get(p._id) ?? null,
         canWithdraw: WITHDRAWABLE_PAY_APP_STATUSES.has(p.status),
         withdrawnAt: p.withdrawnAt ?? null,
         createdAt: p.createdAt,

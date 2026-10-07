@@ -95,6 +95,7 @@ export function SubPortal() {
                 <th className="py-2 pr-3 font-medium">Agreement</th>
                 <th className="py-2 pr-3 font-medium text-right">Requested</th>
                 <th className="py-2 pr-3 font-medium">Status</th>
+                <th className="py-2 pr-3 font-medium">Outcome</th>
                 <th className="py-2 pr-3 font-medium">Submitted</th>
                 <th className="py-2 pr-3 font-medium">Submitted by</th>
                 <th className="py-2 pr-3 font-medium">
@@ -111,6 +112,9 @@ export function SubPortal() {
                   <td className="py-2 pr-3" data-testid="sub-payapp-status">
                     {p.status}
                     {p.withdrawnAt ? <span className="block text-xs text-slate-400">on {formatDate(p.withdrawnAt)}</span> : null}
+                  </td>
+                  <td className="py-2 pr-3 text-xs" data-testid="sub-payapp-outcome">
+                    <PayAppOutcome status={p.status} outcome={p.outcome} />
                   </td>
                   <td className="py-2 pr-3">{formatDate(p.createdAt)}</td>
                   <td className="py-2 pr-3 text-xs">
@@ -129,4 +133,31 @@ export function SubPortal() {
       </section>
     </div>
   );
+}
+
+type Outcome = {
+  approvedGrossCents: number | null;
+  retainageHeldCents: number | null;
+  netCents: number | null;
+  netPaid: boolean;
+  payoutStatus: string | null;
+} | null;
+
+function PayAppOutcome({ status, outcome }: { status: string; outcome: Outcome }) {
+  if (status === "rejected") return <span className="text-rose-300">Rejected by the GC; nothing was paid.</span>;
+  if (outcome && outcome.approvedGrossCents !== null) {
+    return (
+      <dl className="grid grid-cols-[auto_auto] gap-x-2 tabular-nums">
+        <dt className="text-slate-400">Approved gross</dt>
+        <dd data-testid="sub-payapp-approved-gross">{formatCents(outcome.approvedGrossCents)}</dd>
+        <dt className="text-slate-400">Retainage held</dt>
+        <dd data-testid="sub-payapp-retainage">{formatCents(outcome.retainageHeldCents ?? 0)}</dd>
+        <dt className="text-slate-400">{outcome.netPaid ? "Net paid" : "Net (payout pending)"}</dt>
+        <dd data-testid="sub-payapp-net">{formatCents(outcome.netCents ?? 0)}</dd>
+      </dl>
+    );
+  }
+  if (outcome?.payoutStatus === "failed") return <span className="text-amber-200">Approved; the payout failed and the GC was notified.</span>;
+  if (status === "approved") return <span>Approved; payment is being sent.</span>;
+  return <span className="text-slate-400">—</span>;
 }
