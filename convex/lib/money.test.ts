@@ -52,6 +52,16 @@ describe("toPayPalString", () => {
     expect(toPayPalString(0)).toBe("0.00");
   });
 
+  test.each([
+    [0, "0.00"],
+    [1, "0.01"],
+    [99, "0.99"],
+    [100, "1.00"],
+    [123456789, "1234567.89"],
+  ])("%i cents -> %s", (cents, text) => {
+    expect(toPayPalString(cents)).toBe(text);
+  });
+
   test("never uses thousands separators or exponent notation", () => {
     expect(toPayPalString(123456789012)).toBe("1234567890.12");
   });

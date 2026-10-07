@@ -1,5 +1,5 @@
 import { action, query, internalMutation } from "./_generated/server";
-import { requireRoleInAction } from "./lib/roles";
+import { requireRole, requireRoleInAction } from "./lib/roles";
 import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
 import { OFFLINE_RULES_ENGINE } from "./lib/aiLabels";
@@ -99,6 +99,7 @@ export const recordEvalRun = internalMutation({
 export const getLatestEvalRun = query({
   args: {},
   handler: async (ctx) => {
+    await requireRole(ctx, ["gc", "owner"]);
     // Other suites (e.g. pay-app review) record their own runs; this view is bid leveling only.
     const recentRuns = await ctx.db
       .query("evalRuns")
@@ -127,6 +128,7 @@ export const getLatestEvalRun = query({
 export const listTracesForRun = query({
   args: { runId: v.string() },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc", "owner"]);
     return await ctx.db
       .query("agentTraces")
       .withIndex("by_runId", (q) => q.eq("runId", args.runId))

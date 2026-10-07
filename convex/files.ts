@@ -177,6 +177,7 @@ export const repairSeededDocumentSizes = mutation({
 export const listFilesByProject = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc", "owner"]);
     const files = await ctx.db
       .query("projectFiles")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
@@ -207,6 +208,7 @@ export const listFilesByProject = query({
 export const listFilesByPackage = query({
   args: { tradePackageId: v.id("tradePackages") },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc", "owner"]);
     const files = await ctx.db
       .query("projectFiles")
       .withIndex("by_package", (q) => q.eq("tradePackageId", args.tradePackageId))

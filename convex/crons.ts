@@ -286,7 +286,8 @@ export const runComplianceAuditNow = mutation({
 
 export const getCronStatus = query({
   args: {},
-  handler: async () => {
+  handler: async (ctx) => {
+    await requireRole(ctx, ["gc", "owner"]);
     return {
       activeCrons: [
         {

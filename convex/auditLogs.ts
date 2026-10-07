@@ -1,4 +1,5 @@
 import { query, internalMutation } from "./_generated/server";
+import { requireRole } from "./lib/roles";
 import { v } from "convex/values";
 
 /**
@@ -12,6 +13,7 @@ export const listRecentLogs = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc", "owner"]);
     const maxLimit = args.limit ?? 50;
 
     // Audit history outlives deleted projects but is not shown for them.

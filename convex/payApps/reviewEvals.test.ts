@@ -70,9 +70,8 @@ describe("eval suite run", () => {
     ]);
     const traces = await t.run(async (ctx) => ctx.db.query("agentTraces").collect());
     expect(traces.filter((tr) => tr.runId === res.runId)).toHaveLength(4);
-    expect(await t.query(api.evals.getLatestEvalRun, {})).toBeNull();
-
     const gc = await signInAs(t, "gc");
+    expect(await gc.as.query(api.evals.getLatestEvalRun, {})).toBeNull();
     expect(await gc.as.query(api.payApps.reviewEvals.getLatestPayAppReviewEvalRun, {})).toMatchObject({ runId: res.runId });
     const sub = await signInAs(t, "sub");
     await expect(sub.as.action(api.payApps.reviewEvals.executePayAppReviewEvalSuite, {})).rejects.toThrow(/Forbidden: role gc/);

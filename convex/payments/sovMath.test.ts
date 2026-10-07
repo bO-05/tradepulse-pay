@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { fromDollars } from "../lib/money";
 import { computeLedgerTotals } from "./ledgerTotals";
 import {
   DEFAULT_MILESTONES,
@@ -63,7 +64,7 @@ describe("buildSovLines", () => {
 
   test("leveled exclusions become excluded-scope lines carrying their plug", () => {
     const lines = buildSovLines({
-      contractSumCents: fromDollarsInt(1_100_000 + 45_000 + 22_000 + 15_000),
+      contractSumCents: fromDollars(1_100_000 + 45_000 + 22_000 + 15_000),
       lineItems: [
         { item: "Switchboard", totalCost: 420000 },
         { item: "Lighting", totalCost: 170000 },
@@ -81,7 +82,7 @@ describe("buildSovLines", () => {
     expect(excluded.map((l) => l.scheduledValueCents)).toEqual([4_500_000, 2_200_000, 0]);
     expect(excluded[0].description).toMatch(/^Excluded scope: Crane/);
     expect(excluded[2].description).toMatch(/waived/);
-    expect(sum(lines.map((l) => l.scheduledValueCents))).toBe(fromDollarsInt(1_182_000));
+    expect(sum(lines.map((l) => l.scheduledValueCents))).toBe(fromDollars(1_182_000));
   });
 
   test("odd-cent contract sums put the rounding remainder on the last base-scope line", () => {
@@ -302,7 +303,3 @@ describe("computeLedgerTotals", () => {
     });
   });
 });
-
-function fromDollarsInt(dollars: number): number {
-  return dollars * 100;
-}

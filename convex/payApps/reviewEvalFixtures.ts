@@ -4,6 +4,7 @@
  * billed four ways. Each fixture lists the verdict expected on every line.
  */
 import { buildReviewLines, type LineVerdict, type ReviewContext, type ReviewMilestone } from "./reviewMath";
+import { percentageOfCents } from "../lib/money";
 
 const SOV = [
   { _id: "fx-sov-1", lineNo: 1, description: "1600A main switchboard & transformers", excludedScope: false, scheduledValueCents: 34_000_000 },
@@ -38,7 +39,7 @@ function fixtureContext(lines: FixtureLine[], opts: { lienWaiver: boolean; notes
   const submitted = lines.map((l) => {
     const sov = SOV.find((s) => s._id === l.sovLineId)!;
     const prior = PRIOR.get(l.sovLineId) ?? { billedCents: 0, pctToDate: 0 };
-    const requestedCents = l.requestedCents ?? Math.max(0, Math.round((sov.scheduledValueCents * l.pctToDate) / 100) - prior.billedCents);
+    const requestedCents = l.requestedCents ?? Math.max(0, percentageOfCents(sov.scheduledValueCents, l.pctToDate) - prior.billedCents);
     return {
       sovLineId: l.sovLineId,
       pctCompleteThisPeriod: Math.max(0, l.pctToDate - prior.pctToDate),

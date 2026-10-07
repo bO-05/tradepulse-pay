@@ -7,6 +7,7 @@ import { validateEmail, validateProjectText } from "./validation";
 export const listByPackage = query({
   args: { tradePackageId: v.id("tradePackages") },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc", "owner"]);
     return await ctx.db
       .query("contractors")
       .withIndex("by_package", (q) => q.eq("tradePackageId", args.tradePackageId))
@@ -246,6 +247,7 @@ export const deleteContractor = mutation({
 export const listByProject = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc", "owner"]);
     const packages = await ctx.db
       .query("tradePackages")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))

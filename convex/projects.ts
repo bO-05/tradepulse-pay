@@ -25,6 +25,7 @@ import {
 export const getDemoProject = query({
   args: {},
   handler: async (ctx) => {
+    await requireRole(ctx, ["gc", "owner"]);
     const demo = await ctx.db
       .query("projects")
       .withIndex("by_demo", (q) => q.eq("isDemoProject", true))
@@ -38,6 +39,7 @@ export const getDemoProject = query({
 export const listProjects = query({
   args: {},
   handler: async (ctx) => {
+    await requireRole(ctx, ["gc", "owner"]);
     return await ctx.db.query("projects").order("desc").collect();
   },
 });
@@ -45,6 +47,7 @@ export const listProjects = query({
 export const getProject = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc", "owner"]);
     return await ctx.db.get(args.projectId);
   },
 });

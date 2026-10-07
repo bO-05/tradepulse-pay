@@ -4,6 +4,7 @@ import { describe, expect, test } from "vitest";
 import { api, internal } from "../_generated/api";
 import schema from "../schema";
 import { signInAs } from "../lib/testIdentity";
+import { fromDollars } from "../lib/money";
 
 const modules = import.meta.glob("/convex/**/*.ts");
 
@@ -64,7 +65,7 @@ describe("SOV and milestone generation on execution", () => {
     await gc.as.mutation(api.agreements.executeAgreement, { agreementId: demo.agreement._id });
 
     const { sov, milestones } = await rowsFor(t, demo.agreement._id);
-    const contractSumCents = Math.round(demo.agreement.contractSum * 100);
+    const contractSumCents = fromDollars(demo.agreement.contractSum);
     expect(sov.length).toBeGreaterThan(0);
     expect(sov.reduce((a, r) => a + r.scheduledValueCents, 0)).toBe(contractSumCents);
     expect(sov.every((r) => Number.isInteger(r.scheduledValueCents) && r.description.length > 0)).toBe(true);
@@ -118,7 +119,7 @@ describe("SOV and milestone generation on execution", () => {
     expect(excluded).toHaveLength(1);
     expect(excluded[0].scheduledValueCents).toBe(4_500_000);
     expect(sov.reduce((a, r) => a + r.scheduledValueCents, 0)).toBe(
-      Math.round((demo.agreement.contractSum + 45000.37) * 100),
+      fromDollars(demo.agreement.contractSum) + 4_500_037,
     );
   });
 });
@@ -163,7 +164,7 @@ describe("SOV regeneration when the award changes", () => {
     const excluded = after.sov.filter((r) => r.excludedScope);
     expect(excluded).toHaveLength(1);
     expect(excluded[0].scheduledValueCents).toBe(4_500_000);
-    expect(after.sov.reduce((a, r) => a + r.scheduledValueCents, 0)).toBe(Math.round(demo.agreement.contractSum * 100));
+    expect(after.sov.reduce((a, r) => a + r.scheduledValueCents, 0)).toBe(fromDollars(demo.agreement.contractSum));
     const rough = (rows: typeof after) => rows.milestones.find((m) => m.name === "Rough-in")!;
     const mob = (rows: typeof after) => rows.milestones.find((m) => m.name === "Mobilization")!;
     expect(rough(after).plannedDate - mob(after).plannedDate).toBe(
@@ -188,7 +189,7 @@ describe("SOV regeneration when the award changes", () => {
     expect(after.sov.filter((r) => r.excludedScope)).toHaveLength(1);
     expect(after.sov.some((r) => before.sov.some((b) => b._id === r._id))).toBe(false);
     expect(after.milestones).toHaveLength(4);
-    expect(after.sov.reduce((a, r) => a + r.scheduledValueCents, 0)).toBe(Math.round(demo.agreement.contractSum * 100));
+    expect(after.sov.reduce((a, r) => a + r.scheduledValueCents, 0)).toBe(fromDollars(demo.agreement.contractSum));
   });
 
   test("re-executing with an unchanged source keeps the same row ids", async () => {
@@ -300,7 +301,7 @@ describe("agreement ledger", () => {
     await gc.as.mutation(api.agreements.executeAgreement, { agreementId: demo.agreement._id });
     const ledger = await gc.as.query(api.payments.ledger.getAgreementLedger, { agreementId: demo.agreement._id });
     expect(ledger).not.toBeNull();
-    const cents = Math.round(demo.agreement.contractSum * 100);
+    const cents = fromDollars(demo.agreement.contractSum);
     expect(ledger!.totals).toEqual({
       contractSumCents: cents,
       billedCents: 0,

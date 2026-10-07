@@ -301,6 +301,7 @@ export const voidExecutedAgreement = mutation({
 export const getAgreementByBid = query({
   args: { bidId: v.id("bids") },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc", "owner"]);
     return await ctx.db
       .query("agreements")
       .withIndex("by_bid", (q) => q.eq("bidId", args.bidId))
@@ -311,6 +312,7 @@ export const getAgreementByBid = query({
 export const getAgreementByPackage = query({
   args: { tradePackageId: v.id("tradePackages") },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc", "owner"]);
     return await ctx.db
       .query("agreements")
       .withIndex("by_package", (q) => q.eq("tradePackageId", args.tradePackageId))
@@ -322,6 +324,7 @@ export const getAgreementByPackage = query({
 export const listAgreements = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc", "owner"]);
     return await ctx.db
       .query("agreements")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))

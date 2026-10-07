@@ -1,5 +1,5 @@
 import { internalAction, action, query } from "./_generated/server";
-import { requireRoleInAction } from "./lib/roles";
+import { requireRole, requireRoleInAction } from "./lib/roles";
 import { v } from "convex/values";
 import { inflate } from "pako";
 import { internal } from "./_generated/api";
@@ -2763,7 +2763,8 @@ Ensure all cost numbers are pure numeric primitives.`
  */
 export const getProviderAvailability = query({
   args: {},
-  handler: async () => {
+  handler: async (ctx) => {
+    await requireRole(ctx, ["gc", "owner"]);
     const hasVertex = Boolean(
       process.env.VERTEX_API_KEY ||
         (process.env.VERTEX_PROJECT_ID && process.env.VERTEX_ACCESS_TOKEN)

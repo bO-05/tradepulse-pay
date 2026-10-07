@@ -6,6 +6,7 @@ import { internal } from "./_generated/api";
 export const listConversations = query({
   args: { tradePackageId: v.id("tradePackages") },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc", "owner"]);
     return await ctx.db
       .query("conversations")
       .withIndex("by_package", (q) => q.eq("tradePackageId", args.tradePackageId))
@@ -21,6 +22,7 @@ export const listConversations = query({
 export const getProjectDeliveryStatus = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc", "owner"]);
     const logs = await ctx.db
       .query("auditLogs")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))

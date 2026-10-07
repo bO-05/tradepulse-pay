@@ -199,7 +199,7 @@ describe("createFundingOrder", () => {
     expect(body.intent).toBe("AUTHORIZE");
     expect(body.purchase_units[0].amount).toEqual({
       currency_code: "USD",
-      value: (milestone.amountCents / 100).toFixed(2),
+      value: centsAsDecimalText(milestone.amountCents),
     });
     expect(body.purchase_units[0].amount.value).toMatch(/^\d+\.\d{2}$/);
 
@@ -470,3 +470,9 @@ describe("ledger funding summary", () => {
     expect(subLedger?.canFund).toBe(false);
   });
 });
+
+// Independent oracle for the PayPal amount string (digit slicing, no float math).
+function centsAsDecimalText(cents: number): string {
+  const digits = String(cents).padStart(3, "0");
+  return `${digits.slice(0, -2)}.${digits.slice(-2)}`;
+}

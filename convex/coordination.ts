@@ -81,6 +81,7 @@ async function recordClashResolution(
 export const detectCrossTradeClashes = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc", "owner"]);
     const packages = await ctx.db
       .query("tradePackages")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))

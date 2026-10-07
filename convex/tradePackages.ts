@@ -14,6 +14,7 @@ import {
 export const listByProject = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc", "owner"]);
     return await ctx.db
       .query("tradePackages")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
@@ -24,6 +25,7 @@ export const listByProject = query({
 export const getPackage = query({
   args: { tradePackageId: v.id("tradePackages") },
   handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc", "owner"]);
     return await ctx.db.get(args.tradePackageId);
   },
 });
