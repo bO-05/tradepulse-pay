@@ -16,14 +16,45 @@ type Call = { method: string; path: string; requestId?: string; body: unknown };
 const AUTH_CREATE_TIME = "2026-10-07T12:00:00Z";
 const AUTH_EXPIRATION_TIME = "2026-11-05T12:00:00Z";
 
-/** Fake PayPal sandbox: idempotent on PayPal-Request-Id like the real API. */
-function fakePayPal(opts: { declineAuthorize?: (orderId: string) => boolean } = {}) {
+/**
+ * Fake PayPal sandbox: idempotent on PayPal-Request-Id like the real API. `forgetRequestIds` models the
+ * finite request-key retention: after it, a repeated authorize gets 422 ORDER_ALREADY_AUTHORIZED.
+ */
+function fakePayPal(
+  opts: {
+    declineAuthorize?: (orderId: string) => boolean;
+    loseAuthorizeResponse?: (orderId: string) => boolean;
+    conflictAuthorize?: (orderId: string) => boolean;
+  } = {},
+) {
   const calls: Call[] = [];
   const ordersByRequestId = new Map<string, string>();
   const authByRequestId = new Map<string, string>();
+  const authByOrderId = new Map<string, string>();
   let n = 0;
   const json = (status: number, body: unknown) =>
     new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+  const authStatusByOrderId = new Map<string, string>();
+  const authorizedOrder = (orderId: string, authId: string) => ({
+    id: orderId,
+    intent: "AUTHORIZE",
+    status: "COMPLETED",
+    purchase_units: [
+      {
+        payments: {
+          authorizations: [
+            {
+              id: authId,
+              status: authStatusByOrderId.get(orderId) ?? "CREATED",
+              amount: { currency_code: "USD", value: "0.00" },
+              create_time: AUTH_CREATE_TIME,
+              expiration_time: AUTH_EXPIRATION_TIME,
+            },
+          ],
+        },
+      },
+    ],
+  });
   const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
     const req = new Request(input, init);
     const url = new URL(req.url);
@@ -39,6 +70,12 @@ function fakePayPal(opts: { declineAuthorize?: (orderId: string) => boolean } = 
       }
       return json(201, { id, status: "CREATED" });
     }
+    const get = url.pathname.match(/^\/v2\/checkout\/orders\/([^/]+)$/);
+    if (req.method === "GET" && get) {
+      const authId = authByOrderId.get(get[1]);
+      if (authId) return json(200, authorizedOrder(get[1], authId));
+      return json(200, { id: get[1], intent: "AUTHORIZE", status: "APPROVED", purchase_units: [{}] });
+    }
     const m = url.pathname.match(/^\/v2\/checkout\/orders\/([^/]+)\/authorize$/);
     if (req.method === "POST" && m) {
       const orderId = m[1];
@@ -50,35 +87,33 @@ function fakePayPal(opts: { declineAuthorize?: (orderId: string) => boolean } = 
           debug_id: "dbg-decline",
         });
       }
+      if (opts.conflictAuthorize?.(orderId)) {
+        return json(409, { name: "RESOURCE_CONFLICT", message: "A previous request with this id is still in progress." });
+      }
       let authId = requestId ? authByRequestId.get(requestId) : undefined;
       if (!authId) {
+        if (authByOrderId.has(orderId)) {
+          return json(422, {
+            name: "UNPROCESSABLE_ENTITY",
+            message: "The requested action could not be performed.",
+            details: [{ issue: "ORDER_ALREADY_AUTHORIZED", description: "Order already authorized." }],
+            debug_id: "dbg-already",
+          });
+        }
         authId = `AUTH-${orderId}`;
+        authByOrderId.set(orderId, authId);
         if (requestId) authByRequestId.set(requestId, authId);
       }
-      return json(201, {
-        id: orderId,
-        status: "COMPLETED",
-        purchase_units: [
-          {
-            payments: {
-              authorizations: [
-                {
-                  id: authId,
-                  status: "CREATED",
-                  amount: { currency_code: "USD", value: "0.00" },
-                  create_time: AUTH_CREATE_TIME,
-                  expiration_time: AUTH_EXPIRATION_TIME,
-                },
-              ],
-            },
-          },
-        ],
-      });
+      if (opts.loseAuthorizeResponse?.(orderId)) throw new TypeError("fetch failed");
+      return json(201, authorizedOrder(orderId, authId));
     }
     return json(404, { name: "RESOURCE_NOT_FOUND" });
   });
   const posts = (path: RegExp) => calls.filter((c) => c.method === "POST" && path.test(c.path));
-  return { fetchImpl, calls, posts };
+  /** Authorizes the order at PayPal without the app seeing the response. */
+  const authorizeOutOfBand = (orderId: string) => authByOrderId.set(orderId, `AUTH-${orderId}`);
+  const forgetRequestIds = () => authByRequestId.clear();
+  return { fetchImpl, calls, posts, authByOrderId, authStatusByOrderId, authorizeOutOfBand, forgetRequestIds };
 }
 
 async function setup() {
@@ -120,7 +155,11 @@ beforeEach(() => {
   vi.stubEnv("PAYPAL_CLIENT_ID", "test-client");
   vi.stubEnv("PAYPAL_CLIENT_SECRET", "test-secret");
   vi.stubEnv("PAYPAL_ENV", "sandbox");
-  fake = fakePayPal({ declineAuthorize: (id) => declined.has(id) });
+  fake = fakePayPal({
+    declineAuthorize: (id) => declined.has(id),
+    loseAuthorizeResponse: (id) => lostResponse.has(id),
+    conflictAuthorize: (id) => conflicted.has(id),
+  });
   vi.stubGlobal("fetch", fake.fetchImpl);
 });
 afterEach(() => {
@@ -128,8 +167,12 @@ afterEach(() => {
   vi.unstubAllEnvs();
   clearPayPalTokenCache();
   declined.clear();
+  lostResponse.clear();
+  conflicted.clear();
 });
 const declined = new Set<string>();
+const lostResponse = new Set<string>();
+const conflicted = new Set<string>();
 
 describe("createFundingOrder", () => {
   test("GC creates an AUTHORIZE order for the milestone amount with the payment's idempotency key", async () => {
@@ -270,6 +313,78 @@ describe("authorizeFundingOrder", () => {
     expect((await t.run((ctx) => ctx.db.get(milestone._id)))?.status).toBe("funded");
   });
 
+  test("422 ORDER_ALREADY_AUTHORIZED recovers the existing authorization; no second order is possible", async () => {
+    const { t, gc, milestone } = await setup();
+    const { orderId } = await gc.as.action(api.payments.orders.createFundingOrder, { milestoneId: milestone._id });
+    fake.authorizeOutOfBand(orderId);
+
+    const res = await gc.as.action(api.payments.orders.authorizeFundingOrder, { orderId });
+    expect(res.paypalAuthorizationId).toBe(`AUTH-${orderId}`);
+    expect(res.authorizationExpiresAt).toBe(Date.parse(AUTH_EXPIRATION_TIME));
+    const rows = await fundingRows(t, milestone._id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ status: "authorized", paypalAuthorizationId: `AUTH-${orderId}` });
+    expect(rows[0].error).toBeUndefined();
+    expect((await t.run((ctx) => ctx.db.get(milestone._id)))?.status).toBe("funded");
+    expect(fake.calls.filter((c) => c.method === "GET" && c.path === `/v2/checkout/orders/${orderId}`)).toHaveLength(1);
+
+    const err = await errorOf(gc.as.action(api.payments.orders.createFundingOrder, { milestoneId: milestone._id }));
+    expect(err.data.code).toBe("ALREADY_FUNDED");
+    expect(fake.posts(/^\/v2\/checkout\/orders$/)).toHaveLength(1);
+  });
+
+  test("ORDER_ALREADY_AUTHORIZED with only a voided authorization closes the attempt and allows a retry", async () => {
+    const { t, gc, milestone } = await setup();
+    const { orderId } = await gc.as.action(api.payments.orders.createFundingOrder, { milestoneId: milestone._id });
+    fake.authorizeOutOfBand(orderId);
+    fake.authStatusByOrderId.set(orderId, "VOIDED");
+    const err = await errorOf(gc.as.action(api.payments.orders.authorizeFundingOrder, { orderId }));
+    expect(err.data.code).toBe("FUNDING_DECLINED");
+    expect(err.data.message).toContain("VOIDED");
+    expect((await fundingRows(t, milestone._id))[0]).toMatchObject({ status: "failed" });
+    expect((await t.run((ctx) => ctx.db.get(milestone._id)))?.status).toBe("planned");
+    const retry = await gc.as.action(api.payments.orders.createFundingOrder, { milestoneId: milestone._id });
+    expect(retry.orderId).not.toBe(orderId);
+  });
+
+  test("a lost authorize response, then a retry after key retention, records exactly one authorization", async () => {
+    const { t, gc, milestone } = await setup();
+    const { orderId } = await gc.as.action(api.payments.orders.createFundingOrder, { milestoneId: milestone._id });
+    lostResponse.add(orderId);
+    const lost = await errorOf(gc.as.action(api.payments.orders.authorizeFundingOrder, { orderId }));
+    expect(lost.data.code).toBe("PAYPAL_NETWORK_ERROR");
+    expect((await fundingRows(t, milestone._id))[0].status).toBe("approved");
+    const blocked = await errorOf(gc.as.action(api.payments.orders.createFundingOrder, { milestoneId: milestone._id }));
+    expect(blocked.data.code).toBe("FUNDING_IN_PROGRESS");
+
+    lostResponse.delete(orderId);
+    fake.forgetRequestIds();
+    const res = await gc.as.action(api.payments.orders.authorizeFundingOrder, { orderId });
+    expect(res.paypalAuthorizationId).toBe(`AUTH-${orderId}`);
+    expect(fake.authByOrderId.size).toBe(1);
+    const rows = await fundingRows(t, milestone._id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ status: "authorized", paypalAuthorizationId: `AUTH-${orderId}` });
+    expect((await t.run((ctx) => ctx.db.get(milestone._id)))?.status).toBe("funded");
+    expect(fake.posts(/^\/v2\/checkout\/orders$/)).toHaveLength(1);
+  }, 15_000);
+
+  test("a conflicting duplicate authorize leaves the attempt open so the in-flight success can record", async () => {
+    const { t, gc, milestone } = await setup();
+    const { orderId } = await gc.as.action(api.payments.orders.createFundingOrder, { milestoneId: milestone._id });
+    conflicted.add(orderId);
+    const err = await errorOf(gc.as.action(api.payments.orders.authorizeFundingOrder, { orderId }));
+    expect(err.data.code).toBe("FUNDING_IN_PROGRESS");
+    expect((await fundingRows(t, milestone._id))[0].status).toBe("approved");
+    expect((await t.run((ctx) => ctx.db.get(milestone._id)))?.status).toBe("funding");
+
+    conflicted.delete(orderId);
+    const res = await gc.as.action(api.payments.orders.authorizeFundingOrder, { orderId });
+    expect(res.paypalAuthorizationId).toBe(`AUTH-${orderId}`);
+    const rows = await fundingRows(t, milestone._id);
+    expect(rows.map((r) => r.status)).toEqual(["authorized"]);
+  });
+
   test.each(["sub", "owner", null] as const)("role %s cannot authorize", async (role) => {
     const { t, gc, milestone } = await setup();
     const { orderId } = await gc.as.action(api.payments.orders.createFundingOrder, { milestoneId: milestone._id });
@@ -303,6 +418,39 @@ describe("audit flag on the payments row", () => {
     });
     const p = await t.run((ctx) => ctx.db.get(prepared.paymentId));
     expect(p).toMatchObject({ status: "authorized", auditRecorded: false });
+  });
+});
+
+describe("audit flag on duplicate authorization results", () => {
+  test("an audited success followed by an unaudited duplicate leaves auditRecorded false", async () => {
+    const { t, gc, milestone } = await setup();
+    const prepared = await t.mutation(internal.payments.funding.prepareFundingOrder, {
+      milestoneId: milestone._id,
+      userId: gc.userId,
+    });
+    await t.mutation(internal.payments.funding.recordFundingOrderCreated, {
+      paymentId: prepared.paymentId,
+      paypalOrderId: "ORDER-Y",
+      auditRecorded: true,
+    });
+    await t.mutation(internal.payments.funding.beginAuthorization, { paypalOrderId: "ORDER-Y" });
+    const record = (auditRecorded: boolean) =>
+      t.mutation(internal.payments.funding.recordAuthorization, {
+        paymentId: prepared.paymentId,
+        paypalAuthorizationId: "AUTH-Y",
+        authorizationExpiresAt: 2,
+        honorPeriodEndsAt: 1,
+        auditRecorded,
+      });
+    await record(true);
+    expect(await t.run((ctx) => ctx.db.get(prepared.paymentId))).toMatchObject({ status: "authorized", auditRecorded: true });
+    await record(false);
+    await record(true);
+    expect(await t.run((ctx) => ctx.db.get(prepared.paymentId))).toMatchObject({
+      status: "authorized",
+      paypalAuthorizationId: "AUTH-Y",
+      auditRecorded: false,
+    });
   });
 });
 

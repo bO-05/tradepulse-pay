@@ -50,6 +50,16 @@ export function fundingFailureMessage(data: { issues?: string[]; message?: strin
   return `Funding failed: ${data.message ?? data.name ?? "PayPal rejected the request."} The milestone was not funded.`;
 }
 
+const AUTHORIZE_CONFLICT_ISSUES = ["ORDER_ALREADY_AUTHORIZED", "DUPLICATE_REQUEST_ID", "PREVIOUS_REQUEST_IN_PROGRESS"];
+
+/**
+ * True when an authorize rejection says the order is already (or is being) authorized rather than declined.
+ * PayPal keeps request ids for a limited time and may reject a simultaneous request with the same id.
+ */
+export function isAuthorizeConflict(data: { status: number; issues?: string[] }): boolean {
+  return data.status === 409 || (data.issues ?? []).some((i) => AUTHORIZE_CONFLICT_ISSUES.includes(i));
+}
+
 async function fundingPayments(ctx: MutationCtx, milestoneId: Id<"milestones">): Promise<Doc<"payments">[]> {
   const rows = await ctx.db
     .query("payments")
@@ -239,7 +249,12 @@ export const recordAuthorization = internalMutation({
   handler: async (ctx, args) => {
     const p = await ctx.db.get(args.paymentId);
     if (p === null) throw new ConvexError({ code: "NOT_FOUND", message: "Payment not found." });
-    if (p.paypalAuthorizationId === args.paypalAuthorizationId) return null;
+    if (p.paypalAuthorizationId === args.paypalAuthorizationId) {
+      // A duplicate result is still a completed PayPal call; its unaudited flag must not be dropped.
+      const auditRecorded = mergeAudit(p.auditRecorded, args.auditRecorded);
+      if (auditRecorded !== p.auditRecorded) await ctx.db.patch(p._id, { auditRecorded, updatedAt: Date.now() });
+      return null;
+    }
     assertPaymentTransition("funding", p.status, "authorized");
     await ctx.db.patch(p._id, {
       status: "authorized",

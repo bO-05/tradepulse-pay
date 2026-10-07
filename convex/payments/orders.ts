@@ -1,4 +1,4 @@
-import { CheckoutPaymentIntent, type ApiResponse, type Order } from "@paypal/paypal-server-sdk";
+import { CheckoutPaymentIntent, type ApiResponse, type Order, type AuthorizationWithAdditionalData } from "@paypal/paypal-server-sdk";
 import { ConvexError, v, type Infer } from "convex/values";
 import { internal } from "../_generated/api";
 import { action, env } from "../_generated/server";
@@ -7,10 +7,11 @@ import { requireRoleInAction } from "../lib/roles";
 import {
   authorizationWindow,
   fundingFailureMessage,
+  isAuthorizeConflict,
   type BeginAuthorization,
   type PreparedFunding,
 } from "./funding";
-import { payPalClientForAction, type PayPalErrorData } from "./paypalClient";
+import { payPalClientForAction, withPayPalErrors, type PayPalErrorData } from "./paypalClient";
 
 /**
  * Milestone funding with Orders v2 intent AUTHORIZE (architecture §4 step 1). GC only.
@@ -123,6 +124,31 @@ export const authorizeFundingOrder = action({
       projectId: begun.projectId,
       agreementId: begun.agreementId,
     });
+    const record = async (
+      authorization: { id: string; createTime?: string; expirationTime?: string },
+      auditRecorded: boolean,
+    ): Promise<Infer<typeof authorizedValidator>> => {
+      const window = authorizationWindow({
+        createTime: authorization.createTime,
+        expirationTime: authorization.expirationTime,
+        now: Date.now(),
+      });
+      await ctx.runMutation(internal.payments.funding.recordAuthorization, {
+        paymentId: begun.paymentId,
+        paypalAuthorizationId: authorization.id,
+        authorizationExpiresAt: window.authorizationExpiresAt,
+        honorPeriodEndsAt: window.honorPeriodEndsAt,
+        auditRecorded,
+      });
+      return {
+        paymentId: begun.paymentId,
+        paypalAuthorizationId: authorization.id,
+        authorizationExpiresAt: window.authorizationExpiresAt,
+        honorPeriodEndsAt: window.honorPeriodEndsAt,
+        alreadyAuthorized: false,
+      };
+    };
+
     let out: { response: ApiResponse<Order>; auditRecorded: boolean };
     try {
       out = await paypal.sdkWrite("paypal.orders.authorize", `${begun.idempotencyKey}_auth`, (sdk, paypalRequestId) =>
@@ -130,6 +156,28 @@ export const authorizeFundingOrder = action({
       );
     } catch (e) {
       const data = paypalErrorData(e);
+      if (data !== null && isAuthorizeConflict(data)) {
+        // The order may already hold an authorization from an earlier call whose response was lost, or a
+        // concurrent call may still be running. Neither is a decline, so only a closed hold ends the attempt.
+        const order = await withPayPalErrors("paypal.orders.get", () => paypal.sdk().orders.getOrder({ id: orderId }));
+        const found = orderAuthorization(order.result);
+        if (found.live) return await record(found.live, data.auditRecorded ?? false);
+        if (found.closedStatus !== undefined) {
+          // PayPal placed a hold that is already denied or voided, so no money is held and a new attempt is safe.
+          const message = `Funding failed: PayPal reports this checkout's authorization as ${found.closedStatus}. The milestone was not funded.`;
+          await ctx.runMutation(internal.payments.funding.recordFundingFailure, {
+            paymentId: begun.paymentId,
+            error: message,
+            auditRecorded: data.auditRecorded,
+          });
+          throw new ConvexError({ code: "FUNDING_DECLINED", message, issues: data.issues, paypalName: data.name });
+        }
+        throw new ConvexError({
+          code: "FUNDING_IN_PROGRESS",
+          message: "PayPal is still authorizing this checkout. Wait a moment and try again; the milestone was not charged twice.",
+          paypalName: data.name,
+        });
+      }
       if (data !== null && data.status < 500) {
         const message = fundingFailureMessage(data);
         await ctx.runMutation(internal.payments.funding.recordFundingFailure, {
@@ -152,24 +200,19 @@ export const authorizeFundingOrder = action({
       });
       throw new ConvexError({ code: "FUNDING_DECLINED", message });
     }
-    const window = authorizationWindow({
-      createTime: authorization.createTime,
-      expirationTime: authorization.expirationTime,
-      now: Date.now(),
-    });
-    await ctx.runMutation(internal.payments.funding.recordAuthorization, {
-      paymentId: begun.paymentId,
-      paypalAuthorizationId: authorization.id,
-      authorizationExpiresAt: window.authorizationExpiresAt,
-      honorPeriodEndsAt: window.honorPeriodEndsAt,
-      auditRecorded: out.auditRecorded,
-    });
-    return {
-      paymentId: begun.paymentId,
-      paypalAuthorizationId: authorization.id,
-      authorizationExpiresAt: window.authorizationExpiresAt,
-      honorPeriodEndsAt: window.honorPeriodEndsAt,
-      alreadyAuthorized: false,
-    };
+    return await record({ ...authorization, id: authorization.id }, out.auditRecorded);
   },
 });
+
+/** The order's live authorization if PayPal already placed one, else the status of a closed one. */
+function orderAuthorization(order: Order): { live?: AuthorizationWithAdditionalData & { id: string }; closedStatus?: string } {
+  let closedStatus: string | undefined;
+  for (const unit of order.purchaseUnits ?? []) {
+    for (const a of unit.payments?.authorizations ?? []) {
+      if (!a.id) continue;
+      if (a.status === "DENIED" || a.status === "VOIDED") closedStatus = a.status;
+      else return { live: { ...a, id: a.id } };
+    }
+  }
+  return { closedStatus };
+}
