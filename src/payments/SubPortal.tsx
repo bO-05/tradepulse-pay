@@ -1,12 +1,21 @@
 import { useQuery } from "convex/react";
+import { useRef, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import { agreementHash } from "../auth/navigation";
 import { formatCents, formatDate, formatDollars } from "./format";
 import { PayAppForm } from "./PayAppForm";
+import { subPayoutStatusLabel } from "./payoutStatusLabel";
 import { WithdrawPayAppButton } from "./WithdrawPayAppButton";
 
+const PAY_APP_PAGE_SIZE = 25;
+
 export function SubPortal() {
-  const portal = useQuery(api.portal.mySubPortal, {});
+  const [limit, setLimit] = useState(PAY_APP_PAGE_SIZE);
+  const latest = useQuery(api.portal.mySubPortal, { limit });
+  // Keep the current list on screen while a larger page loads instead of flashing the loading state.
+  const lastLoaded = useRef(latest);
+  if (latest !== undefined) lastLoaded.current = latest;
+  const portal = latest ?? lastLoaded.current;
 
   if (portal === undefined) {
     return <p className="text-sm text-slate-400" role="status">Loading your agreements…</p>;
@@ -131,6 +140,17 @@ export function SubPortal() {
             </tbody>
           </table>
         )}
+        {portal.hasMore ? (
+          <button
+            type="button"
+            className="mt-3 text-sm text-emerald-400 hover:text-emerald-300 disabled:text-slate-500"
+            disabled={latest === undefined}
+            onClick={() => setLimit(portal.limit + PAY_APP_PAGE_SIZE)}
+            data-testid="sub-payapp-show-older"
+          >
+            {latest === undefined ? "Loading older pay applications…" : "Show older pay applications"}
+          </button>
+        ) : null}
       </section>
     </div>
   );
@@ -139,9 +159,11 @@ export function SubPortal() {
 type Outcome = {
   approvedGrossCents: number | null;
   retainageHeldCents: number | null;
+  retainageWithheldCents: number | null;
   netCents: number | null;
   netPaid: boolean;
   payoutStatus: string | null;
+  paypalItemStatus: string | null;
 } | null;
 
 function PayAppOutcome({ status, outcome, rejectionReason }: { status: string; outcome: Outcome; rejectionReason: string | null }) {
@@ -158,15 +180,24 @@ function PayAppOutcome({ status, outcome, rejectionReason }: { status: string; o
     );
   }
   if (outcome && outcome.approvedGrossCents !== null) {
+    const label = subPayoutStatusLabel(outcome.payoutStatus);
+    const ledgerCredited = outcome.retainageHeldCents !== null;
     return (
-      <dl className="grid grid-cols-[auto_auto] gap-x-2 tabular-nums">
-        <dt className="text-slate-400">Approved gross</dt>
-        <dd data-testid="sub-payapp-approved-gross">{formatCents(outcome.approvedGrossCents)}</dd>
-        <dt className="text-slate-400">Retainage held</dt>
-        <dd data-testid="sub-payapp-retainage">{formatCents(outcome.retainageHeldCents ?? 0)}</dd>
-        <dt className="text-slate-400">{outcome.netPaid ? "Net paid" : "Net (payout pending)"}</dt>
-        <dd data-testid="sub-payapp-net">{formatCents(outcome.netCents ?? 0)}</dd>
-      </dl>
+      <div className="space-y-1">
+        <p className={label.tone} data-testid="sub-payapp-payout-status" data-status={outcome.payoutStatus ?? ""}>
+          {label.status}
+        </p>
+        <dl className="grid grid-cols-[auto_auto] gap-x-2 tabular-nums">
+          <dt className="text-slate-400">Approved gross</dt>
+          <dd data-testid="sub-payapp-approved-gross">{formatCents(outcome.approvedGrossCents)}</dd>
+          <dt className="text-slate-400">{ledgerCredited ? "Retainage held" : "Retainage to withhold"}</dt>
+          <dd data-testid="sub-payapp-retainage">
+            {formatCents(ledgerCredited ? outcome.retainageHeldCents! : (outcome.retainageWithheldCents ?? 0))}
+          </dd>
+          <dt className="text-slate-400">{label.net}</dt>
+          <dd data-testid="sub-payapp-net">{formatCents(outcome.netCents ?? 0)}</dd>
+        </dl>
+      </div>
     );
   }
   if (outcome?.payoutStatus === "failed") return <span className="text-amber-200">Approved; the payout failed and the GC was notified.</span>;

@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
-import { query } from "./_generated/server";
+import { query, type QueryCtx } from "./_generated/server";
 import { canViewAgreement, requireRole } from "./lib/roles";
 import { changeOrderView } from "./payments/changeOrderDb";
 import { WITHDRAWABLE_PAY_APP_STATUSES } from "./payApps/validation";
@@ -23,38 +23,57 @@ function agreementSummary(a: Doc<"agreements">) {
   };
 }
 
+const SUB_PORTAL_PAGE_SIZE = 25;
+const SUB_PORTAL_MAX_LIMIT = 500;
+
 /**
- * What the sub was approved and paid on one pay app: the GC-approved gross with retainage and net
- * from its payout payment, or the reviewed amount while it awaits a decision.
+ * What the sub was approved and paid on one pay app: the GC-approved gross and net from its latest
+ * payout payment, its payout status, and the retainage the ledger currently holds for that payout
+ * (null before the ledger is credited; zero once a FAILED or RETURNED payout reversed the credit).
  */
-function payAppOutcome(payments: Doc<"payments">[]) {
+async function payAppOutcome(ctx: QueryCtx, payments: Doc<"payments">[]) {
   const payout = payments
     .filter((x) => x.kind === "payout" && x.status !== "failed")
     .sort((a, b) => b.createdAt - a.createdAt)[0];
   if (payout) {
+    const ledger = await ctx.db
+      .query("retainageLedger")
+      .withIndex("by_paymentId", (q) => q.eq("paymentId", payout._id))
+      .take(10);
     return {
       approvedGrossCents: payout.grossCents,
-      retainageHeldCents: payout.retainageCents,
+      retainageHeldCents: ledger.length > 0 ? ledger.reduce((a, r) => a + r.deltaCents, 0) : null,
+      retainageWithheldCents: payout.retainageCents,
       netCents: payout.netCents,
       netPaid: payout.status === "success",
-      payoutStatus: payout.paypalItemStatus ?? payout.status,
+      payoutStatus: payout.status as string,
+      paypalItemStatus: payout.paypalItemStatus ?? null,
     };
   }
   const failed = payments.find((x) => x.kind === "payout" && x.status === "failed");
   return {
     approvedGrossCents: null,
     retainageHeldCents: null,
+    retainageWithheldCents: null,
     netCents: null,
     netPaid: false,
     payoutStatus: failed ? "failed" : null,
+    paypalItemStatus: failed?.paypalItemStatus ?? null,
   };
 }
 
-/** Sub portal: the caller's own contractor, agreements and pay applications. */
+/**
+ * Sub portal: the caller's own contractor, agreements and the newest `limit` pay applications
+ * across them; `hasMore` says older ones exist and can be loaded with a larger limit.
+ */
 export const mySubPortal = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, args) => {
     const viewer = await requireRole(ctx, ["sub"]);
+    const limit = Math.min(
+      SUB_PORTAL_MAX_LIMIT,
+      Math.max(1, Math.floor(Number.isFinite(args.limit) ? args.limit! : SUB_PORTAL_PAGE_SIZE)),
+    );
     const contractorId = viewer.profile.contractorId;
     const contractor = contractorId ? await ctx.db.get(contractorId) : null;
     const agreements = contractorId
@@ -66,28 +85,34 @@ export const mySubPortal = query({
     const visible = agreements.filter((a) => a.status !== "superseded");
     // Listed per agreement (not per submitter) so pay apps filed by a linked
     // billing agent for this contractor show up too.
-    const payApps: Doc<"payApplications">[] = [];
+    // The overall newest `limit` rows are always within each agreement's newest `limit` rows, so
+    // reading limit + 1 per agreement (newest first) is enough to page and to detect older rows.
+    const candidates: Doc<"payApplications">[] = [];
     for (const agreement of visible) {
       const rows = await ctx.db
         .query("payApplications")
         .withIndex("by_agreementId", (q) => q.eq("agreementId", agreement._id))
-        .take(100);
-      payApps.push(...rows);
+        .order("desc")
+        .take(limit + 1);
+      candidates.push(...rows);
     }
-    payApps.sort((a, b) => b.createdAt - a.createdAt);
-    const outcomes = new Map<string, ReturnType<typeof payAppOutcome>>();
+    candidates.sort((a, b) => b.createdAt - a.createdAt || b._creationTime - a._creationTime);
+    const payApps = candidates.slice(0, limit);
+    const outcomes = new Map<string, Awaited<ReturnType<typeof payAppOutcome>>>();
     for (const p of payApps) {
       const payments = await ctx.db
         .query("payments")
         .withIndex("by_payAppId", (q) => q.eq("payAppId", p._id))
         .take(50);
-      outcomes.set(p._id, payAppOutcome(payments));
+      outcomes.set(p._id, await payAppOutcome(ctx, payments));
     }
     return {
       displayName: viewer.profile.displayName,
       contractorName: contractor?.companyName ?? null,
       paypalEmail: viewer.profile.paypalEmail ?? null,
       agreements: visible.map(agreementSummary),
+      hasMore: candidates.length > limit,
+      limit,
       payApplications: payApps.map((p) => ({
         _id: p._id,
         agreementId: p.agreementId,
