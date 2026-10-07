@@ -27,6 +27,8 @@ export const me = query({
         contractorName: null,
         paypalEmail: null,
         actorType: user.actorType ?? "human",
+        ownerName: user.ownerName ?? null,
+        ownerEmail: user.ownerEmail ?? null,
       };
     }
     const contractor = viewer.profile.contractorId ? await ctx.db.get(viewer.profile.contractorId) : null;
@@ -40,6 +42,8 @@ export const me = query({
       // A sub sees its own payout address; nobody else's is exposed here.
       paypalEmail: viewer.profile.paypalEmail ?? null,
       actorType: viewer.profile.actorType ?? user.actorType ?? "human",
+      ownerName: user.ownerName ?? null,
+      ownerEmail: user.ownerEmail ?? null,
     };
   },
 });

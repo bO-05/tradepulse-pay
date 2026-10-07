@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as agentLinks from "../agentLinks.js";
 import type * as agentmailApi from "../agentmailApi.js";
 import type * as agreements from "../agreements.js";
 import type * as auditLogs from "../auditLogs.js";
@@ -23,6 +24,7 @@ import type * as emailActions from "../emailActions.js";
 import type * as evals from "../evals.js";
 import type * as files from "../files.js";
 import type * as http from "../http.js";
+import type * as lib_agentAccess from "../lib/agentAccess.js";
 import type * as lib_money from "../lib/money.js";
 import type * as lib_roles from "../lib/roles.js";
 import type * as lib_testIdentity from "../lib/testIdentity.js";
@@ -52,6 +54,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  agentLinks: typeof agentLinks;
   agentmailApi: typeof agentmailApi;
   agreements: typeof agreements;
   auditLogs: typeof auditLogs;
@@ -67,6 +70,7 @@ declare const fullApi: ApiFromModules<{
   evals: typeof evals;
   files: typeof files;
   http: typeof http;
+  "lib/agentAccess": typeof lib_agentAccess;
   "lib/money": typeof lib_money;
   "lib/roles": typeof lib_roles;
   "lib/testIdentity": typeof lib_testIdentity;

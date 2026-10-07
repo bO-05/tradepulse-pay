@@ -2,6 +2,7 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import { useConvexAuth, useQuery } from "convex/react";
 import type { ReactNode } from "react";
 import { api } from "../../convex/_generated/api";
+import { AgentNotAuthorized } from "./AgentNotAuthorized";
 import { RoleShell } from "./RoleShell";
 import { SignInPage } from "./SignInPage";
 
@@ -27,6 +28,18 @@ export function AuthGate({ procurementApp }: { procurementApp: ReactNode }) {
   }
   if (me === undefined) {
     return <FullScreenStatus>Loading your workspace…</FullScreenStatus>;
+  }
+  if (me !== null && me.role === null && me.actorType === "agent") {
+    return (
+      <FullScreenStatus>
+        <AgentNotAuthorized
+          agentEmail={me.email}
+          ownerName={me.ownerName}
+          ownerEmail={me.ownerEmail}
+          onSignOut={() => void signOut()}
+        />
+      </FullScreenStatus>
+    );
   }
   if (me === null || me.role === null) {
     return (

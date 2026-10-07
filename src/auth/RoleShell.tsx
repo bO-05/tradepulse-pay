@@ -5,6 +5,7 @@ import { AgreementSummaryView } from "../payments/AgreementSummaryView";
 import { PaymentsWorkspace } from "../payments/PaymentsWorkspace";
 import { OwnerPortal } from "../payments/OwnerPortal";
 import { SubPortal } from "../payments/SubPortal";
+import { BillingAgentsView } from "./BillingAgentsView";
 import { NAV_BY_ROLE, resolveRoute, type Role } from "./navigation";
 import { useHash } from "./useHash";
 
@@ -15,6 +16,7 @@ export type ShellIdentity = {
   displayName: string;
   role: Role;
   contractorName: string | null;
+  actorType: "human" | "agent";
 };
 
 export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procurementApp: ReactNode }) {
@@ -29,6 +31,7 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
   else if (route.area === "sub-portal") content = <SubPortal />;
   else if (route.area === "owner-portal") content = <OwnerPortal />;
   else if (route.area === "payments") content = <PaymentsWorkspace />;
+  else if (route.area === "billing-agents") content = <BillingAgentsView />;
   else if (route.area === "ledger") {
     const backHash = nav.find((item) => item.area === "payments")?.hash ?? homeHash;
     content = <AgreementLedgerView agreementId={route.agreementId ?? ""} backHash={backHash} />;
@@ -68,6 +71,14 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
             <span className="ml-2 rounded-full border border-slate-700 px-2 py-0.5 text-[10px] uppercase tracking-wide">
               {ROLE_LABEL[me.role]}
             </span>
+            {me.actorType === "agent" ? (
+              <span
+                className="ml-1 rounded-full border border-sky-700 bg-sky-950/60 px-2 py-0.5 text-[10px] uppercase tracking-wide text-sky-200"
+                data-testid="billing-agent-badge"
+              >
+                Billing agent{me.contractorName ? ` · ${me.contractorName}` : ""}
+              </span>
+            ) : null}
           </span>
           <button
             type="button"

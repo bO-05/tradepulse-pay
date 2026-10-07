@@ -1,6 +1,7 @@
 import { useAuthActions } from "@convex-dev/auth/react";
 import { FormEvent, useState } from "react";
 import { signInErrorMessage } from "./navigation";
+import { AgentIdButton } from "./AgentIdButton";
 
 export function SignInPage() {
   const { signIn } = useAuthActions();
@@ -80,6 +81,12 @@ export function SignInPage() {
           >
             {submitting ? "Signing in…" : "Sign in"}
           </button>
+          <div className="flex items-center gap-3 text-[11px] text-slate-500" aria-hidden="true">
+            <span className="h-px flex-1 bg-slate-800" />
+            or, for subcontractor billing agents
+            <span className="h-px flex-1 bg-slate-800" />
+          </div>
+          <AgentIdButton />
         </form>
         <p className="text-[11px] text-slate-500 mt-4 leading-relaxed">
           Demo environment. The demo accounts and their shared password are listed in the project README.

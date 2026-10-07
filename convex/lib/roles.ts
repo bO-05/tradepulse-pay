@@ -3,6 +3,7 @@ import { ConvexError } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { ActionCtx, QueryCtx } from "../_generated/server";
 import { internal } from "../_generated/api";
+import { findActiveAgentLink } from "./agentAccess";
 
 export type Role = "gc" | "sub" | "owner";
 
@@ -32,6 +33,12 @@ export async function getViewer(ctx: QueryCtx): Promise<Viewer | null> {
     .withIndex("by_userId", (q) => q.eq("userId", userId))
     .unique();
   if (profile === null) return null;
+  if (user.actorType === "agent") {
+    // Re-checked on every request so a GC revocation applies to the agent's next call.
+    const link = await findActiveAgentLink(ctx, user);
+    if (link === null || profile.role !== "sub") return null;
+    return { userId, user, profile: { ...profile, contractorId: link.contractorId }, role: "sub" };
+  }
   return { userId, user, profile, role: profile.role };
 }
 

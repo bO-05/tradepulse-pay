@@ -1,6 +1,13 @@
 export type Role = "gc" | "sub" | "owner";
 
-export type AreaId = "procurement" | "payments" | "sub-portal" | "owner-portal" | "agreement" | "ledger";
+export type AreaId =
+  | "procurement"
+  | "payments"
+  | "sub-portal"
+  | "owner-portal"
+  | "billing-agents"
+  | "agreement"
+  | "ledger";
 
 export type NavItem = { area: Exclude<AreaId, "agreement" | "ledger">; label: string; hash: string };
 
@@ -11,6 +18,7 @@ const AREA_HASH: Record<NavItem["area"], string> = {
   payments: "#/payments",
   "sub-portal": "#/portal",
   "owner-portal": "#/projects",
+  "billing-agents": "#/billing-agents",
 };
 
 /**
@@ -22,6 +30,7 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { area: "procurement", label: "Procurement", hash: AREA_HASH.procurement },
     { area: "payments", label: "Payments", hash: AREA_HASH.payments },
     { area: "owner-portal", label: "Projects overview", hash: AREA_HASH["owner-portal"] },
+    { area: "billing-agents", label: "Billing agents", hash: AREA_HASH["billing-agents"] },
   ],
   sub: [
     { area: "sub-portal", label: "My agreements & pay applications", hash: AREA_HASH["sub-portal"] },
