@@ -4,6 +4,7 @@ import { api } from "../../convex/_generated/api";
 import { formatCents, formatDate } from "./format";
 import { FundMilestoneControl, FundingProvider, FundingStatus } from "./FundMilestone";
 import { ReleaseControl, ReleaseList } from "./ReleaseMilestone";
+import { RetainageReleaseControl, RetainageReleaseList } from "./RetainageRelease";
 
 const TOTALS: { key: "contractSumCents" | "billedCents" | "paidCents" | "retainageHeldCents" | "balanceCents"; label: string }[] = [
   { key: "contractSumCents", label: "Contract sum" },
@@ -34,7 +35,7 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
     );
   }
 
-  const { agreement, sov, milestones, totals, canFund, canRelease, retainageLedger } = ledger;
+  const { agreement, sov, milestones, totals, canFund, canRelease, retainageLedger, canReleaseRetainage, retainageReleases } = ledger;
 
   return (
     <div className="max-w-5xl space-y-6">
@@ -171,10 +172,24 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
         )}
       </section>
 
-      <section aria-labelledby="ledger-retainage" className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-        <h3 id="ledger-retainage" className="text-base font-semibold mb-3">
+      <section aria-labelledby="ledger-retainage" className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+        <h3 id="ledger-retainage" className="text-base font-semibold">
           Retainage ledger
         </h3>
+        <p className="text-sm text-slate-300" data-testid="retainage-summary">
+          Retainage held: <span className="font-semibold tabular-nums">{formatCents(totals.retainageHeldCents)}</span> · Released:{" "}
+          <span className="font-semibold tabular-nums" data-testid="retainage-released">
+            {formatCents(ledger.retainageReleasedCents)}
+          </span>
+        </p>
+        {canReleaseRetainage && (
+          <RetainageReleaseControl
+            agreementId={agreement._id}
+            balanceCents={totals.retainageHeldCents}
+            releases={retainageReleases}
+          />
+        )}
+        <RetainageReleaseList releases={retainageReleases} canRefresh={canReleaseRetainage} />
         {retainageLedger.length === 0 ? (
           <p className="text-sm text-slate-400">No retainage held yet. Each sub payout withholds {agreement.retainagePercent}%.</p>
         ) : (

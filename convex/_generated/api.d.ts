@@ -42,6 +42,8 @@ import type * as payments_paypalClient from "../payments/paypalClient.js";
 import type * as payments_paypalSmoke from "../payments/paypalSmoke.js";
 import type * as payments_release from "../payments/release.js";
 import type * as payments_releaseDb from "../payments/releaseDb.js";
+import type * as payments_retainage from "../payments/retainage.js";
+import type * as payments_retainageDb from "../payments/retainageDb.js";
 import type * as payments_sov from "../payments/sov.js";
 import type * as payments_sovMath from "../payments/sovMath.js";
 import type * as payments_stateMachine from "../payments/stateMachine.js";
@@ -97,6 +99,8 @@ declare const fullApi: ApiFromModules<{
   "payments/paypalSmoke": typeof payments_paypalSmoke;
   "payments/release": typeof payments_release;
   "payments/releaseDb": typeof payments_releaseDb;
+  "payments/retainage": typeof payments_retainage;
+  "payments/retainageDb": typeof payments_retainageDb;
   "payments/sov": typeof payments_sov;
   "payments/sovMath": typeof payments_sovMath;
   "payments/stateMachine": typeof payments_stateMachine;

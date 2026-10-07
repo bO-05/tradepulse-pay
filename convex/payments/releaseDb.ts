@@ -44,7 +44,7 @@ async function milestonePayouts(ctx: MutationCtx, milestoneId: Id<"milestones">)
 }
 
 /** The sub's payout address: the human sub profile linked to the agreement's contractor. */
-async function receiverFor(ctx: MutationCtx, contractorId: Id<"contractors">): Promise<string | undefined> {
+export async function receiverFor(ctx: MutationCtx, contractorId: Id<"contractors">): Promise<string | undefined> {
   const profiles = await ctx.db
     .query("userProfiles")
     .withIndex("by_contractorId", (q) => q.eq("contractorId", contractorId))
@@ -140,9 +140,10 @@ export const releaseRow = internalQuery({
   args: { paymentId: v.id("payments") },
   handler: async (ctx, { paymentId }) => {
     const p = await ctx.db.get(paymentId);
-    if (p === null || p.kind !== "payout") return null;
+    if (p === null || (p.kind !== "payout" && p.kind !== "retainage_release")) return null;
     return {
       paymentId: p._id,
+      kind: p.kind,
       status: p.status,
       grossCents: p.grossCents,
       idempotencyKey: p.idempotencyKey,

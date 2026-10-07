@@ -121,10 +121,18 @@ export const getAgreementLedger = query({
       releasesByMilestone.set(p.milestoneId, [...(releasesByMilestone.get(p.milestoneId) ?? []), p]);
     }
     const isGc = viewer.role === "gc";
+    const retainageReleases = payments.filter((p) => p.kind === "retainage_release");
+    const releaseIds = new Set<string>(retainageReleases.map((p) => p._id));
+    const retainageReleasedCents = -retainage
+      .filter((r) => r.paymentId !== undefined && releaseIds.has(r.paymentId))
+      .reduce((acc, r) => acc + r.deltaCents, 0);
     return {
       agreement: summary,
       canFund: isGc,
       canRelease: isGc,
+      canReleaseRetainage: isGc,
+      retainageReleasedCents,
+      retainageReleases: retainageReleases.map((p) => releaseSummary(p, isGc || viewer.role === "sub")),
       retainageLedger: retainage.map((r) => ({
         _id: r._id,
         deltaCents: r.deltaCents,

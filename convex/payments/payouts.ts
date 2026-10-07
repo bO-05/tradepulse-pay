@@ -65,7 +65,7 @@ export async function payoutSub(
       body: {
         sender_batch_header: {
           sender_batch_id: begun.idempotencyKey,
-          email_subject: "TradePulse Pay: progress payment",
+          email_subject: begun.emailSubject,
           email_message: begun.note,
         },
         items: [
@@ -107,7 +107,11 @@ export async function payoutSub(
       });
       return { status: "created", duplicate: false, alreadySent: false, deferred: true };
     } else if (data !== null && data.status < 500) {
-      const message = `Payout rejected by PayPal: ${data.message} The sub was not paid; the captured amount stays in the platform account.`;
+      const consequence =
+        begun.kind === "retainage_release"
+          ? "The sub was not paid; the retainage stays on hold and can be released again."
+          : "The sub was not paid; the captured amount stays in the platform account.";
+      const message = `Payout rejected by PayPal: ${data.message} ${consequence}`;
       await ctx.runMutation(internal.payments.payoutDb.recordPayoutFailure, { paymentId: args.paymentId, error: message });
       throw new ConvexError({ code: "PAYOUT_FAILED", message, paypalName: data.name, issues: data.issues });
     } else {

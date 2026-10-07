@@ -34,7 +34,7 @@ function newRequestKey(): string {
   return `rel_${crypto.randomUUID().replace(/-/g, "")}`.slice(0, 40);
 }
 
-const BADGE: Record<string, { label: string; cls: string }> = {
+export const BADGE: Record<string, { label: string; cls: string }> = {
   created: { label: "Processing", cls: "bg-slate-800 text-slate-200 border-slate-600" },
   pending: { label: "Payout pending", cls: "bg-amber-950 text-amber-200 border-amber-800" },
   success: { label: "Paid", cls: "bg-emerald-950 text-emerald-300 border-emerald-800" },

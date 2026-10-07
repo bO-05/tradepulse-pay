@@ -32,7 +32,7 @@ export const actorForUser = internalQuery({
 /** Runs (or resumes) the capture and payout for an existing release payment. */
 async function executeRelease(ctx: ActionCtx, paymentId: Id<"payments">, actor: string): Promise<ReleaseResult> {
   const row = await ctx.runQuery(internal.payments.releaseDb.releaseRow, { paymentId });
-  if (row === null) throw new ConvexError({ code: "NOT_FOUND", message: "Release not found." });
+  if (row === null || row.kind !== "payout") throw new ConvexError({ code: "NOT_FOUND", message: "Release not found." });
   if (row.status !== "created") {
     return {
       state: "already_processed",

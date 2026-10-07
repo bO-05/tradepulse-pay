@@ -516,3 +516,166 @@ describe("access and audit", () => {
     expect(await read()).toBe("restored@paypal.test");
   });
 });
+
+describe("retainage release", () => {
+  async function withBalance() {
+    const s = await setup({ authorizedCents: 2_000_000 });
+    await s.gc.as.action(api.payments.release.releaseAndPay, { milestoneId: s.milestone._id, amountCents: 1_000_000, requestKey: key("ra") });
+    await s.gc.as.action(api.payments.release.releaseAndPay, { milestoneId: s.milestone._id, amountCents: 500_000, requestKey: key("rb") });
+    await s.t.finishAllScheduledFunctions(vi.runAllTimers);
+    return s;
+  }
+  async function releaseRows(t: Setup["t"], agreementId: Id<"agreements">) {
+    return await t.run(async (ctx) => {
+      const payments = await ctx.db
+        .query("payments")
+        .withIndex("by_agreementId", (q) => q.eq("agreementId", agreementId))
+        .collect();
+      const ledger = await ctx.db
+        .query("retainageLedger")
+        .withIndex("by_agreementId", (q) => q.eq("agreementId", agreementId))
+        .collect();
+      const audits = await ctx.db.query("auditLogs").filter((q) => q.eq(q.field("eventType"), "paypal_write")).collect();
+      return {
+        releases: payments.filter((p) => p.kind === "retainage_release"),
+        ledger,
+        balance: ledger.reduce((a, l) => a + l.deltaCents, 0),
+        audits,
+      };
+    });
+  }
+  const payoutPosts = () => fake.posts(/^\/v1\/payments\/payouts$/);
+
+  test("pays the sub exactly the ledger balance in one payout and brings the balance to 0", async () => {
+    const { t, gc, agreement } = await withBalance();
+    expect((await releaseRows(t, agreement._id)).balance).toBe(150_000);
+    const before = payoutPosts().length;
+
+    const out = await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id });
+    expect(out).toMatchObject({ state: "pending", amountCents: 150_000 });
+    const posts = payoutPosts().slice(before);
+    expect(posts).toHaveLength(1);
+    const body = posts[0].body as {
+      sender_batch_header: { sender_batch_id: string };
+      items: Array<{ receiver: string; amount: { value: string; currency: string } }>;
+    };
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0]).toMatchObject({ receiver: SUB_EMAIL, amount: { value: "1500.00", currency: "USD" } });
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const r = await releaseRows(t, agreement._id);
+    expect(r.releases).toHaveLength(1);
+    expect(r.releases[0]).toMatchObject({
+      status: "success",
+      grossCents: 150_000,
+      netCents: 150_000,
+      retainageCents: 0,
+      receiverEmail: SUB_EMAIL,
+      paypalPayoutBatchId: out.batchId,
+    });
+    expect(body.sender_batch_header.sender_batch_id).toBe(r.releases[0].idempotencyKey);
+    expect(posts[0].requestId).toBe(r.releases[0].idempotencyKey);
+    const debits = r.ledger.filter((l) => l.paymentId === r.releases[0]._id);
+    expect(debits.map((l) => l.deltaCents)).toEqual([-150_000]);
+    expect(r.balance).toBe(0);
+    expect(r.audits.filter((a) => a.paypalRequestId === r.releases[0].idempotencyKey)).toHaveLength(1);
+
+    const ledger = await gc.as.query(api.payments.ledger.getAgreementLedger, { agreementId: agreement._id });
+    expect(ledger?.totals.retainageHeldCents).toBe(0);
+    expect(ledger?.retainageReleasedCents).toBe(150_000);
+    expect(ledger?.retainageReleases).toHaveLength(1);
+    expect(ledger?.canReleaseRetainage).toBe(true);
+    expect(ledger?.totals.paidCents).toBe(900_000 + 450_000 + 150_000);
+  });
+
+  test("a second release after success is a no-op with no PayPal call and no ledger row", async () => {
+    const { t, gc, agreement } = await withBalance();
+    await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const callsBefore = fake.calls.length;
+    const before = await releaseRows(t, agreement._id);
+
+    const again = await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id });
+    expect(again.state).toBe("nothing_to_release");
+    expect(fake.calls).toHaveLength(callsBefore);
+    const after = await releaseRows(t, agreement._id);
+    expect(after.releases).toHaveLength(1);
+    expect(after.ledger).toHaveLength(before.ledger.length);
+    expect(after.audits).toHaveLength(before.audits.length);
+    expect(after.balance).toBe(0);
+  });
+
+  test("a zero balance releases nothing and makes no PayPal call or audit entry", async () => {
+    const { t, gc, agreement } = await setup();
+    const out = await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id });
+    expect(out).toMatchObject({ state: "nothing_to_release", amountCents: 0 });
+    expect(fake.calls).toHaveLength(0);
+    const r = await releaseRows(t, agreement._id);
+    expect(r.releases).toHaveLength(0);
+    expect(r.audits).toHaveLength(0);
+  });
+
+  test("a release interrupted before PayPal answered is resumed with the same batch: one payout, one debit", async () => {
+    const { t, gc, agreement } = await withBalance();
+    const before = payoutPosts().length;
+    // An earlier click created the release row but its action died before recording the batch.
+    const begun = await t.mutation(internal.payments.retainageDb.beginRetainageRelease, { agreementId: agreement._id });
+    expect(begun.state).toBe("new");
+    fake.state.dropNextPayoutResponse = true;
+    const p = gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id });
+    await vi.advanceTimersByTimeAsync(5_000);
+    const out = await p;
+    expect(out.message).toMatch(/not sent twice/);
+    const again = await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id });
+    expect(again.state).toBe("nothing_to_release");
+
+    const posts = payoutPosts().slice(before);
+    expect(posts).toHaveLength(2);
+    expect(new Set(posts.map((c) => (c.body as { sender_batch_header: { sender_batch_id: string } }).sender_batch_header.sender_batch_id)).size).toBe(1);
+    const r = await releaseRows(t, agreement._id);
+    expect(r.releases).toHaveLength(1);
+    expect(r.releases[0]._id).toBe(out.paymentId);
+    expect(r.ledger.filter((l) => l.paymentId === r.releases[0]._id).map((l) => l.deltaCents)).toEqual([-150_000]);
+    expect(r.balance).toBe(0);
+  });
+
+  test("a failed release puts the retainage back on hold so it can be released again", async () => {
+    const { t, gc, agreement } = await withBalance();
+    fake.state.defaultItemStatus = "FAILED";
+    await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    let r = await releaseRows(t, agreement._id);
+    expect(r.releases[0].status).toBe("failed");
+    expect(r.releases[0].error).toMatch(/held again/);
+    expect(r.balance).toBe(150_000);
+
+    fake.state.defaultItemStatus = "SUCCESS";
+    const out = await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id });
+    expect(out.amountCents).toBe(150_000);
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    r = await releaseRows(t, agreement._id);
+    expect(r.releases.map((p) => p.status)).toEqual(["failed", "success"]);
+    expect(new Set(r.releases.map((p) => p.idempotencyKey)).size).toBe(2);
+    expect(r.balance).toBe(0);
+  });
+
+  test.each(["sub", "owner", null] as const)("role %s cannot release retainage", async (role) => {
+    const { t, agreement } = await withBalance();
+    const callsBefore = fake.calls.length;
+    const caller = role === null ? t : (await signInAs(t, role)).as;
+    const err = await errorOf(caller.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id }));
+    expect(String(err.data?.message ?? err.message)).toMatch(/Not authenticated|Forbidden/);
+    expect(fake.calls).toHaveLength(callsBefore);
+    expect((await releaseRows(t, agreement._id)).releases).toHaveLength(0);
+  });
+
+  test("a sub sees the release on its ledger but no release control", async () => {
+    const { t, gc, sub, agreement } = await withBalance();
+    await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const ledger = await sub.as.query(api.payments.ledger.getAgreementLedger, { agreementId: agreement._id });
+    expect(ledger?.canReleaseRetainage).toBe(false);
+    expect(ledger?.retainageReleases).toHaveLength(1);
+    expect(ledger?.totals.retainageHeldCents).toBe(0);
+  });
+});

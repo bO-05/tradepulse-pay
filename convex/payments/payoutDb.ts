@@ -27,6 +27,8 @@ const beginPayoutResult = v.union(
     netCents: v.number(),
     receiverEmail: v.string(),
     note: v.string(),
+    emailSubject: v.string(),
+    kind: v.union(v.literal("payout"), v.literal("retainage_release")),
     agreementId: v.id("agreements"),
     projectId: v.id("projects"),
   }),
@@ -57,13 +59,18 @@ export const beginPayout = internalMutation({
     const agreement = await ctx.db.get(p.agreementId);
     if (agreement === null) throw new ConvexError({ code: "NOT_FOUND", message: "Agreement not found." });
     const milestone = p.milestoneId ? await ctx.db.get(p.milestoneId) : null;
-    const note = `${agreement.agreementNumber}${milestone ? ` · ${milestone.name}` : ""} · progress payment net of retainage`;
+    const isRetainage = p.kind === "retainage_release";
+    const note = isRetainage
+      ? `${agreement.agreementNumber} · retainage release at closeout`
+      : `${agreement.agreementNumber}${milestone ? ` · ${milestone.name}` : ""} · progress payment net of retainage`;
     return {
       state: "send",
       idempotencyKey: p.idempotencyKey,
       netCents: p.netCents,
       receiverEmail: p.receiverEmail,
       note: note.slice(0, 1000),
+      emailSubject: isRetainage ? "TradePulse Pay: retainage release" : "TradePulse Pay: progress payment",
+      kind: isRetainage ? "retainage_release" : "payout",
       agreementId: agreement._id,
       projectId: agreement.projectId,
     };
@@ -77,7 +84,10 @@ async function ledgerRowsFor(ctx: MutationCtx, payment: Doc<"payments">) {
     .take(10);
 }
 
-/** Stores the batch id, moves created → pending and credits the retainage ledger exactly once. */
+/**
+ * Stores the batch id, moves created → pending and writes the payment's ledger row exactly once:
+ * a payout credits its withheld retainage, a retainage release debits the amount it pays out.
+ */
 export const recordPayoutCreated = internalMutation({
   args: {
     paymentId: v.id("payments"),
@@ -115,6 +125,18 @@ export const recordPayoutCreated = internalMutation({
         });
       }
     }
+    if (p.kind === "retainage_release" && p.netCents > 0) {
+      const rows = await ledgerRowsFor(ctx, p);
+      if (!rows.some((r) => r.deltaCents < 0)) {
+        await ctx.db.insert("retainageLedger", {
+          agreementId: p.agreementId,
+          paymentId: p._id,
+          deltaCents: -p.netCents,
+          reason: `Retainage released at closeout to ${p.receiverEmail ?? "the sub"} (payout batch ${args.batchId})`,
+          createdAt: now,
+        });
+      }
+    }
     return null;
   },
 });
@@ -144,15 +166,25 @@ export const recordPayoutFailure = internalMutation({
   },
 });
 
-function nonSuccessMessage(status: PayoutStatus, itemStatus: string | undefined, errorName: string | undefined, receiver?: string) {
+function nonSuccessMessage(
+  kind: Doc<"payments">["kind"],
+  status: PayoutStatus,
+  itemStatus: string | undefined,
+  errorName: string | undefined,
+  receiver?: string,
+) {
   const detail = errorName ? ` (${errorName})` : "";
+  const ledgerNote =
+    kind === "retainage_release"
+      ? "The released retainage is held again and can be released again."
+      : "Retainage withheld from it was reversed.";
   switch (status) {
     case "unclaimed":
       return `Unclaimed: PayPal could not deliver the payout to ${receiver ?? "the recipient"}${detail}. It stays unclaimed until the recipient claims it or PayPal returns it after 30 days.`;
     case "returned":
-      return `Returned: PayPal returned the unclaimed payout${detail}. Retainage withheld from it was reversed.`;
+      return `Returned: PayPal returned the unclaimed payout${detail}. ${ledgerNote}`;
     case "failed":
-      return `Failed: PayPal reported the payout item as ${itemStatus ?? "FAILED"}${detail}. Retainage withheld from it was reversed.`;
+      return `Failed: PayPal reported the payout item as ${itemStatus ?? "FAILED"}${detail}. ${ledgerNote}`;
     default:
       return undefined;
   }
@@ -187,20 +219,24 @@ export const applyPayoutStatus = internalMutation({
     await ctx.db.patch(p._id, {
       ...meta,
       status: to,
-      error: nonSuccessMessage(to, args.itemStatus, args.errorName, p.receiverEmail),
+      error: nonSuccessMessage(p.kind, to, args.itemStatus, args.errorName, p.receiverEmail),
       updatedAt: now,
     });
 
-    if ((RETAINAGE_REVERSING_STATUSES as readonly string[]).includes(to) && p.kind === "payout") {
+    if ((RETAINAGE_REVERSING_STATUSES as readonly string[]).includes(to) && p.kind !== "funding") {
       const rows = await ledgerRowsFor(ctx, p);
-      const credited = rows.filter((r) => r.deltaCents > 0).reduce((a, r) => a + r.deltaCents, 0);
-      const reversed = rows.filter((r) => r.deltaCents < 0).reduce((a, r) => a - r.deltaCents, 0);
-      if (credited - reversed > 0) {
+      const net = rows.reduce((a, r) => a + r.deltaCents, 0);
+      // A failed payout gives back its credit; a failed retainage release puts the released amount back on hold.
+      const reversing = p.kind === "payout" ? net > 0 : net < 0;
+      if (reversing) {
         await ctx.db.insert("retainageLedger", {
           agreementId: p.agreementId,
           paymentId: p._id,
-          deltaCents: -(credited - reversed),
-          reason: `Retainage credit reversed: payout ${to} (${args.itemStatus ?? to.toUpperCase()})`,
+          deltaCents: -net,
+          reason:
+            p.kind === "payout"
+              ? `Retainage credit reversed: payout ${to} (${args.itemStatus ?? to.toUpperCase()})`
+              : `Retainage release ${to} (${args.itemStatus ?? to.toUpperCase()}): the amount is held again`,
           createdAt: now,
         });
       }
