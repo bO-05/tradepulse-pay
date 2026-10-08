@@ -133,7 +133,7 @@ export const SponsorDiagnosticsView: React.FC = () => {
     gemini: {
       name: "Gemini Flash",
       provider: "Google Cloud Vertex AI / Gemini",
-      role: "High-throughput CSI spec breakdown and pre-bid RFI auto-replies",
+      role: "High-throughput CSI spec breakdown and pre-bid RFI answer drafts (GC reviews before sending)",
       badge: "High-Throughput Route",
       color: "border-blue-500 text-blue-400 bg-blue-950/40",
       activeBg: "bg-blue-900/30 border-blue-500 ring-1 ring-blue-500/50",

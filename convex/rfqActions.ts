@@ -1,9 +1,15 @@
-import { action } from "./_generated/server";
+import { action, type ActionCtx } from "./_generated/server";
 import { requireProjectScopeInAction } from "./lib/tenancyAction";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import { createAgentmailInbox, isAgentmailConfigured, listAgentmailInboxes, sendAgentmailMessage } from "./agentmailApi";
+import { isAgentmailConfigured } from "./agentmailApi";
+import { RFQ_INBOX, brandedHtml, sendEmail } from "./lib/mailer";
+import { subjectWithRef } from "./inboundEmail";
 
+/**
+ * Every package uses the shared RFQ inbox; the app never creates or deletes
+ * AgentMail inboxes. Replies are routed by thread and `[TP-<ref>]` token.
+ */
 export const provisionPackageInbox = action({
   args: {
     tradePackageId: v.id("tradePackages"),
@@ -11,50 +17,78 @@ export const provisionPackageInbox = action({
   },
   handler: async (ctx, args): Promise<{ email: string; id: string; live: boolean; shared: boolean }> => {
     await requireProjectScopeInAction(ctx, { docs: [{ table: "tradePackages", id: args.tradePackageId }] }, { roles: ["gc"], write: true });
-    let mailboxEmail = `${args.usernamePrefix}-${Date.now().toString().slice(-4)}@agentmail.to`;
-    let mailboxId = `local_inbox_${Date.now().toString().slice(-6)}`;
-    let live = false;
-    let shared = false;
-
-    if (isAgentmailConfigured()) {
-      try {
-        const inbox = await createAgentmailInbox({
-          username: `${args.usernamePrefix}-${Date.now().toString().slice(-4)}`,
-          displayName: "TradePulse RFQ Portal",
-        });
-        mailboxEmail = inbox.email;
-        mailboxId = inbox.id;
-        live = true;
-      } catch (err) {
-        // Typical cause: the AgentMail plan's inbox limit is reached. Reuse an
-        // existing inbox from the account so the workflow keeps working, and mark
-        // it as shared so the UI can say so instead of pretending it is dedicated.
-        console.warn("AgentMail inbox creation failed; attempting to reuse an existing inbox:", err);
-        try {
-          const existing = await listAgentmailInboxes(20);
-          if (existing.length > 0) {
-            const chosen = existing[Math.floor(Math.random() * existing.length)];
-            mailboxEmail = chosen.email;
-            mailboxId = chosen.id;
-            live = true;
-            shared = true;
-          }
-        } catch (listErr) {
-          console.warn("AgentMail inbox reuse failed too; keeping a local placeholder:", listErr);
-        }
-      }
-    }
-
     await ctx.runMutation(internal.tradePackages.updateMailbox, {
       tradePackageId: args.tradePackageId,
-      agentMailbox: mailboxEmail,
-      agentMailboxId: mailboxId,
-      agentMailboxShared: shared,
+      agentMailbox: RFQ_INBOX,
+      agentMailboxId: RFQ_INBOX,
+      agentMailboxShared: true,
     });
-
-    return { email: mailboxEmail, id: mailboxId, live, shared };
+    return { email: RFQ_INBOX, id: RFQ_INBOX, live: isAgentmailConfigured(), shared: true };
   },
 });
+
+type RfqOutcome =
+  | { status: "sent"; messageId: string }
+  | { status: "skipped_budget" | "failed" | "not_sent"; reason: string };
+
+function rfqContent(tradePkg: any, project: any, contractor: any, ref: string) {
+  const projectTitle = project?.title || "the project";
+  const subject = subjectWithRef(
+    `Invitation to bid: ${tradePkg.tradeName} (CSI ${tradePkg.csiDivision}) - ${projectTitle}`,
+    ref
+  );
+  const text = `Dear ${contractor.companyName} estimating team,
+
+You are invited to submit a proposal for ${tradePkg.tradeName} on ${projectTitle} in ${project?.location || "the project area"}.
+
+Mandatory inclusions:
+${tradePkg.mandatoryInclusions.map((inc: string) => `- ${inc}`).join("\n")}
+
+Bid deadline: ${tradePkg.bidDeadline}
+
+Reply to this email with pre-bid questions and your proposal. Keep the reference [TP-${ref}] in the subject.
+
+TradePulse Pay procurement`;
+  return { subject, text, html: brandedHtml(text) };
+}
+
+/** One RFQ email to one bidder through the mailer. Demo companies never send external email. */
+async function sendRfq(
+  ctx: ActionCtx,
+  tradePkg: any,
+  project: any,
+  contractor: any,
+  mail: { companyId: any; isDemo: boolean }
+): Promise<RfqOutcome> {
+  if (mail.isDemo) return { status: "not_sent", reason: "Demo company: no external email is sent" };
+  const to = String(contractor.contactEmail || "").trim();
+  if (!to.includes("@")) return { status: "not_sent", reason: "no published email on file" };
+  if (/\.invalid$/i.test(to)) return { status: "not_sent", reason: `contact email is not published (${to})` };
+
+  const thread = await ctx.runMutation(internal.inboundEmail.ensureRfqThread, {
+    projectId: tradePkg.projectId,
+    tradePackageId: tradePkg._id,
+    contractorId: contractor._id,
+  });
+  const content = rfqContent(tradePkg, project, contractor, thread.ref);
+  const result = await sendEmail(ctx, {
+    kind: "rfq",
+    from: "rfq",
+    to,
+    ...content,
+    idempotencyKey: `rfq.${contractor._id}.${contractor.dispatchedAt ?? 0}`,
+    companyId: mail.companyId ?? undefined,
+    projectId: tradePkg.projectId,
+  });
+  if (result.status === "sent") {
+    if (result.threadId) {
+      await ctx.runMutation(internal.inboundEmail.attachThreadId, { threadRowId: thread.threadRowId, threadId: result.threadId });
+    }
+    return { status: "sent", messageId: result.messageId };
+  }
+  if (result.status === "skipped_budget") return { status: "skipped_budget", reason: result.message };
+  return { status: "failed", reason: result.error };
+}
 
 export const dispatchRfqsWithNotification = action({
   args: {
@@ -84,36 +118,20 @@ export const dispatchRfqsWithNotification = action({
     });
 
     const deliveryConfigured = isAgentmailConfigured();
+    const mail = await ctx.runQuery(internal.emailOutbox.projectMailContext, { projectId: tradePkg.projectId });
     let emailsSent = 0;
     const deliveryFailures: string[] = [];
+    const deliveryResults: Array<{ contractorId: string; status: RfqOutcome["status"]; reason?: string }> = [];
 
-    if (deliveryConfigured && tradePkg.agentMailboxId && !String(tradePkg.agentMailboxId).startsWith("local_")) {
-      for (const contractor of contractors) {
-        if (!contractor.contactEmail || !contractor.contactEmail.includes("@")) {
-          deliveryFailures.push(`${contractor.companyName}: no published email on file`);
-          continue;
-        }
-        if (/\.invalid$/i.test(contractor.contactEmail)) {
-          deliveryFailures.push(`${contractor.companyName}: contact email is not published (${contractor.contactEmail})`);
-          continue;
-        }
-        try {
-          await sendAgentmailMessage({
-            inboxId: tradePkg.agentMailboxId,
-            to: contractor.contactEmail,
-            subject: `INVITATION TO BID: ${tradePkg.tradeName} (CSI ${tradePkg.csiDivision}) - ${project?.title || "Commercial Development"}`,
-            text: `Dear ${contractor.companyName} Estimating Team,\n\nYou are invited to submit a proposal for ${tradePkg.tradeName} for ${project?.title || "our commercial development"} located in ${project?.location || "the area"}.\n\nMandatory Inclusions:\n${tradePkg.mandatoryInclusions.map((inc: string) => `- ${inc}`).join("\n")}\n\nBid Deadline: ${tradePkg.bidDeadline}\n\nPlease submit all pre-bid RFIs and final proposals directly to this project email address: ${tradePkg.agentMailbox}.\n\nTradePulse Pro Procurement Team`,
-          });
-          emailsSent++;
-        } catch (err: any) {
-          deliveryFailures.push(`${contractor.companyName}: ${String(err?.message || err).slice(0, 160)}`);
-          console.warn(`Failed to dispatch email to ${contractor.contactEmail}:`, err);
-        }
-      }
-    } else if (!deliveryConfigured) {
-      deliveryFailures.push("AGENTMAIL_API_KEY is not configured on this deployment");
-    } else if (String(tradePkg.agentMailboxId).startsWith("local_")) {
-      deliveryFailures.push("The trade package has no live AgentMail inbox (provisioning failed)");
+    for (const contractor of contractors) {
+      const outcome = await sendRfq(ctx, tradePkg, project, contractor, mail);
+      deliveryResults.push({
+        contractorId: contractor._id,
+        status: outcome.status,
+        reason: outcome.status === "sent" ? undefined : outcome.reason,
+      });
+      if (outcome.status === "sent") emailsSent++;
+      else deliveryFailures.push(`${contractor.companyName}: ${outcome.reason.slice(0, 160)}`);
     }
 
     const eligibleRecipients = contractors.filter(
@@ -126,10 +144,10 @@ export const dispatchRfqsWithNotification = action({
       title: `AgentMail Delivery: ${emailsSent} of ${eligibleRecipients} eligible recipient(s)`,
       description:
         emailsSent > 0
-          ? `Delivered ${emailsSent} invitation(s) from ${tradePkg.agentMailbox}.${
+          ? `Delivered ${emailsSent} invitation(s) from ${RFQ_INBOX}.${
               deliveryFailures.length > 0 ? ` Skipped/failed: ${deliveryFailures.slice(0, 3).join("; ")}` : ""
             }`
-          : `${deliveryConfigured ? "No AgentMail invitation was delivered." : "AgentMail is not configured on this deployment; no email was sent."}${
+          : `No invitation email was sent.${
               deliveryFailures.length > 0 ? ` Reasons: ${deliveryFailures.slice(0, 3).join("; ")}` : ""
             }`,
       actor: "AgentMail Subcontractor Dispatcher",
@@ -140,6 +158,7 @@ export const dispatchRfqsWithNotification = action({
       emailsSent,
       deliveryConfigured,
       deliveryFailures,
+      deliveryResults,
     };
   },
 });
@@ -173,29 +192,12 @@ export const dispatchSingleRfqWithNotification = action({
       tradePackageId: tradePkg._id,
     });
 
-    // 5. Dispatch email via AgentMail if available
+    // 5. Dispatch the email through the mailer (re-read so the idempotency key uses the new dispatchedAt)
     const deliveryConfigured = isAgentmailConfigured();
-    let emailSent = false;
-    const localMailbox = String(tradePkg.agentMailboxId).startsWith("local_");
-    if (
-      deliveryConfigured &&
-      !localMailbox &&
-      contractor.contactEmail &&
-      contractor.contactEmail.includes("@") &&
-      !/\.invalid$/i.test(contractor.contactEmail)
-    ) {
-      try {
-        await sendAgentmailMessage({
-          inboxId: tradePkg.agentMailboxId,
-          to: contractor.contactEmail,
-          subject: `INVITATION TO BID: ${tradePkg.tradeName} (CSI ${tradePkg.csiDivision}) - ${project?.title || "Commercial Development"}`,
-          text: `Dear ${contractor.companyName} Estimating Team,\n\nYou are invited to submit a proposal for ${tradePkg.tradeName} on ${project?.title || "our commercial development"} located in ${project?.location || "the area"}.\n\nMandatory Inclusions:\n${tradePkg.mandatoryInclusions.map((inc: string) => `- ${inc}`).join("\n")}\n\nBid Deadline: ${tradePkg.bidDeadline}\n\nPlease submit all pre-bid RFIs and final proposals directly to this project email address: ${tradePkg.agentMailbox}.\n\nTradePulse Pro Procurement Team`,
-        });
-        emailSent = true;
-      } catch (err) {
-        console.warn(`Failed to dispatch single RFQ email to ${contractor.contactEmail}:`, err);
-      }
-    }
+    const invited = await ctx.runQuery(internal.contractors.getContractorInternal, { contractorId: args.contractorId });
+    const mail = await ctx.runQuery(internal.emailOutbox.projectMailContext, { projectId: tradePkg.projectId });
+    const outcome = await sendRfq(ctx, tradePkg, project, invited ?? contractor, mail);
+    const emailSent = outcome.status === "sent";
 
     await ctx.runMutation(internal.auditLogs.recordLogInternal, {
       projectId: tradePkg.projectId,
@@ -203,10 +205,8 @@ export const dispatchSingleRfqWithNotification = action({
       eventType: "rfq_dispatched",
       title: `AgentMail Delivery: ${emailSent ? 1 : 0} of 1 eligible recipient(s)`,
       description: emailSent
-        ? `Delivered invitation to ${contractor.contactEmail} from ${tradePkg.agentMailbox}.`
-        : `No email was delivered to ${contractor.contactEmail}.${
-            !deliveryConfigured ? " AgentMail is not configured on this deployment." : localMailbox ? " The package has no live AgentMail inbox." : ""
-          }`,
+        ? `Delivered invitation to ${contractor.contactEmail} from ${RFQ_INBOX}.`
+        : `No email was sent to ${contractor.contactEmail}: ${outcome.reason}.`,
       actor: "AgentMail Subcontractor Dispatcher",
     });
 
@@ -214,6 +214,8 @@ export const dispatchSingleRfqWithNotification = action({
       success: true,
       contractorId: args.contractorId,
       emailSent,
+      emailStatus: outcome.status,
+      emailError: outcome.status === "sent" ? undefined : outcome.reason,
       deliveryConfigured,
     };
   },

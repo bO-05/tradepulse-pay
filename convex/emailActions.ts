@@ -3,7 +3,6 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { OFFLINE_RULES_ENGINE } from "./lib/aiLabels";
 import { cleanNumber, sanitizeBidLevelingOutput, augmentExclusionsWithDeterministicGaps, applyExplicitExclusionAmounts, applyUnpricedExclusionBenchmarks, normalizeExclusionSeverity, normalizeLeadWeeksFromText, detectCoiDeficiency, detectCoiAffirmativeCompliance } from "./llmRouter";
-import { sendAgentmailMessage } from "./agentmailApi";
 import { COI_DEFICIENCY_PENALTY, leadTimePenaltyFor, targetWeeksForDivision } from "./terms";
 
 export const processInboundEmail = internalAction({
@@ -14,31 +13,13 @@ export const processInboundEmail = internalAction({
     text: v.string(),
     subject: v.string(),
     from: v.string(),
-    tradePackageId: v.optional(v.id("tradePackages")),
-    contractorId: v.optional(v.id("contractors")),
+    // Set by convex/inboundEmail.ts routing; unrouted mail never reaches this action.
+    tradePackageId: v.id("tradePackages"),
+    contractorId: v.id("contractors"),
     attachments: v.optional(v.array(v.any())),
   },
   handler: async (ctx, args) => {
-    if (!args.tradePackageId) {
-      console.warn("Could not determine tradePackageId for inbound message:", args.subject);
-      return;
-    }
-
-    let contractorId = args.contractorId;
-    if (!contractorId) {
-      let contractor: any = await ctx.runQuery(internal.simulation.findContractorByEmail, {
-        tradePackageId: args.tradePackageId,
-        email: args.from,
-      });
-      if (!contractor) {
-        const newId: any = await ctx.runMutation(internal.simulation.createSimulatedContractor, {
-          tradePackageId: args.tradePackageId,
-          fromEmail: args.from,
-        });
-        contractor = { _id: newId };
-      }
-      contractorId = contractor._id;
-    }
+    const contractorId = args.contractorId;
 
     const textLower = args.text.toLowerCase();
     const subjectLower = args.subject.toLowerCase();
@@ -99,11 +80,6 @@ export const processInboundEmail = internalAction({
 
     const isBid = !isPureRfi && (hasExplicitBidKeyword || hasAttachment);
     const fullContent = attachedQuoteText ? `${args.text}\n\n${attachedQuoteText}` : args.text;
-
-    if (!contractorId) {
-      console.warn("Could not resolve a contractor for inbound message:", args.subject);
-      return;
-    }
 
     if (isBid) {
       await ctx.runAction(internal.emailActions.handleBidProcessing, {
@@ -250,7 +226,7 @@ export const handleRfiProcessing = internalAction({
       const llmResult = await ctx.runAction(internal.llmRouter.executeReasoning, {
         taskType: "rfi_reply",
         prompt: `Inbound Contractor Subject: ${args.subject}\nInbound Question: ${args.text}\nContext: CSI MasterFormat Commercial Subcontractor Procurement for CSI ${tradePkg?.csiDivision || "trade"} (${tradePkg?.tradeName || "Trade Package"}). Mandatory inclusions: ${(tradePkg?.mandatoryInclusions || []).join("; ")}. Answer authoritatively referencing Division 01 General Requirements and Section ${tradePkg?.csiDivision || "specifications"}. Format the answer as concise markdown: a one-line determination, the specific reasons with spec/section references, and any action required of the bidder.`,
-        systemPrompt: "You are the TradePulse Pro Autonomous RFI Clarification Agent. Respond factually and clearly to subcontractor pre-bid questions based on contract specifications.",
+        systemPrompt: "You draft answers to subcontractor pre-bid questions for TradePulse Pay. A GC project manager reviews every draft before it is sent. Answer factually and clearly based on the contract specifications.",
       });
 
       const subjectLower = args.subject.toLowerCase();
@@ -280,22 +256,7 @@ export const handleRfiProcessing = internalAction({
         });
       }
 
-      // Attempt outbound email via AgentMail if configured (never for escalated RFIs requiring PM approval)
-      const agentMailKey = process.env.AGENTMAIL_API_KEY;
-      if (agentMailKey && args.fromEmail.includes("@") && rfiStatus !== "escalated_to_pm") {
-        try {
-          if (tradePkg?.agentMailboxId && !String(tradePkg.agentMailboxId).startsWith("local_")) {
-            await sendAgentmailMessage({
-              inboxId: tradePkg.agentMailboxId,
-              to: args.fromEmail,
-              subject: `RE: ${args.subject}`,
-              text: llmResult.content,
-            });
-          }
-        } catch (err) {
-          console.warn("Outbound AgentMail dispatch failed (offline or test env):", err);
-        }
-      }
+      // The AI answer stays a draft; a GC member reviews and sends it. No automatic email.
     } catch (analysisErr: any) {
       const message = analysisErr?.message || String(analysisErr);
       console.error("RFI analysis failed; the submitted question is preserved for retry:", message);
@@ -551,92 +512,6 @@ export const handleBidProcessing = internalAction({
       } catch (logErr) {
         console.error("Could not record the bid ingestion failure:", logErr);
       }
-    }
-  },
-});
-
-/**
- * Automates AgentMail Webhook Registration:
- * Calls POST https://api.agentmail.to/v0/webhooks to register the Convex endpoint
- * and retrieve the Svix signing secret.
- */
-export const registerAgentMailWebhook = internalAction({
-  args: {
-    webhookUrl: v.optional(v.string()),
-  },
-  handler: async (_ctx, args): Promise<{ success: boolean; secret?: string; webhookId?: string; message: string }> => {
-    const apiKey = process.env.AGENTMAIL_API_KEY;
-    if (!apiKey) {
-      return {
-        success: false,
-        message: "AGENTMAIL_API_KEY is not configured in environment.",
-      };
-    }
-
-    const siteUrl = process.env.CONVEX_SITE_URL;
-    if (!args.webhookUrl && !siteUrl) {
-      return { success: false, message: "CONVEX_SITE_URL is not available; pass webhookUrl explicitly." };
-    }
-    const targetUrl = args.webhookUrl || `${siteUrl}/agentmail/webhook`;
-
-    try {
-      // 1. Check existing webhooks
-      const listRes = await fetch("https://api.agentmail.to/v0/webhooks", {
-        headers: { Authorization: `Bearer ${apiKey}` },
-      });
-      if (listRes.ok) {
-        const listData = await listRes.json();
-        const existing = (listData.webhooks || []).find((w: any) => w.url === targetUrl);
-        if (existing) {
-          const detailRes = await fetch(`https://api.agentmail.to/v0/webhooks/${existing.webhook_id}`, {
-            headers: { Authorization: `Bearer ${apiKey}` },
-          });
-          if (detailRes.ok) {
-            const detailData = await detailRes.json();
-            return {
-              success: true,
-              webhookId: detailData.webhook_id || existing.webhook_id,
-              secret: detailData.secret,
-              message: `Webhook registered. Run 'npx convex env set AGENTMAIL_WEBHOOK_SECRET ${detailData.secret}' to enable cryptographic verification.`,
-            };
-          }
-        }
-      }
-
-      // 2. If not found, create new webhook registration
-      const response = await fetch("https://api.agentmail.to/v0/webhooks", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          url: targetUrl,
-          event_types: ["message.received", "message.sent"],
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const webhookId = data.webhook_id || data.id;
-        return {
-          success: true,
-          webhookId,
-          secret: data.secret,
-          message: `Webhook registered. Run 'npx convex env set AGENTMAIL_WEBHOOK_SECRET ${data.secret}' to enable cryptographic verification.`,
-        };
-      } else {
-        const errText = await response.text();
-        return {
-          success: false,
-          message: `AgentMail API returned ${response.status}: ${errText}`,
-        };
-      }
-    } catch (err: any) {
-      return {
-        success: false,
-        message: `Network or runtime error creating webhook: ${err?.message || err}`,
-      };
     }
   },
 });

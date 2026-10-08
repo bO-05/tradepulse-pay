@@ -26,7 +26,8 @@ No required name was missing on production, so nothing was set, redeployed or re
 |---|---|---|
 | `AGENTMAIL_API_KEY` | set on prod | set |
 | `AGENTMAIL_BASE_URL` | optional | unset |
-| `AGENTMAIL_WEBHOOK_SECRET` | optional | unset |
+| `AGENTMAIL_WEBHOOK_SECRET` | optional | set (Oct 8, dev AgentMail webhook) |
+| `EMAIL_DAILY_BUDGET` | optional | set (60; prod default 30) |
 | `ANTHROPIC_API_KEY` | set on prod | set |
 | `ANTHROPIC_MODEL` | set on prod | set |
 | `AUTH_AGENTID_ID` | set on prod | set |

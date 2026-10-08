@@ -334,8 +334,9 @@ Furnish and install 1600A main service switchboard, 480/277V step-down distribut
       csiDivision: "26 00 00",
       tradeName: "Electrical & Lighting Systems",
       budgetEstimate: 1250000,
-      agentMailbox: "cleverneed464@agentmail.to",
-      agentMailboxId: "cleverneed464@agentmail.to",
+      agentMailbox: "dullstreet57@agentmail.to",
+      agentMailboxId: "dullstreet57@agentmail.to",
+      agentMailboxShared: true,
       scopeSummary: "Complete commercial electrical distribution, 1600A switchgear, penthouse crane hoisting, emergency lighting, and seismic bracing.",
       mandatoryInclusions: [
         "Crane hoisting to 14th-floor mechanical room",
@@ -355,6 +356,7 @@ Furnish and install 1600A main service switchboard, 480/277V step-down distribut
       budgetEstimate: 1850000,
       agentMailbox: "dullstreet57@agentmail.to",
       agentMailboxId: "dullstreet57@agentmail.to",
+      agentMailboxShared: true,
       scopeSummary: "Chilled water air handling units, VAV terminal boxes, rooftop cooling tower connection, and BACnet automated controls.",
       mandatoryInclusions: [
         "Rooftop crane pick and rigging",
@@ -372,8 +374,9 @@ Furnish and install 1600A main service switchboard, 480/277V step-down distribut
       csiDivision: "22 00 00",
       tradeName: "Plumbing & Domestic Water Systems",
       budgetEstimate: 950000,
-      agentMailbox: "boldlevel182@agentmail.to",
-      agentMailboxId: "boldlevel182@agentmail.to",
+      agentMailbox: "dullstreet57@agentmail.to",
+      agentMailboxId: "dullstreet57@agentmail.to",
+      agentMailboxShared: true,
       scopeSummary: "Domestic hot/cold copper supply, cast iron sanitary waste, roof drainage overflow, and triplex water booster pump skid.",
       mandatoryInclusions: [
         "Triplex booster pump startup and testing",

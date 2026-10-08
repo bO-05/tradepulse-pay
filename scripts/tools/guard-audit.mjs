@@ -41,6 +41,7 @@ const NO_PROJECT_DATA = new Map([
   ["contractorDiscovery:scrapeContractorWebsite", "scrapes a public URL, no project data"],
   ["profiles:me", "caller's own profile"],
   ["payments/webhook:paypalWebhook", "PayPal-signed delivery; no caller session"],
+  ["agentmailWebhook:agentmailWebhook", "AgentMail-signed delivery; no caller session. Routing by stored thread or ref; unmatched mail carries no tenant ids"],
   ["dashboard/studioProxy:studioPreflight", "CORS preflight"],
   ["projectFileDownload:projectFilePreflight", "CORS preflight"],
 ]);
@@ -50,10 +51,8 @@ const SELF_ONLY = new Map([["profiles:me", /\bgetAuthUserId\(ctx\)/]]);
 const DATA_ACCESS = /\bctx\.(db|runQuery|runMutation|runAction|storage)\b/;
 const EXPORT = /^export const (\w+) = (query|mutation|action|httpAction|internalQuery|internalMutation|internalAction)\(/gm;
 
-// Inline routes in convex/http.ts. None of them reads or writes app data except the AgentMail
-// webhook, which only does so after Svix verification inside the component.
+// Inline routes in convex/http.ts. None of them reads or writes app data.
 const INLINE_ROUTES = [
-  ["POST /agentmail/webhook", "Svix signature verification (AgentMail component); 503 when no secret is set"],
   ["GET /agentmail/webhook", "Public status probe; reports only whether a secret is configured"],
   ["GET /llms.txt", "Public by design; static manifest, no data access"],
   ["GET /api/health", "Public by design; static status, no data access"],
@@ -114,6 +113,11 @@ for (const file of walk(ROOT).sort()) {
       const verifyAt = body.search(/verif/i);
       const writeAt = body.search(/runMutation|runAction/);
       guardText = "PayPal signature verification before any write";
+      if (verifyAt === -1 || (writeAt !== -1 && writeAt < verifyAt)) problems.push(`${fnName}: no signature verification before writes`);
+    } else if (fnName === "agentmailWebhook:agentmailWebhook") {
+      const verifyAt = body.search(/verifyAgentMailWebhook\(/);
+      const writeAt = body.search(/runMutation|runAction/);
+      guardText = "AgentMail Svix signature verification before any write; 503 when no secret is set";
       if (verifyAt === -1 || (writeAt !== -1 && writeAt < verifyAt)) problems.push(`${fnName}: no signature verification before writes`);
     } else if (fnName === "dashboard/studioProxy:studioPreflight") {
       guardText = "CORS preflight only, no data access";

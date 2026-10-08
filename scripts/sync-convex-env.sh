@@ -67,8 +67,10 @@ FROM_SECRETS=(
 
 # Non-secret literals, overridable from the secrets file or the caller's env.
 : "${ANTHROPIC_MODEL:=claude-sonnet-5-5}"
+# Mailer daily send budget (AgentMail Free: 100/day shared by dev and prod). Prod uses 30.
+: "${EMAIL_DAILY_BUDGET:=60}"
 SITE_URL="${SITE_URL_OVERRIDE:-${SITE_URL:-http://localhost:3150}}"
-LITERALS=(ANTHROPIC_MODEL SITE_URL)
+LITERALS=(ANTHROPIC_MODEL SITE_URL EMAIL_DAILY_BUDGET)
 
 failures=0
 missing=0

@@ -251,7 +251,7 @@ export const JudgeSimulationDock: React.FC<JudgeSimulationDockProps> = ({
                   Simulate an inbound electrical subcontractor email asking whether the GC or Sub supplies the 400A temporary power distribution board.
                 </p>
                 <div className="bg-slate-900 p-2 rounded text-[11px] text-slate-400 mb-2.5 border border-slate-800 font-mono">
-                  Autonomous Reply cites Section 01 00 00 with 0.96 confidence.
+                  AI draft answer cites Section 01 00 00 for GC review (no email is sent).
                 </div>
               </div>
               <button

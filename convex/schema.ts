@@ -232,6 +232,78 @@ export default defineSchema({
     .index("by_inviterCompanyId", ["inviterCompanyId"])
     .index("by_email", ["email"]),
 
+  // One row per send attempt key, written only by convex/lib/mailer.ts. Never stores codes or invite tokens.
+  emailOutbox: defineTable({
+    kind: v.union(
+      v.literal("auth_code"),
+      v.literal("invite"),
+      v.literal("rfq"),
+      v.literal("rfi_answer"),
+      v.literal("notification"),
+      v.literal("other")
+    ),
+    to: v.string(), // lowercased
+    fromInbox: v.string(),
+    subject: v.optional(v.string()),
+    companyId: v.optional(v.id("companies")),
+    projectId: v.optional(v.id("projects")),
+    // "pending" only while the AgentMail call is in flight; it counts against the budget.
+    status: v.union(v.literal("pending"), v.literal("sent"), v.literal("failed"), v.literal("skipped_budget")),
+    idempotencyKey: v.string(),
+    day: v.string(), // UTC yyyy-mm-dd of the latest attempt
+    attempts: v.number(),
+    agentmailMessageId: v.optional(v.string()),
+    threadId: v.optional(v.string()),
+    error: v.optional(v.string()),
+    deliveryEvent: v.optional(v.string()), // last AgentMail delivery webhook: delivered | bounced | complained | rejected
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_idempotencyKey", ["idempotencyKey"])
+    .index("by_day_and_status", ["day", "status"])
+    .index("by_threadId", ["threadId"])
+    .index("by_agentmailMessageId", ["agentmailMessageId"]),
+
+  // Outbound RFQ conversations this deployment started; inbound mail routes by threadId, then by `[TP-<ref>]`.
+  emailThreads: defineTable({
+    ref: v.string(),
+    kind: v.literal("rfq"),
+    projectId: v.id("projects"),
+    companyId: v.optional(v.id("companies")),
+    tradePackageId: v.id("tradePackages"),
+    contractorId: v.id("contractors"),
+    threadId: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_ref", ["ref"])
+    .index("by_threadId", ["threadId"])
+    .index("by_contractorId", ["contractorId"]),
+
+  // Verified inbound AgentMail messages. "unrouted" rows carry no tenant ids and are never shown to tenants.
+  inboundEmails: defineTable({
+    eventId: v.string(),
+    messageId: v.string(),
+    inboxId: v.string(),
+    threadId: v.string(),
+    from: v.string(), // lowercased address
+    fromName: v.optional(v.string()),
+    subject: v.string(),
+    text: v.string(),
+    inReplyTo: v.optional(v.string()),
+    routing: v.union(v.literal("routed"), v.literal("triage"), v.literal("unrouted")),
+    matchMethod: v.optional(v.union(v.literal("thread"), v.literal("token"))),
+    projectId: v.optional(v.id("projects")),
+    companyId: v.optional(v.id("companies")),
+    tradePackageId: v.optional(v.id("tradePackages")),
+    contractorId: v.optional(v.id("contractors")),
+    attachments: v.optional(v.array(v.any())),
+    receivedAt: v.number(),
+  })
+    .index("by_eventId", ["eventId"])
+    .index("by_messageId", ["messageId"])
+    .index("by_routing", ["routing"])
+    .index("by_tradePackageId", ["tradePackageId"]),
+
   // GC-managed authorization of AgentID billing agents to act for a sub.
   agentLinks: defineTable({
     agentEmail: v.string(), // lowercased

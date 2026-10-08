@@ -76,8 +76,8 @@ Furnish and install 4x packaged rooftop chilled water air handling units (AHU-1 
         csiDivision: "26 00 00",
         tradeName: "Electrical & Lighting Systems",
         budgetEstimate: 1250000,
-        agentMailbox: "cleverneed464@agentmail.to",
-        agentMailboxId: "cleverneed464@agentmail.to",
+        agentMailbox: "dullstreet57@agentmail.to",
+        agentMailboxId: "dullstreet57@agentmail.to",
         scopeSummary: "Complete commercial electrical distribution, 1600A switchgear, penthouse crane hoisting, emergency lighting, and seismic bracing.",
         mandatoryInclusions: [
           "Crane hoisting to 14th-floor mechanical room",
@@ -112,8 +112,8 @@ Furnish and install 4x packaged rooftop chilled water air handling units (AHU-1 
         csiDivision: "22 00 00",
         tradeName: "Plumbing & Domestic Water Systems",
         budgetEstimate: 950000,
-        agentMailbox: "boldlevel182@agentmail.to",
-        agentMailboxId: "boldlevel182@agentmail.to",
+        agentMailbox: "dullstreet57@agentmail.to",
+        agentMailboxId: "dullstreet57@agentmail.to",
         scopeSummary:
           "Domestic hot/cold copper supply, cast iron sanitary waste, roof drainage overflow, and triplex water booster pump skid.",
         mandatoryInclusions: [

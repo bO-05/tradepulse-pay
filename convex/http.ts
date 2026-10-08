@@ -1,8 +1,8 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { registerStaticRoutes } from "@convex-dev/static-hosting";
-import { AgentMail } from "@agentmail/convex";
-import { components, internal } from "./_generated/api";
+import { components } from "./_generated/api";
+import { agentmailWebhook } from "./agentmailWebhook";
 import { getRealDocumentPdfBytes } from "./realDocuments";
 import { auth } from "./auth";
 import { paypalWebhook } from "./payments/webhook";
@@ -26,45 +26,8 @@ http.route({
 http.route({ path: "/ai/studio", method: "POST", handler: studioProxy });
 http.route({ path: "/ai/studio", method: "OPTIONS", handler: studioPreflight });
 
-// Inbound AgentMail Webhook. Never mutate procurement records without Svix verification.
-http.route({
-  path: "/agentmail/webhook",
-  method: "POST",
-  handler: httpAction(async (ctx, req) => {
-    const secret = process.env.AGENTMAIL_WEBHOOK_SECRET;
-    const hasSvixHeaders =
-      Boolean(req.headers.get("svix-id")) &&
-      Boolean(req.headers.get("svix-signature"));
-
-    // Enforce Svix cryptographic verification whenever secret is configured
-    if (secret) {
-      if (!hasSvixHeaders) {
-        return new Response(
-          JSON.stringify({ error: "Missing required svix headers for signature verification" }),
-          { status: 401, headers: { "Content-Type": "application/json" } }
-        );
-      }
-      try {
-        const activeAgentMail = new AgentMail(components.agentmail, {
-          webhookSecret: secret,
-          onMessageReceived: internal.email.onMessageReceived,
-        });
-        return await activeAgentMail.handleWebhook(ctx as any, req);
-      } catch (err: any) {
-        console.warn("AgentMail Svix verification failed:", err?.message || err);
-        return new Response(
-          JSON.stringify({ error: err?.message || "Webhook verification failed" }),
-          { status: 401, headers: { "Content-Type": "application/json" } }
-        );
-      }
-    }
-
-    return new Response(
-      JSON.stringify({ error: "Webhook verification is not configured." }),
-      { status: 503, headers: { "Content-Type": "application/json" } }
-    );
-  }),
-});
+// Inbound AgentMail webhook: public, but every delivery is Svix signature-verified before any write.
+http.route({ path: "/agentmail/webhook", method: "POST", handler: agentmailWebhook });
 
 // AgentMail Webhook status / health probe
 http.route({

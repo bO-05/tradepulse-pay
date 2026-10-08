@@ -4,6 +4,7 @@ import { requireProjectScopeInAction } from "./lib/tenancyAction";
 import { v, ConvexError } from "convex/values";
 import { deleteAgreementCascade, deleteContractorCascade } from "./payments/cascade";
 import { api, internal } from "./_generated/api";
+import { RFQ_INBOX } from "./lib/mailer";
 import {
   normalizeCsiDivision,
   validateBidDeadline,
@@ -73,8 +74,9 @@ export const createTradePackage = mutation({
       scopeSummary,
       mandatoryInclusions: args.mandatoryInclusions,
       bidDeadline,
-      agentMailbox: args.agentMailbox ?? `trade-${csiDivision.replace(/\s+/g, "")}@agentmail.to`,
-      agentMailboxId: args.agentMailboxId ?? `inbox_${Date.now()}`,
+      agentMailbox: args.agentMailbox ?? RFQ_INBOX,
+      agentMailboxId: args.agentMailboxId ?? RFQ_INBOX,
+      agentMailboxShared: true,
       status: "draft",
     });
 
@@ -89,6 +91,21 @@ export const createTradePackage = mutation({
     });
 
     return pkgId;
+  },
+});
+
+/** Points every package that still uses another inbox at the shared RFQ inbox (system and agent inboxes never receive RFQ mail). */
+export const moveSeedPackagesToRfqInbox = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    let moved = 0;
+    for await (const pkg of ctx.db.query("tradePackages")) {
+      if (pkg.agentMailboxId !== RFQ_INBOX || pkg.agentMailbox !== RFQ_INBOX) {
+        await ctx.db.patch(pkg._id, { agentMailbox: RFQ_INBOX, agentMailboxId: RFQ_INBOX, agentMailboxShared: true });
+        moved++;
+      }
+    }
+    return { moved };
   },
 });
 
@@ -177,8 +194,9 @@ export const createTradePackageInternal = internalMutation({
       scopeSummary,
       mandatoryInclusions: args.mandatoryInclusions,
       bidDeadline,
-      agentMailbox: `trade-${csiDivision.replace(/\s+/g, "")}@agentmail.to`,
-      agentMailboxId: `inbox_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      agentMailbox: RFQ_INBOX,
+      agentMailboxId: RFQ_INBOX,
+      agentMailboxShared: true,
       status: "draft",
     });
 

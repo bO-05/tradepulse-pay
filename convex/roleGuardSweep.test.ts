@@ -450,9 +450,10 @@ describe("static guard sweep over convex/**", () => {
     }
   });
 
-  test("exported httpActions are the PayPal webhook, the auth-gated Studio AI proxy and the authenticated project file download", () => {
+  test("exported httpActions are the PayPal and AgentMail webhooks, the auth-gated Studio AI proxy and the authenticated project file download", () => {
     const http = publicExports().filter((f) => f.kind === "httpAction");
     expect(http.map((f) => f.name).sort()).toEqual([
+      "agentmailWebhook:agentmailWebhook",
       "dashboard/studioProxy:studioPreflight",
       "dashboard/studioProxy:studioProxy",
       "payments/webhook:paypalWebhook",
@@ -466,6 +467,12 @@ describe("static guard sweep over convex/**", () => {
     const writeAt = webhook.search(/runMutation|runAction/);
     expect(verifyAt).toBeGreaterThan(-1);
     expect(writeAt === -1 || verifyAt < writeAt).toBe(true);
+
+    const mailHook = byName.get("agentmailWebhook:agentmailWebhook")!;
+    const mailVerifyAt = mailHook.search(/verifyAgentMailWebhook\(/);
+    const mailWriteAt = mailHook.search(/runMutation|runAction/);
+    expect(mailVerifyAt).toBeGreaterThan(-1);
+    expect(mailWriteAt).toBeGreaterThan(mailVerifyAt);
 
     const proxy = byName.get("dashboard/studioProxy:studioProxy")!;
     const identityAt = proxy.search(/getUserIdentity/);
