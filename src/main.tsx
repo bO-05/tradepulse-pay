@@ -1,10 +1,26 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import ReactDOM from "react-dom/client";
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { ConvexReactClient } from "convex/react";
 import App from "./App.tsx";
 import { AuthGate } from "./auth/AuthGate";
+import { useHash } from "./auth/useHash";
 import "./index.css";
+
+// Dev-only design-system gallery; the constant-false branch lets the production build drop the chunk.
+const UiKitGallery = import.meta.env.DEV ? lazy(() => import("./ui/UiKitGallery")) : null;
+
+function Root() {
+  const hash = useHash();
+  if (UiKitGallery && hash.startsWith("#/ui-kit")) {
+    return (
+      <Suspense fallback={<div role="status">Loading UI kit…</div>}>
+        <UiKitGallery />
+      </Suspense>
+    );
+  }
+  return <AuthGate procurementApp={<App />} />;
+}
 
 function getConvexUrl(): string {
   if (typeof window !== "undefined" && window.location.hostname.endsWith(".convex.site")) {
@@ -20,7 +36,7 @@ const convex = new ConvexReactClient(getConvexUrl());
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ConvexAuthProvider client={convex}>
-      <AuthGate procurementApp={<App />} />
+      <Root />
     </ConvexAuthProvider>
   </React.StrictMode>
 );
