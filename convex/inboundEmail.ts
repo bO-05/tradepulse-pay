@@ -68,6 +68,14 @@ async function routeMessage(
     if (byThread) {
       return { routing: "routed", matchMethod: "thread", thread: byThread, contractorId: byThread.contractorId };
     }
+    const link = await ctx.db
+      .query("emailThreadLinks")
+      .withIndex("by_threadId", (q) => q.eq("threadId", msg.threadId))
+      .first();
+    const linked = link ? await ctx.db.get(link.emailThreadId) : null;
+    if (link && linked) {
+      return { routing: "routed", matchMethod: "thread", thread: linked, contractorId: link.contractorId };
+    }
   }
 
   for (const token of subjectTokens(msg.subject)) {
@@ -93,6 +101,26 @@ async function routeMessage(
     return { routing: "ignored", reason: "reply on a thread this deployment did not start" };
   }
   return { routing: "unrouted" };
+}
+
+/** Remembers that an AgentMail thread belongs to this RFQ conversation; idempotent per thread id. */
+async function linkThread(
+  ctx: MutationCtx,
+  p: { threadId: string; thread: Doc<"emailThreads">; contractorId: Id<"contractors">; source: "outbound" | "inbound_token" }
+): Promise<void> {
+  if (p.thread.threadId === p.threadId) return;
+  const existing = await ctx.db
+    .query("emailThreadLinks")
+    .withIndex("by_threadId", (q) => q.eq("threadId", p.threadId))
+    .first();
+  if (existing) return;
+  await ctx.db.insert("emailThreadLinks", {
+    threadId: p.threadId,
+    emailThreadId: p.thread._id,
+    contractorId: p.contractorId,
+    source: p.source,
+    createdAt: Date.now(),
+  });
 }
 
 export const ingestReceived = internalMutation({
@@ -168,6 +196,9 @@ export const ingestReceived = internalMutation({
       return { outcome: "triage" as const, inboundId };
     }
 
+    if (route.matchMethod === "token" && msg.threadId) {
+      await linkThread(ctx, { threadId: msg.threadId, thread: route.thread, contractorId: route.contractorId, source: "inbound_token" });
+    }
     const inboundId = await ctx.db.insert("inboundEmails", {
       ...base,
       ...tenant,
@@ -226,7 +257,13 @@ export const attachThreadId = internalMutation({
   args: { threadRowId: v.id("emailThreads"), threadId: v.string() },
   handler: async (ctx, args) => {
     const row = await ctx.db.get(args.threadRowId);
-    if (row && !row.threadId) await ctx.db.patch(args.threadRowId, { threadId: args.threadId });
+    if (!row) return null;
+    if (!row.threadId) {
+      await ctx.db.patch(args.threadRowId, { threadId: args.threadId });
+      return null;
+    }
+    // A later dispatch can start a new provider thread; replies on it must route too.
+    await linkThread(ctx, { threadId: args.threadId, thread: row, contractorId: row.contractorId, source: "outbound" });
     return null;
   },
 });

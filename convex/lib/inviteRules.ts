@@ -9,7 +9,7 @@ const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 
 export type InviteKind = "teammate" | "sub" | "owner";
 export type InviteStatus = "pending" | "accepted" | "revoked" | "expired";
-export type InviteEmailStatus = "sent" | "failed" | "skipped_budget" | "not_sent";
+export type InviteEmailStatus = "sent" | "bounced" | "failed" | "skipped_budget" | "not_sent";
 
 function base64Url(bytes: Uint8Array): string {
   let binary = "";
@@ -73,6 +73,8 @@ export function inviteStatusLabel(
   switch (invite.emailStatus) {
     case "sent":
       return "Pending · Email sent";
+    case "bounced":
+      return "Pending · Email bounced";
     case "skipped_budget":
       return "Pending · Not emailed (daily limit)";
     case "failed":
@@ -87,6 +89,8 @@ export function inviteEmailOutcome(emailStatus: InviteEmailStatus, error?: strin
   switch (emailStatus) {
     case "sent":
       return { tone: "success", text: "Email sent" };
+    case "bounced":
+      return { tone: "danger", text: `Email bounced — copy the link or resend${error ? ` (${error})` : ""}` };
     case "skipped_budget":
       return { tone: "warning", text: "Email limit reached for today — copy the invite link instead" };
     case "failed":

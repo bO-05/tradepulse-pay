@@ -22,7 +22,7 @@ export type InviteRow = {
 function tone(label: string): StatusTone {
   if (label === "Accepted") return "success";
   if (label === "Revoked" || label === "Expired") return "muted";
-  if (label.includes("failed") || label.includes("daily limit")) return "warning";
+  if (label.includes("failed") || label.includes("bounced") || label.includes("daily limit")) return "warning";
   return "info";
 }
 
@@ -74,8 +74,10 @@ export function InviteList({ invites, showKind = true, emptyText }: { invites: I
                     </>
                   ) : null}
                 </p>
-                {i.emailStatus === "failed" && i.emailError && pending ? (
-                  <p className="text-xs text-amber-200">Email failed — copy the link or resend ({i.emailError})</p>
+                {(i.emailStatus === "failed" || i.emailStatus === "bounced") && i.emailError && pending ? (
+                  <p className="text-xs text-amber-200">
+                    Email {i.emailStatus === "bounced" ? "bounced" : "failed"} — copy the link or resend ({i.emailError})
+                  </p>
                 ) : null}
               </div>
               <div className="flex flex-wrap items-center gap-2">

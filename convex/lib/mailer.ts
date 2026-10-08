@@ -1,6 +1,8 @@
 /**
  * The only email send path in the app. Every attempt is recorded in `emailOutbox`
- * (sent | failed | skipped_budget) and is subject to the daily budget guard.
+ * (sent | uncertain | delivery_failed | failed | skipped_budget) and is subject to the daily budget guard.
+ * Only a definite refusal releases a budget slot; a lost or timed-out response stays charged as
+ * `uncertain` until a retry with the same Idempotency-Key reconciles it.
  * Notifications are in-app only and cannot be emailed through here.
  */
 import type { GenericActionCtx, GenericDataModel } from "convex/server";
@@ -43,11 +45,19 @@ export interface SendEmailRequest {
 export type SendEmailResult =
   | { status: "sent"; outboxId: Id<"emailOutbox">; messageId: string; threadId: string }
   | { status: "skipped_budget"; outboxId: Id<"emailOutbox">; message: string }
-  | { status: "failed"; outboxId?: Id<"emailOutbox">; error: string };
+  | { status: "failed"; outboxId?: Id<"emailOutbox">; error: string; uncertain?: boolean };
 
 export const DEMO_NO_EMAIL_MESSAGE = "Demo company: no external email is sent.";
 
 export const BUDGET_SKIP_MESSAGE = "Email limit reached for today. No email was sent.";
+
+export const UNCERTAIN_SEND_MESSAGE =
+  "AgentMail did not confirm the send. The email may still arrive, and it counts toward today's email limit.";
+
+/** Connection never opened, so AgentMail cannot have accepted the request. */
+const DEFINITE_TRANSPORT_FAILURE = /ECONNREFUSED|ENOTFOUND|EAI_AGAIN|getaddrinfo|certificate|ERR_TLS/i;
+/** Gateway/timeout statuses where AgentMail may have processed the request behind the proxy. */
+const INDETERMINATE_STATUSES = new Set([408, 502, 504]);
 
 export function utcDayKey(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
@@ -125,6 +135,9 @@ export async function sendEmail(ctx: MailerCtx, req: SendEmailRequest, opts: Mai
       threadId: reservation.threadId ?? "",
     };
   }
+  if (reservation.action === "delivery_failed") {
+    return { status: "failed", outboxId: reservation.outboxId, error: reservation.error ?? "The email was not delivered." };
+  }
   if (reservation.action === "in_flight") {
     return { status: "failed", outboxId: reservation.outboxId, error: "This email is already being sent." };
   }
@@ -133,10 +146,18 @@ export async function sendEmail(ctx: MailerCtx, req: SendEmailRequest, opts: Mai
   }
 
   const outboxId = reservation.outboxId;
+  const reconcile = reservation.reconcile;
   const fail = async (error: string): Promise<SendEmailResult> => {
+    // A slot that may already have been spent by an earlier uncertain attempt is never released.
+    if (reconcile) return await uncertain(error);
     const clean = truncate(error);
     await ctx.runMutation(internal.emailOutbox.finishSend, { outboxId, status: "failed", error: clean });
     return { status: "failed", outboxId, error: clean };
+  };
+  const uncertain = async (detail: string): Promise<SendEmailResult> => {
+    const clean = truncate(`${UNCERTAIN_SEND_MESSAGE} (${detail})`);
+    await ctx.runMutation(internal.emailOutbox.finishSend, { outboxId, status: "uncertain", error: clean });
+    return { status: "failed", outboxId, error: clean, uncertain: true };
   };
 
   const config = agentmailConfig();
@@ -165,12 +186,16 @@ export async function sendEmail(ctx: MailerCtx, req: SendEmailRequest, opts: Mai
       signal: controller.signal,
     });
   } catch (err: any) {
-    return await fail(`AgentMail request failed: ${err?.message || String(err)}`);
+    const detail = `AgentMail request failed: ${[err?.message, err?.cause?.code, err?.cause?.message].filter(Boolean).join(" ") || String(err)}`;
+    return DEFINITE_TRANSPORT_FAILURE.test(detail) ? await fail(detail) : await uncertain(detail);
   } finally {
     clearTimeout(timer);
   }
 
   const raw = await response.text().catch(() => "");
+  if (INDETERMINATE_STATUSES.has(response.status)) {
+    return await uncertain(`AgentMail ${response.status}`);
+  }
   if (!response.ok) {
     return await fail(`AgentMail ${response.status}: ${raw.slice(0, 300)}`);
   }

@@ -232,7 +232,7 @@ export default defineSchema({
     acceptedByUserId: v.optional(v.id("users")),
     acceptedAt: v.optional(v.number()),
     revokedAt: v.optional(v.number()),
-    emailStatus: v.union(v.literal("sent"), v.literal("failed"), v.literal("skipped_budget"), v.literal("not_sent")),
+    emailStatus: v.union(v.literal("sent"), v.literal("bounced"), v.literal("failed"), v.literal("skipped_budget"), v.literal("not_sent")),
     emailError: v.optional(v.string()),
     lastSentAt: v.optional(v.number()),
     // Increments on every token rotation; part of the email idempotency key.
@@ -287,8 +287,16 @@ export default defineSchema({
     subject: v.optional(v.string()),
     companyId: v.optional(v.id("companies")),
     projectId: v.optional(v.id("projects")),
-    // "pending" only while the AgentMail call is in flight; it counts against the budget.
-    status: v.union(v.literal("pending"), v.literal("sent"), v.literal("failed"), v.literal("skipped_budget")),
+    // Charged against the budget: pending (call in flight), sent, uncertain (AgentMail may have accepted it
+    // but the response was lost) and delivery_failed (sent, then bounced or rejected).
+    status: v.union(
+      v.literal("pending"),
+      v.literal("sent"),
+      v.literal("uncertain"),
+      v.literal("delivery_failed"),
+      v.literal("failed"),
+      v.literal("skipped_budget")
+    ),
     idempotencyKey: v.string(),
     day: v.string(), // UTC yyyy-mm-dd of the latest attempt
     attempts: v.number(),
@@ -318,6 +326,16 @@ export default defineSchema({
     .index("by_ref", ["ref"])
     .index("by_threadId", ["threadId"])
     .index("by_contractorId", ["contractorId"]),
+
+  // Every AgentMail thread recognized as part of an RFQ conversation (each outbound send and each
+  // token-routed inbound thread), so token-free follow-ups on any of them still route.
+  emailThreadLinks: defineTable({
+    threadId: v.string(),
+    emailThreadId: v.id("emailThreads"),
+    contractorId: v.id("contractors"),
+    source: v.union(v.literal("outbound"), v.literal("inbound_token")),
+    createdAt: v.number(),
+  }).index("by_threadId", ["threadId"]),
 
   // Verified inbound AgentMail messages. "unrouted" rows carry no tenant ids and are never shown to tenants.
   inboundEmails: defineTable({

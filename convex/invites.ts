@@ -29,7 +29,7 @@ import { findActiveMembership, notFound, requireCompanyMember, requireVerifiedUs
  */
 
 const inviteKindValidator = v.union(v.literal("teammate"), v.literal("sub"), v.literal("owner"));
-const emailStatusValidator = v.union(v.literal("sent"), v.literal("failed"), v.literal("skipped_budget"), v.literal("not_sent"));
+const emailStatusValidator = v.union(v.literal("sent"), v.literal("bounced"), v.literal("failed"), v.literal("skipped_budget"), v.literal("not_sent"));
 
 const NO_LONGER_VALID = "This invite is no longer valid.";
 

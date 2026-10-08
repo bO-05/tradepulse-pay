@@ -314,3 +314,53 @@ describe("mailer AgentMail call", () => {
     ).rejects.toThrow();
   });
 });
+
+describe("indeterminate AgentMail outcomes keep the budget slot", () => {
+  const timeout = (async () => {
+    throw new DOMException("This operation was aborted", "AbortError");
+  }) as unknown as typeof fetch;
+
+  test("a timed-out send is recorded uncertain and still counts, so a new logical send cannot exceed the budget", async () => {
+    vi.stubEnv("EMAIL_DAILY_BUDGET", "11"); // invites may use 1 slot
+    const { t, ctx } = setup();
+    const first = await sendEmail(ctx, request("invite", 1), { fetchImpl: timeout });
+    expect(first).toMatchObject({ status: "failed", uncertain: true, error: expect.stringContaining("may still arrive") });
+    expect((await outboxRows(t)).map((r) => r.status)).toEqual(["uncertain"]);
+
+    const ok = fakeAgentmail();
+    expect((await sendEmail(ctx, request("invite", 2), { fetchImpl: ok.fetchImpl })).status).toBe("skipped_budget");
+    expect(ok.calls).toHaveLength(0);
+    expect(await t.query(internal.emailOutbox.listForDay, {})).toMatchObject({ sentCount: 0, chargedCount: 1 });
+  });
+
+  test("gateway timeouts (504) are uncertain too; auth-code exhaustion counts uncertain rows", async () => {
+    vi.stubEnv("EMAIL_DAILY_BUDGET", "1");
+    const { t, ctx } = setup();
+    const gateway = fakeAgentmail(() => new Response("gateway timeout", { status: 504 }));
+    const res = await sendEmail(ctx, request("auth_code", 1), { fetchImpl: gateway.fetchImpl });
+    expect(res).toMatchObject({ status: "failed", uncertain: true });
+    expect(await t.query(internal.emailOutbox.authCodeBudgetExhausted, {})).toBe(true);
+  });
+
+  test("retrying the same event reconciles the uncertain slot with the same Idempotency-Key and never releases it", async () => {
+    vi.stubEnv("EMAIL_DAILY_BUDGET", "11");
+    const { t, ctx } = setup();
+    const req = request("invite", 1, { idempotencyKey: "invite-event-lost" });
+    expect((await sendEmail(ctx, req, { fetchImpl: timeout })).status).toBe("failed");
+
+    // A definite refusal on the retry cannot prove the first POST was not accepted: the slot stays charged.
+    const refused = fakeAgentmail(() => new Response("bad request", { status: 400 }));
+    const second = await sendEmail(ctx, req, { fetchImpl: refused.fetchImpl });
+    expect(second).toMatchObject({ status: "failed", uncertain: true });
+    expect((await outboxRows(t))[0].status).toBe("uncertain");
+
+    const ok = fakeAgentmail(() => new Response(JSON.stringify({ message_id: "<orig@ses>", thread_id: "thread-orig" }), { status: 200 }));
+    const third = await sendEmail(ctx, req, { fetchImpl: ok.fetchImpl });
+    expect(third).toMatchObject({ status: "sent", messageId: "<orig@ses>" });
+    expect([...refused.calls, ...ok.calls].map((c) => c.headers["Idempotency-Key"])).toEqual(["invite-event-lost", "invite-event-lost"]);
+    const rows = await outboxRows(t);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ status: "sent", attempts: 3, agentmailMessageId: "<orig@ses>" });
+    expect((await sendEmail(ctx, request("invite", 2), { fetchImpl: ok.fetchImpl })).status).toBe("skipped_budget");
+  });
+});

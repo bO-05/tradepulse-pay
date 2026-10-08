@@ -8,6 +8,7 @@ import schema from "./schema";
 import { buildTenancyFixture } from "./lib/tenancyFixtures";
 import { newThreadRef, parseAddress, subjectTokens } from "./inboundEmail";
 import { RFQ_INBOX } from "./lib/mailer";
+import { inviteEmailOutcome, inviteStatusLabel } from "./lib/inviteRules";
 
 const modules = import.meta.glob("./**/*.ts");
 const WEBHOOK_SECRET = `whsec_${btoa("tradepulse-test-webhook-secret-32b")}`;
@@ -210,6 +211,61 @@ describe("inbound routing", () => {
   });
 });
 
+describe("every recognized RFQ thread keeps routing", () => {
+  test("a reply without the token on a second outbound RFQ thread routes to the same bidder", async () => {
+    const t = newTest();
+    const f = await buildTenancyFixture(t);
+    const threadRowId = await addThread(t, f.gcA.project, "BAYVIEW1", "thread-first-send");
+    await t.mutation(internal.inboundEmail.attachThreadId, { threadRowId, threadId: "thread-second-send" });
+    await t.mutation(internal.inboundEmail.attachThreadId, { threadRowId, threadId: "thread-second-send" });
+
+    for (const [i, threadId] of ["thread-first-send", "thread-second-send"].entries()) {
+      const res = await t.mutation(internal.inboundEmail.ingestReceived, {
+        eventId: `evt-out-${i}`,
+        message: message({ threadId, inReplyTo: "<rfq@ses>", subject: "RE: Invitation to bid" }),
+      });
+      expect(res, threadId).toMatchObject({ outcome: "routed", matchMethod: "thread" });
+      const row = await t.run(async (ctx) => await ctx.db.get((res as any).inboundId as Id<"inboundEmails">));
+      expect(row).toMatchObject({ companyId: f.gcA.companyId, contractorId: f.gcA.project.contractorId });
+    }
+    expect(await t.run(async (ctx) => (await ctx.db.query("emailThreadLinks").collect()).length)).toBe(1);
+  });
+
+  test("a token-routed new thread is remembered, so its token-free follow-up routes by thread", async () => {
+    const t = newTest();
+    const f = await buildTenancyFixture(t);
+    await addThread(t, f.gcA.project, "BAYVIEW1", "thread-bayview");
+    const first = await t.mutation(internal.inboundEmail.ingestReceived, {
+      eventId: "evt-tok-1",
+      message: message({ threadId: "thread-bidder-new", subject: "Question on lighting [TP-BAYVIEW1]" }),
+    });
+    expect(first).toMatchObject({ outcome: "routed", matchMethod: "token" });
+
+    const followUp = await t.mutation(internal.inboundEmail.ingestReceived, {
+      eventId: "evt-tok-2",
+      message: message({ threadId: "thread-bidder-new", inReplyTo: "<answer@ses>", subject: "RE: lighting follow-up" }),
+    });
+    expect(followUp).toMatchObject({ outcome: "routed", matchMethod: "thread" });
+    const row = await t.run(async (ctx) => await ctx.db.get((followUp as any).inboundId as Id<"inboundEmails">));
+    expect(row).toMatchObject({ projectId: f.gcA.project.projectId, contractorId: f.gcA.project.contractorId });
+  });
+
+  test("a triaged token message (unknown sender) does not claim its thread", async () => {
+    const t = newTest();
+    const f = await buildTenancyFixture(t);
+    await addThread(t, f.gcA.project, "BAYVIEW1", "thread-bayview");
+    await t.run(async (ctx) => {
+      await ctx.db.patch(f.gcA.project.contractorId, { contactEmail: "bidder@example.test" });
+    });
+    const res = await t.mutation(internal.inboundEmail.ingestReceived, {
+      eventId: "evt-tri",
+      message: message({ threadId: "thread-stranger", from: "stranger@example.test", subject: "Bid [TP-BAYVIEW1]" }),
+    });
+    expect(res.outcome).toBe("triage");
+    expect(await t.run(async (ctx) => (await ctx.db.query("emailThreadLinks").collect()).length)).toBe(0);
+  });
+});
+
 describe("RFQ dispatch through the mailer", () => {
   beforeEach(() => {
     vi.stubEnv("AGENTMAIL_API_KEY", "test-agentmail-key");
@@ -381,5 +437,81 @@ describe("POST /agentmail/webhook", () => {
     expect(res.status).toBe(200);
     const [row] = await t.run(async (ctx) => await ctx.db.query("emailOutbox").collect());
     expect(row.deliveryEvent).toBe("bounced");
+  });
+
+  test("a signed bounce marks the outbox row and the invite as bounced, and the send still counts", async () => {
+    vi.stubEnv("EMAIL_DAILY_BUDGET", "1");
+    const t = newTest();
+    const f = await buildTenancyFixture(t);
+    const inviteId = await t.run(async (ctx) => {
+      const id = await ctx.db.insert("invites", {
+        tokenHash: "hash-bounce",
+        email: "invitee@example.test",
+        kind: "teammate",
+        inviterCompanyId: f.gcA.companyId,
+        status: "pending",
+        expiresAt: Date.now() + 86_400_000,
+        emailStatus: "sent",
+        tokenVersion: 2,
+        createdByUserId: f.gcA.admin.userId,
+        createdAt: Date.now(),
+      });
+      await ctx.db.insert("emailOutbox", {
+        kind: "invite",
+        to: "invitee@example.test",
+        fromInbox: "cleverneed464@agentmail.to",
+        status: "sent",
+        idempotencyKey: `invite.${id}.2`,
+        day: new Date().toISOString().slice(0, 10),
+        attempts: 1,
+        agentmailMessageId: "<invite-bounce@ses>",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      return id;
+    });
+    const body = JSON.stringify({ type: "event", event_type: "message.bounced", event_id: "evt-ib", bounce: { message_id: "<invite-bounce@ses>" } });
+    expect((await t.fetch("/agentmail/webhook", { method: "POST", body, headers: signed(body) })).status).toBe(200);
+
+    const [row] = await t.run(async (ctx) => await ctx.db.query("emailOutbox").collect());
+    expect(row).toMatchObject({ status: "delivery_failed", deliveryEvent: "bounced", error: expect.stringContaining("bounced") });
+    const invite = await t.run(async (ctx) => await ctx.db.get(inviteId));
+    expect(invite).toMatchObject({ emailStatus: "bounced", emailError: expect.stringContaining("not delivered") });
+    expect(inviteStatusLabel(invite!, Date.now())).toBe("Pending · Email bounced");
+    expect(inviteEmailOutcome(invite!.emailStatus, invite!.emailError).text).toContain("Email bounced");
+    expect(await t.query(internal.emailOutbox.authCodeBudgetExhausted, {})).toBe(true);
+
+    // A later "delivered" for the same message never turns it back into a success.
+    const late = JSON.stringify({ type: "event", event_type: "message.delivered", event_id: "evt-id", delivery: { message_id: "<invite-bounce@ses>" } });
+    await t.fetch("/agentmail/webhook", { method: "POST", body: late, headers: signed(late) });
+    expect((await t.run(async (ctx) => await ctx.db.query("emailOutbox").collect()))[0].status).toBe("delivery_failed");
+  });
+
+  test("a signed rejection of an RFQ marks the row failed and records it on the project activity feed", async () => {
+    const t = newTest();
+    const f = await buildTenancyFixture(t);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("emailOutbox", {
+        kind: "rfq",
+        to: "bids@example.test",
+        fromInbox: RFQ_INBOX,
+        status: "sent",
+        idempotencyKey: `rfq.${f.gcA.project.contractorId}.123`,
+        day: "2026-10-08",
+        attempts: 1,
+        agentmailMessageId: "<rfq-reject@ses>",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    });
+    const body = JSON.stringify({ type: "event", event_type: "message.rejected", event_id: "evt-rr", reject: { message_id: "<rfq-reject@ses>" } });
+    expect((await t.fetch("/agentmail/webhook", { method: "POST", body, headers: signed(body) })).status).toBe(200);
+    const [row] = await t.run(async (ctx) => await ctx.db.query("emailOutbox").collect());
+    expect(row).toMatchObject({ status: "delivery_failed", deliveryEvent: "rejected" });
+    const logs = await t.run(async (ctx) =>
+      (await ctx.db.query("auditLogs").collect()).filter((l) => l.eventType === "rfq_email_failed")
+    );
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toMatchObject({ projectId: f.gcA.project.projectId, tradePackageId: f.gcA.project.tradePackageId });
   });
 });

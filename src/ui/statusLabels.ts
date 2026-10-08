@@ -44,6 +44,8 @@ export const STATUS_LABELS = {
   replied: { label: "Replied", tone: "success" },
   not_sent: { label: "Email not sent", tone: "muted" },
   skipped_budget: { label: "Email not sent (daily limit)", tone: "warning" },
+  uncertain: { label: "Email unconfirmed", tone: "warning" },
+  delivery_failed: { label: "Email not delivered", tone: "danger" },
   unrouted: { label: "Unrouted", tone: "muted" },
 
   // Funding tranches / milestones

@@ -1,6 +1,6 @@
 import { v } from "convex/values";
-import type { Id } from "./_generated/dataModel";
-import { internalMutation, internalQuery, type QueryCtx } from "./_generated/server";
+import type { Doc, Id } from "./_generated/dataModel";
+import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { readDailyBudget, sendLimitFor, utcDayKey } from "./lib/mailer";
 
 const mailKind = v.union(
@@ -13,6 +13,27 @@ const mailKind = v.union(
 
 /** A pending attempt older than this is treated as abandoned (the action died mid-call). */
 const STALE_PENDING_MS = 2 * 60 * 1000;
+
+/** Rows that used (or may have used) provider quota; only these count against the daily budget. */
+const CHARGED_STATUSES = ["sent", "pending", "uncertain", "delivery_failed"] as const;
+
+async function chargedCount(
+  ctx: QueryCtx,
+  day: string,
+  limit: number,
+  excludeId?: Id<"emailOutbox">,
+): Promise<number> {
+  let used = 0;
+  for (const status of CHARGED_STATUSES) {
+    const rows = await ctx.db
+      .query("emailOutbox")
+      .withIndex("by_day_and_status", (q) => q.eq("day", day).eq("status", status))
+      .take(limit + 1);
+    used += rows.filter((row) => row._id !== excludeId).length;
+    if (used > limit) break;
+  }
+  return used;
+}
 
 /** Demo-company mail (by sender company or project) never leaves the system. */
 async function isDemoSender(
@@ -60,20 +81,22 @@ export const reserveSend = internalMutation({
         threadId: existing.threadId ?? null,
       };
     }
+    if (existing?.status === "delivery_failed") {
+      return { action: "delivery_failed" as const, outboxId: existing._id, error: existing.error ?? null };
+    }
     if (existing?.status === "pending" && now - existing.updatedAt < STALE_PENDING_MS) {
       return { action: "in_flight" as const, outboxId: existing._id };
     }
 
+    // An uncertain (or abandoned in-flight) attempt today already holds a budget slot. Retrying it with the
+    // same Idempotency-Key reconciles that slot: AgentMail returns the original message if it was accepted.
+    if (existing && (existing.status === "uncertain" || existing.status === "pending") && existing.day === day) {
+      await ctx.db.patch(existing._id, { status: "pending", attempts: existing.attempts + 1, updatedAt: now });
+      return { action: "send" as const, outboxId: existing._id, reconcile: true };
+    }
+
     const limit = sendLimitFor(args.kind, readDailyBudget(process.env.EMAIL_DAILY_BUDGET));
-    const sent = await ctx.db
-      .query("emailOutbox")
-      .withIndex("by_day_and_status", (q) => q.eq("day", day).eq("status", "sent"))
-      .take(limit + 1);
-    const pending = await ctx.db
-      .query("emailOutbox")
-      .withIndex("by_day_and_status", (q) => q.eq("day", day).eq("status", "pending"))
-      .take(limit + 1);
-    const used = sent.length + pending.filter((row) => row._id !== existing?._id).length;
+    const used = await chargedCount(ctx, day, limit, existing?._id);
 
     if (used >= limit) {
       const fields = { status: "skipped_budget" as const, day, updatedAt: now, error: undefined };
@@ -104,7 +127,7 @@ export const reserveSend = internalMutation({
         error: undefined,
         updatedAt: now,
       });
-      return { action: "send" as const, outboxId: existing._id };
+      return { action: "send" as const, outboxId: existing._id, reconcile: false };
     }
     const outboxId = await ctx.db.insert("emailOutbox", {
       kind: args.kind,
@@ -120,14 +143,14 @@ export const reserveSend = internalMutation({
       createdAt: now,
       updatedAt: now,
     });
-    return { action: "send" as const, outboxId };
+    return { action: "send" as const, outboxId, reconcile: false };
   },
 });
 
 export const finishSend = internalMutation({
   args: {
     outboxId: v.id("emailOutbox"),
-    status: v.union(v.literal("sent"), v.literal("failed")),
+    status: v.union(v.literal("sent"), v.literal("failed"), v.literal("uncertain")),
     agentmailMessageId: v.optional(v.string()),
     threadId: v.optional(v.string()),
     error: v.optional(v.string()),
@@ -144,7 +167,19 @@ export const finishSend = internalMutation({
   },
 });
 
-/** Delivery webhooks (delivered/bounced/complained/rejected) annotate the matching sent row. */
+const FAILED_DELIVERY_EVENTS = new Set(["bounced", "rejected"]);
+
+export function deliveryFailureMessage(event: string): string {
+  return event === "rejected"
+    ? "AgentMail rejected the message; it was not delivered."
+    : "The recipient's mail server bounced the message; it was not delivered.";
+}
+
+/**
+ * Delivery webhooks (delivered/bounced/complained/rejected) annotate the matching sent row. A bounce or
+ * rejection is terminal: the row becomes delivery_failed (still charged, since provider quota was used)
+ * and the invite or RFQ it belongs to stops reading "Email sent".
+ */
 export const recordDeliveryEvent = internalMutation({
   args: { agentmailMessageId: v.string(), event: v.string() },
   handler: async (ctx, args) => {
@@ -153,10 +188,47 @@ export const recordDeliveryEvent = internalMutation({
       .withIndex("by_agentmailMessageId", (q) => q.eq("agentmailMessageId", args.agentmailMessageId))
       .first();
     if (!row) return { matched: false };
-    await ctx.db.patch(row._id, { deliveryEvent: args.event, updatedAt: Date.now() });
+    const now = Date.now();
+    if (!FAILED_DELIVERY_EVENTS.has(args.event) || row.status === "delivery_failed") {
+      // A late "delivered" never overrides a recorded bounce.
+      if (row.status !== "delivery_failed") await ctx.db.patch(row._id, { deliveryEvent: args.event, updatedAt: now });
+      return { matched: true };
+    }
+    const error = deliveryFailureMessage(args.event);
+    await ctx.db.patch(row._id, { status: "delivery_failed", deliveryEvent: args.event, error, updatedAt: now });
+    await markLogicalEventUndelivered(ctx, row, args.event, error);
     return { matched: true };
   },
 });
+
+async function markLogicalEventUndelivered(ctx: MutationCtx, row: Doc<"emailOutbox">, event: string, error: string) {
+  if (row.kind === "invite") {
+    const m = /^invite\.([^.]+)\.(\d+)$/.exec(row.idempotencyKey);
+    const inviteId = m ? ctx.db.normalizeId("invites", m[1]) : null;
+    if (!m || !inviteId) return;
+    const invite = await ctx.db.get(inviteId);
+    // Only the link this email carried; a newer resend owns the status.
+    if (!invite || (invite.tokenVersion ?? 1) !== Number(m[2]) || invite.emailStatus !== "sent") return;
+    await ctx.db.patch(invite._id, { emailStatus: "bounced", emailError: error });
+    return;
+  }
+  if (row.kind === "rfq") {
+    const m = /^rfq\.([^.]+)\./.exec(row.idempotencyKey);
+    const contractorId = m ? ctx.db.normalizeId("contractors", m[1]) : null;
+    const contractor = contractorId ? await ctx.db.get(contractorId) : null;
+    const tradePackage = contractor ? await ctx.db.get(contractor.tradePackageId) : null;
+    if (!contractor || !tradePackage) return;
+    await ctx.db.insert("auditLogs", {
+      projectId: tradePackage.projectId,
+      tradePackageId: tradePackage._id,
+      eventType: "rfq_email_failed",
+      title: `AgentMail Delivery failed: ${contractor.companyName}`,
+      description: `The invitation to bid sent to ${contractor.contactEmail} was ${event === "rejected" ? "rejected" : "bounced"} and did not arrive. ${error}`,
+      actor: "AgentMail Subcontractor Dispatcher",
+      timestamp: Date.now(),
+    });
+  }
+}
 
 /** Sending company of a project; Demo companies never send external email. */
 export const projectMailContext = internalQuery({
@@ -178,7 +250,7 @@ export const listForDay = internalQuery({
   args: { day: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const day = args.day ?? utcDayKey(Date.now());
-    const statuses = ["pending", "sent", "failed", "skipped_budget"] as const;
+    const statuses = ["pending", "sent", "uncertain", "delivery_failed", "failed", "skipped_budget"] as const;
     const rows = [];
     for (const status of statuses) {
       rows.push(
@@ -193,6 +265,7 @@ export const listForDay = internalQuery({
       day,
       budget,
       sentCount: rows.filter((r) => r.status === "sent").length,
+      chargedCount: rows.filter((r) => (CHARGED_STATUSES as readonly string[]).includes(r.status)).length,
       rows: rows
         .sort((a, b) => a.createdAt - b.createdAt)
         .map((r) => ({
@@ -222,14 +295,6 @@ export const authCodeBudgetExhausted = internalQuery({
   handler: async (ctx) => {
     const day = utcDayKey(Date.now());
     const limit = sendLimitFor("auth_code", readDailyBudget(process.env.EMAIL_DAILY_BUDGET));
-    const sent = await ctx.db
-      .query("emailOutbox")
-      .withIndex("by_day_and_status", (q) => q.eq("day", day).eq("status", "sent"))
-      .take(limit + 1);
-    const pending = await ctx.db
-      .query("emailOutbox")
-      .withIndex("by_day_and_status", (q) => q.eq("day", day).eq("status", "pending"))
-      .take(limit + 1);
-    return sent.length + pending.length >= limit;
+    return (await chargedCount(ctx, day, limit)) >= limit;
   },
 });
