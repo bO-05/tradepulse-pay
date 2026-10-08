@@ -6,7 +6,7 @@ import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import schema from "./schema";
 import { agentIdProfile, syncAgentProfile } from "./lib/agentAccess";
-import { signInAs } from "./lib/testIdentity";
+import { withSession, signInAs } from "./lib/testIdentity";
 
 const modules = import.meta.glob("./**/*.ts");
 type T = TestConvex<typeof schema>;
@@ -31,7 +31,7 @@ async function signInUnlinkedAgent(t: T) {
     await ctx.db.insert("authAccounts", { userId, provider: "agentid", providerAccountId: id });
     return userId;
   });
-  return t.withIdentity({ subject: `${userId}|agent-session`, email });
+  return await withSession(t, userId, email);
 }
 
 async function setup() {
@@ -84,7 +84,7 @@ async function setup() {
     sub: (await signInAs(t, "sub", { contractorId: ids.contractorId })).as,
     owner: (await signInAs(t, "owner")).as,
     "unlinked agent": await signInUnlinkedAgent(t),
-    "linked billing agent": t.withIdentity({ subject: `${linkedAgentId}|agent-session`, email: linkedEmail }),
+    "linked billing agent": await withSession(t, linkedAgentId, linkedEmail),
   };
   return { t, gc, ids: { ...ids, agreementId }, callers };
 }

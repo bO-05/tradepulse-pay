@@ -5,7 +5,7 @@ import { api, internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import schema from "../schema";
 import { agentIdProfile, syncAgentProfile } from "../lib/agentAccess";
-import { signInAs } from "../lib/testIdentity";
+import { withSession, signInAs } from "../lib/testIdentity";
 import { clearPayPalTokenCache } from "../payments/paypalClient";
 import { CSLB_FIXTURES } from "../kernel/cslbFixtures";
 import { ANTHROPIC_KEY_PREFIX, CUSTOM_TOOL_NAMES, READ_ONLY_TOOLKIT_TOOLS } from "./tools";
@@ -363,7 +363,7 @@ describe("GC approval inbox", () => {
       await ctx.db.insert("authAccounts", { userId, provider: "agentid", providerAccountId: id });
       return userId;
     });
-    const agent = s.t.withIdentity({ subject: `${agentUserId}|agent-session`, email: AGENT_EMAIL });
+    const agent = await withSession(s.t, agentUserId, AGENT_EMAIL);
     const payAppId = await submitAndRun(s, agent);
     const before = await state(s, payAppId);
     const payout = before.byKind("payout")!;

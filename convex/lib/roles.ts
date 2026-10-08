@@ -1,9 +1,9 @@
-import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { ActionCtx, QueryCtx } from "../_generated/server";
 import { internal } from "../_generated/api";
 import { findActiveAgentLink } from "./agentAccess";
+import { getLiveAuthUserId } from "./session";
 import { requireProjectAccess } from "./tenancy";
 
 export type Role = "gc" | "sub" | "owner";
@@ -23,9 +23,7 @@ export function forbiddenMessage(roles: readonly Role[]): string {
 
 /** Resolves the signed-in user and their role profile, or null when either is missing. */
 export async function getViewer(ctx: QueryCtx): Promise<Viewer | null> {
-  const rawUserId = await getAuthUserId(ctx);
-  if (rawUserId === null) return null;
-  const userId = ctx.db.normalizeId("users", rawUserId);
+  const userId = await getLiveAuthUserId(ctx);
   if (userId === null) return null;
   const user = await ctx.db.get(userId);
   if (user === null) return null;
@@ -55,7 +53,7 @@ export async function requireRole(
   roles: readonly Role[],
   projectId?: Id<"projects">,
 ): Promise<Viewer> {
-  const userId = await getAuthUserId(ctx);
+  const userId = await getLiveAuthUserId(ctx);
   if (userId === null) {
     throw new ConvexError({ code: "UNAUTHENTICATED", message: UNAUTHENTICATED_MESSAGE });
   }

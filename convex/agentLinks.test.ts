@@ -7,7 +7,7 @@ import schema from "./schema";
 import { agentIdProfile, syncAgentProfile } from "./lib/agentAccess";
 import { getViewer } from "./lib/roles";
 import { AgentID, AGENTID_SCOPES } from "./auth";
-import { signInAs } from "./lib/testIdentity";
+import { withSession, signInAs } from "./lib/testIdentity";
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -41,7 +41,7 @@ async function signInAgent(t: TestConvex<typeof schema>, email: string, sub = "z
     await ctx.db.insert("authAccounts", { userId, provider: "agentid", providerAccountId: id });
     return userId;
   });
-  return { userId, as: t.withIdentity({ subject: `${userId}|agent-session`, email }) };
+  return { userId, as: await withSession(t, userId, email) };
 }
 
 describe("AgentID provider config", () => {
@@ -156,7 +156,7 @@ describe("billing-agent links", () => {
       await ctx.db.insert("userProfiles", { userId: id, role: "sub", displayName: "x", contractorId: rosendin, actorType: "agent", createdAt: 0 });
       return id;
     });
-    const as = t.withIdentity({ subject: `${userId}|s` });
+    const as = await withSession(t, userId);
     expect(await as.run((ctx) => getViewer(ctx))).toBeNull();
   });
 

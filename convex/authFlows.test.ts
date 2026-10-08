@@ -191,6 +191,51 @@ describe("sign-up and email verification", () => {
     const again: any = await signIn(t, { flow: "signIn", email: DANA, password: STRONG });
     expect(again.tokens).toBeTruthy();
   });
+
+  test("sign-up for an existing verified account never checks the password, so it is no guessing path", async () => {
+    const t = setup();
+    advance(60_000);
+    await signUpAndVerify(t);
+    const sessionsBefore = await t.run(async (ctx) => (await ctx.db.query("authSessions").collect()).length);
+    for (let i = 0; i < 12; i++) {
+      expect(await errorData(signIn(t, { flow: "signUp", email: DANA, password: `Guess-Number-${i}0`, name: "Dana" }))).toMatchObject({
+        code: "ACCOUNT_EXISTS",
+      });
+    }
+    // The right password gets the same refusal and no session.
+    expect(await errorData(signIn(t, { flow: "signUp", email: DANA, password: STRONG, name: "Dana" }))).toMatchObject({
+      code: "ACCOUNT_EXISTS",
+      message: ACCOUNT_EXISTS_MESSAGE,
+    });
+    expect(await t.run(async (ctx) => (await ctx.db.query("authSessions").collect()).length)).toBe(sessionsBefore);
+  });
+
+  test("a repeated sign-up refused by the cooldown keeps the emailed code valid", async () => {
+    const t = setup();
+    advance(60_000);
+    expect(await signIn(t, { flow: "signUp", email: DANA, password: STRONG, name: "Dana" })).toEqual({ tokens: null });
+    const first = lastCode();
+    expect((await errorData(signIn(t, { flow: "signUp", email: DANA, password: STRONG, name: "Dana" }))).kind).toBe("RateLimited");
+    expect(sent).toHaveLength(1);
+    const ok: any = await signIn(t, { flow: "email-verification", email: DANA, code: first });
+    expect(ok.tokens).toBeTruthy();
+  });
+
+  test("sign-up guesses against an unverified account count toward the failed-attempt limit", async () => {
+    const t = setup();
+    advance(60_000);
+    await signIn(t, { flow: "signUp", email: DANA, password: STRONG, name: "Dana" });
+    for (let i = 0; i < 10; i++) {
+      expect(await errorData(signIn(t, { flow: "signUp", email: DANA, password: `Guess-Number-${i}0`, name: "Dana" }))).toMatchObject({
+        code: "ACCOUNT_EXISTS",
+      });
+    }
+    advance(31_000);
+    expect(await errorData(signIn(t, { flow: "signUp", email: DANA, password: STRONG, name: "Dana" }))).toMatchObject({
+      code: "TOO_MANY_ATTEMPTS",
+    });
+    expect(sent).toHaveLength(1);
+  });
 });
 
 describe("sign-in errors", () => {
@@ -274,7 +319,35 @@ describe("password reset", () => {
     expect(await errorData(signIn(t, { flow: "signIn", email: DANA, password: STRONG }))).toMatchObject({ code: "INVALID_CREDENTIALS" });
     expect(((await signIn(t, { flow: "signIn", email: DANA, password: NEW_STRONG })) as any).tokens).toBeTruthy();
   });
+
+  test("a session issued before a reset elsewhere stops working on its next request", async () => {
+    const t = setup();
+    advance(60_000);
+    await signUpAndVerify(t);
+    const a: any = await signIn(t, { flow: "signIn", email: DANA, password: STRONG });
+    const sessionA = t.withIdentity({ subject: tokenSubject(a.tokens.token), email: DANA });
+    expect(await sessionA.query(api.profiles.me, {})).toMatchObject({ email: DANA });
+    const companyArgs = {
+      name: "Bayview Builders Inc.",
+      address: { line1: "455 Embarcadero W", city: "Oakland", state: "CA", zip: "94607" },
+      phone: "510-555-0187",
+    };
+
+    advance(31_000);
+    await signIn(t, { flow: "reset", email: DANA });
+    await signIn(t, { flow: "reset-verification", email: DANA, code: lastCode(), newPassword: NEW_STRONG });
+
+    // Session A's access token is still unexpired, but its session is gone.
+    expect(await sessionA.query(api.profiles.me, {})).toBeNull();
+    expect(await errorData(sessionA.mutation(api.onboarding.createCompany, companyArgs))).toMatchObject({ code: "UNAUTHENTICATED" });
+    expect(await t.run(async (ctx) => (await ctx.db.query("companies").collect()).length)).toBe(0);
+  });
 });
+
+function tokenSubject(jwt: string): string {
+  const payload = JSON.parse(Buffer.from(jwt.split(".")[1], "base64url").toString("utf8"));
+  return payload.sub;
+}
 
 describe("email budget", () => {
   test("a skipped send is reported honestly, never as sent", async () => {

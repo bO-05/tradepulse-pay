@@ -1,9 +1,9 @@
-import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
 import { internalMutation, internalQuery, query } from "./_generated/server";
 import { DEMO_ACCOUNTS } from "./demoAccounts";
 import { roleValidator } from "./schema";
 import { getViewer, requireRole } from "./lib/roles";
+import { getLiveAuthUserId } from "./lib/session";
 import { findActiveMembership } from "./lib/tenancy";
 
 /**
@@ -13,8 +13,7 @@ import { findActiveMembership } from "./lib/tenancy";
 export const me = query({
   args: {},
   handler: async (ctx) => {
-    const rawUserId = await getAuthUserId(ctx);
-    const userId = rawUserId === null ? null : ctx.db.normalizeId("users", rawUserId);
+    const userId = await getLiveAuthUserId(ctx);
     if (userId === null) return null;
     const user = await ctx.db.get(userId);
     if (user === null) return null;

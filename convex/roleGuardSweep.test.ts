@@ -5,7 +5,7 @@ import type { FunctionReference } from "convex/server";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
 import { agentIdProfile, syncAgentProfile } from "./lib/agentAccess";
-import { signInAs } from "./lib/testIdentity";
+import { withSession, signInAs } from "./lib/testIdentity";
 
 const modules = import.meta.glob("./**/*.ts");
 type T = TestConvex<typeof schema>;
@@ -34,7 +34,7 @@ async function signInAgent(t: T, email: string, sub: string) {
     await ctx.db.insert("authAccounts", { userId, provider: "agentid", providerAccountId: id });
     return userId;
   });
-  return t.withIdentity({ subject: `${userId}|agent-session`, email });
+  return await withSession(t, userId, email);
 }
 
 /** Executed agreement with a funded milestone, a payout, retainage, a pending proposal, a change order and an agent link. */

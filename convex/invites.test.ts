@@ -7,6 +7,7 @@ import type { Id } from "./_generated/dataModel";
 import schema from "./schema";
 import { hashInviteToken, INVITE_TTL_MS } from "./lib/inviteRules";
 import { buildTenancyFixture, insertProjectFor, type FixtureUser } from "./lib/tenancyFixtures";
+import { withSession } from "./lib/testIdentity";
 
 const modules = import.meta.glob("./**/*.ts");
 type T = ReturnType<typeof convexTest>;
@@ -31,7 +32,7 @@ async function newHuman(t: T, email: string, name = "New Person", verified = tru
   const userId = await t.run(async (ctx) =>
     ctx.db.insert("users", { email, name, emailVerificationTime: verified ? Date.now() : undefined }),
   );
-  return { userId, email, as: t.withIdentity({ subject: `${userId}|s`, email }) };
+  return { userId, email, as: await withSession(t, userId, email) };
 }
 
 function tokenOf(link: string): string {
@@ -303,7 +304,7 @@ describe("accepting invites", () => {
       sendEmail: false,
     });
     const agentId = await t.run(async (ctx) => ctx.db.insert("users", { email: "boldlevel182@agentmail.to", actorType: "agent", agentSub: "agent-1" }));
-    const agent = t.withIdentity({ subject: `${agentId}|a`, email: "boldlevel182@agentmail.to" });
+    const agent = await withSession(t, agentId, "boldlevel182@agentmail.to");
     const page = await agent.query(api.invites.getByToken, { token: tokenOf(res.link) });
     expect(page).toMatchObject({ state: "pending", viewer: { isAgent: true, emailMatches: false } });
     const before = await dump(t);

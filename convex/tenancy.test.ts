@@ -6,7 +6,7 @@ import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import schema from "./schema";
 import { DEMO_COMPANIES } from "./lib/demoTenancy";
-import { requireRole } from "./lib/roles";
+import { getViewer, requireRole } from "./lib/roles";
 import {
   accessibleProjectIds,
   requireCompanyMember,
@@ -16,6 +16,7 @@ import {
   requireVerifiedUser,
 } from "./lib/tenancy";
 import { buildTenancyFixture } from "./lib/tenancyFixtures";
+import { withSession } from "./lib/testIdentity";
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -45,15 +46,34 @@ describe("identity helpers", () => {
     expect(user._id).toBe(f.gcA.admin.userId);
   });
 
+  test("a token whose session row was deleted is signed out everywhere, and other sessions keep working", async () => {
+    const t = newTest();
+    const f = await buildTenancyFixture(t);
+    const other = await withSession(t, f.gcA.admin.userId, "dana@bayview.test");
+    await t.run(async (ctx) => {
+      const sessions = await ctx.db
+        .query("authSessions")
+        .withIndex("userId", (q) => q.eq("userId", f.gcA.admin.userId))
+        .collect();
+      await ctx.db.delete(sessions[0]._id);
+    });
+    const stale = f.gcA.admin.as;
+    expect(await errorOf(stale.run((ctx) => requireUser(ctx)))).toMatchObject({ code: "UNAUTHENTICATED" });
+    expect(await errorOf(stale.run((ctx) => requireProjectAccess(ctx, f.gcA.project.projectId)))).toMatchObject({ code: "UNAUTHENTICATED" });
+    expect(await stale.run((ctx) => getViewer(ctx))).toBeNull();
+    expect(await stale.query(api.profiles.me, {})).toBeNull();
+    await expect(other.run((ctx) => requireUser(ctx))).resolves.toMatchObject({ _id: f.gcA.admin.userId });
+  });
+
   test("requireVerifiedUser requires a verified email for humans but not for agents", async () => {
     const t = newTest();
     const { unverified, agent } = await t.run(async (ctx) => ({
       unverified: await ctx.db.insert("users", { email: "new@x.test" }),
       agent: await ctx.db.insert("users", { email: "bot@agentmail.to", actorType: "agent" }),
     }));
-    const asUnverified = t.withIdentity({ subject: `${unverified}|s` });
+    const asUnverified = await withSession(t, unverified);
     expect(await errorOf(asUnverified.run((ctx) => requireVerifiedUser(ctx)))).toMatchObject({ code: "EMAIL_UNVERIFIED" });
-    const asAgent = t.withIdentity({ subject: `${agent}|s` });
+    const asAgent = await withSession(t, agent);
     await expect(asAgent.run((ctx) => requireVerifiedUser(ctx))).resolves.toMatchObject({ _id: agent });
   });
 
@@ -242,7 +262,7 @@ describe("requireProjectAccess", () => {
       });
       return userId;
     });
-    const asAgent = t.withIdentity({ subject: `${agent}|s` });
+    const asAgent = await withSession(t, agent);
     const access = await asAgent.run((ctx) => requireProjectAccess(ctx, f.gcA.project.projectId));
     expect(access.partyRole).toBe("sub");
     expect(access.company).toBeNull();
@@ -443,7 +463,7 @@ describe("tenancy migration", () => {
 
     // The demo accounts now resolve through tenancy.
     const sub1 = state.users.find((u) => u.email === "sub1@demo.tradepulse")!;
-    const asSub1 = t.withIdentity({ subject: `${sub1._id}|s` });
+    const asSub1 = await withSession(t, sub1._id);
     expect((await asSub1.run((ctx) => requireProjectAccess(ctx, legacy.projects.demo))).partyRole).toBe("sub");
     expect(await errorOf(asSub1.run((ctx) => requireProjectAccess(ctx, legacy.otherCompanyProject)))).toEqual(NOT_FOUND);
 
@@ -487,7 +507,7 @@ describe("tenancy migration", () => {
     expect(state.contractor).not.toBeNull();
     expect(state.agreement.contractorId).toBe(state.profile!.contractorId);
     expect(state.bid.contractorId).toBe(state.agreement.contractorId);
-    const asSub1 = t.withIdentity({ subject: `${state.sub1Id}|s` });
+    const asSub1 = await withSession(t, state.sub1Id);
     const access = await asSub1.run((ctx) => requireProjectAccess(ctx, state.agreement.projectId));
     expect(access.contractorIds).toContain(state.agreement.contractorId);
 

@@ -6,6 +6,7 @@ import { api } from "./_generated/api";
 import type { Id, TableNames } from "./_generated/dataModel";
 import schema from "./schema";
 import { buildTenancyFixture, type FixtureUser, type TenancyFixture } from "./lib/tenancyFixtures";
+import { withSession } from "./lib/testIdentity";
 
 /**
  * Cross-company isolation for the procurement surface (architecture §12): another GC company, a
@@ -182,7 +183,7 @@ async function setup() {
   const ray: FixtureUser = {
     userId: extra.rayId,
     email: "ray@lakeshore.test",
-    as: t.withIdentity({ subject: `${extra.rayId}|test-session`, email: "ray@lakeshore.test" }),
+    as: await withSession(t, extra.rayId, "ray@lakeshore.test"),
   };
   const bayview: Ids = {
     projectId: a.projectId,

@@ -9,6 +9,7 @@ import { rateLimiter } from "./authLimits";
 import { AGENTID_PROVIDER_ID, agentIdProfile, syncAgentProfile, type AgentIdClaims } from "./lib/agentAccess";
 import { emailLimitError, ResetPasswordCode, VerifyEmailCode } from "./lib/authEmail";
 import {
+  ACCOUNT_EXISTS_MESSAGE,
   INVALID_EMAIL_MESSAGE,
   isLowercaseEmail,
   isUndeliverableEmail,
@@ -98,12 +99,39 @@ async function refuseCodeSendUpFront(flow: string, params: Record<string, unknow
   throw refusal;
 }
 
+/**
+ * The library's signUp flow checks the password of an existing account itself, without the
+ * failed-attempt limit signIn has, and signs the caller in on a match. A verified account is
+ * refused outright; an unverified one goes through signIn, which counts failed attempts and runs
+ * the send preflight before it replaces the emailed code.
+ */
+async function routeExistingAccountSignUp(params: Record<string, unknown>, ctx: any): Promise<Record<string, unknown>> {
+  if (!isLowercaseEmail(params.email)) return params;
+  const { account } = await ctx.runQuery(internal.authLimits.preflightAuthEmail, { email: params.email });
+  if (account === "verified") throw accountExistsError();
+  if (account === "unverified") return { ...params, flow: "signIn" };
+  return params;
+}
+
+function accountExistsError() {
+  return new ConvexError({ code: "ACCOUNT_EXISTS", message: ACCOUNT_EXISTS_MESSAGE });
+}
+
 providerOptions.authorize = async (params, ctx) => {
   const flow = String(params.flow ?? "");
+  let effective = params;
   try {
-    await refuseCodeSendUpFront(flow, params, ctx);
-    return await innerAuthorize(params, ctx);
+    if (flow === "signUp") effective = await routeExistingAccountSignUp(params, ctx);
+    const effectiveFlow = String(effective.flow);
+    await refuseCodeSendUpFront(effectiveFlow, effective, ctx);
+    return await innerAuthorize(effective, ctx);
   } catch (err) {
+    if (flow === "signUp" && effective.flow === "signIn") {
+      // A wrong password for an existing unverified account reads like any existing account.
+      const translated = translateAuthError("signIn", err);
+      if (translated?.data.code === "INVALID_CREDENTIALS") throw accountExistsError();
+      throw translated ?? err;
+    }
     if (flow === "reset" && isUnknownAccount(err)) {
       // Same limits and budget answer as a known address, but nothing is stored or sent.
       await ctx.runMutation(internal.authLimits.consumeAuthEmailSend, { email: String(params.email) });

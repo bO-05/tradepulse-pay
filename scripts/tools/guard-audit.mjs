@@ -52,9 +52,9 @@ const NO_PROJECT_DATA = new Map([
   ["dashboard/studioProxy:studioPreflight", "CORS preflight"],
   ["projectFileDownload:projectFilePreflight", "CORS preflight"],
 ]);
-// The app-shell identity query: it reads only the caller's own users row (by getAuthUserId) and
+// The app-shell identity query: it reads only the caller's own users row (by getLiveAuthUserId) and
 // returns role null for accounts without a profile, so it cannot expose other users' data.
-const SELF_ONLY = new Map([["profiles:me", /\bgetAuthUserId\(ctx\)/]]);
+const SELF_ONLY = new Map([["profiles:me", /\bgetLiveAuthUserId\(ctx\)/]]);
 // Public by design: the invite accept page works before sign-in. The 256-bit token is the
 // credential; the token's hash must be computed before any read, and nothing is written.
 const TOKEN_GATED = new Map([["invites:getByToken", /\bhashInviteToken\(token\)/]]);
@@ -148,8 +148,8 @@ for (const file of walk(ROOT).sort()) {
       }
     } else if (SELF_ONLY.has(fnName)) {
       const self = body.match(SELF_ONLY.get(fnName));
-      guardText = "getAuthUserId(): caller's own users row only, then getViewer()";
-      if (!self || (access && access.index < self.index)) problems.push(`${fnName} (${where}): reads data before getAuthUserId()`);
+      guardText = "getLiveAuthUserId(): caller's own users row only, then getViewer()";
+      if (!self || (access && access.index < self.index)) problems.push(`${fnName} (${where}): reads data before getLiveAuthUserId()`);
     } else if (!guard) {
       guardText = "MISSING";
       problems.push(`${fnName} (${where}): no guard call`);

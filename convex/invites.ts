@@ -1,4 +1,3 @@
-import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -18,6 +17,7 @@ import {
 } from "./lib/inviteRules";
 import { escapeHtml, sendEmail, SYSTEM_SENDER_NAME } from "./lib/mailer";
 import { requireProjectScope } from "./lib/projectScope";
+import { getLiveAuthUserId } from "./lib/session";
 import { requireCompanyMemberInAction } from "./lib/tenancyAction";
 import { findActiveMembership, notFound, requireCompanyMember, requireVerifiedUser } from "./lib/tenancy";
 
@@ -744,8 +744,7 @@ export const getByToken = query({
     const project = invite.projectId ? await ctx.db.get(invite.projectId) : null;
     const inviter = await ctx.db.get(invite.createdByUserId);
 
-    const rawUserId = await getAuthUserId(ctx);
-    const userId = rawUserId === null ? null : ctx.db.normalizeId("users", rawUserId);
+    const userId = await getLiveAuthUserId(ctx);
     const user = userId === null ? null : await ctx.db.get(userId);
     let viewer = null;
     if (user !== null) {

@@ -53,7 +53,6 @@ export function CreateAccountForm({
         onVerify({ kind: "verify", email: normalized, password, codeSent: true });
         return;
       }
-      // An existing, verified account with this exact password signs straight in.
     } catch (err) {
       const info = describeAuthError(err, "signUp");
       setSubmitting(false);

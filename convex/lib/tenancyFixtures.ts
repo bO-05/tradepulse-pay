@@ -4,6 +4,7 @@ import type { MutationCtx } from "../_generated/server";
 import type schema from "../schema";
 import { ensureDemoCompanies, type DemoCompanyIds } from "./demoTenancy";
 import type { Role } from "./roles";
+import { insertTestSession } from "./testIdentity";
 
 /**
  * Test-only fixture for cross-company isolation suites: two GC companies, a sub, an owner and the
@@ -34,8 +35,8 @@ export type TenancyFixture = {
   noCompany: FixtureUser;
 };
 
-function identity(t: T, userId: Id<"users">, email: string): Accessor {
-  return t.withIdentity({ subject: `${userId}|test-session`, email });
+function identity(t: T, userId: Id<"users">, sessionId: Id<"authSessions">, email: string): Accessor {
+  return t.withIdentity({ subject: `${userId}|${sessionId}`, email });
 }
 
 async function insertUser(
@@ -195,7 +196,16 @@ export async function buildTenancyFixture(t: T): Promise<TenancyFixture> {
     const demoProject = await insertProjectFor(ctx, demo.gc, { title: "Demo fixture project" });
     return { gcA, gcB, sub, owner, demo, users, projectA, projectB, demoProject };
   });
-  const user = (userId: Id<"users">, email: string): FixtureUser => ({ userId, email, as: identity(t, userId, email) });
+  const sessions = await t.run(async (ctx) => {
+    const out: Record<string, Id<"authSessions">> = {};
+    for (const userId of Object.values(ids.users)) out[userId] = await insertTestSession(ctx, userId);
+    return out;
+  });
+  const user = (userId: Id<"users">, email: string): FixtureUser => ({
+    userId,
+    email,
+    as: identity(t, userId, sessions[userId], email),
+  });
   return {
     gcA: {
       companyId: ids.gcA,

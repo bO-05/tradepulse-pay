@@ -22,6 +22,13 @@ export function AuthGate({ procurementApp }: { procurementApp: ReactNode }) {
   const me = useQuery(api.profiles.me, isAuthenticated ? {} : "skip");
   const { signOut } = useAuthActions();
   const needsCompany = me !== undefined && me !== null && me.actorType !== "agent" && me.company === null;
+  // The token still verifies but the server no longer has its session (e.g. a password reset
+  // elsewhere ended it), so drop the token and go back to sign-in.
+  const sessionEnded = isAuthenticated && me === null;
+
+  useEffect(() => {
+    if (sessionEnded) void signOut();
+  }, [sessionEnded, signOut]);
 
   // Someone who opened an invite link and then signed up or signed in elsewhere in this tab goes back
   // to the invite instead of "Set up your company".
@@ -38,6 +45,9 @@ export function AuthGate({ procurementApp }: { procurementApp: ReactNode }) {
   }
   if (me === undefined) {
     return <FullScreenStatus>Loading your workspace…</FullScreenStatus>;
+  }
+  if (sessionEnded) {
+    return <FullScreenStatus>Your session has ended. Signing you out…</FullScreenStatus>;
   }
   if (me !== null && me.role === null && me.actorType === "agent") {
     return (

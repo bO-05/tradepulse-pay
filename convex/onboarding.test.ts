@@ -4,6 +4,7 @@ import { describe, expect, test } from "vitest";
 import { api } from "./_generated/api";
 import schema from "./schema";
 import { buildTenancyFixture } from "./lib/tenancyFixtures";
+import { withSession } from "./lib/testIdentity";
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -17,7 +18,7 @@ async function newUser(t: ReturnType<typeof convexTest>, email: string, verified
   const userId = await t.run(async (ctx) =>
     ctx.db.insert("users", { email, name: "Dana Whitfield", emailVerificationTime: verified ? Date.now() : undefined }),
   );
-  return { userId, as: t.withIdentity({ subject: `${userId}|s1`, email }) };
+  return { userId, as: await withSession(t, userId, email) };
 }
 
 async function companyRows(t: ReturnType<typeof convexTest>) {

@@ -7,6 +7,7 @@ import type { Doc, Id, TableNames } from "./_generated/dataModel";
 import schema from "./schema";
 import { buildTenancyFixture, type FixtureUser, type TenancyFixture } from "./lib/tenancyFixtures";
 import { NO_PROJECT_OWNER_REASON } from "./payments/changeOrderRecipient";
+import { withSession } from "./lib/testIdentity";
 
 /**
  * Cross-company isolation for the payments side (architecture §12): pay apps, funding, release,
@@ -281,7 +282,7 @@ async function setup() {
   const ray: FixtureUser = {
     userId: extra.rayId,
     email: "ray@lakeshore.test",
-    as: t.withIdentity({ subject: `${extra.rayId}|test-session`, email: "ray@lakeshore.test" }),
+    as: await withSession(t, extra.rayId, "ray@lakeshore.test"),
   };
   const bayview: Ids = { projectId: a.projectId, agreementId: a.agreementId, contractorId: a.contractorId, ...extra.bayview };
   const missing: Ids = {
@@ -547,7 +548,7 @@ describe("the owner sees project summary and owner items only", () => {
       await ctx.db.insert("companyMembers", { companyId: mesa._id, userId, role: "admin", status: "active", createdAt: Date.now() });
       return userId;
     });
-    const pat = t.withIdentity({ subject: `${mesaUser}|test-session`, email: "pat@mesa-owner.test" });
+    const pat = await withSession(t, mesaUser, "pat@mesa-owner.test");
     const text = JSON.stringify(await pat.query(api.dashboard.queries.getDashboardData, {}));
     expect(text).toContain("SONORAN added outlets");
     expect(text).not.toMatch(/Harbor Point|BAYVIEW|Camelback/);

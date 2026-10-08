@@ -20,7 +20,7 @@ Public functions: 141. Problems: 0. Without a tenancy guard: 0.
 | `agreements:getAgreementByPackage` | query | `convex/agreements.ts:307` | requireDocScope() at line 310 | requireDocScope() |
 | `agreements:listAgreements` | query | `convex/agreements.ts:320` | requireProjectScope() at line 323 | requireProjectScope() |
 | `agreements:executeAgreement` | mutation | `convex/agreements.ts:333` | requireDocScope() at line 336 | requireDocScope() |
-| `auditLogs:listRecentLogs` | query | `convex/auditLogs.ts:41` | requireProjectScope() at line 53 | requireProjectScope() |
+| `auditLogs:listRecentLogs` | query | `convex/auditLogs.ts:41` | requireProjectScope() at line 51 | requireProjectScope() |
 | `bids:listByPackage` | query | `convex/bids.ts:81` | requireDocScope() at line 85 | requireDocScope() |
 | `bids:listAllProjectBids` | query | `convex/bids.ts:93` | requireProjectScope() at line 96 | requireProjectScope() |
 | `bids:awardContract` | mutation | `convex/bids.ts:120` | requireDocScope() at line 126 | requireDocScope() |
@@ -56,7 +56,7 @@ Public functions: 141. Problems: 0. Without a tenancy guard: 0.
 | `dashboard/studioProxy:studioProxy` | httpAction | `convex/dashboard/studioProxy.ts:53` | Bearer token, then authorizeStudioCaller (requireRole + requireCompanyMember) before fetch | requireCompanyMember() via authorizeStudioCaller; reads no app data itself |
 | `evals:getLatestEvalRun` | query | `convex/evals.ts:101` | requireDemoCompany() at line 104 | requireDemoCompany() |
 | `evals:listTracesForRun` | query | `convex/evals.ts:132` | requireDemoCompany() at line 135 | requireDemoCompany() |
-| `evals:executeEvalSuite` | action | `convex/evals.ts:147` | requireDemoCompanyInAction() at line 153 | requireDemoCompanyInAction() |
+| `evals:executeEvalSuite` | action | `convex/evals.ts:155` | requireDemoCompanyInAction() at line 161 | requireDemoCompanyInAction() |
 | `files:generateUploadUrl` | mutation | `convex/files.ts:44` | requireRole() at line 48 | requireProjectScope() |
 | `files:saveFileRecord` | mutation | `convex/files.ts:143` | requireProjectScope() at line 157 | requireProjectScope() |
 | `files:repairSeededDocumentSizes` | mutation | `convex/files.ts:255` | requireDemoCompany() at line 258 | requireDemoCompany() |
@@ -119,10 +119,10 @@ Public functions: 141. Problems: 0. Without a tenancy guard: 0.
 | `people:myProjects` | query | `convex/people.ts:129` | callerProjects() at line 132 | callerProjects() |
 | `people:projectOverview` | query | `convex/people.ts:146` | requireProjectScope() at line 151 | requireProjectScope() |
 | `portal:mySubPortal` | query | `convex/portal.ts:90` | subContractorScope() at line 93 | subContractorScope() |
-| `portal:mySubPayApps` | query | `convex/portal.ts:127` | subContractorScope() at line 130 | subContractorScope() |
-| `portal:getAgreementSummary` | query | `convex/portal.ts:180` | requireDocScope() at line 185 | requireDocScope() |
-| `portal:ownerOverview` | query | `convex/portal.ts:195` | requireRole() at line 198 | callerProjects() |
-| `profiles:me` | query | `convex/profiles.ts:13` | getAuthUserId(): caller's own users row only, then getViewer() | none needed: caller's own profile |
+| `portal:mySubPayApps` | query | `convex/portal.ts:167` | subContractorScope() at line 170 | subContractorScope() |
+| `portal:getAgreementSummary` | query | `convex/portal.ts:211` | requireDocScope() at line 216 | requireDocScope() |
+| `portal:ownerOverview` | query | `convex/portal.ts:226` | requireRole() at line 229 | callerProjects() |
+| `profiles:me` | query | `convex/profiles.ts:13` | getLiveAuthUserId(): caller's own users row only, then getViewer() | none needed: caller's own profile |
 | `projectFileDownload:projectFilePreflight` | httpAction | `convex/projectFileDownload.ts:41` | CORS preflight only, no data access | none needed: CORS preflight |
 | `projectFileDownload:projectFileDownload` | httpAction | `convex/projectFileDownload.ts:50` | Bearer token, then authorizeDownload (requireDocScope) before ctx.storage | requireDocScope() via authorizeDownload |
 | `projects:getDemoProject` | query | `convex/projects.ts:30` | requireRole() at line 33 | callerProjects() |
@@ -141,8 +141,8 @@ Public functions: 141. Problems: 0. Without a tenancy guard: 0.
 | `rfqActions:dispatchSingleRfqWithNotification` | action | `convex/rfqActions.ts:166` | requireProjectScopeInAction() at line 171 | requireProjectScopeInAction() |
 | `simulation:triggerJudgeSimulation` | mutation | `convex/simulation.ts:16` | requireDocScope() at line 26 | requireDocScope() |
 | `simulation:submitCustomRfi` | mutation | `convex/simulation.ts:269` | requireDocScope() at line 277 | requireDocScope() |
-| `simulation:retryRfiAnalysis` | mutation | `convex/simulation.ts:358` | requireDocScope() at line 361 | requireDocScope() |
-| `simulation:runFullProcurementCycle` | mutation | `convex/simulation.ts:401` | requireProjectScope() at line 407 | requireProjectScope() |
+| `simulation:retryRfiAnalysis` | mutation | `convex/simulation.ts:359` | requireDocScope() at line 362 | requireDocScope() |
+| `simulation:runFullProcurementCycle` | mutation | `convex/simulation.ts:402` | requireProjectScope() at line 408 | requireProjectScope() |
 | `tradePackages:listByProject` | query | `convex/tradePackages.ts:16` | requireProjectScope() at line 19 | requireProjectScope() |
 | `tradePackages:getPackage` | query | `convex/tradePackages.ts:27` | requireDocScope() at line 30 | requireDocScope() |
 | `tradePackages:createTradePackage` | mutation | `convex/tradePackages.ts:42` | requireProjectScope() at line 55 | requireProjectScope() |

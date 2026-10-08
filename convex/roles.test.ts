@@ -54,10 +54,10 @@ describe("requireRole", () => {
     await expect(as.run((ctx) => requireRole(ctx, ["gc", "sub", "owner"]))).rejects.toThrow(/no TradePulse role/);
   });
 
-  test("treats a token subject that is not a users id as having no role", async () => {
+  test("treats a token subject that is not a live users session as signed out", async () => {
     const t = newTest();
     const bogus = t.withIdentity({ subject: "x|y" });
-    await expect(bogus.run((ctx) => requireRole(ctx, ["gc"]))).rejects.toThrow(/no TradePulse role/);
+    await expect(bogus.run((ctx) => requireRole(ctx, ["gc"]))).rejects.toThrow(/Not authenticated/);
     expect(await bogus.query(api.profiles.me, {})).toBeNull();
   });
 

@@ -7,6 +7,17 @@ import type { Role } from "./roles";
 
 type T = TestConvex<typeof schema>;
 
+/** Inserts the authSessions row a real sign-in creates; guards reject tokens whose session is gone. */
+export async function insertTestSession(ctx: MutationCtx, userId: Id<"users">): Promise<Id<"authSessions">> {
+  return await ctx.db.insert("authSessions", { userId, expirationTime: Date.now() + 30 * 24 * 60 * 60 * 1000 });
+}
+
+/** A test accessor carrying the identity Convex Auth issues (subject "<userId>|<sessionId>") for a live session. */
+export async function withSession(t: T, userId: Id<"users">, email?: string) {
+  const sessionId = await t.run((ctx) => insertTestSession(ctx, userId));
+  return t.withIdentity(email === undefined ? { subject: `${userId}|${sessionId}` } : { subject: `${userId}|${sessionId}`, email });
+}
+
 async function ensureProjectMember(
   ctx: MutationCtx,
   projectId: Id<"projects">,
@@ -92,7 +103,7 @@ async function joinCompanyFor(
 /**
  * Test-only helper: inserts a verified users row (+ userProfiles row when `role` is set) and
  * returns an accessor whose identity matches what Convex Auth issues (subject =
- * "<userId>|<sessionId>"). The user joins the Demo company of its role (subs: the company linked
+ * "<userId>|<sessionId>", with a live authSessions row). The user joins the Demo company of its role (subs: the company linked
  * to `contractorId`, created on first use), and each call through `as` first runs
  * syncLegacyTestTenancy so legacy tests keep their single-tenant data visible.
  * Isolation tests use buildTenancyFixture instead.
@@ -121,7 +132,7 @@ export async function signInAs(
     await syncLegacyTestTenancy(ctx);
     return id;
   });
-  const inner = t.withIdentity({ subject: `${userId}|test-session`, email });
+  const inner = await withSession(t, userId, email);
   const sync = () => t.run(syncLegacyTestTenancy);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   type AnyCall = (...args: any[]) => Promise<any>;

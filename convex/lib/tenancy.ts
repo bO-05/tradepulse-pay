@@ -1,9 +1,9 @@
-import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError } from "convex/values";
 import type { Doc, Id, TableNames } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
 import { findActiveAgentLink } from "./agentAccess";
 import { forbiddenMessage, getViewer, UNAUTHENTICATED_MESSAGE, type Role, type Viewer } from "./roles";
+import { getLiveAuthUserId } from "./session";
 
 /**
  * Tenancy helpers (architecture §12). The caller's company is always derived from the session;
@@ -23,9 +23,7 @@ function unauthenticated() {
 }
 
 export async function requireUser(ctx: QueryCtx): Promise<Doc<"users">> {
-  const rawUserId = await getAuthUserId(ctx);
-  if (rawUserId === null) throw unauthenticated();
-  const userId = ctx.db.normalizeId("users", rawUserId);
+  const userId = await getLiveAuthUserId(ctx);
   const user = userId === null ? null : await ctx.db.get(userId);
   if (user === null) throw unauthenticated();
   return user;
@@ -245,8 +243,7 @@ export async function accessibleProjectIds(
   ctx: QueryCtx,
   opts: { includeArchived?: boolean } = {},
 ): Promise<Id<"projects">[]> {
-  const rawUserId = await getAuthUserId(ctx);
-  const userId = rawUserId === null ? null : ctx.db.normalizeId("users", rawUserId);
+  const userId = await getLiveAuthUserId(ctx);
   const user = userId === null ? null : await ctx.db.get(userId);
   if (user === null) return [];
 

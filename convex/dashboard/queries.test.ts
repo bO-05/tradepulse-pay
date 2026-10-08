@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import schema from "../schema";
 import { agentIdProfile, syncAgentProfile } from "../lib/agentAccess";
-import { signInAs } from "../lib/testIdentity";
+import { withSession, signInAs } from "../lib/testIdentity";
 import { createReadBudget, loadAgreementHistory } from "../payments/agreementHistory";
 import type { Id } from "../_generated/dataModel";
 
@@ -26,7 +26,7 @@ async function signInAgent(t: T, email: string, sub: string) {
     await ctx.db.insert("authAccounts", { userId, provider: "agentid", providerAccountId: id });
     return userId;
   });
-  return t.withIdentity({ subject: `${userId}|agent-session`, email });
+  return await withSession(t, userId, email);
 }
 
 async function setup() {

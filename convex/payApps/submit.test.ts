@@ -5,7 +5,7 @@ import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import schema from "../schema";
 import { agentIdProfile, syncAgentProfile } from "../lib/agentAccess";
-import { signInAs } from "../lib/testIdentity";
+import { withSession, signInAs } from "../lib/testIdentity";
 
 const modules = import.meta.glob("/convex/**/*.ts");
 const AGENT_EMAIL = "boldlevel182@agentmail.to";
@@ -67,7 +67,7 @@ async function signInAgent(t: T, email: string) {
     await ctx.db.insert("authAccounts", { userId, provider: "agentid", providerAccountId: id });
     return userId;
   });
-  return { userId, as: t.withIdentity({ subject: `${userId}|agent-session`, email }) };
+  return { userId, as: await withSession(t, userId, email) };
 }
 
 function validArgs(agreementId: string, sov: { _id: Id<"scheduleOfValues">; scheduledValueCents: number }[]) {
