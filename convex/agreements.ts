@@ -1,5 +1,5 @@
 import { mutation, query } from "./_generated/server";
-import { requireRole } from "./lib/roles";
+import { auditActor, partyMaySeeContractor, requireDocOfProject, requireDocScope, requireProjectScope } from "./lib/projectScope";
 import { v, ConvexError } from "convex/values";
 import { DEFAULT_GENERAL_CONTRACTOR, validateProjectText } from "./validation";
 import { LIQUIDATED_DAMAGES_PER_DAY, RETAINAGE_PERCENT } from "./terms";
@@ -18,24 +18,18 @@ export const generateAgreement = mutation({
     tradePackageId: v.id("tradePackages"),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
+    const access = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"], write: true });
+    const tradePkg = access.doc;
+    const project = access.project;
+    const bid = await requireDocOfProject(ctx, access, "bids", args.bidId);
+    if (bid.tradePackageId !== args.tradePackageId) {
+      throw new Error("Bid and trade package do not belong to the same procurement scope.");
+    }
     // Check if an agreement already exists for this bid
     const existing = await ctx.db
       .query("agreements")
       .withIndex("by_bid", (q) => q.eq("bidId", args.bidId))
       .first();
-
-    const bid = await ctx.db.get(args.bidId);
-    if (!bid) throw new Error("Bid not found");
-    if (bid.tradePackageId !== args.tradePackageId) {
-      throw new Error("Bid and trade package do not belong to the same procurement scope.");
-    }
-
-    const tradePkg = await ctx.db.get(args.tradePackageId);
-    if (!tradePkg) throw new Error("Trade package not found");
-
-    const project = await ctx.db.get(tradePkg.projectId);
-    if (!project) throw new Error("Project not found");
 
     // Executed subcontracts are immutable: awarding a different bid must never
     // silently supersede a signed agreement (A1-02 / A3-03).
@@ -151,7 +145,7 @@ export const generateAgreement = mutation({
         eventType: "contract_awarded",
         title: `AIA A401 Subcontract Agreement Re-Awarded: ${existing.subcontractorName}`,
         description: `Re-activated subcontract agreement ${existing.agreementNumber} for CSI Division ${tradePkg.csiDivision} (${tradePkg.tradeName}) in the amount of $${contractSum.toLocaleString("en-US")}.`,
-        actor: "Chief Estimator / GC Procurement",
+        ...auditActor(access),
         timestamp: Date.now(),
       });
       return await ctx.db.get(existing._id);
@@ -247,7 +241,7 @@ export const generateAgreement = mutation({
       eventType: "contract_awarded",
       title: `AIA A401 Subcontract Agreement Awarded: ${subName}`,
       description: `Subcontract agreement ${agreementNumber} generated for CSI Division ${tradePkg.csiDivision} (${tradePkg.tradeName}) in the amount of $${contractSum.toLocaleString("en-US")} — pending external execution.`,
-      actor: "Chief Estimator / GC Procurement",
+      ...auditActor(access),
       timestamp: Date.now(),
     });
 
@@ -267,9 +261,8 @@ export const voidExecutedAgreement = mutation({
     reason: v.string(),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const agreement = await ctx.db.get(args.agreementId);
-    if (!agreement) throw new ConvexError("Agreement not found.");
+    const access = await requireDocScope(ctx, "agreements", args.agreementId, { roles: ["gc"], write: true });
+    const agreement = access.doc;
     if (agreement.status !== "executed") {
       throw new ConvexError("Only an executed agreement can be voided.");
     }
@@ -291,7 +284,8 @@ export const voidExecutedAgreement = mutation({
       eventType: "compliance_audit",
       title: `Executed Subcontract Voided: ${agreement.agreementNumber}`,
       description: `Executed subcontract ${agreement.agreementNumber} (${agreement.subcontractorName}) was voided: ${reason} The package is reopened for leveling and external amendment.`,
-      actor: "GC Procurement / Legal",
+      ...auditActor(access),
+      contractorId: agreement.contractorId,
       timestamp: Date.now(),
     });
 
@@ -302,7 +296,7 @@ export const voidExecutedAgreement = mutation({
 export const getAgreementByBid = query({
   args: { bidId: v.id("bids") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc", "owner"]);
+    await requireDocScope(ctx, "bids", args.bidId, { roles: ["gc"] });
     return await ctx.db
       .query("agreements")
       .withIndex("by_bid", (q) => q.eq("bidId", args.bidId))
@@ -313,7 +307,7 @@ export const getAgreementByBid = query({
 export const getAgreementByPackage = query({
   args: { tradePackageId: v.id("tradePackages") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc", "owner"]);
+    await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"] });
     return await ctx.db
       .query("agreements")
       .withIndex("by_package", (q) => q.eq("tradePackageId", args.tradePackageId))
@@ -325,21 +319,21 @@ export const getAgreementByPackage = query({
 export const listAgreements = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc", "owner"]);
-    return await ctx.db
+    const access = await requireProjectScope(ctx, args.projectId, { roles: ["gc", "owner", "sub"] });
+    const agreements = await ctx.db
       .query("agreements")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
       .order("desc")
       .collect();
+    return agreements.filter((a) => partyMaySeeContractor(access, a.contractorId));
   },
 });
 
 export const executeAgreement = mutation({
   args: { agreementId: v.id("agreements") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const agreement = await ctx.db.get(args.agreementId);
-    if (!agreement) throw new Error("Agreement not found");
+    const access = await requireDocScope(ctx, "agreements", args.agreementId, { roles: ["gc"], write: true });
+    const agreement = access.doc;
 
     if (agreement.status === "superseded") {
       throw new ConvexError("Cannot execute a superseded agreement. Regenerate or re-award it first.");
@@ -362,7 +356,8 @@ export const executeAgreement = mutation({
       eventType: "contract_awarded",
       title: `AIA A401 Execution Status Recorded`,
       description: `Execution status recorded for ${agreement.agreementNumber} between ${agreement.generalContractorName} and ${agreement.subcontractorName}; external signature verification remains required.`,
-      actor: "Commercial Project Executive",
+      ...auditActor(access),
+      contractorId: agreement.contractorId,
       timestamp: Date.now(),
     });
 

@@ -1,5 +1,6 @@
 import { query, mutation, action } from "./_generated/server";
-import { requireRole, requireRoleInAction } from "./lib/roles";
+import { auditActor, requireDocOfProject, requireProjectScope } from "./lib/projectScope";
+import { requireProjectScopeInAction } from "./lib/tenancyAction";
 import { v, ConvexError } from "convex/values";
 import { internal, api } from "./_generated/api";
 import { syncAgreementForBid } from "./agreements";
@@ -81,7 +82,7 @@ async function recordClashResolution(
 export const detectCrossTradeClashes = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc", "owner"]);
+    await requireProjectScope(ctx, args.projectId, { roles: ["gc"] });
     const packages = await ctx.db
       .query("tradePackages")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
@@ -364,14 +365,8 @@ export const deductDoubleBuyCredit = mutation({
     bidId: v.optional(v.id("bids")),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const project = await ctx.db.get(args.projectId);
-    if (!project) throw new Error("Project not found");
-    const tradePkg = await ctx.db.get(args.tradePackageId);
-    if (!tradePkg) throw new Error("Trade package not found");
-    if (tradePkg.projectId !== args.projectId) {
-      throw new Error("The trade package does not belong to the selected project.");
-    }
+    const access = await requireProjectScope(ctx, args.projectId, { roles: ["gc"], write: true });
+    const tradePkg = await requireDocOfProject(ctx, access, "tradePackages", args.tradePackageId);
     const deductAmount = validatePositiveAmount(args.deductAmount, "Double-buy credit");
     const description = validateProjectText(args.description, "Double-buy description");
     await assertCrossTradeEvidence(ctx, args.projectId);
@@ -482,7 +477,7 @@ export const deductDoubleBuyCredit = mutation({
       eventType: "bid_leveled",
       title: `Double-Buy Credit Deducted: -$${deductAmount.toLocaleString()}`,
       description: `Applied 1-click cross-trade deduct credit to ${targetBid.subcontractorName} in Division ${tradePkg.csiDivision} (${tradePkg.tradeName}) for redundant ${description}. Normalized leveled cost updated to $${newLeveledCost.toLocaleString()}.`,
-      actor: "Cross-Trade Clash Coordination Engine",
+      ...auditActor(access),
       timestamp: Date.now(),
     });
 
@@ -509,13 +504,8 @@ export const reverseDoubleBuyCredit = mutation({
     tradePackageId: v.id("tradePackages"),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const project = await ctx.db.get(args.projectId);
-    if (!project) throw new ConvexError("Project not found.");
-    const tradePkg = await ctx.db.get(args.tradePackageId);
-    if (!tradePkg || tradePkg.projectId !== args.projectId) {
-      throw new ConvexError("The trade package does not belong to the selected project.");
-    }
+    const access = await requireProjectScope(ctx, args.projectId, { roles: ["gc"], write: true });
+    await requireDocOfProject(ctx, access, "tradePackages", args.tradePackageId);
     const resolutions = await ctx.db
       .query("clashResolutions")
       .withIndex("by_project_and_clash", (q) =>
@@ -557,7 +547,7 @@ export const reverseDoubleBuyCredit = mutation({
         eventType: "bid_leveled",
         title: `Double-Buy Credit Record Cleared: ${args.clashId}`,
         description: `A stale $${resolution.amount.toLocaleString()} credit record existed for ${args.clashId} but no proposal carried the credit. The record was cleared; the credit can be applied again.`,
-        actor: "Cross-Trade Clash Coordination Engine",
+        ...auditActor(access),
         timestamp: Date.now(),
       });
       return { success: true, note: "Stale credit record cleared; the proposal no longer carried it." };
@@ -597,7 +587,7 @@ export const reverseDoubleBuyCredit = mutation({
       eventType: "bid_leveled",
       title: `Double-Buy Credit Reversed: $${reversedAmount.toLocaleString()}`,
       description: `Reversed the cross-trade credit of $${reversedAmount.toLocaleString()} on ${targetBid.subcontractorName}. Normalized leveled cost restored to $${newLeveledCost.toLocaleString()}.`,
-      actor: "Cross-Trade Clash Coordination Engine",
+      ...auditActor(access),
       timestamp: Date.now(),
     });
 
@@ -620,14 +610,8 @@ export const assignScopeVoidToTrade = mutation({
     bidId: v.optional(v.id("bids")),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const project = await ctx.db.get(args.projectId);
-    if (!project) throw new Error("Project not found");
-    const tradePkg = await ctx.db.get(args.tradePackageId);
-    if (!tradePkg) throw new Error("Trade package not found");
-    if (tradePkg.projectId !== args.projectId) {
-      throw new Error("The trade package does not belong to the selected project.");
-    }
+    const access = await requireProjectScope(ctx, args.projectId, { roles: ["gc"], write: true });
+    const tradePkg = await requireDocOfProject(ctx, access, "tradePackages", args.tradePackageId);
     const additionalCost = validateNonNegativeAmount(args.additionalCost, "Scope void cost");
     const description = validateProjectText(args.description, "Scope void description");
     await assertCrossTradeEvidence(ctx, args.projectId);
@@ -726,7 +710,7 @@ export const assignScopeVoidToTrade = mutation({
       eventType: "compliance_audit",
       title: `Scope Void Assigned: ${description}`,
       description: `Assigned orphaned $${additionalCost.toLocaleString()} scope void to Division ${tradePkg.csiDivision} (${tradePkg.tradeName}). Added to mandatory contract scope obligations.`,
-      actor: "Cross-Trade Clash Coordination Engine",
+      ...auditActor(access),
       timestamp: Date.now(),
     });
 
@@ -746,7 +730,7 @@ export const assignScopeVoidToTrade = mutation({
 export const scanCrossTradeClashes = action({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
-    await requireRoleInAction(ctx, ["gc"]);
+    await requireProjectScopeInAction(ctx, { projectId: args.projectId }, { roles: ["gc"], write: true });
     // A19-02: cross-trade clash detection is only meaningful with both trades
     // and priced proposals. Never ask the model to invent clashes otherwise.
     const packages: any = await ctx.runQuery(api.tradePackages.listByProject, { projectId: args.projectId });
@@ -811,7 +795,7 @@ export const extractDynamicClashes = action({
     div23ScopeText: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<any> => {
-    await requireRoleInAction(ctx, ["gc"]);
+    await requireProjectScopeInAction(ctx, { projectId: args.projectId }, { roles: ["gc"], write: true });
     // 1. Fetch live trade packages and proposals if not provided
     const packages: any = await ctx.runQuery(api.tradePackages.listByProject, { projectId: args.projectId });
     const elecPkg = packages.find((p: any) => p.csiDivision.startsWith("26"));

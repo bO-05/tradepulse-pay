@@ -1,5 +1,5 @@
 import { query, mutation, internalMutation, internalQuery } from "./_generated/server";
-import { requireRole } from "./lib/roles";
+import { auditActor, requireDocScope, requireProjectScope } from "./lib/projectScope";
 import { v, ConvexError } from "convex/values";
 import { deleteContractorCascade } from "./payments/cascade";
 import { validateEmail, validateProjectText } from "./validation";
@@ -7,7 +7,7 @@ import { validateEmail, validateProjectText } from "./validation";
 export const listByPackage = query({
   args: { tradePackageId: v.id("tradePackages") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc", "owner"]);
+    await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"] });
     return await ctx.db
       .query("contractors")
       .withIndex("by_package", (q) => q.eq("tradePackageId", args.tradePackageId))
@@ -49,9 +49,7 @@ export const createContractor = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const tradePackage = await ctx.db.get(args.tradePackageId);
-    if (!tradePackage) throw new Error("Trade package not found");
+    await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"], write: true });
     return await ctx.db.insert("contractors", {
       ...args,
       companyName: validateProjectText(args.companyName, "Company name"),
@@ -102,7 +100,7 @@ export const updateRfqStatus = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
+    await requireDocScope(ctx, "contractors", args.contractorId, { roles: ["gc"], write: true });
     const patchData: { rfqStatus: any; dispatchedAt?: number } = {
       rfqStatus: args.rfqStatus,
     };
@@ -156,10 +154,8 @@ export const updateContractor = mutation({
     expectedUpdatedAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
     const { contractorId, expectedUpdatedAt, ...fields } = args;
-    const contractor = await ctx.db.get(contractorId);
-    if (!contractor) throw new Error("Contractor not found");
+    const { doc: contractor } = await requireDocScope(ctx, "contractors", contractorId, { roles: ["gc"], write: true });
     if (
       expectedUpdatedAt !== undefined &&
       (contractor.updatedAt ?? contractor._creationTime) !== expectedUpdatedAt
@@ -183,9 +179,8 @@ export const deleteContractor = mutation({
     contractorId: v.id("contractors"),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const contractor = await ctx.db.get(args.contractorId);
-    if (!contractor) throw new Error("Contractor not found");
+    const access = await requireDocScope(ctx, "contractors", args.contractorId, { roles: ["gc"], write: true });
+    const contractor = access.doc;
 
     const tradePkg = await ctx.db.get(contractor.tradePackageId);
 
@@ -235,7 +230,7 @@ export const deleteContractor = mutation({
         eventType: "compliance_audit",
         title: `Contractor Removed: ${contractor.companyName}`,
         description: `Removed contractor ${contractor.companyName} (${contractor.licenseNumber}) and cascaded cleanup of associated bids and RFIs.`,
-        actor: "Procurement Manager",
+        ...auditActor(access),
         timestamp: Date.now(),
       });
     }
@@ -247,7 +242,7 @@ export const deleteContractor = mutation({
 export const listByProject = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc", "owner"]);
+    await requireProjectScope(ctx, args.projectId, { roles: ["gc"] });
     const packages = await ctx.db
       .query("tradePackages")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))

@@ -1,5 +1,6 @@
 import { query, mutation, internalMutation, internalQuery, action } from "./_generated/server";
-import { requireRole, requireRoleInAction } from "./lib/roles";
+import { auditActor, requireDocScope, requireProjectScope } from "./lib/projectScope";
+import { requireProjectScopeInAction } from "./lib/tenancyAction";
 import { v, ConvexError } from "convex/values";
 import { deleteAgreementCascade, deleteContractorCascade } from "./payments/cascade";
 import { api, internal } from "./_generated/api";
@@ -14,7 +15,7 @@ import {
 export const listByProject = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc", "owner"]);
+    await requireProjectScope(ctx, args.projectId, { roles: ["gc", "owner"] });
     return await ctx.db
       .query("tradePackages")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
@@ -25,8 +26,8 @@ export const listByProject = query({
 export const getPackage = query({
   args: { tradePackageId: v.id("tradePackages") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc", "owner"]);
-    return await ctx.db.get(args.tradePackageId);
+    const { doc } = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc", "owner"] });
+    return doc;
   },
 });
 
@@ -50,11 +51,7 @@ export const createTradePackage = mutation({
     agentMailboxId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const project = await ctx.db.get(args.projectId);
-    if (!project) {
-      throw new ConvexError("Project not found. Create or select a project before adding a trade package.");
-    }
+    const access = await requireProjectScope(ctx, args.projectId, { roles: ["gc"], write: true });
     const csiDivision = validateCsiDivision(args.csiDivision);
     const tradeName = validateProjectText(args.tradeName, "Trade package name");
     const scopeSummary = validateProjectText(args.scopeSummary, "Scope summary");
@@ -87,7 +84,7 @@ export const createTradePackage = mutation({
       eventType: "package_created",
       title: `CSI Trade Package Scoped: Division ${csiDivision}`,
       description: `Created ${tradeName} package ($${budgetEstimate.toLocaleString()} budget, ${args.mandatoryInclusions.length} mandatory inclusions).`,
-      actor: "Lead Estimator / GC Procurement",
+      ...auditActor(access),
       timestamp: Date.now(),
     });
 
@@ -122,9 +119,7 @@ export const updateStatus = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const pkg = await ctx.db.get(args.tradePackageId);
-    if (!pkg) throw new ConvexError("Trade package not found.");
+    await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"], write: true });
     // A12-03: "awarded" must be backed by evidence (awarded bid or active
     // agreement); a bare status write would fake an award in the KPI/stepper.
     if (args.status === "awarded") {
@@ -222,7 +217,7 @@ export const generateTradePackagesFromSpec = action({
     ),
   },
   handler: async (ctx, args): Promise<any> => {
-    await requireRoleInAction(ctx, ["gc"]);
+    await requireProjectScopeInAction(ctx, { projectId: args.projectId }, { roles: ["gc"], write: true });
     let specText: string = args.specDocumentTextOverride || "";
     if (!specText) {
       const project: any = await ctx.runQuery(internal.projects.getProjectInternal, {
@@ -384,9 +379,8 @@ export const deleteTradePackage = mutation({
     tradePackageId: v.id("tradePackages"),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const pkg = await ctx.db.get(args.tradePackageId);
-    if (!pkg) throw new Error("Trade package not found");
+    const access = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"], write: true });
+    const pkg = access.doc;
 
     // Executed subcontracts are immutable; deleting the package would destroy them.
     const executed = await ctx.db
@@ -468,7 +462,7 @@ export const deleteTradePackage = mutation({
       eventType: "compliance_audit",
       title: `Trade Package Removed: Division ${pkg.csiDivision}`,
       description: `Deleted CSI Division ${pkg.csiDivision} (${pkg.tradeName}) package and cascaded cleanup of associated bids, contractors, and agreements.`,
-      actor: "Lead Estimator / GC Procurement",
+      ...auditActor(access),
       timestamp: Date.now(),
     });
 

@@ -1,5 +1,5 @@
 import { query, mutation, internalMutation } from "./_generated/server";
-import { requireRole } from "./lib/roles";
+import { auditActor, requireDocOfProject, requireDocScope, requireProjectScope } from "./lib/projectScope";
 import { v, ConvexError } from "convex/values";
 import { deleteAgreementCascade } from "./payments/cascade";
 import { syncAgreementForBid } from "./agreements";
@@ -81,7 +81,8 @@ function assertBidLevelingInputs(
 export const listByPackage = query({
   args: { tradePackageId: v.id("tradePackages") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc", "owner"]);
+    // Bid amounts are GC-internal: owners and subs never read the leveling matrix.
+    await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"] });
     return await ctx.db
       .query("bids")
       .withIndex("by_package", (q) => q.eq("tradePackageId", args.tradePackageId))
@@ -92,7 +93,7 @@ export const listByPackage = query({
 export const listAllProjectBids = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc", "owner"]);
+    await requireProjectScope(ctx, args.projectId, { roles: ["gc"] });
     const packages = await ctx.db
       .query("tradePackages")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
@@ -122,14 +123,12 @@ export const awardContract = mutation({
     tradePackageId: v.id("tradePackages"),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const awardedBid = await ctx.db.get(args.bidId);
-    if (!awardedBid) throw new Error("Bid not found");
+    const access = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"], write: true });
+    const tradePkg = access.doc;
+    const awardedBid = await requireDocOfProject(ctx, access, "bids", args.bidId);
     if (awardedBid.tradePackageId !== args.tradePackageId) {
       throw new Error("The selected bid is not part of this trade package.");
     }
-    const tradePkg = await ctx.db.get(args.tradePackageId);
-    if (!tradePkg) throw new Error("Trade package not found");
     const contractor = await ctx.db.get(awardedBid.contractorId);
     if (!contractor || !contractorCanBidOnPackage(contractor, tradePkg)) {
       throw new Error("The selected bid is not linked to a contractor in this trade package.");
@@ -185,7 +184,7 @@ export const awardContract = mutation({
         eventType: "contract_awarded",
         title: `Subcontract Awarded: ${awardedBid.subcontractorName}`,
         description: `Awarded Division ${tradePkg.csiDivision} to ${awardedBid.subcontractorName} at leveled cost of $${awardedBid.leveledTotalCost.toLocaleString()}.`,
-        actor: "Lead Project Manager / Executive",
+        ...auditActor(access),
         timestamp: Date.now(),
       });
     }
@@ -203,14 +202,12 @@ export const unawardContract = mutation({
     tradePackageId: v.id("tradePackages"),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const bid = await ctx.db.get(args.bidId);
-    if (!bid) throw new Error("Bid not found");
+    const access = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"], write: true });
+    const tradePkg = access.doc;
+    const bid = await requireDocOfProject(ctx, access, "bids", args.bidId);
     if (bid.tradePackageId !== args.tradePackageId) {
       throw new Error("The selected bid is not part of this trade package.");
     }
-    const tradePkg = await ctx.db.get(args.tradePackageId);
-    if (!tradePkg) throw new Error("Trade package not found");
 
     await ctx.db.patch(args.bidId, { isAwarded: false });
     await ctx.db.patch(args.tradePackageId, { status: "leveling" });
@@ -236,7 +233,7 @@ export const unawardContract = mutation({
         eventType: "contract_awarded",
         title: `Subcontract Un-Awarded: ${bid.subcontractorName}`,
         description: `Reopened Division ${tradePkg.csiDivision} bid leveling matrix. Removed award flag from ${bid.subcontractorName}.`,
-        actor: "Lead Project Manager",
+        ...auditActor(access),
         timestamp: Date.now(),
       });
     }
@@ -250,9 +247,8 @@ export const deleteBid = mutation({
     bidId: v.id("bids"),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const bid = await ctx.db.get(args.bidId);
-    if (!bid) throw new Error("Bid not found");
+    const access = await requireDocScope(ctx, "bids", args.bidId, { roles: ["gc"], write: true });
+    const bid = access.doc;
 
     const tradePkg = await ctx.db.get(bid.tradePackageId);
 
@@ -289,7 +285,7 @@ export const deleteBid = mutation({
         eventType: "bid_leveled",
         title: `Bid Removed: ${bid.subcontractorName}`,
         description: `Deleted proposal from ${bid.subcontractorName} ($${bid.baseBidAmount.toLocaleString()}) from Division ${tradePkg.csiDivision} leveling matrix.`,
-        actor: "Estimator / Procurement Team",
+        ...auditActor(access),
         timestamp: Date.now(),
       });
     }
@@ -328,9 +324,8 @@ export const updateBidLeveling = mutation({
     coiComplianceStatus: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const bid = await ctx.db.get(args.bidId);
-    if (!bid) throw new Error("Bid not found");
+    const access = await requireDocScope(ctx, "bids", args.bidId, { roles: ["gc"], write: true });
+    const bid = access.doc;
 
     const baseBidAmount = validatePositiveAmount(args.baseBidAmount ?? bid.baseBidAmount, "Base bid amount");
     const exclusions = args.identifiedExclusions ?? bid.identifiedExclusions;
@@ -374,7 +369,7 @@ export const updateBidLeveling = mutation({
         eventType: "bid_leveled",
         title: `Bid Leveling Recalculated: ${bid.subcontractorName}`,
         description: `Normalized leveling recalculated. Base $${baseBidAmount.toLocaleString()} → Leveled Total: $${leveledTotalCost.toLocaleString()} (${waivedCount} exclusions waived, ${acceptedVeCount} VE alternates accepted, -$${acceptedAlternatesDeduct.toLocaleString()} deduct).`,
-        actor: "Lead Cost Estimator (ADR-0003)",
+        ...auditActor(access),
         timestamp: Date.now(),
       });
     }
@@ -413,9 +408,8 @@ export const updateBidAdjustments = mutation({
     coiComplianceStatus: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const bid = await ctx.db.get(args.bidId);
-    if (!bid) throw new Error("Bid not found");
+    const access = await requireDocScope(ctx, "bids", args.bidId, { roles: ["gc"], write: true });
+    const bid = access.doc;
 
     assertBidLevelingInputs(args.identifiedExclusions, args.valueEngineeringAlternates ?? [], args.coiComplianceStatus);
 
@@ -456,7 +450,7 @@ export const updateBidAdjustments = mutation({
         eventType: "bid_leveled",
         title: `Bid Leveling Adjusted: ${bid.subcontractorName}`,
         description: `Manual leveling adjustments applied. Leveled Total: $${leveledTotalCost.toLocaleString()} (${waivedCount} exclusions waived, ${acceptedVeCount} VE alternates accepted, -$${acceptedAlternatesDeduct.toLocaleString()} deduct).`,
-        actor: "Lead Cost Estimator",
+        ...auditActor(access),
         timestamp: Date.now(),
       });
     }
@@ -513,11 +507,10 @@ export const submitDirectBid = mutation({
     rawProposalText: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const tradePkg = await ctx.db.get(args.tradePackageId);
-    if (!tradePkg) throw new Error("Trade package not found");
-    const contractor = await ctx.db.get(args.contractorId);
-    if (!contractor || contractor.tradePackageId !== tradePkg._id) {
+    const access = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"], write: true });
+    const tradePkg = access.doc;
+    const contractor = await requireDocOfProject(ctx, access, "contractors", args.contractorId);
+    if (contractor.tradePackageId !== tradePkg._id) {
       throw new Error("The contractor is not assigned to this trade package.");
     }
     const baseBidAmount = validatePositiveAmount(args.baseBidAmount, "Base bid amount");
@@ -637,7 +630,7 @@ export const submitDirectBid = mutation({
         eventType: "quote_received",
         title: `Direct Bid Ingested: ${subcontractorName}`,
         description: `Direct proposal ingested for Division ${tradePkg.csiDivision}: Base $${baseBidAmount.toLocaleString()} → Leveled $${computedLeveledTotal.toLocaleString()} (${exclusions.length} exclusions, ${veAlternates.length} VE alternates).`,
-        actor: "General Contractor / Estimator",
+        ...auditActor(access),
         timestamp: Date.now(),
       });
     }

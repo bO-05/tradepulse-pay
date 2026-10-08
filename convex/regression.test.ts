@@ -605,7 +605,7 @@ test("A3-01: creating a trade package requires an existing project", async () =>
       mandatoryInclusions: ["None"],
       bidDeadline: "2026-10-31",
     })
-  ).rejects.toThrow(/project not found/i);
+  ).rejects.toThrow(/Not found/);
 });
 
 test("A3-03: deleting a package with an executed subcontract is refused", async () => {

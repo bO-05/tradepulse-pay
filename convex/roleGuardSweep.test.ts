@@ -14,7 +14,7 @@ type Caller = Pick<T, "query" | "mutation" | "action">;
 type AnyRef = FunctionReference<any, "public", any, any>;
 
 const TABLES = Object.keys(schema.tables) as (keyof typeof schema.tables)[];
-const DENIED = /Not authenticated|Forbidden/;
+const DENIED = /Not authenticated|Forbidden|Not found/;
 const LINKED_AGENT_EMAIL = "boldlevel182@agentmail.to";
 const SECRET_CO_DESCRIPTION = "Sweep fixture change order";
 
@@ -245,7 +245,7 @@ describe("GC-only money and admin functions reject every other caller", () => {
     const before = await snapshot(t);
     for (const [label, caller] of Object.entries(wrongRole)) {
       const call = c.kind === "mutation" ? caller.mutation(c.fn, c.args(ids)) : caller.action(c.fn, c.args(ids));
-      await expect(call, `${c.name} as ${label}`).rejects.toThrow(label === "unauthenticated" ? /Not authenticated/ : /Forbidden/);
+      await expect(call, `${c.name} as ${label}`).rejects.toThrow(label === "unauthenticated" ? /Not authenticated/ : /Forbidden|Not found/);
     }
     expect(await snapshot(t)).toBe(before);
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -257,7 +257,7 @@ describe("GC-only money and admin functions reject every other caller", () => {
     for (const [label, caller] of Object.entries(wrongRole)) {
       if (label === "owner") continue;
       const call = c.kind === "mutation" ? caller.mutation(c.fn, c.args(ids)) : caller.action(c.fn, c.args(ids));
-      await expect(call, `${c.name} as ${label}`).rejects.toThrow(label === "unauthenticated" ? /Not authenticated/ : /Forbidden/);
+      await expect(call, `${c.name} as ${label}`).rejects.toThrow(label === "unauthenticated" ? /Not authenticated/ : /Forbidden|Not found/);
     }
     expect(await snapshot(t)).toBe(before);
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -324,46 +324,74 @@ describe("agreement ledger and payment reads", () => {
   });
 });
 
-describe("legacy procurement reads are GC/owner only", () => {
-  type ReadCase = { name: string; fn: AnyRef; args: (i: Ids) => Record<string, unknown> };
-  const LEGACY_READS: ReadCase[] = [
-    { name: "agreements:listAgreements", fn: api.agreements.listAgreements, args: (i) => ({ projectId: i.projectId }) },
-    { name: "agreements:getAgreementByBid", fn: api.agreements.getAgreementByBid, args: (i) => ({ bidId: i.bidId }) },
-    { name: "agreements:getAgreementByPackage", fn: api.agreements.getAgreementByPackage, args: (i) => ({ tradePackageId: i.tradePackageId }) },
-    { name: "auditLogs:listRecentLogs", fn: api.auditLogs.listRecentLogs, args: (i) => ({ projectId: i.projectId }) },
-    { name: "bids:listByPackage", fn: api.bids.listByPackage, args: (i) => ({ tradePackageId: i.tradePackageId }) },
-    { name: "bids:listAllProjectBids", fn: api.bids.listAllProjectBids, args: (i) => ({ projectId: i.projectId }) },
-    { name: "contractors:listByPackage", fn: api.contractors.listByPackage, args: (i) => ({ tradePackageId: i.tradePackageId }) },
-    { name: "contractors:listByProject", fn: api.contractors.listByProject, args: (i) => ({ projectId: i.projectId }) },
-    { name: "coordination:detectCrossTradeClashes", fn: api.coordination.detectCrossTradeClashes, args: (i) => ({ projectId: i.projectId }) },
-    { name: "crons:getCronStatus", fn: api.crons.getCronStatus, args: () => ({}) },
-    { name: "evals:getLatestEvalRun", fn: api.evals.getLatestEvalRun, args: () => ({}) },
-    { name: "evals:listTracesForRun", fn: api.evals.listTracesForRun, args: () => ({ runId: "eval_1" }) },
-    { name: "files:listFilesByProject", fn: api.files.listFilesByProject, args: (i) => ({ projectId: i.projectId }) },
-    { name: "files:listFilesByPackage", fn: api.files.listFilesByPackage, args: (i) => ({ tradePackageId: i.tradePackageId }) },
-    { name: "llmRouter:getProviderAvailability", fn: api.llmRouter.getProviderAvailability, args: () => ({}) },
-    { name: "projects:getDemoProject", fn: api.projects.getDemoProject, args: () => ({}) },
-    { name: "projects:listProjects", fn: api.projects.listProjects, args: () => ({}) },
-    { name: "projects:getProject", fn: api.projects.getProject, args: (i) => ({ projectId: i.projectId }) },
-    { name: "rfq:listConversations", fn: api.rfq.listConversations, args: (i) => ({ tradePackageId: i.tradePackageId }) },
-    { name: "rfq:getProjectDeliveryStatus", fn: api.rfq.getProjectDeliveryStatus, args: (i) => ({ projectId: i.projectId }) },
-    { name: "tradePackages:listByProject", fn: api.tradePackages.listByProject, args: (i) => ({ projectId: i.projectId }) },
-    { name: "tradePackages:getPackage", fn: api.tradePackages.getPackage, args: (i) => ({ tradePackageId: i.tradePackageId }) },
+describe("procurement reads admit only the parties allowed on the project", () => {
+  type Label = "gc" | "unauthenticated" | "sub (own contractor)" | "sub (other contractor)" | "owner" | "unlinked agent" | "linked billing agent";
+  type ReadCase = { name: string; fn: AnyRef; args: (i: Ids) => Record<string, unknown>; allow: Label[] };
+  const SUBS: Label[] = ["sub (own contractor)", "sub (other contractor)", "linked billing agent"];
+  const SIGNED_IN: Label[] = ["gc", "owner", ...SUBS, "unlinked agent"];
+  const READS: ReadCase[] = [
+    { name: "agreements:listAgreements", fn: api.agreements.listAgreements, args: (i) => ({ projectId: i.projectId }), allow: ["gc", "owner", ...SUBS] },
+    { name: "agreements:getAgreementByBid", fn: api.agreements.getAgreementByBid, args: (i) => ({ bidId: i.bidId }), allow: ["gc"] },
+    { name: "agreements:getAgreementByPackage", fn: api.agreements.getAgreementByPackage, args: (i) => ({ tradePackageId: i.tradePackageId }), allow: ["gc"] },
+    // An inaccessible project reads like a deleted one: an empty feed.
+    { name: "auditLogs:listRecentLogs", fn: api.auditLogs.listRecentLogs, args: (i) => ({ projectId: i.projectId }), allow: SIGNED_IN },
+    { name: "bids:listByPackage", fn: api.bids.listByPackage, args: (i) => ({ tradePackageId: i.tradePackageId }), allow: ["gc"] },
+    { name: "bids:listAllProjectBids", fn: api.bids.listAllProjectBids, args: (i) => ({ projectId: i.projectId }), allow: ["gc"] },
+    { name: "contractors:listByPackage", fn: api.contractors.listByPackage, args: (i) => ({ tradePackageId: i.tradePackageId }), allow: ["gc"] },
+    { name: "contractors:listByProject", fn: api.contractors.listByProject, args: (i) => ({ projectId: i.projectId }), allow: ["gc"] },
+    { name: "coordination:detectCrossTradeClashes", fn: api.coordination.detectCrossTradeClashes, args: (i) => ({ projectId: i.projectId }), allow: ["gc"] },
+    { name: "crons:getCronStatus", fn: api.crons.getCronStatus, args: () => ({}), allow: ["gc", "owner"] },
+    { name: "evals:getLatestEvalRun", fn: api.evals.getLatestEvalRun, args: () => ({}), allow: ["gc"] },
+    { name: "evals:listTracesForRun", fn: api.evals.listTracesForRun, args: () => ({ runId: "eval_1" }), allow: ["gc"] },
+    { name: "files:listFilesByProject", fn: api.files.listFilesByProject, args: (i) => ({ projectId: i.projectId }), allow: ["gc", "owner"] },
+    { name: "files:listFilesByPackage", fn: api.files.listFilesByPackage, args: (i) => ({ tradePackageId: i.tradePackageId }), allow: ["gc", "owner"] },
+    { name: "llmRouter:getProviderAvailability", fn: api.llmRouter.getProviderAvailability, args: () => ({}), allow: ["gc", "owner"] },
+    { name: "projects:getDemoProject", fn: api.projects.getDemoProject, args: () => ({}), allow: ["gc", "owner"] },
+    { name: "projects:listProjects", fn: api.projects.listProjects, args: () => ({}), allow: ["gc", "owner", ...SUBS] },
+    { name: "projects:getProject", fn: api.projects.getProject, args: (i) => ({ projectId: i.projectId }), allow: ["gc", "owner", ...SUBS] },
+    { name: "rfq:listConversations", fn: api.rfq.listConversations, args: (i) => ({ tradePackageId: i.tradePackageId }), allow: ["gc", ...SUBS] },
+    { name: "rfq:getProjectDeliveryStatus", fn: api.rfq.getProjectDeliveryStatus, args: (i) => ({ projectId: i.projectId }), allow: ["gc"] },
+    { name: "tradePackages:listByProject", fn: api.tradePackages.listByProject, args: (i) => ({ projectId: i.projectId }), allow: ["gc", "owner"] },
+    { name: "tradePackages:getPackage", fn: api.tradePackages.getPackage, args: (i) => ({ tradePackageId: i.tradePackageId }), allow: ["gc", "owner"] },
   ];
 
-  test.each(LEGACY_READS)("$name rejects unauthenticated, sub and agent callers; GC and owner can read", async (c) => {
+  test.each(READS)("$name", async (c) => {
     const { gc, ids, wrongRole } = await setup();
-    for (const label of ["unauthenticated", "sub (own contractor)", "sub (other contractor)", "unlinked agent", "linked billing agent"]) {
-      await expect(wrongRole[label].query(c.fn, c.args(ids)), `${c.name} as ${label}`).rejects.toThrow(DENIED);
+    const callers: Record<Label, Caller> = { gc, ...(wrongRole as Record<Exclude<Label, "gc">, Caller>) };
+    for (const [label, caller] of Object.entries(callers) as [Label, Caller][]) {
+      const call = caller.query(c.fn, c.args(ids));
+      if (c.allow.includes(label)) await expect(call, `${c.name} as ${label}`).resolves.toBeDefined();
+      else await expect(call, `${c.name} as ${label}`).rejects.toThrow(DENIED);
     }
-    await expect(gc.query(c.fn, c.args(ids))).resolves.toBeDefined();
-    await expect(wrongRole.owner.query(c.fn, c.args(ids))).resolves.toBeDefined();
   });
 });
 
 describe("static guard sweep over convex/**", () => {
   const sources = import.meta.glob("./**/*.ts", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
-  const GUARD = /\b(requireRole|requireRoleInAction|requireAgreementAccess|getViewer)\(/;
+  const TENANCY_GUARDS = [
+    "requireProjectScope",
+    "requireDocScope",
+    "requireProjectScopeInAction",
+    "requireDemoCompany",
+    "requireDemoCompanyInAction",
+    "callerProjects",
+    "subContractorScope",
+    "requireProjectAccess",
+    "requireDocInProject",
+    "requireCompanyMember",
+    "accessibleProjectIds",
+  ];
+  const TENANCY = new RegExp(`\\b(${TENANCY_GUARDS.join("|")})\\(`);
+  const GUARD = new RegExp(`\\b(requireRole|requireRoleInAction|requireAgreementAccess|getViewer|${TENANCY_GUARDS.join("|")})\\(`);
+  // Same lists as scripts/tools/guard-audit.mjs.
+  const NO_PROJECT_DATA = new Set([
+    "crons:getCronStatus",
+    "llmRouter:getProviderAvailability",
+    "llmRouter:runModelDiagnostic",
+    "contractorDiscovery:scrapeContractorWebsite",
+    "profiles:me",
+  ]);
+  const TENANCY_PENDING_PREFIXES = ["payments/", "payApps/", "agent/", "kernel/", "dashboard/", "judgeDemo/", "agentLinks:"];
 
   function publicExports() {
     const out: { name: string; kind: string; body: string }[] = [];
@@ -386,12 +414,28 @@ describe("static guard sweep over convex/**", () => {
     expect(fns.filter((f) => !GUARD.test(f.body)).map((f) => f.name)).toEqual([]);
   });
 
-  test("exported httpActions are the PayPal webhook (signature verified before any write) and the auth-gated Studio AI proxy", () => {
+  test("every public function outside the modules pending their retrofit has a company-tenancy guard", () => {
+    const fns = publicExports().filter((f) => f.kind !== "httpAction");
+    const missing = fns.filter(
+      (f) =>
+        !TENANCY.test(f.body) &&
+        !NO_PROJECT_DATA.has(f.name) &&
+        !TENANCY_PENDING_PREFIXES.some((p) => f.name.startsWith(p)),
+    );
+    expect(missing.map((f) => f.name)).toEqual([]);
+    for (const mod of ["projects", "tradePackages", "contractors", "bids", "agreements", "files", "rfq", "coordination", "portal"]) {
+      expect(fns.filter((f) => f.name.startsWith(`${mod}:`) && TENANCY.test(f.body)).length, mod).toBeGreaterThan(0);
+    }
+  });
+
+  test("exported httpActions are the PayPal webhook, the auth-gated Studio AI proxy and the authenticated project file download", () => {
     const http = publicExports().filter((f) => f.kind === "httpAction");
     expect(http.map((f) => f.name).sort()).toEqual([
       "dashboard/studioProxy:studioPreflight",
       "dashboard/studioProxy:studioProxy",
       "payments/webhook:paypalWebhook",
+      "projectFileDownload:projectFileDownload",
+      "projectFileDownload:projectFilePreflight",
     ]);
     const byName = new Map(http.map((f) => [f.name, f.body]));
 
@@ -410,6 +454,16 @@ describe("static guard sweep over convex/**", () => {
     expect(fetchAt).toBeGreaterThan(roleAt);
     expect(proxy).not.toMatch(/runMutation|runAction/);
     expect(byName.get("dashboard/studioProxy:studioPreflight")!).not.toMatch(/runQuery|runMutation|runAction|fetch\(/);
+
+    const download = byName.get("projectFileDownload:projectFileDownload")!;
+    const sessionAt = download.search(/getUserIdentity/);
+    const authorizeAt = download.search(/internal\.projectFileDownload\.authorizeDownload/);
+    const storageAt = download.search(/ctx\.storage/);
+    expect(sessionAt).toBeGreaterThan(-1);
+    expect(authorizeAt).toBeGreaterThan(sessionAt);
+    expect(storageAt).toBeGreaterThan(authorizeAt);
+    expect(download).not.toMatch(/runMutation|runAction/);
+    expect(byName.get("projectFileDownload:projectFilePreflight")!).not.toMatch(/ctx\.|fetch\(/);
   });
 
   test("seed and test-only helpers are internal functions", () => {

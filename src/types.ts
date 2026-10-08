@@ -140,6 +140,8 @@ export interface ProjectFile {
   uploadedBy: string;
   uploadedAt: number;
   url?: string | null;
+  /** Authenticated download route for uploaded bytes (never a raw storage URL). */
+  downloadPath?: string | null;
   textContent?: string;
 }
 

@@ -231,7 +231,7 @@ const CASES: Case[] = [
   m("agreements:voidExecutedAgreement", api.agreements.voidExecutedAgreement, (i) => ({ agreementId: i.agreementId, reason: "x" })),
 ];
 
-const DENIED = /Not authenticated|Forbidden/;
+const DENIED = /Not authenticated|Forbidden|Not found/;
 
 describe("legacy public mutations and actions are GC-only", () => {
   const fetchSpy = vi.fn(async () => {

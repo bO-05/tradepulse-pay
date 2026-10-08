@@ -83,6 +83,9 @@ describe("requireRole", () => {
     const { as: otherGc } = await signInAs(t, "gc");
     const projectId = await t.run(async (ctx) => {
       const companyId = await ctx.db.insert("companies", { name: "GC Co", kind: "gc", isDemo: false, createdAt: 0 });
+      for (const m of await ctx.db.query("companyMembers").withIndex("by_userId", (q) => q.eq("userId", userId)).collect()) {
+        await ctx.db.patch(m._id, { status: "removed" });
+      }
       await ctx.db.insert("companyMembers", { companyId, userId, role: "admin", status: "active", createdAt: 0 });
       return await ctx.db.insert("projects", {
         title: "P",
@@ -111,8 +114,8 @@ describe("GC-only legacy mutations", () => {
     const { as: owner } = await signInAs(t, "owner");
     const callers = [
       { name: "unauthenticated", c: t, err: /Not authenticated/ },
-      { name: "sub", c: sub, err: /Forbidden: role gc required/ },
-      { name: "owner", c: owner, err: /Forbidden: role gc required/ },
+      { name: "sub", c: sub, err: /Forbidden: role gc required|Not found/ },
+      { name: "owner", c: owner, err: /Forbidden: role gc required|Not found/ },
     ];
     const pkg = demo.agreement.tradePackageId;
     for (const { c, err } of callers) {

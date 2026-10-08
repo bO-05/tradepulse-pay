@@ -1,5 +1,11 @@
 import { mutation, query, action, internalMutation, internalAction, internalQuery } from "./_generated/server";
-import { requireRole, requireRoleInAction } from "./lib/roles";
+import { requireRole } from "./lib/roles";
+import { requireCompanyMember } from "./lib/tenancy";
+import type { Doc } from "./_generated/dataModel";
+import type { QueryCtx } from "./_generated/server";
+import type { ProjectAccess } from "./lib/tenancy";
+import { auditActor, callerProjects, requireDemoCompany, requireDocOfProject, requireDocScope, requireProjectScope } from "./lib/projectScope";
+import { requireProjectScopeInAction } from "./lib/tenancyAction";
 import { OFFLINE_RULES_ENGINE } from "./lib/aiLabels";
 import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
@@ -32,9 +38,54 @@ export const generateUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
     await requireRole(ctx, ["gc"]);
+    // An upload URL carries no project data; the stored file only becomes visible through
+    // saveFileRecord, which checks project access.
+    const { user, company } = await requireCompanyMember(ctx);
+    if (company.kind !== "gc" || user.emailVerificationTime === undefined) {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Forbidden: a verified general contractor account is required." });
+    }
     return await ctx.storage.generateUploadUrl();
   },
 });
+
+/** Bundled demo PDFs (public by design) keep their path; stored uploads are served only through the authenticated route. */
+function isPublicDocumentPath(storageId: string): boolean {
+  return storageId.startsWith("http") || storageId.startsWith("/");
+}
+
+export const PROJECT_FILE_DOWNLOAD_PREFIX = "/api/project-files/";
+
+/** Owners see project documents but not bidders' quotes or insurance certificates. */
+const OWNER_HIDDEN_FILE_TYPES = new Set(["quote_pdf", "coi_certificate"]);
+
+function visibleFiles(access: ProjectAccess, files: Doc<"projectFiles">[]): Doc<"projectFiles">[] {
+  if (access.partyRole === "owner") return files.filter((f) => !OWNER_HIDDEN_FILE_TYPES.has(f.fileType));
+  return files;
+}
+
+function fileView(file: Doc<"projectFiles">) {
+  const isPublic = isPublicDocumentPath(file.storageId);
+  return {
+    ...file,
+    url: isPublic ? file.storageId : null,
+    downloadPath: isPublic ? null : `${PROJECT_FILE_DOWNLOAD_PREFIX}${file._id}`,
+  };
+}
+
+/** Download authorization for the HTTP route: the same project check as every other file read. */
+export async function authorizeProjectFileDownload(
+  ctx: QueryCtx,
+  fileId: string,
+): Promise<{ storageId: string; fileName: string } | null> {
+  try {
+    const access = await requireDocScope(ctx, "projectFiles", fileId, { roles: ["gc", "owner"] });
+    if (visibleFiles(access, [access.doc]).length === 0) return null;
+    if (isPublicDocumentPath(access.doc.storageId)) return null;
+    return { storageId: access.doc.storageId, fileName: access.doc.fileName };
+  } catch {
+    return null;
+  }
+}
 
 export const saveFileRecord = mutation({
   args: {
@@ -49,18 +100,13 @@ export const saveFileRecord = mutation({
     contentType: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
+    const access = await requireProjectScope(ctx, args.projectId, { roles: ["gc"], write: true });
     if (args.storageId.startsWith("http") || args.storageId.startsWith("/")) {
       throw new Error("Project uploads must use a Convex Storage identifier.");
     }
-    const project = await ctx.db.get(args.projectId);
-    if (!project) throw new Error("Project not found");
-    if (args.tradePackageId) {
-      const tradePackage = await ctx.db.get(args.tradePackageId);
-      if (!tradePackage || tradePackage.projectId !== args.projectId) {
-        throw new Error("The file trade package does not belong to the selected project.");
-      }
-    }
+    if (args.tradePackageId) await requireDocOfProject(ctx, access, "tradePackages", args.tradePackageId);
+    // The uploader is the signed-in person, not a client-supplied label.
+    const actor = auditActor(access);
     const fileName = validateUploadFileName(args.fileName, args.fileType === "addendum");
     const fileType = validateUploadFileType(args.fileType);
     validateUploadContentType(fileName, args.contentType);
@@ -75,7 +121,7 @@ export const saveFileRecord = mutation({
       fileName,
       fileType,
       fileSize,
-      uploadedBy: args.uploadedBy,
+      uploadedBy: actor.actor,
       uploadedAt: Date.now(),
       ...(args.textContent ? { textContent: args.textContent.slice(0, 100_000) } : {}),
     });
@@ -87,7 +133,7 @@ export const saveFileRecord = mutation({
       eventType: "file_uploaded",
       title: `File Uploaded: ${fileName}`,
       description: `Uploaded ${fileType} (${(fileSize / 1024).toFixed(1)} KB) to Convex File Storage.`,
-      actor: args.uploadedBy,
+      ...actor,
       timestamp: Date.now(),
     });
 
@@ -154,8 +200,16 @@ export const saveFileRecordInternal = internalMutation({
 export const repairSeededDocumentSizes = mutation({
   args: {},
   handler: async (ctx) => {
-    await requireRole(ctx, ["gc"]);
-    const files = await ctx.db.query("projectFiles").collect();
+    await requireDemoCompany(ctx, ["gc"]);
+    const files: Doc<"projectFiles">[] = [];
+    for (const project of await callerProjects(ctx, { includeArchived: true })) {
+      files.push(
+        ...(await ctx.db
+          .query("projectFiles")
+          .withIndex("by_project", (q) => q.eq("projectId", project._id))
+          .take(500)),
+      );
+    }
     let repaired = 0;
     for (const file of files) {
       const isServedDocument =
@@ -177,71 +231,34 @@ export const repairSeededDocumentSizes = mutation({
 export const listFilesByProject = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc", "owner"]);
+    const access = await requireProjectScope(ctx, args.projectId, { roles: ["gc", "owner"] });
     const files = await ctx.db
       .query("projectFiles")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
       .order("desc")
       .collect();
-
-    return await Promise.all(
-      files.map(async (file) => {
-        let url: string | null = null;
-        if (file.storageId.startsWith("http") || file.storageId.startsWith("/")) {
-          url = file.storageId;
-        } else {
-          try {
-            url = await ctx.storage.getUrl(file.storageId as any);
-          } catch {
-            url = null;
-          }
-        }
-        return {
-          ...file,
-          url,
-        };
-      })
-    );
+    return visibleFiles(access, files).map(fileView);
   },
 });
 
 export const listFilesByPackage = query({
   args: { tradePackageId: v.id("tradePackages") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc", "owner"]);
+    const access = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc", "owner"] });
     const files = await ctx.db
       .query("projectFiles")
       .withIndex("by_package", (q) => q.eq("tradePackageId", args.tradePackageId))
       .order("desc")
       .collect();
-
-    return await Promise.all(
-      files.map(async (file) => {
-        let url: string | null = null;
-        if (file.storageId.startsWith("http") || file.storageId.startsWith("/")) {
-          url = file.storageId;
-        } else {
-          try {
-            url = await ctx.storage.getUrl(file.storageId as any);
-          } catch {
-            url = null;
-          }
-        }
-        return {
-          ...file,
-          url,
-        };
-      })
-    );
+    return visibleFiles(access, files).map(fileView);
   },
 });
 
 export const deleteFile = mutation({
   args: { fileId: v.id("projectFiles") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const file = await ctx.db.get(args.fileId);
-    if (!file) throw new Error("File not found");
+    const access = await requireDocScope(ctx, "projectFiles", args.fileId, { roles: ["gc"], write: true });
+    const file = access.doc;
 
     const linkedBids = await ctx.db
       .query("bids")
@@ -264,7 +281,7 @@ export const deleteFile = mutation({
       eventType: "file_deleted",
       title: `File Deleted: ${file.fileName}`,
       description: `Removed ${file.fileName} from Convex File Storage.`,
-      actor: "System Administrator",
+      ...auditActor(access),
       timestamp: Date.now(),
     });
 
@@ -821,7 +838,18 @@ export const extractBidFromQuoteFile = action({
     fileSize: v.optional(v.number()),
   },
   handler: async (ctx, args): Promise<any> => {
-    await requireRoleInAction(ctx, ["gc"]);
+    await requireProjectScopeInAction(
+      ctx,
+      {
+        projectId: args.projectId,
+        docs: [
+          { table: "tradePackages", id: args.tradePackageId },
+          { table: "contractors", id: args.contractorId },
+          { table: "projectFiles", id: args.fileId },
+        ],
+      },
+      { roles: ["gc"], write: true },
+    );
     return await doExtractBid(ctx, args);
   },
 });
@@ -836,7 +864,18 @@ export const extractBidFromFile = action({
     quoteText: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<any> => {
-    await requireRoleInAction(ctx, ["gc"]);
+    await requireProjectScopeInAction(
+      ctx,
+      {
+        projectId: args.projectId,
+        docs: [
+          { table: "tradePackages", id: args.tradePackageId },
+          { table: "contractors", id: args.contractorId },
+          { table: "projectFiles", id: args.fileId },
+        ],
+      },
+      { roles: ["gc"], write: true },
+    );
     return await doExtractBid(ctx, args);
   },
 });
@@ -870,7 +909,11 @@ export const generatePreBidAddendum = action({
     addendumNumber: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<any> => {
-    await requireRoleInAction(ctx, ["gc"]);
+    await requireProjectScopeInAction(
+      ctx,
+      { projectId: args.projectId, docs: [{ table: "tradePackages", id: args.tradePackageId }] },
+      { roles: ["gc"], write: true },
+    );
     return await doGeneratePreBidAddendum(ctx, args);
   },
 });

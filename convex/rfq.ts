@@ -1,17 +1,19 @@
 import { query, mutation, internalMutation, internalQuery, action } from "./_generated/server";
-import { requireRole, requireRoleInAction } from "./lib/roles";
+import { auditActor, partyMaySeeContractor, requireDocScope, requireProjectScope } from "./lib/projectScope";
+import { requireProjectScopeInAction } from "./lib/tenancyAction";
 import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 
 export const listConversations = query({
   args: { tradePackageId: v.id("tradePackages") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc", "owner"]);
-    return await ctx.db
+    const access = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc", "sub"] });
+    const rows = await ctx.db
       .query("conversations")
       .withIndex("by_package", (q) => q.eq("tradePackageId", args.tradePackageId))
       .order("desc")
       .collect();
+    return rows.filter((c) => partyMaySeeContractor(access, c.contractorId));
   },
 });
 
@@ -22,7 +24,7 @@ export const listConversations = query({
 export const getProjectDeliveryStatus = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc", "owner"]);
+    await requireProjectScope(ctx, args.projectId, { roles: ["gc"] });
     const logs = await ctx.db
       .query("auditLogs")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
@@ -79,9 +81,8 @@ export const listClarifiedConversationsForProject = internalQuery({
 export const dispatchRfqs = mutation({
   args: { tradePackageId: v.id("tradePackages") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const tradePkg = await ctx.db.get(args.tradePackageId);
-    if (!tradePkg) throw new Error("Trade package not found");
+    const access = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"], write: true });
+    const tradePkg = access.doc;
 
     const contractors = await ctx.db
       .query("contractors")
@@ -120,7 +121,7 @@ export const dispatchRfqs = mutation({
       eventType: "rfq_dispatched",
       title: `RFQ Invitations Recorded: Division ${tradePkg.csiDivision} (${tradePkg.tradeName})`,
       description: `RFQ invitations recorded for ${totalNotified} contractor(s); AgentMail delivery results are logged by the dispatch action (${tradePkg.agentMailbox}).`,
-      actor: "Lead Project Manager",
+      ...auditActor(access),
       timestamp: now,
     });
 
@@ -373,9 +374,9 @@ export const reviewEscalatedRfi = mutation({
     reviewNote: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const convo = await ctx.db.get(args.conversationId);
-    if (!convo) throw new Error("Conversation not found");
+    const access = await requireDocScope(ctx, "conversations", args.conversationId, { roles: ["gc"], write: true });
+    const convo = access.doc;
+    const reviewer = auditActor(access);
     const convoContractor = await ctx.db.get(convo.contractorId);
     if (!convoContractor || convoContractor.tradePackageId !== convo.tradePackageId) {
       throw new Error("The RFI is linked to an invalid contractor/package relationship.");
@@ -389,7 +390,7 @@ export const reviewEscalatedRfi = mutation({
     }
     if (args.status === "clarified") {
       patchData.pmCertifiedAt = Date.now();
-      patchData.pmCertifiedBy = "Project Manager";
+      patchData.pmCertifiedBy = reviewer.actor;
       patchData.reviewNote = args.reviewNote || "Approved by Project Manager for Addendum NO. 01";
     } else {
       patchData.pmCertifiedAt = undefined;
@@ -405,8 +406,9 @@ export const reviewEscalatedRfi = mutation({
         tradePackageId: tradePkg._id,
         eventType: args.status === "clarified" ? "rfi_clarified" : "compliance_audit",
         title: `PM RFI Review: ${args.status === "clarified" ? "Approved for Addendum" : args.status.toUpperCase()}`,
-        description: `Project Manager reviewed RFI '${convo.inboundSubject}'. Status updated to ${args.status}.${args.reviewNote ? ` Note: ${args.reviewNote}` : ""}`,
-        actor: "Project Manager (PM Review Queue)",
+        description: `${reviewer.actor} reviewed RFI '${convo.inboundSubject}'. Status updated to ${args.status}.${args.reviewNote ? ` Note: ${args.reviewNote}` : ""}`,
+        ...reviewer,
+        contractorId: convo.contractorId,
         timestamp: Date.now(),
       });
     }
@@ -427,7 +429,11 @@ export const generatePreBidAddendum = action({
     addendumNumber: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<any> => {
-    await requireRoleInAction(ctx, ["gc"]);
+    await requireProjectScopeInAction(
+      ctx,
+      { projectId: args.projectId, docs: [{ table: "tradePackages", id: args.tradePackageId }] },
+      { roles: ["gc"], write: true },
+    );
     // Delegate to the storage-backed generator in files.ts to ensure single source of truth
     return await ctx.runAction(internal.files.generatePreBidAddendumInternal, {
       projectId: args.projectId,

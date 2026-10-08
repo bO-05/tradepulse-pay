@@ -699,6 +699,11 @@ export default defineSchema({
     agentSub: v.optional(v.string()),
     agentEmail: v.optional(v.string()),
     ownerEmail: v.optional(v.string()),
+    // Who acted (set for signed-in actions) and, for vendor-specific events, which contractor the
+    // event concerns. Sub and owner companies only see entries carrying their own ids.
+    actorUserId: v.optional(v.id("users")),
+    actorCompanyId: v.optional(v.id("companies")),
+    contractorId: v.optional(v.id("contractors")),
   })
     .index("by_project", ["projectId"])
     .index("by_package", ["tradePackageId"])

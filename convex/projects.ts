@@ -1,6 +1,7 @@
 import { query, mutation, internalQuery, internalMutation, type MutationCtx } from "./_generated/server";
-import { requireRole } from "./lib/roles";
-import { findActiveMembership } from "./lib/tenancy";
+import { forbiddenMessage, requireRole } from "./lib/roles";
+import { requireCompanyMember } from "./lib/tenancy";
+import { auditActor, callerProjects, requireDemoCompany, requireProjectScope } from "./lib/projectScope";
 import type { Doc } from "./_generated/dataModel";
 import { linkDemoProfiles } from "./demoAccounts";
 import { applyDemoLicenseNumbers } from "./kernel/demoLicenses";
@@ -24,34 +25,30 @@ import {
   validateProjectText,
 } from "./validation";
 
+/** The caller's seeded demo project (or newest accessible project); never another company's. */
 export const getDemoProject = query({
   args: {},
   handler: async (ctx) => {
     await requireRole(ctx, ["gc", "owner"]);
-    const demo = await ctx.db
-      .query("projects")
-      .withIndex("by_demo", (q) => q.eq("isDemoProject", true))
-      .first();
-
-    if (demo) return demo;
-    return await ctx.db.query("projects").first();
+    const projects = await callerProjects(ctx);
+    return projects.find((p) => p.isDemoProject) ?? projects[0] ?? null;
   },
 });
 
+/** Project switcher/list: only projects the caller's company can access (archived hidden by default). */
 export const listProjects = query({
   args: { includeArchived: v.optional(v.boolean()) },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc", "owner"]);
-    const projects = await ctx.db.query("projects").order("desc").collect();
-    return args.includeArchived ? projects : projects.filter((p) => p.archived !== true);
+    await requireRole(ctx, ["gc", "owner", "sub"]);
+    return await callerProjects(ctx, { includeArchived: args.includeArchived === true });
   },
 });
 
 export const getProject = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc", "owner"]);
-    return await ctx.db.get(args.projectId);
+    const { project } = await requireProjectScope(ctx, args.projectId, { roles: ["gc", "owner", "sub"] });
+    return project;
   },
 });
 
@@ -75,8 +72,12 @@ export const createProject = mutation({
   },
   handler: async (ctx, args) => {
     const viewer = await requireRole(ctx, ["gc"]);
-    const membership = await findActiveMembership(ctx, viewer.userId);
-    const company = membership === null ? null : await ctx.db.get(membership.companyId);
+    // The owning company always comes from the session, never from the client.
+    const { user, company } = await requireCompanyMember(ctx);
+    if (company.kind !== "gc") throw new ConvexError({ code: "FORBIDDEN", message: forbiddenMessage(["gc"]) });
+    if (user.emailVerificationTime === undefined) {
+      throw new ConvexError({ code: "EMAIL_UNVERIFIED", message: "Verify your email first." });
+    }
     const title = validateProjectText(args.title, "Project title");
     const location = validateProjectText(args.location, "Project location");
     const projectType = validateProjectText(args.projectType, "Project type");
@@ -94,9 +95,10 @@ export const createProject = mutation({
       estBudget,
       targetCompletionWeeks,
       specDocumentText,
-      isDemoProject: args.isDemoProject,
+      // Demo seed code looks projects up by this flag, so only the Demo company may set it.
+      isDemoProject: args.isDemoProject && company.isDemo,
       generalContractorName,
-      gcCompanyId: company?.kind === "gc" ? company._id : undefined,
+      gcCompanyId: company._id,
       createdAt: Date.now(),
     });
 
@@ -105,7 +107,7 @@ export const createProject = mutation({
       eventType: "compliance_audit",
       title: `Project Initialized: ${args.title}`,
       description: `Established commercial project in ${location} ($${estBudget.toLocaleString()} budget, ${targetCompletionWeeks} weeks target completion).`,
-      actor: "Chief Estimator / GC Project Executive",
+      ...auditActor({ user, viewer, company }),
       timestamp: Date.now(),
     });
 
@@ -1019,11 +1021,14 @@ async function reseedAndRelink(ctx: MutationCtx, args: { force?: boolean }) {
   return result;
 }
 
-/** GC-only demo seed / reset (`force: true` wipes and reseeds the demo project). */
+/**
+ * Demo seed / reset (`force: true` wipes and reseeds the demo project). Only a GC of the Demo
+ * company may run it; it touches only the Demo company's seeded project.
+ */
 export const seedInitialData = mutation({
   args: { force: v.optional(v.boolean()) },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
+    await requireDemoCompany(ctx, ["gc"]);
     return await reseedAndRelink(ctx, args);
   },
 });
@@ -1037,9 +1042,7 @@ export const seedInitialDataInternal = internalMutation({
 export const deleteProject = mutation({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const project = await ctx.db.get(args.projectId);
-    if (!project) throw new Error("Project not found");
+    const { project } = await requireProjectScope(ctx, args.projectId, { roles: ["gc"], write: true });
     if (project.isDemoProject) {
       throw new Error("The default demo project cannot be deleted.");
     }

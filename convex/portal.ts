@@ -2,7 +2,8 @@ import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { query, type QueryCtx } from "./_generated/server";
-import { canViewAgreement, requireRole } from "./lib/roles";
+import { requireRole } from "./lib/roles";
+import { callerProjects, requireDocScope, subContractorScope } from "./lib/projectScope";
 import { changeOrderView } from "./payments/changeOrderDb";
 import { loadMilestoneFunding } from "./payments/milestoneFundingState";
 import { WITHDRAWABLE_PAY_APP_STATUSES } from "./payApps/validation";
@@ -68,24 +69,33 @@ async function payAppOutcome(ctx: QueryCtx, payments: Doc<"payments">[]) {
   };
 }
 
-async function subAgreements(ctx: QueryCtx, contractorId: Id<"contractors"> | undefined) {
-  const agreements = contractorId
-    ? await ctx.db
-        .query("agreements")
-        .withIndex("by_contractorId", (q) => q.eq("contractorId", contractorId))
-        .take(100)
-    : [];
-  return agreements.filter((a) => a.status !== "superseded");
+/** Agreements of the caller's own vendor records, on projects their company is a member of. */
+async function subAgreements(
+  ctx: QueryCtx,
+  scope: { contractorIds: Id<"contractors">[]; projectIds: Set<Id<"projects">> },
+) {
+  const out: Doc<"agreements">[] = [];
+  for (const contractorId of scope.contractorIds) {
+    const rows = await ctx.db
+      .query("agreements")
+      .withIndex("by_contractorId", (q) => q.eq("contractorId", contractorId))
+      .take(100);
+    for (const a of rows) if (a.status !== "superseded" && scope.projectIds.has(a.projectId)) out.push(a);
+  }
+  return out;
 }
 
 /** Sub portal: the caller's own contractor and agreements. Pay apps are paged by mySubPayApps. */
 export const mySubPortal = query({
   args: {},
   handler: async (ctx) => {
-    const viewer = await requireRole(ctx, ["sub"]);
-    const contractorId = viewer.profile.contractorId;
+    const scope = await subContractorScope(ctx, { includeArchived: true });
+    const viewer = scope.viewer;
+    const contractorId = scope.contractorIds.includes(viewer.profile.contractorId as Id<"contractors">)
+      ? viewer.profile.contractorId
+      : scope.contractorIds[0];
     const contractor = contractorId ? await ctx.db.get(contractorId) : null;
-    const visible = await subAgreements(ctx, contractorId);
+    const visible = await subAgreements(ctx, scope);
     const milestoneFunding = [];
     const executedNewestFirst = visible
       .filter((a) => a.status === "executed")
@@ -116,10 +126,13 @@ export const mySubPortal = query({
 export const mySubPayApps = query({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, args) => {
-    const viewer = await requireRole(ctx, ["sub"]);
-    const contractorId = viewer.profile.contractorId;
+    const scope = await subContractorScope(ctx, { includeArchived: true });
+    const viewer = scope.viewer;
+    const contractorId = scope.contractorIds.includes(viewer.profile.contractorId as Id<"contractors">)
+      ? viewer.profile.contractorId
+      : scope.contractorIds[0];
     if (contractorId === undefined) return { page: [], isDone: true, continueCursor: "" };
-    const agreements = new Map((await subAgreements(ctx, contractorId)).map((a) => [a._id as string, a]));
+    const agreements = new Map((await subAgreements(ctx, scope)).map((a) => [a._id as string, a]));
     const result = await ctx.db
       .query("payApplications")
       .withIndex("by_contractorId", (q) => q.eq("contractorId", contractorId))
@@ -166,11 +179,13 @@ export const mySubPayApps = query({
 export const getAgreementSummary = query({
   args: { agreementId: v.string() },
   handler: async (ctx, args) => {
-    const viewer = await requireRole(ctx, ["gc", "sub", "owner"]);
-    const id = ctx.db.normalizeId("agreements", args.agreementId);
-    if (id === null) return null;
-    const agreement = await ctx.db.get(id);
-    if (agreement === null || !canViewAgreement(viewer, agreement)) return null;
+    let agreement: Doc<"agreements">;
+    try {
+      ({ doc: agreement } = await requireDocScope(ctx, "agreements", args.agreementId));
+    } catch (error) {
+      if ((error as { data?: { code?: string } }).data?.code === "NOT_FOUND") return null;
+      throw error;
+    }
     return { ...agreementSummary(agreement), milestones: await loadMilestoneFunding(ctx, agreement._id) };
   },
 });
@@ -180,9 +195,10 @@ export const ownerOverview = query({
   args: {},
   handler: async (ctx) => {
     await requireRole(ctx, ["owner", "gc"]);
-    const projects = await ctx.db.query("projects").order("desc").take(50);
     const result = [];
-    for (const project of projects) {
+    for (const project of (await callerProjects(ctx)).slice(0, 50)) {
+      const access = await requireDocScope(ctx, "projects", project._id, { roles: ["owner", "gc"] }).catch(() => null);
+      if (access === null) continue;
       const agreements = await ctx.db
         .query("agreements")
         .withIndex("by_project", (q) => q.eq("projectId", project._id))

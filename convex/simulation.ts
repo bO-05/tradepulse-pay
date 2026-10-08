@@ -1,5 +1,5 @@
 import { mutation, internalMutation, internalQuery } from "./_generated/server";
-import { requireRole } from "./lib/roles";
+import { requireDocOfProject, requireDocScope, requireProjectScope } from "./lib/projectScope";
 import { v, ConvexError } from "convex/values";
 import { deleteAgreementCascade } from "./payments/cascade";
 import { internal } from "./_generated/api";
@@ -23,9 +23,7 @@ export const triggerJudgeSimulation = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const tradePkg = await ctx.db.get(args.tradePackageId);
-    if (!tradePkg) throw new Error("Trade package not found");
+    const { doc: tradePkg } = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"], write: true });
 
     const isHvac = tradePkg.csiDivision.startsWith("23");
     const isPlumbing = tradePkg.csiDivision.startsWith("22");
@@ -274,9 +272,7 @@ export const submitCustomRfi = mutation({
     question: v.string(),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const tradePkg = await ctx.db.get(args.tradePackageId);
-    if (!tradePkg) throw new ConvexError("The selected trade package could not be found.");
+    await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"], write: true });
 
     const subject = args.subject.trim();
     const question = args.question.trim();
@@ -361,9 +357,7 @@ export const submitCustomRfi = mutation({
 export const retryRfiAnalysis = mutation({
   args: { conversationId: v.id("conversations") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const convo = await ctx.db.get(args.conversationId);
-    if (!convo) throw new ConvexError("The RFI record could not be found.");
+    const { doc: convo } = await requireDocScope(ctx, "conversations", args.conversationId, { roles: ["gc"], write: true });
     if (convo.status === "clarified" || convo.status === "escalated_to_pm") {
       return { success: false, message: "This RFI has already been analyzed." };
     }
@@ -409,15 +403,13 @@ export const runFullProcurementCycle = mutation({
     tradePackageId: v.optional(v.id("tradePackages")),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const project = await ctx.db.get(args.projectId);
-    if (!project) throw new Error("Project not found");
+    const access = await requireProjectScope(ctx, args.projectId, { roles: ["gc"], write: true });
+    const project = access.project;
 
     // 1. Select or create trade package
-    let tradePkg = args.tradePackageId ? await ctx.db.get(args.tradePackageId) : null;
-    if (tradePkg && tradePkg.projectId !== args.projectId) {
-      throw new Error("The trade package does not belong to the selected project.");
-    }
+    let tradePkg = args.tradePackageId
+      ? await requireDocOfProject(ctx, access, "tradePackages", args.tradePackageId)
+      : null;
     if (!tradePkg) {
       tradePkg = await ctx.db
         .query("tradePackages")

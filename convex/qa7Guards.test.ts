@@ -111,7 +111,7 @@ test("QA7-1: createTradePackage rejects a nonexistent projectId and inserts noth
       mandatoryInclusions: ["None"],
       bidDeadline: "2026-10-31",
     })
-  ).rejects.toThrow(/project not found/i);
+  ).rejects.toThrow(/Not found/);
   const all = await t.run(async (ctx) => await ctx.db.query("tradePackages").collect());
   expect(all.length).toBe(0);
 });

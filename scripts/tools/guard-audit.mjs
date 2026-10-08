@@ -5,15 +5,47 @@ import path from "node:path";
  * Role-guard audit of the Convex function surface.
  *
  * Lists every exported public query, mutation, action and httpAction under convex/ (plus the
- * inline routes in convex/http.ts) with the guard call that runs first. Fails when a public
- * function has no guard, or reads/writes data (ctx.db, ctx.run*, ctx.storage) before the guard.
+ * inline routes in convex/http.ts) with the guard call that runs first and its tenancy guard.
+ * Fails when a public function has no guard, reads/writes data (ctx.db, ctx.run*, ctx.storage)
+ * before the guard, or has no company-tenancy guard (convex/lib/tenancy.ts, lib/projectScope.ts)
+ * without being listed as touching no project data. Modules still awaiting their tenancy
+ * retrofit are reported as pending instead of failing.
  *
  * Usage: node scripts/tools/guard-audit.mjs [--write docs/guard-audit.md]
  */
 
 const ROOT = "convex";
-const GUARD =
-  /\b(requireRole|requireRoleInAction|requireAgreementAccess|requireProjectAccess|requireDocInProject|requireCompanyMember|getViewer)\(|\b(ctx\.runQuery\(internal\.profiles\.requireRoleForAction)\b/;
+const TENANCY_GUARDS = [
+  "requireProjectScope",
+  "requireDocScope",
+  "requireProjectScopeInAction",
+  "requireDemoCompany",
+  "requireDemoCompanyInAction",
+  "callerProjects",
+  "subContractorScope",
+  "requireProjectAccess",
+  "requireDocInProject",
+  "requireCompanyMember",
+  "accessibleProjectIds",
+];
+const TENANCY = new RegExp(`\\b(${TENANCY_GUARDS.join("|")})\\(`);
+const GUARD = new RegExp(
+  `\\b(requireRole|requireRoleInAction|requireAgreementAccess|getViewer|${TENANCY_GUARDS.join("|")})\\(|\\b(ctx\\.runQuery\\(internal\\.profiles\\.requireRoleForAction)\\b`,
+);
+// Public functions that read no project or company data, so a role check is the whole guard.
+const NO_PROJECT_DATA = new Map([
+  ["crons:getCronStatus", "static cron schedule"],
+  ["llmRouter:getProviderAvailability", "which model keys are configured (booleans)"],
+  ["llmRouter:runModelDiagnostic", "fixed sample prompts, no project data"],
+  ["contractorDiscovery:scrapeContractorWebsite", "scrapes a public URL, no project data"],
+  ["profiles:me", "caller's own profile"],
+  ["payments/webhook:paypalWebhook", "PayPal-signed delivery; no caller session"],
+  ["dashboard/studioProxy:studioPreflight", "CORS preflight"],
+  ["projectFileDownload:projectFilePreflight", "CORS preflight"],
+]);
+// Modules whose tenancy retrofit is a separate feature; their role-only functions are listed as
+// pending rather than failing. Remove a prefix once its module is retrofitted.
+const TENANCY_PENDING_PREFIXES = ["payments/", "payApps/", "agent/", "kernel/", "dashboard/", "judgeDemo/", "agentLinks:"];
 // The app-shell identity query: it reads only the caller's own users row (by getAuthUserId) and
 // returns role null for accounts without a profile, so it cannot expose other users' data.
 const SELF_ONLY = new Map([["profiles:me", /\bgetAuthUserId\(ctx\)/]]);
@@ -27,6 +59,7 @@ const INLINE_ROUTES = [
   ["GET /agentmail/webhook", "Public status probe; reports only whether a secret is configured"],
   ["GET /llms.txt", "Public by design; static manifest, no data access"],
   ["GET /api/health", "Public by design; static status, no data access"],
+  ["GET /api/project-files/*", "projectFileDownload: Convex Auth bearer token + project access; 401 without a session, 404 \"Not found.\" otherwise"],
   ["GET /specs/*, /drawings/*, /quotes/*, /insurance/*, /files/*, /api/files/*", "Public demo PDFs bundled in code; no data access"],
   ["GET/POST /api/*, /agentmail/* (unknown paths)", "JSON 404, no data access"],
   ["/api/auth/* (auth.addHttpRoutes)", "Convex Auth routes; exempt"],
@@ -48,6 +81,7 @@ function lineOf(src, index) {
 
 const rows = [];
 const problems = [];
+const pending = [];
 let internalCount = 0;
 
 for (const file of walk(ROOT).sort()) {
@@ -67,7 +101,18 @@ for (const file of walk(ROOT).sort()) {
     const guard = body.match(GUARD);
     const access = body.match(DATA_ACCESS);
     let guardText;
-    if (fnName === "payments/webhook:paypalWebhook") {
+    if (fnName === "projectFileDownload:projectFileDownload") {
+      const identityAt = body.search(/getUserIdentity/);
+      const authorizeAt = body.search(/runQuery\(internal\.projectFileDownload\.authorizeDownload/);
+      const storageAt = body.search(/ctx\.storage/);
+      guardText = "Bearer token, then authorizeDownload (requireDocScope) before ctx.storage";
+      if (identityAt === -1 || authorizeAt < identityAt || storageAt < authorizeAt) {
+        problems.push(`${fnName}: storage read is not behind the session and project check`);
+      }
+    } else if (fnName === "projectFileDownload:projectFilePreflight") {
+      guardText = "CORS preflight only, no data access";
+      if (access || /\bfetch\(/.test(body)) problems.push(`${fnName}: preflight touches data`);
+    } else if (fnName === "payments/webhook:paypalWebhook") {
       const verifyAt = body.search(/verif/i);
       const writeAt = body.search(/runMutation|runAction/);
       guardText = "PayPal signature verification before any write";
@@ -87,7 +132,19 @@ for (const file of walk(ROOT).sort()) {
       guardText = `${label} at line ${lineOf(src, h.index + guard.index)}`;
       if (access && access.index < guard.index) problems.push(`${fnName} (${where}): data access before ${label}`);
     }
-    rows.push({ fnName, kind, where, guardText });
+    const tenancy = body.match(TENANCY);
+    let tenancyText;
+    if (fnName === "projectFileDownload:projectFileDownload") tenancyText = "requireDocScope() via authorizeDownload";
+    else if (tenancy) tenancyText = `${tenancy[1]}()`;
+    else if (NO_PROJECT_DATA.has(fnName)) tenancyText = `none needed: ${NO_PROJECT_DATA.get(fnName)}`;
+    else if (TENANCY_PENDING_PREFIXES.some((p) => fnName.startsWith(p))) {
+      tenancyText = "PENDING tenancy retrofit";
+      pending.push(fnName);
+    } else {
+      tenancyText = "MISSING";
+      problems.push(`${fnName} (${where}): no tenancy guard`);
+    }
+    rows.push({ fnName, kind, where, guardText, tenancyText });
   });
 }
 
@@ -95,14 +152,15 @@ const lines = [
   "# Role-guard audit",
   "",
   "Generated by `node scripts/tools/guard-audit.mjs --write docs/guard-audit.md`. Every exported public Convex",
-  "function calls a role guard before it reads or writes data. Internal functions",
-  `(${internalCount} \`internal*\` exports) are not callable from clients and are not listed.`,
+  "function calls a role guard before it reads or writes data, and a company-tenancy guard",
+  "(`convex/lib/tenancy.ts`, `convex/lib/projectScope.ts`) unless it reads no project data.",
+  `Internal functions (${internalCount} \`internal*\` exports) are not callable from clients and are not listed.`,
   "",
-  `Public functions: ${rows.length}. Problems: ${problems.length}.`,
+  `Public functions: ${rows.length}. Problems: ${problems.length}. Pending tenancy retrofit: ${pending.length}.`,
   "",
-  "| Function | Kind | Location | Guard |",
-  "|---|---|---|---|",
-  ...rows.map((r) => `| \`${r.fnName}\` | ${r.kind} | \`${r.where}\` | ${r.guardText} |`),
+  "| Function | Kind | Location | Guard | Tenancy |",
+  "|---|---|---|---|---|",
+  ...rows.map((r) => `| \`${r.fnName}\` | ${r.kind} | \`${r.where}\` | ${r.guardText} | ${r.tenancyText} |`),
   "",
   "## Inline HTTP routes in `convex/http.ts`",
   "",
@@ -118,6 +176,8 @@ if (writeAt !== -1) {
   fs.writeFileSync(process.argv[writeAt + 1], out);
   console.log(`wrote ${process.argv[writeAt + 1]}`);
 }
-console.log(`guard-audit: ${rows.length} public functions, ${internalCount} internal, ${problems.length} problems`);
+console.log(
+  `guard-audit: ${rows.length} public functions, ${internalCount} internal, ${problems.length} problems, ${pending.length} pending tenancy retrofit`,
+);
 for (const p of problems) console.error(`  - ${p}`);
 process.exit(problems.length ? 1 : 0);
