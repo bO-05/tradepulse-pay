@@ -247,7 +247,8 @@ export default defineSchema({
     subCompanyId: v.optional(v.id("companies")),
   })
     .index("by_agentEmail_and_status", ["agentEmail", "status"])
-    .index("by_contractorId", ["contractorId"]),
+    .index("by_contractorId", ["contractorId"])
+    .index("by_gcCompanyId", ["gcCompanyId"]),
 
   // Schedule of values; lines sum exactly to the agreement contract sum.
   scheduleOfValues: defineTable({

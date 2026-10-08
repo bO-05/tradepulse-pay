@@ -3,6 +3,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import { mutation, query, type MutationCtx } from "../_generated/server";
 import { normalizeAgentEmail, syncAgentProfilesForEmail } from "../lib/agentAccess";
 import { requireRole } from "../lib/roles";
+import { requireDemoCompany } from "../lib/projectScope";
 import { attachProjectToDemo, ensureDemoCompanies } from "../lib/demoTenancy";
 import { recordPayApplication, payAppSovContext } from "../payApps/submit";
 import { RETAINAGE_PERCENT } from "../terms";
@@ -18,7 +19,7 @@ import {
 } from "./scenario";
 
 /**
- * One-click TradePulse Pay judge demo, GC only. Each run creates a fresh, clearly labeled demo award for
+ * One-click TradePulse Pay judge demo, Demo company GC only (everyone else gets "Not found."). Each run creates a fresh, clearly labeled demo award for
  * sub1's contractor, which the GC then executes through the regular procurement mutation. Pay apps the
  * demo files are marked `judgeDemo` with the GC who ran it, so no surface presents them as filed by the
  * sub or its agent in person. Every later step (review, KERNEL check, proposals, approval, capture,
@@ -90,6 +91,7 @@ async function ensureAgentLink(ctx: MutationCtx, contractorId: Id<"contractors">
 export const startRun = mutation({
   args: {},
   handler: async (ctx) => {
+    await requireDemoCompany(ctx, ["gc"]);
     const viewer = await requireRole(ctx, ["gc"]);
     const gcEmail = viewer.user.email ?? `user:${viewer.userId}`;
     const sub1 = await sub1Account(ctx);
@@ -201,6 +203,7 @@ async function loadRun(ctx: MutationCtx, runId: Id<"judgeDemoRuns">, userId: Id<
 export const fileDemoPayApp = mutation({
   args: { runId: v.id("judgeDemoRuns"), kind: v.union(v.literal("honest"), v.literal("agent")) },
   handler: async (ctx, args) => {
+    await requireDemoCompany(ctx, ["gc"]);
     const viewer = await requireRole(ctx, ["gc"]);
     const run = await loadRun(ctx, args.runId, viewer.userId);
     const existing = args.kind === "honest" ? run.honestPayAppId : run.agentPayAppId;
@@ -268,6 +271,7 @@ export const fileDemoPayApp = mutation({
 export const getRun = query({
   args: { runId: v.optional(v.id("judgeDemoRuns")) },
   handler: async (ctx, args) => {
+    await requireDemoCompany(ctx, ["gc"]);
     const viewer = await requireRole(ctx, ["gc"]);
     const run = args.runId
       ? await ctx.db.get(args.runId)

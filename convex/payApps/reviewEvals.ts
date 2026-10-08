@@ -1,7 +1,9 @@
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { action, internalAction, internalMutation, query, type ActionCtx } from "../_generated/server";
-import { requireRole, requireRoleInAction } from "../lib/roles";
+import { requireRoleInAction } from "../lib/roles";
+import { requireDemoCompany } from "../lib/projectScope";
+import { requireDemoCompanyInAction } from "../lib/tenancyAction";
 import { PAY_APP_REVIEW_FIXTURES, type PayAppReviewFixture } from "./reviewEvalFixtures";
 import { runPayAppReview, type ModelCaller, type ReviewRun } from "./reviewModel";
 
@@ -173,11 +175,12 @@ export const runPayAppReviewEvalSuite = internalAction({
     await executePayAppReviewSuite(ctx, args.targetEnvironment ?? "dev", args.triggeredBy ?? "cli_benchmark"),
 });
 
-/** GC runs the pay-app review eval suite from the app. */
+/** A Demo company GC runs the pay-app review eval suite from the app (Demo-only diagnostics). */
 export const executePayAppReviewEvalSuite = action({
   args: { targetEnvironment: v.optional(v.string()) },
   handler: async (ctx, args): Promise<PayAppReviewSuiteResult> => {
     await requireRoleInAction(ctx, ["gc"]);
+    await requireDemoCompanyInAction(ctx, ["gc"]);
     return await executePayAppReviewSuite(ctx, args.targetEnvironment ?? "dev", "judge_diagnostics");
   },
 });
@@ -185,7 +188,7 @@ export const executePayAppReviewEvalSuite = action({
 export const getLatestPayAppReviewEvalRun = query({
   args: {},
   handler: async (ctx) => {
-    await requireRole(ctx, ["gc"]);
+    await requireDemoCompany(ctx, ["gc"]);
     const recent = await ctx.db.query("evalRuns").withIndex("by_createdAt").order("desc").take(50);
     return recent.find((r) => r.suite === PAY_APP_REVIEW_SUITE) ?? null;
   },

@@ -266,7 +266,7 @@ describe("change order invoices", () => {
     const args = { agreementId: agreement._id, description: "x", amountCents: 100 };
     for (const who of [owner, sub]) {
       const err = await errorOf(who.as.action(api.payments.invoices.createChangeOrder, args));
-      expect(err.data.code).toBe("FORBIDDEN");
+      expect(err.data.code).toBe("NOT_FOUND");
     }
     const anon = await errorOf(t.action(api.payments.invoices.createChangeOrder, args));
     expect(anon.data.code).toBe("UNAUTHENTICATED");
@@ -280,7 +280,7 @@ describe("change order invoices", () => {
     const { gc, sub, agreement } = await setup();
     const out = await gc.as.action(api.payments.invoices.createChangeOrder, { agreementId: agreement._id, description: "x", amountCents: 100 });
     const err = await errorOf(sub.as.action(api.payments.invoices.refreshChangeOrderStatus, { changeOrderId: out.changeOrderId }));
-    expect(err.data.code).toBe("FORBIDDEN");
+    expect(err.data.code).toBe("NOT_FOUND");
   });
 
   test("validation: positive integer cents, non-empty description, unique number", async () => {

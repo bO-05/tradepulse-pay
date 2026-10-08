@@ -46,7 +46,9 @@ export const studioPreflight = httpAction(async (_ctx, req) => {
 /**
  * LLM proxy for AG Studio's chat agents. Studio's adapter in the browser POSTs one AgLlmRequest per
  * turn with the Convex Auth token; this streams the Anthropic answer back as NDJSON AG-UI events
- * plus a final consolidated response. The Anthropic key stays in the Convex environment.
+ * plus a final consolidated response. The Anthropic key stays in the Convex environment. It reads
+ * no app data: the only project data in a turn is what Studio's tools fetched through the
+ * company-scoped dashboard queries for this caller.
  */
 export const studioProxy = httpAction(async (ctx, req) => {
   // A malformed or expired token makes getUserIdentity throw; treat it like no token.
@@ -55,7 +57,7 @@ export const studioProxy = httpAction(async (ctx, req) => {
     return jsonResponse(req, 401, { error: "Not authenticated: sign in required." });
   }
   try {
-    await ctx.runQuery(internal.profiles.requireRoleForAction, { roles: ["gc", "owner"] });
+    await ctx.runQuery(internal.dashboard.studioAccess.authorizeStudioCaller, {});
   } catch (err) {
     const message =
       err instanceof ConvexError && typeof (err.data as { message?: unknown })?.message === "string"

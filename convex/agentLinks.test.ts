@@ -167,7 +167,7 @@ describe("billing-agent links", () => {
     const owner = await signInAs(t, "owner");
     const agent = await signInAgent(t, AGENT_EMAIL);
     for (const caller of [sub.as, owner.as, agent.as]) {
-      await expect(caller.mutation(api.agentLinks.addAgentLink, { agentEmail: "x@agentmail.to", contractorId: rosendin })).rejects.toThrow(/Forbidden/);
+      await expect(caller.mutation(api.agentLinks.addAgentLink, { agentEmail: "x@agentmail.to", contractorId: rosendin })).rejects.toThrow(/Not found/);
       await expect(caller.mutation(api.agentLinks.revokeAgentLink, { linkId })).rejects.toThrow(/Forbidden/);
       await expect(caller.query(api.agentLinks.listAgentLinks, {})).rejects.toThrow(/Forbidden/);
     }

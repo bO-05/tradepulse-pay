@@ -4,6 +4,8 @@ import type { Doc, Id } from "../_generated/dataModel";
 import { internalAction, internalMutation, internalQuery, mutation, query, type MutationCtx } from "../_generated/server";
 import { formatCents } from "../lib/money";
 import { requireRole } from "../lib/roles";
+import { scopedAgreements } from "../lib/agreementScope";
+import { auditActor, findDocScope, requireDocScope } from "../lib/projectScope";
 import { latestCompletedCheck } from "../kernel/licenseChecks";
 import { milestonePlanRows } from "../agent/proposalDb";
 import { checkEditedAmount, chooseCaptureMilestone, effectiveAmount } from "../agent/proposalMath";
@@ -16,7 +18,8 @@ import { payAppView, sovMapFor } from "./review";
 /**
  * GC approval inbox (architecture §7). The pay agent only creates pending proposals; money moves
  * when the GC approves a capture/payout pair here, which schedules the p2 capture + payout. Every
- * function is GC-only: subs, their billing agents and owners are refused by requireRole.
+ * function is for the GC of the project only: other companies, subs, their billing agents and
+ * owners get "Not found." (or Forbidden from requireRole).
  */
 
 const MONEY_KINDS = new Set(["capture", "payout"]);
@@ -30,13 +33,6 @@ function notPending(p: Doc<"agentProposals">): ConvexError<{ code: string; messa
         ? "This proposal was superseded by a newer agent run."
         : `This proposal is already ${p.status}.`;
   return new ConvexError({ code: "INVALID_STATE", message: why });
-}
-
-async function loadProposal(ctx: MutationCtx, proposalId: string): Promise<Doc<"agentProposals">> {
-  const id = ctx.db.normalizeId("agentProposals", proposalId);
-  const p = id === null ? null : await ctx.db.get(id);
-  if (p === null) throw new ConvexError({ code: "NOT_FOUND", message: "Proposal not found." });
-  return p;
 }
 
 async function payAppProposals(ctx: MutationCtx, payAppId: Id<"payApplications">) {
@@ -120,14 +116,16 @@ export const listInbox = query({
   args: {},
   handler: async (ctx) => {
     await requireRole(ctx, ["gc"]);
+    const { rows: scoped } = await scopedAgreements(ctx, { parties: ["gc"], limit: 200 });
+    const inboxStatuses = new Set<string>(INBOX_STATUSES);
     const payApps: Doc<"payApplications">[] = [];
-    for (const status of INBOX_STATUSES) {
+    for (const { agreement } of scoped) {
       const rows = await ctx.db
         .query("payApplications")
-        .withIndex("by_status", (q) => q.eq("status", status))
+        .withIndex("by_agreementId", (q) => q.eq("agreementId", agreement._id))
         .order("desc")
         .take(50);
-      payApps.push(...rows);
+      payApps.push(...rows.filter((p) => inboxStatuses.has(p.status)));
     }
     payApps.sort((a, b) => b.createdAt - a.createdAt);
     const sovCache = new Map<string, Awaited<ReturnType<typeof sovMapFor>>>();
@@ -213,10 +211,11 @@ export const listInbox = query({
 export const getAgentTrace = query({
   args: { payAppId: v.string() },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
+    const scope = await findDocScope(ctx, "payApplications", args.payAppId, { roles: ["gc"] });
+    if (scope === null) return null;
     const rows = await ctx.db
       .query("agentTraces")
-      .withIndex("by_caseId", (q) => q.eq("caseId", args.payAppId))
+      .withIndex("by_caseId", (q) => q.eq("caseId", scope.doc._id))
       .order("desc")
       .take(20);
     const t = rows.find((r) => r.status.startsWith("AGENT_PROPOSED"));
@@ -246,15 +245,16 @@ export const getAgentTrace = query({
 export const approveProposal = mutation({
   args: { proposalId: v.string(), overrideLicenseHold: v.optional(v.boolean()) },
   handler: async (ctx, args) => {
-    const viewer = await requireRole(ctx, ["gc"]);
-    const p = await loadProposal(ctx, args.proposalId);
+    const scope = await requireDocScope(ctx, "agentProposals", args.proposalId, { roles: ["gc"], write: true });
+    const viewer = scope.viewer;
+    const p = scope.doc;
     if (p.status !== "pending") throw notPending(p);
     const payApp = p.payAppId ? await ctx.db.get(p.payAppId) : null;
     if (payApp === null) throw new ConvexError({ code: "NOT_FOUND", message: "Pay application not found." });
     if (payApp.status !== "reviewed") {
       throw new ConvexError({ code: "INVALID_STATE", message: `The pay application is ${payApp.status}; only reviewed pay applications can be approved.` });
     }
-    const actor = viewer.user.email ?? `user:${viewer.userId}`;
+    const actor = auditActor(scope).actor;
     const now = Date.now();
 
     if (!MONEY_KINDS.has(p.kind)) {
@@ -334,8 +334,8 @@ export const approveProposal = mutation({
 export const editProposal = mutation({
   args: { proposalId: v.string(), amountCents: v.number() },
   handler: async (ctx, args) => {
-    const viewer = await requireRole(ctx, ["gc"]);
-    const p = await loadProposal(ctx, args.proposalId);
+    const scope = await requireDocScope(ctx, "agentProposals", args.proposalId, { roles: ["gc"], write: true });
+    const p = scope.doc;
     if (p.status !== "pending") throw notPending(p);
     if (!MONEY_KINDS.has(p.kind)) throw new ConvexError({ code: "INVALID_STATE", message: "Only capture and payout amounts can be edited." });
     const payApp = p.payAppId ? await ctx.db.get(p.payAppId) : null;
@@ -353,7 +353,7 @@ export const editProposal = mutation({
       "proposal_edited",
       "Proposal amount edited",
       `${payApp.periodLabel}: GC changed the capture/payout amount from ${formatCents(p.amountCents ?? 0)} to ${formatCents(check.amountCents)}.`,
-      viewer.user.email ?? `user:${viewer.userId}`,
+      auditActor(scope).actor,
     );
     return { editedAmountCents: check.amountCents };
   },
@@ -371,12 +371,13 @@ async function rejectRows(ctx: MutationCtx, rows: Doc<"agentProposals">[], userI
 export const rejectProposal = mutation({
   args: { proposalId: v.string(), reason: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    const viewer = await requireRole(ctx, ["gc"]);
-    const p = await loadProposal(ctx, args.proposalId);
+    const scope = await requireDocScope(ctx, "agentProposals", args.proposalId, { roles: ["gc"], write: true });
+    const viewer = scope.viewer;
+    const p = scope.doc;
     if (p.status !== "pending") throw notPending(p);
     const rows = MONEY_KINDS.has(p.kind) ? Object.values(await moneyPair(ctx, p)).filter((r) => r !== undefined) : [p];
     await rejectRows(ctx, rows, viewer.userId);
-    const actor = viewer.user.email ?? `user:${viewer.userId}`;
+    const actor = auditActor(scope).actor;
     const kinds = rows.map((r) => r.kind).join(" + ");
     await audit(ctx, p.agreementId, "proposal_rejected", "Proposal rejected", `GC rejected the ${kinds} proposal; no money moved.`, actor);
     const payAppRejected = p.payAppId
@@ -390,10 +391,9 @@ export const rejectProposal = mutation({
 export const rejectPayApp = mutation({
   args: { payAppId: v.string(), reason: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    const viewer = await requireRole(ctx, ["gc"]);
-    const id = ctx.db.normalizeId("payApplications", args.payAppId);
-    const payApp = id === null ? null : await ctx.db.get(id);
-    if (payApp === null) throw new ConvexError({ code: "NOT_FOUND", message: "Pay application not found." });
+    const scope = await requireDocScope(ctx, "payApplications", args.payAppId, { roles: ["gc"], write: true });
+    const viewer = scope.viewer;
+    const payApp = scope.doc;
     if (!["submitted", "under_review", "reviewed"].includes(payApp.status)) {
       throw new ConvexError({ code: "INVALID_STATE", message: `The pay application is ${payApp.status} and can no longer be rejected.` });
     }
@@ -410,7 +410,7 @@ export const rejectPayApp = mutation({
       "pay_app_rejected",
       "Pay application rejected",
       `${payApp.periodLabel}: GC rejected the pay application and ${pending.length} pending proposal(s); no money moved.`,
-      viewer.user.email ?? `user:${viewer.userId}`,
+      auditActor(scope).actor,
     );
     return { rejected: pending.length };
   },

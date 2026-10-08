@@ -2,6 +2,8 @@ import { ConvexError, v, type Infer } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
 import { internalMutation, internalQuery, query, type MutationCtx } from "../_generated/server";
 import { requireRole } from "../lib/roles";
+import { findDocScope } from "../lib/projectScope";
+import { invoiceRecipientForProject } from "./changeOrderRecipient";
 import { canMoveChangeOrder, changeOrderLabel, changeOrderStatusFromInvoice, type ChangeOrderStatus } from "./changeOrderMath";
 
 const MAX_DESCRIPTION = 1000;
@@ -30,27 +32,36 @@ export function changeOrderView(co: Doc<"changeOrders">, agreement: Doc<"agreeme
 export type ChangeOrderView = ReturnType<typeof changeOrderView>;
 
 /**
- * Change orders on one agreement for the GC and the Owner (the parties to the invoice). Subs get an
- * empty list. Returns null when the agreement does not exist.
+ * Change orders on one agreement for the GC and the project's owner (the parties to the invoice).
+ * Subs of the agreement get an empty list. Returns null when the agreement does not exist or the
+ * caller cannot see it. `invoicing` says whether this project has an owner to invoice, and why not.
  */
 export const listForAgreement = query({
   args: { agreementId: v.string() },
   handler: async (ctx, args) => {
-    const viewer = await requireRole(ctx, ["gc", "sub", "owner"]);
-    const id = ctx.db.normalizeId("agreements", args.agreementId);
-    if (id === null) return null;
-    const agreement = await ctx.db.get(id);
-    if (agreement === null) return null;
-    if (viewer.role === "sub") return { canCreate: false, canRefresh: false, nextNumber: 1, changeOrders: [] };
+    await requireRole(ctx, ["gc", "sub", "owner"]);
+    const scope = await findDocScope(ctx, "agreements", args.agreementId);
+    if (scope === null) return null;
+    const agreement = scope.doc;
+    const role = scope.partyRole;
+    const noInvoicing = { enabled: false, reason: null, recipientEmail: null };
+    if (role === "sub") return { canCreate: false, canRefresh: false, nextNumber: 1, invoicing: noInvoicing, changeOrders: [] };
     const rows = await ctx.db
       .query("changeOrders")
-      .withIndex("by_agreementId_and_number", (q) => q.eq("agreementId", id))
+      .withIndex("by_agreementId_and_number", (q) => q.eq("agreementId", agreement._id))
       .take(200);
-    const isGc = viewer.role === "gc";
+    const isGc = role === "gc";
+    const recipient = isGc ? await invoiceRecipientForProject(ctx, agreement.projectId) : null;
     return {
-      canCreate: isGc,
+      canCreate: isGc && recipient?.ok === true,
       canRefresh: true,
       nextNumber: (rows.at(-1)?.number ?? 0) + 1,
+      invoicing:
+        recipient === null
+          ? noInvoicing
+          : recipient.ok
+            ? { enabled: true, reason: null, recipientEmail: recipient.email }
+            : { enabled: false, reason: recipient.reason, recipientEmail: null },
       changeOrders: rows.filter((co) => isGc || co.status !== "draft").map((co) => changeOrderView(co, agreement)),
     };
   },
@@ -70,6 +81,8 @@ export const insertChangeOrder = internalMutation({
     if (agreement === null || agreement.status === "superseded") {
       throw new ConvexError({ code: "NOT_FOUND", message: "Agreement not found." });
     }
+    const recipient = await invoiceRecipientForProject(ctx, agreement.projectId);
+    if (!recipient.ok) throw new ConvexError({ code: "NO_OWNER_EMAIL", message: recipient.reason });
     const description = args.description.trim();
     if (description.length === 0) throw new ConvexError({ code: "INVALID_ARGUMENT", message: "Describe the change order." });
     if (description.length > MAX_DESCRIPTION) {
@@ -111,15 +124,6 @@ export const insertChangeOrder = internalMutation({
   },
 });
 
-async function ownerInvoiceEmail(ctx: MutationCtx): Promise<string | undefined> {
-  const owners = await ctx.db
-    .query("userProfiles")
-    .withIndex("by_role", (q) => q.eq("role", "owner"))
-    .take(20);
-  const fromProfile = owners.find((p) => p.paypalEmail)?.paypalEmail?.trim();
-  return fromProfile || process.env.PAYPAL_SANDBOX_OWNER_EMAIL?.trim() || undefined;
-}
-
 const beginInvoiceResult = v.union(
   v.object({
     state: v.literal("done"),
@@ -157,11 +161,14 @@ export const beginInvoice = internalMutation({
     }
     const agreement = await ctx.db.get(co.agreementId);
     if (agreement === null) throw new ConvexError({ code: "NOT_FOUND", message: "Agreement not found." });
-    const recipientEmail = co.recipientEmail ?? (await ownerInvoiceEmail(ctx));
-    if (!recipientEmail) {
-      const message = "No Owner PayPal email is on file, so no invoice was created.";
-      await ctx.db.patch(changeOrderId, { error: message });
-      throw new ConvexError({ code: "NO_OWNER_EMAIL", message });
+    let recipientEmail = co.recipientEmail;
+    if (recipientEmail === undefined) {
+      const recipient = await invoiceRecipientForProject(ctx, agreement.projectId);
+      if (!recipient.ok) {
+        await ctx.db.patch(changeOrderId, { error: recipient.reason });
+        throw new ConvexError({ code: "NO_OWNER_EMAIL", message: recipient.reason });
+      }
+      recipientEmail = recipient.email;
     }
     if (co.recipientEmail === undefined) await ctx.db.patch(changeOrderId, { recipientEmail });
     return {

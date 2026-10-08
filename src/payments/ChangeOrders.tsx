@@ -258,6 +258,16 @@ export function AgreementChangeOrders({ agreementId }: { agreementId: Id<"agreem
         Each change order is billed to the Owner as a PayPal invoice. The PayPal sandbox sends no email, so the Owner opens it
         from the link here or in the Owner portal.
       </p>
+      {data.invoicing.recipientEmail && (
+        <p className="text-xs text-slate-400" data-testid="change-order-recipient">
+          Invoices go to the project owner at {data.invoicing.recipientEmail}.
+        </p>
+      )}
+      {data.invoicing.reason && (
+        <p className="text-sm text-amber-300" role="status" data-testid="change-order-invoicing-disabled">
+          {data.invoicing.reason}
+        </p>
+      )}
       {data.canCreate && <ChangeOrderForm agreementId={agreementId} nextNumber={data.nextNumber} />}
       <ChangeOrderList changeOrders={data.changeOrders} canRefresh={data.canRefresh} canResend={data.canCreate} />
     </section>

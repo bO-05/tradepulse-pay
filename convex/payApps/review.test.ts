@@ -237,8 +237,8 @@ describe("GC review access", () => {
     expect(list[0].review).toMatchObject({ provider: "Offline rules engine" });
     expect(list[0].lines.find((l) => l.sovLineId === s.excludedLineId)!.review).toMatchObject({ verdict: "excluded_scope", approvedCents: 0 });
 
-    await expect(s.sub1.as.query(api.payApps.review.listAgreementPayApps, { agreementId: s.agreement._id })).rejects.toThrow(/Forbidden: role gc/);
-    await expect(s.sub1.as.action(api.payApps.review.rerunPayAppReview, { payAppId })).rejects.toThrow(/Forbidden: role gc/);
+    expect(await s.sub1.as.query(api.payApps.review.listAgreementPayApps, { agreementId: s.agreement._id })).toEqual([]);
+    await expect(s.sub1.as.action(api.payApps.review.rerunPayAppReview, { payAppId })).rejects.toThrow(/Not found/);
     const res = await s.gc.as.action(api.payApps.review.rerunPayAppReview, { payAppId });
     expect(res.reviewed).toBe(true);
     const traces = await s.t.run(async (ctx) => (await ctx.db.query("agentTraces").collect()).filter((r) => r.caseId === payAppId));

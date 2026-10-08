@@ -143,14 +143,12 @@ describe("submitPayApplication", () => {
     await gc.as.mutation(api.agentLinks.revokeAgentLink, { linkId });
     await expect(
       agent.as.mutation(api.payApps.submit.submitPayApplication, validArgs(agreement._id, sov)),
-    ).rejects.toThrow(/no TradePulse role/);
-    await expect(agent.as.query(api.payApps.submit.payAppFormContext, { agreementId: agreement._id })).rejects.toThrow(
-      /no TradePulse role/,
-    );
+    ).rejects.toThrow(/Not found/);
+    expect(await agent.as.query(api.payApps.submit.payAppFormContext, { agreementId: agreement._id })).toBeNull();
     const unlinked = await signInAgent(t, "dullstreet57@agentmail.to");
     await expect(
       unlinked.as.mutation(api.payApps.submit.submitPayApplication, validArgs(agreement._id, sov)),
-    ).rejects.toThrow(/no TradePulse role/);
+    ).rejects.toThrow(/Not found/);
     expect(await countPayApps(t)).toBe(0);
 
     await gc.as.mutation(api.agentLinks.addAgentLink, { agentEmail: AGENT_EMAIL, contractorId });
@@ -161,12 +159,10 @@ describe("submitPayApplication", () => {
   test("GC, owner, unauthenticated and another sub are rejected", async () => {
     const { t, gc, owner, sub2, agreement, sov } = await setup();
     const args = validArgs(agreement._id, sov);
-    await expect(gc.as.mutation(api.payApps.submit.submitPayApplication, args)).rejects.toThrow(/Forbidden: role sub/);
-    await expect(owner.as.mutation(api.payApps.submit.submitPayApplication, args)).rejects.toThrow(/Forbidden: role sub/);
+    await expect(gc.as.mutation(api.payApps.submit.submitPayApplication, args)).rejects.toThrow(/Not found/);
+    await expect(owner.as.mutation(api.payApps.submit.submitPayApplication, args)).rejects.toThrow(/Not found/);
     await expect(t.mutation(api.payApps.submit.submitPayApplication, args)).rejects.toThrow(/Not authenticated/);
-    await expect(sub2.as.mutation(api.payApps.submit.submitPayApplication, args)).rejects.toThrow(
-      /only submit pay applications for your own agreements/,
-    );
+    await expect(sub2.as.mutation(api.payApps.submit.submitPayApplication, args)).rejects.toThrow(/Not found/);
     expect(await sub2.as.query(api.payApps.submit.payAppFormContext, { agreementId: agreement._id })).toBeNull();
     expect(await countPayApps(t)).toBe(0);
   });
@@ -237,9 +233,7 @@ describe("withdrawPayApplication", () => {
     });
     const paymentsBefore = await t.run(async (ctx) => (await ctx.db.query("payments").collect()).length);
 
-    await expect(sub2.as.mutation(api.payApps.submit.withdrawPayApplication, { payAppId })).rejects.toThrow(
-      /only withdraw your own/,
-    );
+    await expect(sub2.as.mutation(api.payApps.submit.withdrawPayApplication, { payAppId })).rejects.toThrow(/Not found/);
     expect((await t.run(async (ctx) => ctx.db.get(payAppId)))!.status).toBe("submitted");
 
     const res = await sub1.as.mutation(api.payApps.submit.withdrawPayApplication, { payAppId });
@@ -268,10 +262,8 @@ describe("withdrawPayApplication", () => {
   test("only submitted or under_review apps can be withdrawn; GC and owner cannot withdraw", async () => {
     const { t, gc, owner, sub1, agreement, sov } = await setup();
     const payAppId = await sub1.as.mutation(api.payApps.submit.submitPayApplication, validArgs(agreement._id, sov));
-    await expect(gc.as.mutation(api.payApps.submit.withdrawPayApplication, { payAppId })).rejects.toThrow(/Forbidden: role sub/);
-    await expect(owner.as.mutation(api.payApps.submit.withdrawPayApplication, { payAppId })).rejects.toThrow(
-      /Forbidden: role sub/,
-    );
+    await expect(gc.as.mutation(api.payApps.submit.withdrawPayApplication, { payAppId })).rejects.toThrow(/Not found/);
+    await expect(owner.as.mutation(api.payApps.submit.withdrawPayApplication, { payAppId })).rejects.toThrow(/Not found/);
     await t.run(async (ctx) => ctx.db.patch(payAppId, { status: "under_review" }));
     await sub1.as.mutation(api.payApps.submit.withdrawPayApplication, { payAppId });
     await expect(sub1.as.mutation(api.payApps.submit.withdrawPayApplication, { payAppId })).rejects.toThrow(
@@ -304,12 +296,12 @@ describe("withdrawPayApplication", () => {
     await sub1.as.mutation(api.payApps.submit.withdrawPayApplication, { payAppId: humanPayApp });
 
     const audits = await t.run(async (ctx) => ctx.db.query("auditLogs").collect());
-    const agentRows = audits.filter((a) => a.actor === AGENT_EMAIL || a.actor === agent.userId);
+    const agentRows = audits.filter((a) => a.actorUserId === agent.userId);
     expect(agentRows.map((a) => a.eventType).sort()).toEqual(["pay_app_submitted", "pay_app_withdrawn"]);
     for (const row of agentRows) {
       expect(row).toMatchObject({ agentSub: "agent-sub-1", agentEmail: AGENT_EMAIL, ownerEmail: "pat@example.com" });
     }
-    const humanRows = audits.filter((a) => a.actor === "sub1@test.tradepulse");
+    const humanRows = audits.filter((a) => a.actorUserId === sub1.userId);
     expect(humanRows.map((a) => a.eventType).sort()).toEqual(["pay_app_submitted", "pay_app_withdrawn"]);
     for (const row of humanRows) {
       expect(row.agentSub).toBeUndefined();

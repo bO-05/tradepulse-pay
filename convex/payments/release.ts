@@ -2,7 +2,7 @@ import { ConvexError, v, type Infer } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { action, env, internalAction, internalQuery, type ActionCtx } from "../_generated/server";
-import { requireRoleInAction } from "../lib/roles";
+import { requireProjectScopeInAction } from "../lib/tenancyAction";
 import { captureApproved, voidRemainder } from "./captures";
 import { payoutSub, refreshPayout } from "./payouts";
 import { payPalClientForAction } from "./paypalClient";
@@ -120,13 +120,13 @@ export const releaseAndPay = action({
   args: { milestoneId: v.id("milestones"), amountCents: v.number(), requestKey: v.string() },
   returns: releaseResult,
   handler: async (ctx, args): Promise<ReleaseResult> => {
-    const viewer = await requireRoleInAction(ctx, ["gc"]);
-    const actor: string = await ctx.runQuery(internal.payments.release.actorForUser, { userId: viewer.userId });
+    const scope = await requireProjectScopeInAction(ctx, { docs: [{ table: "milestones", id: args.milestoneId }] }, { roles: ["gc"], write: true });
+    const actor = scope.actor;
     // A ledger release is recorded as a GC-approved payout proposal, so every capture and payout
     // goes through the proposal approve/execute path.
     const proposalId: Id<"agentProposals"> = await ctx.runMutation(internal.payApps.proposals.ledgerReleaseProposal, {
       ...args,
-      userId: viewer.userId,
+      userId: scope.userId,
     });
     try {
       const result = await startRelease(ctx, { ...args, actor, proposalId });
@@ -149,9 +149,8 @@ export const resumeRelease = action({
   args: { paymentId: v.id("payments") },
   returns: releaseResult,
   handler: async (ctx, { paymentId }): Promise<ReleaseResult> => {
-    const viewer = await requireRoleInAction(ctx, ["gc"]);
-    const actor: string = await ctx.runQuery(internal.payments.release.actorForUser, { userId: viewer.userId });
-    return await executeRelease(ctx, paymentId, actor);
+    const scope = await requireProjectScopeInAction(ctx, { docs: [{ table: "payments", id: paymentId }] }, { roles: ["gc"], write: true });
+    return await executeRelease(ctx, paymentId, scope.actor);
   },
 });
 
@@ -160,9 +159,8 @@ export const closeMilestone = action({
   args: { milestoneId: v.id("milestones") },
   returns: v.object({ voided: v.boolean(), alreadyVoided: v.boolean() }),
   handler: async (ctx, { milestoneId }) => {
-    const viewer = await requireRoleInAction(ctx, ["gc"]);
-    const actor: string = await ctx.runQuery(internal.payments.release.actorForUser, { userId: viewer.userId });
-    return await voidRemainder(ctx, { milestoneId, actor });
+    const scope = await requireProjectScopeInAction(ctx, { docs: [{ table: "milestones", id: milestoneId }] }, { roles: ["gc"], write: true });
+    return await voidRemainder(ctx, { milestoneId, actor: scope.actor });
   },
 });
 
@@ -171,7 +169,7 @@ export const refreshCaptureStatus = action({
   args: { paymentId: v.id("payments") },
   returns: v.object({ captureStatus: v.string(), status: v.string() }),
   handler: async (ctx, { paymentId }): Promise<{ captureStatus: string; status: string }> => {
-    await requireRoleInAction(ctx, ["gc"]);
+    await requireProjectScopeInAction(ctx, { docs: [{ table: "payments", id: paymentId }] }, { roles: ["gc"] });
     const found = await ctx.runQuery(internal.payments.captureSettlement.captureForRelease, { paymentId });
     if (found === null) throw new ConvexError({ code: "NOT_FOUND", message: "This release has no stored capture yet." });
     const paypal = payPalClientForAction(ctx, env, { actor: "system:capture-refresh" });
@@ -194,7 +192,7 @@ export const refreshPayoutStatus = action({
   args: { paymentId: v.id("payments") },
   returns: v.object({ status: v.string(), settled: v.boolean() }),
   handler: async (ctx, { paymentId }) => {
-    await requireRoleInAction(ctx, ["gc"]);
+    await requireProjectScopeInAction(ctx, { docs: [{ table: "payments", id: paymentId }] }, { roles: ["gc"] });
     return await refreshPayout(ctx, paymentId);
   },
 });

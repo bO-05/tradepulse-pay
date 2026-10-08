@@ -2,7 +2,8 @@ import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import { internal } from "../_generated/api";
 import { action, internalAction, internalMutation, internalQuery, query, type ActionCtx, type QueryCtx } from "../_generated/server";
-import { requireRole, requireRoleInAction } from "../lib/roles";
+import { findDocScope } from "../lib/projectScope";
+import { requireProjectScopeInAction } from "../lib/tenancyAction";
 import { formatCents } from "../lib/money";
 import { payAppReviewValidator } from "../schema";
 import { latestCompletedCheck } from "../kernel/licenseChecks";
@@ -208,9 +209,9 @@ export const reviewPayApp = internalAction({
 export const rerunPayAppReview = action({
   args: { payAppId: v.string() },
   handler: async (ctx, args): Promise<ReviewOutcome> => {
-    await requireRoleInAction(ctx, ["gc"]);
+    await requireProjectScopeInAction(ctx, { docs: [{ table: "payApplications", id: args.payAppId }] }, { roles: ["gc"], write: true });
     const id: Id<"payApplications"> | null = await ctx.runQuery(internal.payApps.review.normalizePayAppId, { payAppId: args.payAppId });
-    if (id === null) throw new ConvexError({ code: "NOT_FOUND", message: "Pay application not found." });
+    if (id === null) throw new ConvexError({ code: "NOT_FOUND", message: "Not found." });
     const result = await performReview(ctx, id, true);
     if (!result.reviewed) throw new ConvexError({ code: "INVALID_STATE", message: result.reason ?? "Review not stored." });
     return result;
@@ -287,13 +288,16 @@ export async function sovMapFor(ctx: QueryCtx, agreementId: Id<"agreements">) {
   return new Map(sov.map((s) => [s._id as string, s]));
 }
 
-/** GC view of an agreement's pay applications with line details and the stored review. */
+/**
+ * GC view of an agreement's pay applications with line details and the stored review. Only the GC
+ * of the agreement's project; everyone else (including the owner) gets an empty list.
+ */
 export const listAgreementPayApps = query({
   args: { agreementId: v.string() },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const agreementId = ctx.db.normalizeId("agreements", args.agreementId);
-    if (agreementId === null) return [];
+    const scope = await findDocScope(ctx, "agreements", args.agreementId, { roles: ["gc"] });
+    if (scope === null) return [];
+    const agreementId = scope.doc._id;
     const sovById = await sovMapFor(ctx, agreementId);
     const payApps = await ctx.db
       .query("payApplications")

@@ -110,6 +110,28 @@ export async function requireDocScope<T extends ProjectScopedTable>(
   return { ...finish(access, opts), doc };
 }
 
+export function isNotFoundError(err: unknown): boolean {
+  return err instanceof ConvexError && (err.data as { code?: unknown } | undefined)?.code === "NOT_FOUND";
+}
+
+/**
+ * requireDocScope for reads whose UI treats a missing record as null: "Not found." becomes null,
+ * any other refusal (signed out, unverified) still throws.
+ */
+export async function findDocScope<T extends ProjectScopedTable>(
+  ctx: QueryCtx,
+  table: T,
+  id: Id<T> | string,
+  opts: ScopeOptions = {},
+): Promise<(ProjectAccess & { doc: Doc<T> }) | null> {
+  try {
+    return await requireDocScope(ctx, table, id, opts);
+  } catch (err) {
+    if (isNotFoundError(err)) return null;
+    throw err;
+  }
+}
+
 /** A further client-supplied id that must belong to the already authorized project. */
 export async function requireDocOfProject<T extends ProjectScopedTable>(
   ctx: QueryCtx,

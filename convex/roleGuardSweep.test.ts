@@ -371,6 +371,8 @@ describe("static guard sweep over convex/**", () => {
   const TENANCY_GUARDS = [
     "requireProjectScope",
     "requireDocScope",
+    "findDocScope",
+    "scopedAgreements",
     "requireProjectScopeInAction",
     "requireDemoCompany",
     "requireDemoCompanyInAction",
@@ -391,7 +393,6 @@ describe("static guard sweep over convex/**", () => {
     "contractorDiscovery:scrapeContractorWebsite",
     "profiles:me",
   ]);
-  const TENANCY_PENDING_PREFIXES = ["payments/", "payApps/", "agent/", "kernel/", "dashboard/", "judgeDemo/", "agentLinks:"];
 
   function publicExports() {
     const out: { name: string; kind: string; body: string }[] = [];
@@ -414,16 +415,37 @@ describe("static guard sweep over convex/**", () => {
     expect(fns.filter((f) => !GUARD.test(f.body)).map((f) => f.name)).toEqual([]);
   });
 
-  test("every public function outside the modules pending their retrofit has a company-tenancy guard", () => {
+  test("every public function has a company-tenancy guard unless it reads no project data", () => {
     const fns = publicExports().filter((f) => f.kind !== "httpAction");
-    const missing = fns.filter(
-      (f) =>
-        !TENANCY.test(f.body) &&
-        !NO_PROJECT_DATA.has(f.name) &&
-        !TENANCY_PENDING_PREFIXES.some((p) => f.name.startsWith(p)),
-    );
+    const missing = fns.filter((f) => !TENANCY.test(f.body) && !NO_PROJECT_DATA.has(f.name));
     expect(missing.map((f) => f.name)).toEqual([]);
-    for (const mod of ["projects", "tradePackages", "contractors", "bids", "agreements", "files", "rfq", "coordination", "portal"]) {
+    for (const mod of [
+      "projects",
+      "tradePackages",
+      "contractors",
+      "bids",
+      "agreements",
+      "files",
+      "rfq",
+      "coordination",
+      "portal",
+      "agentLinks",
+      "payments/ledger",
+      "payments/orders",
+      "payments/release",
+      "payments/retainage",
+      "payments/invoices",
+      "payments/changeOrderDb",
+      "payments/sandboxTopUp",
+      "payApps/submit",
+      "payApps/review",
+      "payApps/proposals",
+      "payApps/reviewEvals",
+      "kernel/licenseChecks",
+      "dashboard/queries",
+      "dashboard/payAgent",
+      "judgeDemo/runs",
+    ]) {
       expect(fns.filter((f) => f.name.startsWith(`${mod}:`) && TENANCY.test(f.body)).length, mod).toBeGreaterThan(0);
     }
   });
@@ -447,7 +469,7 @@ describe("static guard sweep over convex/**", () => {
 
     const proxy = byName.get("dashboard/studioProxy:studioProxy")!;
     const identityAt = proxy.search(/getUserIdentity/);
-    const roleAt = proxy.search(/requireRoleForAction/);
+    const roleAt = proxy.search(/internal\.dashboard\.studioAccess\.authorizeStudioCaller/);
     const fetchAt = proxy.search(/\bfetch\(/);
     expect(identityAt).toBeGreaterThan(-1);
     expect(roleAt).toBeGreaterThan(identityAt);

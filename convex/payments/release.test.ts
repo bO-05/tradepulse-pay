@@ -599,7 +599,7 @@ describe("retry payout of a captured release", () => {
     for (const role of ["sub", "owner", null] as const) {
       const caller = role === null ? t : (await signInAs(t, role)).as;
       const err = await errorOf(caller.action(api.payments.payoutRetry.retryPayout, { paymentId: original._id }));
-      expect(String(err.data?.message ?? err.message)).toMatch(/Not authenticated|Forbidden/);
+      expect(String(err.data?.message ?? err.message)).toMatch(/Not authenticated|Forbidden|Not found/);
     }
     expect(fake.calls.length).toBe(before);
   });
@@ -612,7 +612,7 @@ describe("access and audit", () => {
     const err = await errorOf(
       caller.action(api.payments.release.releaseAndPay, { milestoneId: milestone._id, amountCents: 100_000, requestKey: key("deny") }),
     );
-    expect(String(err.data?.message ?? err.message)).toMatch(/Not authenticated|Forbidden/);
+    expect(String(err.data?.message ?? err.message)).toMatch(/Not authenticated|Forbidden|Not found/);
     expect(fake.calls).toHaveLength(0);
     expect((await rows(t, milestone._id)).payouts).toHaveLength(0);
   });
@@ -842,7 +842,7 @@ describe("retainage release", () => {
     for (const role of ["sub", "owner", null] as const) {
       const caller = role === null ? t : role === "sub" ? sub.as : (await signInAs(t, role)).as;
       const err = await errorOf(caller.action(api.payments.retainage.resumeRetainageRelease, { paymentId: begun.paymentId }));
-      expect(String(err.data?.message ?? err.message)).toMatch(/Not authenticated|Forbidden/);
+      expect(String(err.data?.message ?? err.message)).toMatch(/Not authenticated|Forbidden|Not found/);
     }
     const before = payoutPosts().length;
     const out = await gc.as.action(api.payments.retainage.resumeRetainageRelease, { paymentId: begun.paymentId });
@@ -909,7 +909,7 @@ describe("retainage release", () => {
     const callsBefore = fake.calls.length;
     const caller = role === null ? t : (await signInAs(t, role)).as;
     const err = await errorOf(caller.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id }));
-    expect(String(err.data?.message ?? err.message)).toMatch(/Not authenticated|Forbidden/);
+    expect(String(err.data?.message ?? err.message)).toMatch(/Not authenticated|Forbidden|Not found/);
     expect(fake.calls).toHaveLength(callsBefore);
     expect((await releaseRows(t, agreement._id)).releases).toHaveLength(0);
   });

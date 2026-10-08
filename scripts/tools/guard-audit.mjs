@@ -8,8 +8,7 @@ import path from "node:path";
  * inline routes in convex/http.ts) with the guard call that runs first and its tenancy guard.
  * Fails when a public function has no guard, reads/writes data (ctx.db, ctx.run*, ctx.storage)
  * before the guard, or has no company-tenancy guard (convex/lib/tenancy.ts, lib/projectScope.ts)
- * without being listed as touching no project data. Modules still awaiting their tenancy
- * retrofit are reported as pending instead of failing.
+ * without being listed as touching no project data.
  *
  * Usage: node scripts/tools/guard-audit.mjs [--write docs/guard-audit.md]
  */
@@ -18,6 +17,8 @@ const ROOT = "convex";
 const TENANCY_GUARDS = [
   "requireProjectScope",
   "requireDocScope",
+  "findDocScope",
+  "scopedAgreements",
   "requireProjectScopeInAction",
   "requireDemoCompany",
   "requireDemoCompanyInAction",
@@ -43,9 +44,6 @@ const NO_PROJECT_DATA = new Map([
   ["dashboard/studioProxy:studioPreflight", "CORS preflight"],
   ["projectFileDownload:projectFilePreflight", "CORS preflight"],
 ]);
-// Modules whose tenancy retrofit is a separate feature; their role-only functions are listed as
-// pending rather than failing. Remove a prefix once its module is retrofitted.
-const TENANCY_PENDING_PREFIXES = ["payments/", "payApps/", "agent/", "kernel/", "dashboard/", "judgeDemo/", "agentLinks:"];
 // The app-shell identity query: it reads only the caller's own users row (by getAuthUserId) and
 // returns role null for accounts without a profile, so it cannot expose other users' data.
 const SELF_ONLY = new Map([["profiles:me", /\bgetAuthUserId\(ctx\)/]]);
@@ -81,7 +79,7 @@ function lineOf(src, index) {
 
 const rows = [];
 const problems = [];
-const pending = [];
+const noTenancy = [];
 let internalCount = 0;
 
 for (const file of walk(ROOT).sort()) {
@@ -120,6 +118,14 @@ for (const file of walk(ROOT).sort()) {
     } else if (fnName === "dashboard/studioProxy:studioPreflight") {
       guardText = "CORS preflight only, no data access";
       if (access || /\bfetch\(/.test(body)) problems.push(`${fnName}: preflight touches data`);
+    } else if (fnName === "dashboard/studioProxy:studioProxy") {
+      const identityAt = body.search(/getUserIdentity/);
+      const authorizeAt = body.search(/runQuery\(internal\.dashboard\.studioAccess\.authorizeStudioCaller/);
+      const fetchAt = body.search(/\bfetch\(/);
+      guardText = "Bearer token, then authorizeStudioCaller (requireRole + requireCompanyMember) before fetch";
+      if (identityAt === -1 || authorizeAt < identityAt || fetchAt < authorizeAt || /runMutation|runAction/.test(body)) {
+        problems.push(`${fnName}: model call is not behind the session and company check`);
+      }
     } else if (SELF_ONLY.has(fnName)) {
       const self = body.match(SELF_ONLY.get(fnName));
       guardText = "getAuthUserId(): caller's own users row only, then getViewer()";
@@ -135,13 +141,14 @@ for (const file of walk(ROOT).sort()) {
     const tenancy = body.match(TENANCY);
     let tenancyText;
     if (fnName === "projectFileDownload:projectFileDownload") tenancyText = "requireDocScope() via authorizeDownload";
+    else if (fnName === "dashboard/studioProxy:studioProxy") {
+      tenancyText = "requireCompanyMember() via authorizeStudioCaller; reads no app data itself";
+    }
     else if (tenancy) tenancyText = `${tenancy[1]}()`;
     else if (NO_PROJECT_DATA.has(fnName)) tenancyText = `none needed: ${NO_PROJECT_DATA.get(fnName)}`;
-    else if (TENANCY_PENDING_PREFIXES.some((p) => fnName.startsWith(p))) {
-      tenancyText = "PENDING tenancy retrofit";
-      pending.push(fnName);
-    } else {
+    else {
       tenancyText = "MISSING";
+      noTenancy.push(fnName);
       problems.push(`${fnName} (${where}): no tenancy guard`);
     }
     rows.push({ fnName, kind, where, guardText, tenancyText });
@@ -156,7 +163,7 @@ const lines = [
   "(`convex/lib/tenancy.ts`, `convex/lib/projectScope.ts`) unless it reads no project data.",
   `Internal functions (${internalCount} \`internal*\` exports) are not callable from clients and are not listed.`,
   "",
-  `Public functions: ${rows.length}. Problems: ${problems.length}. Pending tenancy retrofit: ${pending.length}.`,
+  `Public functions: ${rows.length}. Problems: ${problems.length}. Without a tenancy guard: ${noTenancy.length}.`,
   "",
   "| Function | Kind | Location | Guard | Tenancy |",
   "|---|---|---|---|---|",
@@ -177,7 +184,7 @@ if (writeAt !== -1) {
   console.log(`wrote ${process.argv[writeAt + 1]}`);
 }
 console.log(
-  `guard-audit: ${rows.length} public functions, ${internalCount} internal, ${problems.length} problems, ${pending.length} pending tenancy retrofit`,
+  `guard-audit: ${rows.length} public functions, ${internalCount} internal, ${problems.length} problems, ${noTenancy.length} without a tenancy guard`,
 );
 for (const p of problems) console.error(`  - ${p}`);
 process.exit(problems.length ? 1 : 0);

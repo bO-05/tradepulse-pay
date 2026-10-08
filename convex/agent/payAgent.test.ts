@@ -376,7 +376,7 @@ describe("GC approval inbox", () => {
         caller.mutation(api.payApps.proposals.rejectPayApp, { payAppId }),
         caller.query(api.payApps.proposals.listInbox, {}),
       ]) {
-        expect(await errorText(call)).toMatch(/Forbidden/);
+        expect(await errorText(call)).toMatch(/Forbidden|Not found/);
       }
     }
     const after = await state(s, payAppId);

@@ -1,7 +1,9 @@
+import { v } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
 import { query, type QueryCtx } from "../_generated/server";
 import { formatCents, sumCents } from "../lib/money";
 import { requireRole } from "../lib/roles";
+import { scopedAgreements } from "../lib/agreementScope";
 import {
   createReadBudget,
   hasFinancialHistory,
@@ -66,17 +68,18 @@ function subcontractorTotals(subcontractor: string, list: PayRow[]) {
 }
 
 /**
- * Ledger totals per agreement and per subcontractor for the Studio "TradePulse pay agent". Voided
+ * Ledger totals per agreement and per subcontractor for the Studio "TradePulse pay agent", limited
+ * to the caller's projects (one project when `projectId` is given). Voided
  * agreements stay in when they carry money history. Each amount is the same computeLedgerTotals figure the agreement ledger view shows, summed in
  * integer cents and pre-formatted so the model quotes Convex numbers instead of doing arithmetic.
  */
 export const getPaySummary = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { projectId: v.optional(v.string()) },
+  handler: async (ctx, args) => {
     await requireRole(ctx, ["gc", "owner"]);
-    const newest = await ctx.db.query("agreements").order("desc").take(DASHBOARD_MAX_AGREEMENTS + 1);
-    const agreementsTruncated = newest.length > DASHBOARD_MAX_AGREEMENTS;
-    const all = newest.slice(0, DASHBOARD_MAX_AGREEMENTS);
+    const scoped = await scopedAgreements(ctx, { parties: ["gc", "owner"], projectId: args.projectId, limit: DASHBOARD_MAX_AGREEMENTS });
+    const agreementsTruncated = scoped.truncated;
+    const all = scoped.rows.map((r) => r.agreement);
     const budget = createReadBudget(DASHBOARD_READ_BUDGET - all.length);
     const rows: PayRow[] = [];
     for (const a of all) {

@@ -3,7 +3,7 @@ import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { action, env, internalAction, type ActionCtx } from "../_generated/server";
 import { toPayPalString } from "../lib/money";
-import { requireRoleInAction } from "../lib/roles";
+import { requireProjectScopeInAction } from "../lib/tenancyAction";
 import { buildInvoiceBody, invoiceIdFromCreateResponse, payerViewUrlFor, type PayPalInvoice } from "./changeOrderMath";
 import type { BeginInvoice } from "./changeOrderDb";
 import { payPalClientForAction, type PayPalClient } from "./paypalClient";
@@ -125,10 +125,6 @@ async function refreshChangeOrder(ctx: ActionCtx, changeOrderId: Id<"changeOrder
   return { changeOrderId, status: applied.status ?? row.status, paypalInvoiceStatus: invoice.status, changed: applied.changed };
 }
 
-async function actorFor(ctx: ActionCtx, userId: Id<"users">): Promise<string> {
-  return await ctx.runQuery(internal.payments.release.actorForUser, { userId });
-}
-
 const createArgs = {
   agreementId: v.id("agreements"),
   number: v.optional(v.number()),
@@ -136,37 +132,40 @@ const createArgs = {
   amountCents: v.number(),
 };
 
-/** GC only: records the change order, then creates and sends its PayPal invoice to the Owner. */
+/**
+ * GC of the agreement's project only: records the change order, then creates and sends its PayPal
+ * invoice to that project's owner.
+ */
 export const createChangeOrder = action({
   args: createArgs,
   returns: invoiceResult,
   handler: async (ctx, args): Promise<InvoiceResult> => {
-    const viewer = await requireRoleInAction(ctx, ["gc"]);
+    const scope = await requireProjectScopeInAction(ctx, { docs: [{ table: "agreements", id: args.agreementId }] }, { roles: ["gc"], write: true });
     const changeOrderId: Id<"changeOrders"> = await ctx.runMutation(internal.payments.changeOrderDb.insertChangeOrder, {
       ...args,
-      createdBy: viewer.userId,
+      createdBy: scope.userId,
     });
-    return await invoiceChangeOrder(ctx, changeOrderId, await actorFor(ctx, viewer.userId));
+    return await invoiceChangeOrder(ctx, changeOrderId, scope.actor);
   },
 });
 
-/** GC only: retries invoicing a change order whose create or send did not finish. */
+/** GC of the project only: retries invoicing a change order whose create or send did not finish. */
 export const sendChangeOrderInvoice = action({
   args: { changeOrderId: v.id("changeOrders") },
   returns: invoiceResult,
   handler: async (ctx, { changeOrderId }): Promise<InvoiceResult> => {
-    const viewer = await requireRoleInAction(ctx, ["gc"]);
-    return await invoiceChangeOrder(ctx, changeOrderId, await actorFor(ctx, viewer.userId));
+    const scope = await requireProjectScopeInAction(ctx, { docs: [{ table: "changeOrders", id: changeOrderId }] }, { roles: ["gc"], write: true });
+    return await invoiceChangeOrder(ctx, changeOrderId, scope.actor);
   },
 });
 
-/** GC or Owner: reads the invoice from PayPal and applies its status (e.g. PAID → paid). Read only at PayPal. */
+/** GC or owner of the project: reads the invoice from PayPal and applies its status (e.g. PAID → paid). Read only at PayPal. */
 export const refreshChangeOrderStatus = action({
   args: { changeOrderId: v.id("changeOrders") },
   returns: refreshResult,
   handler: async (ctx, { changeOrderId }): Promise<RefreshResult> => {
-    const viewer = await requireRoleInAction(ctx, ["gc", "owner"]);
-    return await refreshChangeOrder(ctx, changeOrderId, await actorFor(ctx, viewer.userId));
+    const scope = await requireProjectScopeInAction(ctx, { docs: [{ table: "changeOrders", id: changeOrderId }] }, { roles: ["gc", "owner"] });
+    return await refreshChangeOrder(ctx, changeOrderId, scope.actor);
   },
 });
 

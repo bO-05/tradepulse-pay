@@ -1,7 +1,9 @@
 import { v } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
 import { query } from "../_generated/server";
-import { canViewAgreement, requireRole } from "../lib/roles";
+import { requireRole } from "../lib/roles";
+import { scopedAgreements } from "../lib/agreementScope";
+import { findDocScope } from "../lib/projectScope";
 import { loadBillingHistory, unresolvedApprovalMessage } from "../payApps/billingHistory";
 import { isCaptureCollected } from "./captureSettlement";
 import { HISTORY_TRUNCATED_MESSAGE, loadAgreementHistory } from "./agreementHistory";
@@ -66,41 +68,28 @@ function releaseSummary(p: Doc<"payments">, showReceiver: boolean, retry?: { cap
   };
 }
 
-/** Payments workspace list: GC sees every live agreement, a sub only its own contractor's. */
+/** Payments workspace list: the GC sees its projects' live agreements, a sub only its own vendor's. */
 export const listLedgerAgreements = query({
   args: {},
   handler: async (ctx) => {
-    const viewer = await requireRole(ctx, ["gc", "sub"]);
-    let agreements: Doc<"agreements">[];
-    if (viewer.role === "gc") {
-      agreements = await ctx.db.query("agreements").order("desc").take(200);
-    } else {
-      const contractorId = viewer.profile.contractorId;
-      agreements = contractorId
-        ? await ctx.db
-            .query("agreements")
-            .withIndex("by_contractorId", (q) => q.eq("contractorId", contractorId))
-            .take(100)
-        : [];
-    }
-    return agreements
-      .filter((a) => a.status !== "superseded" && canViewAgreement(viewer, a))
-      .map(ledgerAgreementSummary);
+    await requireRole(ctx, ["gc", "sub"]);
+    const { rows } = await scopedAgreements(ctx, { parties: ["gc", "sub"], limit: 200 });
+    return rows.filter((r) => r.agreement.status !== "superseded").map((r) => ledgerAgreementSummary(r.agreement));
   },
 });
 
 /**
- * One agreement's ledger. Returns null both when the agreement does not exist
- * and when the caller may not see it, so a sub cannot probe other agreements.
+ * One agreement's ledger. Returns null both when the agreement does not exist and when the caller
+ * may not see it (another company, another sub's agreement), so ids cannot be probed.
  */
 export const getAgreementLedger = query({
   args: { agreementId: v.string() },
   handler: async (ctx, args) => {
-    const viewer = await requireRole(ctx, ["gc", "sub", "owner"]);
-    const id = ctx.db.normalizeId("agreements", args.agreementId);
-    if (id === null) return null;
-    const agreement = await ctx.db.get(id);
-    if (agreement === null || !canViewAgreement(viewer, agreement)) return null;
+    const scope = await findDocScope(ctx, "agreements", args.agreementId);
+    if (scope === null) return null;
+    const agreement = scope.doc;
+    const id = agreement._id;
+    const viewer = scope.viewer;
 
     const sov = await ctx.db
       .query("scheduleOfValues")
