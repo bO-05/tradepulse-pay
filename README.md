@@ -91,8 +91,8 @@ Rules the code enforces:
 ### 1. Install
 
 ```bash
-git clone https://github.com/bO-05/tradepulse-pro.git
-cd tradepulse-pro
+git clone https://github.com/bO-05/tradepulse-pay.git
+cd tradepulse-pay
 git checkout paypal-hackathon
 npm ci
 ```
