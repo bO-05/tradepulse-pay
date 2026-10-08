@@ -33,8 +33,8 @@ TradePulse Pay takes the contract the GC just awarded in TradePulse Pro and runs
 The TradePulse Pay work is the commit range **`2ad5543..paypal-hackathon`** on branch `paypal-hackathon` (first commit `fc2f763`, Oct 7 2026). `2ad5543` is the last TradePulse Pro commit (Sep 22 2026). See them with `git log --oneline 2ad5543..paypal-hackathon`.
 
 - **Sign-in and roles (AUTH).** Convex Auth email + password with roles gc, sub and owner; AgentID sign-in for billing agents with GC-managed links; every public Convex function, old and new, is role-guarded (`docs/guard-audit.md`).
-- **Payments (PAY).** Payments schema and integer-cents money helpers; PayPal client with token cache, `PayPal-Request-Id` idempotency, backoff and audit logs; SOV and milestones on execution; AUTHORIZE funding; partial capture, void and reauthorize; payouts net of retainage; retainage ledger and closeout release; change-order invoices; signature-verified `/paypal/webhook`; hourly honor-period watcher; payout retry and ledger reconciliation.
-- **Pay apps and agent (AGENT).** Sub pay-application submit and withdraw with agent attribution; AI review with structured verdicts and an "Offline rules engine" fallback; KERNEL CSLB license checks with live view and 24 h cache; pay-agent proposals with a GC approval inbox.
+- **Payments (PAY).** Payments schema and integer-cents money helpers; PayPal client with token cache, `PayPal-Request-Id` idempotency, backoff and audit logs; SOV and milestones on execution; AUTHORIZE funding; partial capture, void and reauthorize; payouts net of retainage; retainage ledger and closeout release; change-order invoices; signature-verified `/paypal/webhook`; hourly honor-period watcher; payout retry and ledger reconciliation; a read-only milestone funding summary for subs.
+- **Pay apps and agent (AGENT).** Sub pay-application submit and withdraw with agent attribution; previous % to date taken from approved billing only, with amounts still pending review shown separately; AI review with structured verdicts and an "Offline rules engine" fallback; KERNEL CSLB license checks with live view and 24 h cache; pay-agent proposals with a GC approval inbox.
 - **Dashboard (DASH).** Lazy-loaded AG Studio payments dashboard for the GC and a read-only owner view, with the TradePulse pay agent wired through the auth-gated `/ai/studio` Anthropic proxy.
 - **Submission (DOCS, PAY).** Postman collection and APIMatic log, the one-click judge demo, this README, `.env.example`, the secret sweep and the guard audit.
 
@@ -104,6 +104,8 @@ npm ci
 - **Browser (`.env.local`, gitignored):** `VITE_CONVEX_URL`, `VITE_CONVEX_SITE_URL`, `VITE_PAYPAL_CLIENT_ID` (public by design), `VITE_AG_STUDIO_LICENSE_KEY` (client-side by design).
 - **Convex deployment:** `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL=claude-sonnet-5-5`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_ENV=sandbox`, `PAYPAL_WEBHOOK_ID`, `PAYPAL_SANDBOX_{GC_BUYER,SUB1,SUB2,SUB3,OWNER}_EMAIL`, `KERNEL_API_KEY`, `FIRECRAWL_API_KEY`, `AGENTMAIL_API_KEY`, `AUTH_AGENTID_ID`, `AUTH_AGENTID_SECRET`, `SITE_URL`, plus `JWT_PRIVATE_KEY` and `JWKS` (generated below).
 
+Names marked `# optional` in `.env.example` are unset on dev and production and the code works without them. [`docs/prod-env-names.md`](./docs/prod-env-names.md) reconciles every backend-read name against the production deployment (names only).
+
 Keep real values in a secrets file outside the repo. The setup scripts read it, pipe each value to `npx convex env set` on stdin and print names only. They refuse the frozen `brainy-skunk-440` deployment.
 
 ### 3. Convex deployment (sandbox setup)
@@ -159,6 +161,8 @@ All demo accounts share the public demo password **`TradePulseDemo!2026`**.
 | `sub3@demo.tradepulse` | Subcontractor | Only Clarke Kent Plumbing's agreements and pay applications |
 | `owner@demo.tradepulse` | Owner | Read-only projects, agreements and change-order invoices, and the read-only dashboard; no award, approve or fund controls |
 
+A sub's portal and agreement summary include a read-only **Milestone funding** section per agreement (Not funded, Funded (authorized), Captured or Paid); the GC ledger shows the same label under each milestone. On the pay-application form, each line shows the **% approved to date** (approved billing only) and any amount **pending review** from pay apps not yet approved.
+
 ## Guest test card (PayPal sandbox)
 
 There is no buyer password. Fund milestones and pay invoices with PayPal guest checkout:
@@ -196,7 +200,7 @@ Sign in as `gc@demo.tradepulse`, open the **⚡ 60s Judge Dock** and click **Run
 6. A $1,850.00 change order is invoiced to the Owner through PayPal Invoicing. The dashboard step turns green once its totals match the ledger.
 7. **The Owner** pays the invoice in their own browser (sign in as `owner@demo.tradepulse`, **Projects & change orders**, **Open PayPal invoice**, pay with the guest card and a guest email), then clicks **Refresh status**.
 
-The page shows each step's status from Convex and PayPal, and the time from start to the change-order invoice. "Continue this run" resumes after a reload or re-sign-in.
+The page shows each step's status from Convex and PayPal, and the time from start to the change-order invoice. "Continue this run" resumes after a reload or re-sign-in, including a change order left as a draft; that step finishes only once the invoice is sent and has a payer link.
 
 **Sandbox-only setup step: top up the platform balance before releasing retainage.** PayPal keeps about 3.5% + $0.49 of every capture, so after paying subs 90% the sandbox platform account holds less than the retainage it owes, and a retainage release fails with `INSUFFICIENT_FUNDS`. The demo page's optional closeout section has a GC-only **Sandbox setup: top up the platform balance** panel (`payments/sandboxTopUp:createTopUpOrder` / `captureTopUpOrder`). It creates a PayPal CAPTURE order (suggested amount: 110% of the retainage held), opens the PayPal checkout in a new tab (pay as guest with the card above), and then **Capture top-up** moves the funds into the platform account. If PayPal reports the capture as `PENDING`, the top-up stays pending and does not count as funding; **Check capture status** reads the same capture again (it never captures twice) until PayPal marks it `COMPLETED` or denies it. Wait about 15 s, then click **Release retainage**. The top-up is not linked to any agreement and is never counted in ledger or dashboard totals. It refuses to run unless `PAYPAL_ENV` is `sandbox`.
 
@@ -282,6 +286,8 @@ curl -s https://<deployment>.convex.site/api/health
 ```
 
 The end-to-end check is the judge demo above, signed in as the demo GC.
+
+To exercise the procurement award path instead, the internal fixture `procurementScenario:seedProcurementScenario` (args `{"suffix": "<letters-digits-hyphens>"}`, run with `npx convex run` as above) creates a fresh project with one Div 26 package in bid leveling, where sub1's contractor is invited (`tradePackages.invitedContractorIds`) next to a competing bidder. Nothing is awarded; the GC awards and executes it in the Procurement views. It never modifies existing contractors or agreements, and re-running with the same suffix returns the same rows.
 
 ### Legacy checks and scripts
 
