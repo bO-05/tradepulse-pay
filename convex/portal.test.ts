@@ -243,3 +243,75 @@ describe("mySubPortal payout outcome", () => {
     expect(ledger.reduce((a, r) => a + r.deltaCents, 0)).toBe(0);
   });
 });
+
+describe("mySubPortal milestone funding", () => {
+  async function fundFirstMilestone(t: T, agreementId: Id<"agreements">, status: "authorized" | "partially_captured", capturedCents = 0) {
+    return await t.run(async (ctx) => {
+      const milestone = (await ctx.db
+        .query("milestones")
+        .withIndex("by_agreementId_and_order", (q) => q.eq("agreementId", agreementId))
+        .first())!;
+      await ctx.db.patch(milestone._id, { status: "funded" });
+      const existing = (await ctx.db
+        .query("payments")
+        .withIndex("by_milestoneId", (q) => q.eq("milestoneId", milestone._id))
+        .collect()).find((p) => p.kind === "funding");
+      if (existing) {
+        await ctx.db.patch(existing._id, { status, capturedCents });
+      } else {
+        const now = Date.now();
+        await ctx.db.insert("payments", {
+          agreementId,
+          milestoneId: milestone._id,
+          kind: "funding",
+          status,
+          paypalOrderId: "PORTAL-ORDER-1",
+          paypalAuthorizationId: "PORTAL-AUTH-1",
+          authorizationExpiresAt: now + 29 * 86_400_000,
+          honorPeriodEndsAt: now + 3 * 86_400_000,
+          grossCents: milestone.amountCents,
+          retainageCents: 0,
+          netCents: milestone.amountCents,
+          capturedCents,
+          idempotencyKey: "portal-funding",
+          createdAt: now,
+        });
+      }
+      return milestone;
+    });
+  }
+
+  test("sub1 sees each milestone's name, amount and funding state, and it follows the funding row", async () => {
+    const { t, sub1, agreement } = await setup();
+    const before = await sub1.as.query(api.portal.mySubPortal, {});
+    expect(before.milestoneFunding.map((a) => a.agreementId)).toEqual([agreement._id]);
+    const rows = before.milestoneFunding[0].milestones;
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every((m) => m.state === "not_funded" && m.amountCents > 0 && m.name.length > 0)).toBe(true);
+
+    const milestone = await fundFirstMilestone(t, agreement._id, "authorized");
+    const funded = (await sub1.as.query(api.portal.mySubPortal, {})).milestoneFunding[0].milestones;
+    expect(funded[0]).toMatchObject({ _id: milestone._id, name: milestone.name, amountCents: milestone.amountCents, state: "funded" });
+    expect(funded.slice(1).every((m) => m.state === "not_funded")).toBe(true);
+
+    await fundFirstMilestone(t, agreement._id, "partially_captured", 1_000);
+    const captured = (await sub1.as.query(api.portal.mySubPortal, {})).milestoneFunding[0].milestones;
+    expect(captured[0]).toMatchObject({ state: "captured", capturedCents: 1_000 });
+
+    const detail = await sub1.as.query(api.portal.getAgreementSummary, { agreementId: agreement._id });
+    expect(detail?.milestones[0]).toMatchObject({ _id: milestone._id, state: "captured" });
+  });
+
+  test("sub2 sees none of sub1's milestones in its portal or through the agreement detail", async () => {
+    const { t, agreement } = await setup();
+    await fundFirstMilestone(t, agreement._id, "authorized");
+    const other = await t.run(async (ctx) => (await ctx.db.query("contractors").collect()).find((c) => c._id !== agreement.contractorId)!._id);
+    const sub2 = await signInAs(t, "sub", { email: "sub2@test.tradepulse", contractorId: other });
+    const portal = await sub2.as.query(api.portal.mySubPortal, {});
+    expect(portal.milestoneFunding).toEqual([]);
+    expect(JSON.stringify(portal)).not.toContain(agreement._id);
+    expect(await sub2.as.query(api.portal.getAgreementSummary, { agreementId: agreement._id })).toBeNull();
+    const loose = await signInAs(t, "sub", { email: "loose@test.tradepulse" });
+    expect((await loose.as.query(api.portal.mySubPortal, {})).milestoneFunding).toEqual([]);
+  });
+});

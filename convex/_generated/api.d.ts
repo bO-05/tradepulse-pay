@@ -76,6 +76,7 @@ import type * as payments_honorPeriodMath from "../payments/honorPeriodMath.js";
 import type * as payments_invoices from "../payments/invoices.js";
 import type * as payments_ledger from "../payments/ledger.js";
 import type * as payments_ledgerTotals from "../payments/ledgerTotals.js";
+import type * as payments_milestoneFundingState from "../payments/milestoneFundingState.js";
 import type * as payments_orders from "../payments/orders.js";
 import type * as payments_payoutDb from "../payments/payoutDb.js";
 import type * as payments_payoutMath from "../payments/payoutMath.js";
@@ -188,6 +189,7 @@ declare const fullApi: ApiFromModules<{
   "payments/invoices": typeof payments_invoices;
   "payments/ledger": typeof payments_ledger;
   "payments/ledgerTotals": typeof payments_ledgerTotals;
+  "payments/milestoneFundingState": typeof payments_milestoneFundingState;
   "payments/orders": typeof payments_orders;
   "payments/payoutDb": typeof payments_payoutDb;
   "payments/payoutMath": typeof payments_payoutMath;

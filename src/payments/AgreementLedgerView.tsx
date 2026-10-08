@@ -1,6 +1,7 @@
 import { useQuery } from "convex/react";
 import type { ReactNode } from "react";
 import { api } from "../../convex/_generated/api";
+import { milestoneFundingLabel, milestoneFundingState } from "../../convex/payments/milestoneFundingState";
 import { AgreementChangeOrders } from "./ChangeOrders";
 import { formatCents, formatDate } from "./format";
 import { FundMilestoneControl, FundingProvider, FundingStatus } from "./FundMilestone";
@@ -195,6 +196,9 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
                         data-testid="milestone-status"
                       >
                         {m.status}
+                      </span>
+                      <span className="block mt-1 text-xs text-slate-400" data-testid="milestone-funding-state">
+                        {milestoneFundingLabel(milestoneFundingState(m.status, m.funding))}
                       </span>
                     </td>
                     <td className="py-2 pr-3 text-right tabular-nums">{formatCents(m.amountCents)}</td>

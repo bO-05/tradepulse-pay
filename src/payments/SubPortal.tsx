@@ -6,6 +6,7 @@ import { PayAppForm } from "./PayAppForm";
 import { subPayoutStatusLabel } from "./payoutStatusLabel";
 import { WithdrawPayAppButton } from "./WithdrawPayAppButton";
 import { JudgeDemoBadge } from "./JudgeDemoBadge";
+import { MilestoneFundingTable } from "./MilestoneFundingSummary";
 
 const PAY_APP_PAGE_SIZE = 25;
 
@@ -76,6 +77,29 @@ export function SubPortal() {
               ))}
             </tbody>
           </table>
+        )}
+      </section>
+
+      <section aria-labelledby="sub-milestone-funding" className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+        <div>
+          <h2 id="sub-milestone-funding" className="text-base font-semibold">
+            Milestone funding
+          </h2>
+          <p className="text-xs text-slate-400 mt-1">
+            Whether the GC has funded each milestone of your executed agreements, newest first. Funding is handled by the GC.
+          </p>
+        </div>
+        {portal.milestoneFunding.length === 0 ? (
+          <p className="text-sm text-slate-400">No executed agreements yet.</p>
+        ) : (
+          portal.milestoneFunding.map((a) => (
+            <div key={a.agreementId} data-testid="sub-milestone-funding-agreement">
+              <h3 className="text-sm font-semibold mb-1">
+                {a.agreementNumber} <span className="font-normal text-slate-400">· {a.projectTitle}</span>
+              </h3>
+              <MilestoneFundingTable milestones={a.milestones} label={`Milestone funding for ${a.agreementNumber}`} />
+            </div>
+          ))
         )}
       </section>
 

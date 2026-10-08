@@ -4,6 +4,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { query, type QueryCtx } from "./_generated/server";
 import { canViewAgreement, requireRole } from "./lib/roles";
 import { changeOrderView } from "./payments/changeOrderDb";
+import { loadMilestoneFunding } from "./payments/milestoneFundingState";
 import { WITHDRAWABLE_PAY_APP_STATUSES } from "./payApps/validation";
 
 function agreementSummary(a: Doc<"agreements">) {
@@ -85,11 +86,24 @@ export const mySubPortal = query({
     const contractorId = viewer.profile.contractorId;
     const contractor = contractorId ? await ctx.db.get(contractorId) : null;
     const visible = await subAgreements(ctx, contractorId);
+    const milestoneFunding = [];
+    const executedNewestFirst = visible
+      .filter((a) => a.status === "executed")
+      .sort((x, y) => (y.executedAt ?? y.createdAt) - (x.executedAt ?? x.createdAt));
+    for (const a of executedNewestFirst) {
+      milestoneFunding.push({
+        agreementId: a._id,
+        agreementNumber: a.agreementNumber,
+        projectTitle: a.projectTitle,
+        milestones: await loadMilestoneFunding(ctx, a._id),
+      });
+    }
     return {
       displayName: viewer.profile.displayName,
       contractorName: contractor?.companyName ?? null,
       paypalEmail: viewer.profile.paypalEmail ?? null,
       agreements: visible.map(agreementSummary),
+      milestoneFunding,
     };
   },
 });
@@ -157,7 +171,7 @@ export const getAgreementSummary = query({
     if (id === null) return null;
     const agreement = await ctx.db.get(id);
     if (agreement === null || !canViewAgreement(viewer, agreement)) return null;
-    return agreementSummary(agreement);
+    return { ...agreementSummary(agreement), milestones: await loadMilestoneFunding(ctx, agreement._id) };
   },
 });
 
