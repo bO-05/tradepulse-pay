@@ -1290,7 +1290,7 @@ export const App: React.FC = () => {
             contractors={contractors}
             onSubmitRfi={handleSubmitRfi}
             onRetryRfi={handleRetryRfi}
-            onOpenSimulation={() => setIsSimulationOpen(true)}
+            onOpenSimulation={isDemo ? () => setIsSimulationOpen(true) : undefined}
             onReviewRfi={handleReviewRfi}
             onNavigateToLeveling={() => setActiveTab("leveling")}
             onNavigateToPackages={() => setActiveTab("packages")}
@@ -1306,7 +1306,7 @@ export const App: React.FC = () => {
             bids={bids}
             contractors={contractors}
             onAwardContract={handleAwardContract}
-            onOpenSimulation={() => setIsSimulationOpen(true)}
+            onOpenSimulation={isDemo ? () => setIsSimulationOpen(true) : undefined}
             onNavigateToCoordination={() => setActiveTab("coordination")}
             agreements={agreements}
             onUpdateAdjustments={handleUpdateBidAdjustments}

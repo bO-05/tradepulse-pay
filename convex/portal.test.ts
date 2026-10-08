@@ -159,7 +159,7 @@ describe("mySubPayApps across contractor relationships", () => {
     await t.run(async (ctx) => {
       const rows = await ctx.db
         .query("projectMembers")
-        .withIndex("by_project_company", (q) => q.eq("projectId", fx.gcA.project.projectId).eq("companyId", fx.sub.companyId))
+        .withIndex("by_project_company_and_status", (q) => q.eq("projectId", fx.gcA.project.projectId).eq("companyId", fx.sub.companyId))
         .collect();
       for (const r of rows) await ctx.db.patch(r._id, { status: "removed" });
     });

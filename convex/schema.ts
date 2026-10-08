@@ -214,7 +214,7 @@ export default defineSchema({
   })
     .index("by_projectId", ["projectId"])
     .index("by_companyId", ["companyId"])
-    .index("by_project_company", ["projectId", "companyId"]),
+    .index("by_project_company_and_status", ["projectId", "companyId", "status"]),
 
   // The plaintext token exists only in the invite link; only its sha256 hex is stored.
   invites: defineTable({

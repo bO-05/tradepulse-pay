@@ -118,7 +118,7 @@ async function ensureProjectMember(
 ): Promise<void> {
   const rows = await ctx.db
     .query("projectMembers")
-    .withIndex("by_project_company", (q) => q.eq("projectId", projectId).eq("companyId", companyId))
+    .withIndex("by_project_company_and_status", (q) => q.eq("projectId", projectId).eq("companyId", companyId))
     .take(5);
   // A removed row stays removed: re-running the seed must not undo a deliberate removal.
   if (rows.length > 0) return;

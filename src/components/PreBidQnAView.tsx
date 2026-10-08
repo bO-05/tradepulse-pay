@@ -43,7 +43,8 @@ interface PreBidQnAViewProps {
     question: string;
     tradePackageId?: string;
   }) => Promise<{ conversationId?: string } | void>;
-  onOpenSimulation: () => void;
+  /** Demo companies only; real companies get no simulation controls. */
+  onOpenSimulation?: () => void;
   projectId?: string;
   projectTitle?: string;
   onRetryRfi?: (conversationId: string) => Promise<void>;
@@ -497,13 +498,15 @@ Each proposal submitted must include affirmative written acknowledgement of ADDE
               </span>
             )}
 
-            <button
-              onClick={onOpenSimulation}
-              className="bg-sky-700 hover:bg-sky-600 text-white font-semibold text-xs px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition shadow-sm"
-            >
-              <Sparkles className="w-4 h-4" />
-              Simulate Inbound RFI
-            </button>
+            {onOpenSimulation && (
+              <button
+                onClick={onOpenSimulation}
+                className="bg-sky-700 hover:bg-sky-600 text-white font-semibold text-xs px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition shadow-sm"
+              >
+                <Sparkles className="w-4 h-4" />
+                Simulate Inbound RFI
+              </button>
+            )}
           </div>
         </div>
 

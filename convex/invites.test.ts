@@ -233,7 +233,7 @@ describe("accepting invites", () => {
         company: await ctx.db.get(accepted.companyId),
         vendor: await ctx.db.get(invite.vendorId!),
         contractor: await ctx.db.get(fresh.contractorId),
-        members: await ctx.db.query("projectMembers").withIndex("by_project_company", (q) => q.eq("projectId", fresh.projectId).eq("companyId", accepted.companyId)).collect(),
+        members: await ctx.db.query("projectMembers").withIndex("by_project_company_and_status", (q) => q.eq("projectId", fresh.projectId).eq("companyId", accepted.companyId)).collect(),
         admin: await ctx.db.query("companyMembers").withIndex("by_userId", (q) => q.eq("userId", kim.userId)).collect(),
       };
     });
@@ -275,6 +275,59 @@ describe("accepting invites", () => {
     await expect(fx.gcB.admin.as.query(api.people.listForProject, { projectId: fx.gcA.project.projectId })).rejects.toThrow(/Not found/);
   });
 
+  test("a sub invite never admits a fresh account into the vendor's existing sub company", async () => {
+    const { t, fx, fresh } = await setup();
+    // Bayview's vendor record is already linked to Eastbay's company; Bayview invites an address it controls.
+    const vendorId = await t.run(async (ctx) =>
+      ctx.db.insert("vendors", {
+        companyId: fx.gcA.companyId,
+        name: "Eastbay Electric",
+        trades: ["26 00 00"],
+        contactName: "Kim",
+        email: fx.sub.admin.email,
+        linkedCompanyId: fx.sub.companyId,
+        status: "active",
+        createdAt: Date.now(),
+      }),
+    );
+    const res = await fx.gcA.admin.as.action(api.invites.create, {
+      kind: "sub",
+      email: "spy@bayview-controlled.test",
+      projectId: fresh.projectId,
+      vendorId,
+      sendEmail: false,
+    });
+    const spy = await newHuman(t, "spy@bayview-controlled.test", "Spy");
+    const before = await dump(t);
+    await expect(spy.as.mutation(api.invites.accept, { token: tokenOf(res.link) })).rejects.toThrow(
+      "Eastbay Electric is already on TradePulse Pay — invite one of its members, or ask its admin to add you.",
+    );
+    expect(await dump(t)).toBe(before);
+    expect((await inviteRow(t, res.inviteId)).status).toBe("pending");
+    // The fresh account gained nothing: no company, no access to Eastbay's projects with either GC.
+    await expect(spy.as.query(api.projects.getProject, { projectId: fx.gcA.project.projectId })).rejects.toThrow(/Not found|NO_COMPANY/);
+    const members = await t.run(async (ctx) =>
+      ctx.db.query("companyMembers").withIndex("by_companyId", (q) => q.eq("companyId", fx.sub.companyId)).collect(),
+    );
+    expect(members.map((m) => m.userId)).toEqual([fx.sub.admin.userId]);
+
+    // A member of a different sub company is refused the same way.
+    const other = await t.run(async (ctx) => {
+      const companyId = await ctx.db.insert("companies", { name: "Lakeshore Mechanical", kind: "sub", isDemo: false, createdAt: Date.now() });
+      const userId = await ctx.db.insert("users", { email: "ray@lakeshore.test", name: "Ray", emailVerificationTime: Date.now() });
+      await ctx.db.insert("companyMembers", { companyId, userId, role: "admin", status: "active", createdAt: Date.now() });
+      return userId;
+    });
+    const ray = await withSession(t, other, "ray@lakeshore.test");
+    const res2 = await fx.gcA.admin.as.action(api.invites.create, { kind: "sub", email: "ray@lakeshore.test", projectId: fresh.projectId, vendorId, sendEmail: false });
+    await expect(ray.mutation(api.invites.accept, { token: tokenOf(res2.link) })).rejects.toThrow(/Eastbay Electric is already on TradePulse Pay/);
+
+    // A member of the linked company itself still accepts.
+    const res3 = await fx.gcA.admin.as.action(api.invites.create, { kind: "sub", email: fx.sub.admin.email, projectId: fresh.projectId, vendorId, sendEmail: false });
+    const accepted = await fx.sub.admin.as.mutation(api.invites.accept, { token: tokenOf(res3.link) });
+    expect(accepted.companyId).toBe(fx.sub.companyId);
+  });
+
   test("owner invite creates the owner company (name prefilled, editable) and sets the project owner", async () => {
     const { t, fx, fresh } = await setup();
     const res = await fx.gcA.admin.as.action(api.invites.create, { kind: "owner", email: "mendez@mail-test.com", projectId: fresh.projectId, sendEmail: false });
@@ -285,7 +338,7 @@ describe("accepting invites", () => {
     const rows = await t.run(async (ctx) => ({
       company: await ctx.db.get(accepted.companyId),
       project: await ctx.db.get(fresh.projectId),
-      members: await ctx.db.query("projectMembers").withIndex("by_project_company", (q) => q.eq("projectId", fresh.projectId).eq("companyId", accepted.companyId)).collect(),
+      members: await ctx.db.query("projectMembers").withIndex("by_project_company_and_status", (q) => q.eq("projectId", fresh.projectId).eq("companyId", accepted.companyId)).collect(),
     }));
     expect(rows.company).toMatchObject({ name: "Harbor Point Dental LLC", kind: "owner" });
     expect(rows.project?.ownerCompanyId).toBe(accepted.companyId);
@@ -399,7 +452,7 @@ describe("people and company settings", () => {
     await expect(fx.sub.admin.as.query(api.projects.getProject, { projectId })).rejects.toThrow(/Not found/);
     expect(await fx.sub.admin.as.query(api.people.projectOverview, { projectId })).toBeNull();
     const row = await t.run(async (ctx) =>
-      ctx.db.query("projectMembers").withIndex("by_project_company", (q) => q.eq("projectId", projectId).eq("companyId", fx.sub.companyId)).collect(),
+      ctx.db.query("projectMembers").withIndex("by_project_company_and_status", (q) => q.eq("projectId", projectId).eq("companyId", fx.sub.companyId)).collect(),
     );
     expect(row).toEqual([expect.objectContaining({ status: "removed" })]);
     // History stays with the GC.
@@ -483,6 +536,93 @@ describe("people and company settings", () => {
       expect(mine?.members.map((m) => m.email)).not.toContain("luis@bayview.test");
     }
     expect((await inviteRow(t, inv.inviteId)).status).toBe("pending");
+  });
+
+  test("People shows the GC company's teammate invites: admins manage them, members only see status", async () => {
+    const { t, fx } = await setup();
+    const projectId = fx.gcA.project.projectId;
+    const inv = await fx.gcA.admin.as.action(api.invites.create, { kind: "teammate", email: "pm-new@mail-test.com", sendEmail: false });
+    // Another GC's teammate invite never shows up.
+    await fx.gcB.admin.as.action(api.invites.create, { kind: "teammate", email: "sonoran-pm@mail-test.com", sendEmail: false });
+
+    const asAdmin = await fx.gcA.admin.as.query(api.people.listForProject, { projectId });
+    expect(asAdmin.canManageTeammateInvites).toBe(true);
+    expect(asAdmin.teammateInvites).toEqual([expect.objectContaining({ _id: inv.inviteId, email: "pm-new@mail-test.com", status: "pending" })]);
+    expect(asAdmin.invites.map((i) => i._id)).not.toContain(inv.inviteId);
+
+    const asMember = await fx.gcA.member.as.query(api.people.listForProject, { projectId });
+    expect(asMember.canManageTeammateInvites).toBe(false);
+    expect(asMember.teammateInvites.map((i) => [i.email, i.status])).toEqual([["pm-new@mail-test.com", "pending"]]);
+    // Members cannot manage them; Company settings permissions are unchanged.
+    await expect(fx.gcA.member.as.mutation(api.invites.revoke, { inviteId: inv.inviteId })).rejects.toThrow(/only company admins/);
+    await expect(fx.gcA.member.as.action(api.invites.resend, { inviteId: inv.inviteId, sendEmail: false })).rejects.toThrow(/only company admins/);
+    expect((await fx.gcA.member.as.query(api.companies.myCompany, {})).teammateInvites).toEqual([]);
+
+    const copied = await fx.gcA.admin.as.action(api.invites.resend, { inviteId: inv.inviteId, sendEmail: false });
+    expect(copied.link).not.toBe(inv.link);
+    await fx.gcA.admin.as.mutation(api.invites.revoke, { inviteId: inv.inviteId });
+    const after = await fx.gcA.admin.as.query(api.people.listForProject, { projectId });
+    expect(after.teammateInvites.map((i) => i.status)).toEqual(["revoked"]);
+    expect((await inviteRow(t, inv.inviteId)).status).toBe("revoked");
+  });
+
+  test("removed project-member history never hides an active membership", async () => {
+    const { t, fx } = await setup();
+    const projectId = fx.gcA.project.projectId;
+    await t.run(async (ctx) => {
+      const rows = await ctx.db
+        .query("projectMembers")
+        .withIndex("by_project_company_and_status", (q) => q.eq("projectId", projectId).eq("companyId", fx.sub.companyId))
+        .collect();
+      for (const r of rows) await ctx.db.patch(r._id, { status: "removed", removedAt: Date.now() });
+      for (let i = 0; i < 7; i++) {
+        await ctx.db.insert("projectMembers", {
+          projectId,
+          companyId: fx.sub.companyId,
+          partyRole: "sub",
+          contractorId: fx.gcA.project.contractorId,
+          status: "removed",
+          removedAt: Date.now(),
+          createdAt: Date.now(),
+        });
+      }
+      await ctx.db.insert("projectMembers", {
+        projectId,
+        companyId: fx.sub.companyId,
+        partyRole: "sub",
+        contractorId: fx.gcA.project.contractorId,
+        status: "active",
+        createdAt: Date.now(),
+      });
+    });
+    expect((await fx.sub.admin.as.query(api.projects.getProject, { projectId }))._id).toBe(projectId);
+
+    // A linked vendor already active on the project cannot be invited again.
+    const vendorId = await t.run(async (ctx) =>
+      ctx.db.insert("vendors", {
+        companyId: fx.gcA.companyId,
+        name: "Eastbay Electric",
+        trades: ["26 00 00"],
+        contactName: "Kim",
+        email: fx.sub.admin.email,
+        linkedCompanyId: fx.sub.companyId,
+        status: "active",
+        createdAt: Date.now(),
+      }),
+    );
+    await expect(
+      fx.gcA.admin.as.action(api.invites.create, { kind: "sub", email: fx.sub.admin.email, projectId, vendorId, sendEmail: false }),
+    ).rejects.toThrow(/already on this project/);
+
+    await fx.gcA.admin.as.mutation(api.people.removeProjectMember, { projectId, companyId: fx.sub.companyId });
+    await expect(fx.sub.admin.as.query(api.projects.getProject, { projectId })).rejects.toThrow(/Not found/);
+    const active = await t.run(async (ctx) =>
+      ctx.db
+        .query("projectMembers")
+        .withIndex("by_project_company_and_status", (q) => q.eq("projectId", projectId).eq("companyId", fx.sub.companyId).eq("status", "active"))
+        .collect(),
+    );
+    expect(active).toEqual([]);
   });
 
   test("listMine and acceptMine work only for the caller's own email", async () => {

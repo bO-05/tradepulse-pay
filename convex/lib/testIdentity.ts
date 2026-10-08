@@ -27,7 +27,7 @@ async function ensureProjectMember(
 ): Promise<void> {
   const rows = await ctx.db
     .query("projectMembers")
-    .withIndex("by_project_company", (q) => q.eq("projectId", projectId).eq("companyId", companyId))
+    .withIndex("by_project_company_and_status", (q) => q.eq("projectId", projectId).eq("companyId", companyId))
     .take(5);
   if (rows.length > 0) return;
   await ctx.db.insert("projectMembers", { projectId, companyId, partyRole, contractorId, status: "active", createdAt: Date.now() });

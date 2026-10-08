@@ -756,10 +756,14 @@ export const scanCrossTradeClashes = action({
     }
 
     const prompt = `Perform cross-trade commercial MEP scope clash detection between CSI Division 26 (Electrical) and Division 23 (HVAC). Detect any Double-Buys (e.g. VFDs, disconnects) and Scope Voids (e.g. low-voltage control wiring, duct smoke detector installation).`;
+    const gcCompanyName: string | null = await ctx.runQuery(internal.projects.getProjectCompanyNameInternal, {
+      projectId: args.projectId,
+    });
     await ctx.runAction(internal.llmRouter.executeReasoning, {
       taskType: "clash_detection",
       prompt,
-      systemPrompt: "You are the TradePulse Cross-Trade MEP Coordination & Clash Detection Specialist.",
+      systemPrompt: `You are the TradePulse Pay Cross-Trade MEP Coordination & Clash Detection Specialist${gcCompanyName ? `, working on behalf of ${gcCompanyName}` : ""}.`,
+      companyName: gcCompanyName ?? undefined,
     });
 
     // Return a summary derived from the real computed clashes, not the model text.
@@ -813,10 +817,14 @@ Identify:
 1. Double-Buy Equipment: items priced in both scopes that will cause duplicate buyout (e.g. Variable Frequency Drives, Disconnect Switches).
 2. Scope Voids: items omitted in the boundary between trades (e.g. low-voltage BAS control wiring, duct smoke detector installation & interlock).`;
 
+    const gcCompanyName: string | null = await ctx.runQuery(internal.projects.getProjectCompanyNameInternal, {
+      projectId: args.projectId,
+    });
     const reasoning: any = await ctx.runAction(internal.llmRouter.executeReasoning, {
       taskType: "clash_detection",
       prompt,
-      systemPrompt: "You are the TradePulse Chief MEP Coordination Specialist.",
+      systemPrompt: `You are the TradePulse Pay Chief MEP Coordination Specialist${gcCompanyName ? `, working on behalf of ${gcCompanyName}` : ""}.`,
+      companyName: gcCompanyName ?? undefined,
     });
 
     // 3. Extract verified clashes with canonical matching

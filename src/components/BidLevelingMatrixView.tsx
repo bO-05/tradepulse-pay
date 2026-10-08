@@ -43,7 +43,8 @@ interface BidLevelingMatrixViewProps {
   onSelectPackage?: (id: string) => void;
   bids: Bid[];
   onAwardContract: (bidId: string, tradePackageId: string) => Promise<void>;
-  onOpenSimulation: () => void;
+  /** Demo companies only; real companies get no simulation controls or copy. */
+  onOpenSimulation?: () => void;
   contractors?: Contractor[];
   onNavigateToCoordination?: () => void;
   agreements?: Agreement[];
@@ -800,7 +801,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
               Export Leveling CSV
             </button>
 
-            {/* Open simulation scenarios */}
+            {onOpenSimulation && (
             <button
               onClick={onOpenSimulation}
               className="bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-slate-950 font-bold text-xs px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition shadow-sm"
@@ -809,6 +810,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
               <Zap className="w-3.5 h-3.5 fill-slate-950" />
               Open Demo Simulation…
             </button>
+            )}
           </div>
         </div>
 
@@ -983,8 +985,10 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
               </button>
             </div>
             <p className="text-[11px] text-slate-400 text-center">
-              Bids are also ingested by the AI from uploaded quote files on the CSI Scoping tab, or simulated from the
-              «Open Demo Simulation…» control in the toolbar above (Scenario B or C ingests a proposal).
+              Bids are also ingested by the AI from uploaded quote files on the CSI Scoping tab
+              {onOpenSimulation
+                ? ", or simulated from the «Open Demo Simulation…» control in the toolbar above (Scenario B or C ingests a proposal)."
+                : "."}
             </p>
           </div>
         </div>

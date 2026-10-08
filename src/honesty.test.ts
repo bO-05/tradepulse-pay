@@ -270,3 +270,18 @@ test("demo chrome is gated on the Demo company and the app keeps no browser-side
   expect(app).not.toMatch(/seedDataMutation\(\{ force: false \}\)/);
   expect(Object.keys(rootSources).some((path) => path.includes("standaloneStore"))).toBe(false);
 });
+
+test("bid-leveling and Q&A show simulation controls and help only to the Demo company", () => {
+  const app = find("App.tsx", rootSources);
+  expect(app).not.toContain("onOpenSimulation={() => setIsSimulationOpen(true)}\n            onReviewRfi");
+  expect(app.match(/onOpenSimulation=\{isDemo \? \(\) => setIsSimulationOpen\(true\) : undefined\}/g)).toHaveLength(2);
+  const leveling = find("BidLevelingMatrixView.tsx", componentSources);
+  const qna = find("PreBidQnAView.tsx", componentSources);
+  for (const src of [leveling, qna]) expect(src).toContain("onOpenSimulation?: () => void;");
+  // Every simulation control and its help copy sits behind the optional callback.
+  const gatedLeveling = leveling.replace(/\{onOpenSimulation && \([\s\S]*?Open Demo Simulation…[\s\S]*?\)\}/, "");
+  expect(gatedLeveling).not.toMatch(/Open Demo Simulation…\s*<\/button>/);
+  expect(leveling).toMatch(/onOpenSimulation\s*\?\s*", or simulated from the «Open Demo Simulation…» control/);
+  expect(leveling).not.toMatch(/or simulated from the\n\s*«Open Demo Simulation…» control/);
+  expect(qna).toMatch(/\{onOpenSimulation && \(\s*<button\s*onClick=\{onOpenSimulation\}[\s\S]*?Simulate Inbound RFI/);
+});

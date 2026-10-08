@@ -214,7 +214,7 @@ describe("requireProjectAccess", () => {
     await t.run(async (ctx) => {
       const rows = await ctx.db
         .query("projectMembers")
-        .withIndex("by_project_company", (q) => q.eq("projectId", a).eq("companyId", f.sub.companyId))
+        .withIndex("by_project_company_and_status", (q) => q.eq("projectId", a).eq("companyId", f.sub.companyId))
         .collect();
       for (const r of rows) await ctx.db.patch(r._id, { status: "removed" });
     });

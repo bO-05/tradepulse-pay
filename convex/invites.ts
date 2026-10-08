@@ -185,11 +185,14 @@ export const prepareCreate = internalMutation({
       if (vendor === null) throw notFound();
       if (vendor.linkedCompanyId !== undefined) {
         const linkedId = vendor.linkedCompanyId;
-        const rows = await ctx.db
+        const projectId = project._id;
+        const active = await ctx.db
           .query("projectMembers")
-          .withIndex("by_project_company", (q) => q.eq("projectId", project!._id).eq("companyId", linkedId))
-          .take(5);
-        if (rows.some((r) => r.status === "active")) throw invalid(`${vendor.name} is already on this project.`, "vendor");
+          .withIndex("by_project_company_and_status", (q) =>
+            q.eq("projectId", projectId).eq("companyId", linkedId).eq("status", "active"),
+          )
+          .first();
+        if (active !== null) throw invalid(`${vendor.name} is already on this project.`, "vendor");
       }
       inviteeCompanyName = vendor.name;
     }
@@ -479,16 +482,24 @@ async function upsertProjectMember(
     addedByUserId: Id<"users">;
   },
 ): Promise<void> {
-  const rows = await ctx.db
-    .query("projectMembers")
-    .withIndex("by_project_company", (q) => q.eq("projectId", fields.projectId).eq("companyId", fields.companyId))
-    .take(5);
-  if (rows.length > 0) {
-    await ctx.db.patch(rows[0]._id, {
+  const existing =
+    (await ctx.db
+      .query("projectMembers")
+      .withIndex("by_project_company_and_status", (q) =>
+        q.eq("projectId", fields.projectId).eq("companyId", fields.companyId).eq("status", "active"),
+      )
+      .first()) ??
+    (await ctx.db
+      .query("projectMembers")
+      .withIndex("by_project_company_and_status", (q) => q.eq("projectId", fields.projectId).eq("companyId", fields.companyId))
+      .order("desc")
+      .first());
+  if (existing !== null) {
+    await ctx.db.patch(existing._id, {
       status: "active",
       partyRole: fields.partyRole,
-      vendorId: fields.vendorId ?? rows[0].vendorId,
-      contractorId: fields.contractorId ?? rows[0].contractorId,
+      vendorId: fields.vendorId ?? existing.vendorId,
+      contractorId: fields.contractorId ?? existing.contractorId,
       removedAt: undefined,
       removedByUserId: undefined,
     });
@@ -501,6 +512,18 @@ function alreadyInCompany(company: Doc<"companies">, wanted: string): ConvexErro
   return new ConvexError({
     code: "ALREADY_IN_COMPANY" as const,
     message: `This invite is for ${wanted}, but your account already belongs to ${company.name}. An account belongs to one company; sign out and use a different account.`,
+  });
+}
+
+async function vendorAlreadyOnPay(
+  ctx: MutationCtx,
+  vendor: Doc<"vendors">,
+): Promise<ConvexError<{ code: "VENDOR_LINKED"; message: string }>> {
+  const linked = vendor.linkedCompanyId ? await ctx.db.get(vendor.linkedCompanyId) : null;
+  const name = linked?.name ?? vendor.name;
+  return new ConvexError({
+    code: "VENDOR_LINKED" as const,
+    message: `${name} is already on TradePulse Pay — invite one of its members, or ask its admin to add you.`,
   });
 }
 
@@ -571,20 +594,15 @@ async function acceptInvite(ctx: MutationCtx, user: Doc<"users">, invite: Doc<"i
     if (invite.kind === "sub") {
       const vendor = invite.vendorId ? await ctx.db.get(invite.vendorId) : null;
       if (vendor === null) throw new ConvexError({ code: "INVITE_INVALID", message: NO_LONGER_VALID });
+      // A sub invite admits a company to a project; it never admits a person into an existing
+      // company. Joining one happens only through that company's own teammate invite.
       let subCompanyId: Id<"companies">;
       if (current !== null) {
         if (current.kind !== "sub") throw alreadyInCompany(current, "a subcontractor company");
-        if (vendor.linkedCompanyId !== undefined && vendor.linkedCompanyId !== current._id) {
-          throw new ConvexError({
-            code: "VENDOR_LINKED",
-            message: `${vendor.name} is already linked to another company on TradePulse Pay. Ask ${inviter.name} to check the vendor record.`,
-          });
-        }
+        if (vendor.linkedCompanyId !== undefined && vendor.linkedCompanyId !== current._id) throw await vendorAlreadyOnPay(ctx, vendor);
         subCompanyId = current._id;
       } else if (vendor.linkedCompanyId !== undefined) {
-        // Another contact of an already-linked vendor joins that sub company.
-        subCompanyId = vendor.linkedCompanyId;
-        await addCompanyMember(ctx, subCompanyId, user._id, "member");
+        throw await vendorAlreadyOnPay(ctx, vendor);
       } else {
         subCompanyId = await ctx.db.insert("companies", {
           name: vendor.name,

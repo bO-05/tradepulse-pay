@@ -134,6 +134,29 @@ function ProjectPeople({ projectId, projects }: { projectId: string; projects: {
         <InviteList invites={data.invites} emptyText="No invites for this project yet." />
       </Card>
 
+      <Card
+        title="Teammate invites"
+        description={
+          data.canManageTeammateInvites
+            ? "People invited to join your company. They get access to all of its projects."
+            : "People invited to join your company. Only company admins can resend or revoke these."
+        }
+        actions={
+          data.canManageTeammateInvites ? (
+            <Button size="sm" variant="secondary" onClick={() => setDialog({ type: "create", kind: "teammate" })}>
+              Invite teammate
+            </Button>
+          ) : undefined
+        }
+      >
+        <InviteList
+          invites={data.teammateInvites}
+          showKind={false}
+          readOnly={!data.canManageTeammateInvites}
+          emptyText="No teammate invites yet."
+        />
+      </Card>
+
       {dialog && <InviteDialog mode={dialog} onClose={() => setDialog(null)} />}
       <ConfirmDialog
         open={removing !== null}

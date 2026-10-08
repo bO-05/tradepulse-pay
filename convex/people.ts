@@ -2,7 +2,7 @@ import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type QueryCtx } from "./_generated/server";
 import { callerProjects, isNotFoundError, partyMaySeeContractor, requireProjectScope } from "./lib/projectScope";
-import { notFound } from "./lib/tenancy";
+import { findActiveMembership, notFound } from "./lib/tenancy";
 import { ownerChangeOrdersOfProject } from "./lib/ownerView";
 import { changeOrderLabel } from "./payments/changeOrderMath";
 
@@ -30,7 +30,8 @@ async function activeMembers(ctx: QueryCtx, companyId: Id<"companies">): Promise
 export const listForProject = query({
   args: { projectId: v.string() },
   handler: async (ctx, args) => {
-    const { project } = await requireProjectScope(ctx, args.projectId, { roles: ["gc"] });
+    const access = await requireProjectScope(ctx, args.projectId, { roles: ["gc"] });
+    const { project } = access;
     const gc = project.gcCompanyId ? await ctx.db.get(project.gcCompanyId) : null;
     const companies = [];
     if (gc !== null) {
@@ -75,10 +76,39 @@ export const listForProject = query({
         companyName: vendor?.name ?? i.companyName ?? null,
       });
     }
+    // Teammate invites belong to the GC company, not the project; every GC member sees their status,
+    // only company admins may copy, resend or revoke them.
+    const membership = await findActiveMembership(ctx, access.user._id);
+    const canManageTeammateInvites = membership !== null && membership.companyId === gc?._id && membership.role === "admin";
+    const teammateInvites = [];
+    if (gc !== null) {
+      const rows = await ctx.db
+        .query("invites")
+        .withIndex("by_inviterCompanyId", (q) => q.eq("inviterCompanyId", gc._id))
+        .order("desc")
+        .take(200);
+      for (const i of rows) {
+        if (i.kind !== "teammate") continue;
+        teammateInvites.push({
+          _id: i._id,
+          email: i.email,
+          kind: i.kind,
+          status: i.status,
+          emailStatus: i.emailStatus,
+          emailError: canManageTeammateInvites ? (i.emailError ?? null) : null,
+          expiresAt: i.expiresAt,
+          createdAt: i.createdAt,
+          lastSentAt: i.lastSentAt ?? null,
+          companyName: null,
+        });
+      }
+    }
     return {
       project: { _id: project._id, title: project.title, ownerName: project.ownerName ?? null, archived: project.archived === true },
       companies,
       invites,
+      teammateInvites,
+      canManageTeammateInvites,
     };
   },
 });
@@ -94,11 +124,12 @@ export const removeProjectMember = mutation({
     if (companyId === access.project.gcCompanyId) {
       throw new ConvexError({ code: "INVALID", message: "The general contractor can't be removed from its own project." });
     }
-    const rows = await ctx.db
+    const active = await ctx.db
       .query("projectMembers")
-      .withIndex("by_project_company", (q) => q.eq("projectId", access.project._id).eq("companyId", companyId))
-      .take(5);
-    const active = rows.filter((r) => r.status === "active");
+      .withIndex("by_project_company_and_status", (q) =>
+        q.eq("projectId", access.project._id).eq("companyId", companyId).eq("status", "active"),
+      )
+      .take(50);
     if (active.length === 0) throw notFound();
     const now = Date.now();
     for (const row of active) {

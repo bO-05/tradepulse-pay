@@ -145,12 +145,13 @@ export async function requireProjectAccess(
         partyRole = "gc";
       } else {
         const companyId = company._id;
-        const pm = await ctx.db
+        const active = await ctx.db
           .query("projectMembers")
-          .withIndex("by_project_company", (q) => q.eq("projectId", project._id).eq("companyId", companyId))
-          .take(5);
-        const active = pm.find((m) => m.status === "active");
-        if (active !== undefined) partyRole = active.partyRole;
+          .withIndex("by_project_company_and_status", (q) =>
+            q.eq("projectId", project._id).eq("companyId", companyId).eq("status", "active"),
+          )
+          .first();
+        if (active !== null) partyRole = active.partyRole;
       }
       if (partyRole === "sub") contractorIds = await contractorIdsForCompany(ctx, company._id);
     }

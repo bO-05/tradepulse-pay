@@ -37,7 +37,17 @@ function useNow(): number {
 }
 
 /** Invites with plain-words status and Copy link / Resend / Revoke for pending ones. */
-export function InviteList({ invites, showKind = true, emptyText }: { invites: InviteRow[]; showKind?: boolean; emptyText: string }) {
+export function InviteList({
+  invites,
+  showKind = true,
+  emptyText,
+  readOnly = false,
+}: {
+  invites: InviteRow[];
+  showKind?: boolean;
+  emptyText: string;
+  readOnly?: boolean;
+}) {
   const revoke = useMutation(api.invites.revoke);
   const toast = useToast();
   const now = useNow();
@@ -82,7 +92,7 @@ export function InviteList({ invites, showKind = true, emptyText }: { invites: I
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <StatusPill status={null} label={label} tone={tone(label)} />
-                {pending && (
+                {pending && !readOnly && (
                   <>
                     <Button size="sm" variant="secondary" onClick={() => setDialog({ type: "resend", inviteId: i._id, email: i.email, sendEmail: false })}>
                       Copy link
