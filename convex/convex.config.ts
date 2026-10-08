@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import staticHosting from "@convex-dev/static-hosting/convex.config";
 import firecrawl from "@firecrawl/firecrawl-convex/convex.config";
 import agentmail from "@agentmail/convex/convex.config";
+import rateLimiter from "@convex-dev/rate-limiter/convex.config.js";
 
 const app = defineApp({
   env: {
@@ -59,5 +60,8 @@ app.use(firecrawl, {
 // The app does not call it. Sends go through convex/lib/mailer.ts and inbound
 // webhooks through convex/agentmailWebhook.ts (which reuses its Svix verifier).
 app.use(agentmail);
+
+// 4. Rate limits for auth email sends and sign-ups (convex/authLimits.ts).
+app.use(rateLimiter);
 
 export default app;

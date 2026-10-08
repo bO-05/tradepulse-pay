@@ -21,6 +21,7 @@ export type ShellIdentity = {
   role: Role;
   contractorName: string | null;
   actorType: "human" | "agent";
+  companyName?: string | null;
 };
 
 export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procurementApp: ReactNode }) {
@@ -70,6 +71,11 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
         className="w-full bg-slate-900 border-b border-slate-800 px-4 py-2 flex flex-wrap items-center gap-3 text-sm"
       >
         <span className="font-bold tracking-tight mr-2">TradePulse Pay</span>
+        {me.companyName ? (
+          <span className="mr-2 text-sm font-semibold text-slate-200" data-testid="active-company-name">
+            {me.companyName}
+          </span>
+        ) : null}
         <ul className="flex flex-wrap items-center gap-1">
           {nav.map((item) => {
             const active = route.area === item.area || (route.area === "ledger" && item.area === "payments");

@@ -149,9 +149,11 @@ Open **http://localhost:3150** (not `127.0.0.1`). Convex Auth redirects to `SITE
 
 ## Demo accounts and password
 
-TradePulse Pay requires sign-in. Signed-out visitors only see the sign-in page; `/llms.txt` and `/api/health` stay public. Self sign-up is disabled: accounts come from the demo seed.
+TradePulse Pay requires sign-in. Signed-out visitors only see the sign-in page; `/llms.txt` and `/api/health` stay public.
 
-All demo accounts share the public demo password **`TradePulseDemo!2026`**.
+**New accounts.** The sign-in page has **Create account** (name, email, password of at least 10 characters mixing two kinds of characters) and **Forgot password?**. Both email an 8-digit code from "TradePulse Pay" (`cleverneed464@agentmail.to`); codes are typed in and expire after 15 minutes, and a new code can be requested every 30 seconds. After verifying, a person with no company or invite sets up their general contractor company (name, address, state, phone) and becomes its admin. Resetting a password signs the account out everywhere else. Code emails count against the deployment's daily email budget (`EMAIL_DAILY_BUDGET`); when it is used up, the screen says no code was sent.
+
+**Demo access.** The sign-in page shows no demo credentials. The seeded demo accounts below sign in with email and password only (they are marked verified, so no code is sent). All demo accounts share the public demo password **`TradePulseDemo!2026`**.
 
 | Account | Role | What it sees |
 |---|---|---|

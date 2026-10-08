@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalAction, internalMutation } from "./_generated/server";
 import { DEMO_PASSWORD } from "./demoAccounts";
+import { markPasswordAccountVerified } from "./lib/demoTenancy";
 import { findActiveMembership } from "./lib/tenancy";
 
 /**
@@ -23,6 +24,7 @@ export const attachIsolationGc = internalMutation({
       .first();
     if (user === null) throw new Error("Fixture user missing.");
     if (user.emailVerificationTime === undefined) await ctx.db.patch(user._id, { emailVerificationTime: Date.now() });
+    await markPasswordAccountVerified(ctx, user._id, args.email);
     let membership = await findActiveMembership(ctx, user._id);
     if (membership === null) {
       const companyId = await ctx.db.insert("companies", {

@@ -197,3 +197,22 @@ export const listForDay = internalQuery({
     };
   },
 });
+
+/** True when an auth-code send would be skipped for the daily budget right now. */
+export const authCodeBudgetExhausted = internalQuery({
+  args: {},
+  returns: v.boolean(),
+  handler: async (ctx) => {
+    const day = utcDayKey(Date.now());
+    const limit = sendLimitFor("auth_code", readDailyBudget(process.env.EMAIL_DAILY_BUDGET));
+    const sent = await ctx.db
+      .query("emailOutbox")
+      .withIndex("by_day_and_status", (q) => q.eq("day", day).eq("status", "sent"))
+      .take(limit + 1);
+    const pending = await ctx.db
+      .query("emailOutbox")
+      .withIndex("by_day_and_status", (q) => q.eq("day", day).eq("status", "pending"))
+      .take(limit + 1);
+    return sent.length + pending.length >= limit;
+  },
+});

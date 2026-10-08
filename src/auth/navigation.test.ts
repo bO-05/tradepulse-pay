@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { agreementHash, ledgerHash, NAV_BY_ROLE, parseHash, resolveRoute, signInErrorMessage } from "./navigation";
+import { agreementHash, ledgerHash, NAV_BY_ROLE, parseHash, resolveRoute } from "./navigation";
 
 describe("role navigation", () => {
   test("GC gets procurement, payments and the read-only overview; sub and owner never get procurement", () => {
@@ -54,19 +54,5 @@ describe("role navigation", () => {
     const hash = ledgerHash("k97abc");
     expect(hash).toBe("#/payments/k97abc");
     expect(resolveRoute("sub", hash)).toEqual({ area: "ledger", agreementId: "k97abc" });
-  });
-});
-
-describe("sign-in errors", () => {
-  test("wrong password and unknown email both read as invalid credentials", () => {
-    expect(signInErrorMessage(new Error("[CONVEX A(auth:signIn)] Uncaught Error: InvalidSecret"))).toBe(
-      "Invalid email or password.",
-    );
-    expect(signInErrorMessage(new Error("Uncaught Error: InvalidAccountId"))).toBe("Invalid email or password.");
-  });
-
-  test("rate limiting and disabled sign-up get their own messages", () => {
-    expect(signInErrorMessage(new Error("TooManyFailedAttempts"))).toMatch(/Too many failed attempts/);
-    expect(signInErrorMessage(new Error("Self sign-up is disabled."))).toMatch(/sign-up is disabled/);
   });
 });

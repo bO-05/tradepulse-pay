@@ -2,7 +2,8 @@ import { getErrorMessage } from "./lib/errors.ts";
 import React, { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../convex/_generated/api.js";
-import { Header } from "./components/Header.tsx";
+import { Header, OPEN_NEW_PROJECT_EVENT } from "./components/Header.tsx";
+import { Button, EmptyState } from "./ui";
 import { ExecutiveKpiBar } from "./components/ExecutiveKpiBar.tsx";
 import { TradePackagesView } from "./components/TradePackagesView.tsx";
 import { SubcontractorDiscoveryView } from "./components/SubcontractorDiscoveryView.tsx";
@@ -3650,6 +3651,15 @@ export const App: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-5 lg:p-6 space-y-4">
+        {isConvexConnected && projects.length === 0 && (
+          <EmptyState
+            title="No projects yet"
+            description="Create your first project to set up trade packages, invite bidders and manage contracts."
+            action={
+              <Button onClick={() => window.dispatchEvent(new Event(OPEN_NEW_PROJECT_EVENT))}>Create your first project</Button>
+            }
+          />
+        )}
         {/* Executive Financial Procurement KPI Bar */}
         <ExecutiveKpiBar
           metrics={procurementMetrics}

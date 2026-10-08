@@ -31,7 +31,7 @@ const TENANCY_GUARDS = [
 ];
 const TENANCY = new RegExp(`\\b(${TENANCY_GUARDS.join("|")})\\(`);
 const GUARD = new RegExp(
-  `\\b(requireRole|requireRoleInAction|requireAgreementAccess|getViewer|${TENANCY_GUARDS.join("|")})\\(|\\b(ctx\\.runQuery\\(internal\\.profiles\\.requireRoleForAction)\\b`,
+  `\\b(requireRole|requireRoleInAction|requireAgreementAccess|getViewer|requireVerifiedUser|${TENANCY_GUARDS.join("|")})\\(|\\b(ctx\\.runQuery\\(internal\\.profiles\\.requireRoleForAction)\\b`,
 );
 // Public functions that read no project or company data, so a role check is the whole guard.
 const NO_PROJECT_DATA = new Map([
@@ -40,6 +40,7 @@ const NO_PROJECT_DATA = new Map([
   ["llmRouter:runModelDiagnostic", "fixed sample prompts, no project data"],
   ["contractorDiscovery:scrapeContractorWebsite", "scrapes a public URL, no project data"],
   ["profiles:me", "caller's own profile"],
+  ["onboarding:createCompany", "creates the caller's own GC company and membership; no client-chosen company or project"],
   ["payments/webhook:paypalWebhook", "PayPal-signed delivery; no caller session"],
   ["agentmailWebhook:agentmailWebhook", "AgentMail-signed delivery; no caller session. Routing by stored thread or ref; unmatched mail carries no tenant ids"],
   ["dashboard/studioProxy:studioPreflight", "CORS preflight"],

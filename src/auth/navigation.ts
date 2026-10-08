@@ -84,17 +84,3 @@ export function resolveRoute(role: Role, hash: string): Route {
   if (parsed && DENY_WHEN_DISALLOWED.has(parsed.area)) return { area: "access-denied" };
   return { area: nav[0].area };
 }
-
-export function signInErrorMessage(err: unknown): string {
-  const raw = err instanceof Error ? err.message : String(err ?? "");
-  if (/TooManyFailedAttempts/i.test(raw)) {
-    return "Too many failed attempts for this account. Wait a few minutes and try again.";
-  }
-  if (/sign-up is disabled/i.test(raw)) {
-    return "Self sign-up is disabled. Ask your general contractor for an account.";
-  }
-  if (/Failed to fetch|NetworkError|network/i.test(raw)) {
-    return "Could not reach the server. Check your connection and try again.";
-  }
-  return "Invalid email or password.";
-}

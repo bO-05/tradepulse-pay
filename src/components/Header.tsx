@@ -24,6 +24,8 @@ import {
 import { Project } from "../types.ts";
 import { ConfirmDialog } from "./ConfirmDialog.tsx";
 
+export const OPEN_NEW_PROJECT_EVENT = "tradepulse:open-new-project";
+
 interface HeaderProps {
   projects?: Project[];
   currentProject: Project | null;
@@ -115,6 +117,13 @@ export const Header: React.FC<HeaderProps> = ({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [setActiveTab]);
+
+  // The empty-state "Create your first project" button outside the header opens the same dialog.
+  useEffect(() => {
+    const open = () => setIsNewProjectModalOpen(true);
+    window.addEventListener(OPEN_NEW_PROJECT_EVENT, open);
+    return () => window.removeEventListener(OPEN_NEW_PROJECT_EVENT, open);
+  }, []);
 
   useEffect(() => {
     if (!isNewProjectModalOpen) return;

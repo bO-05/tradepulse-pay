@@ -147,6 +147,7 @@ export async function ensureDemoAccounts(
         await ctx.db.patch(user._id, { emailVerificationTime: Date.now() });
         counts.usersVerified++;
       }
+      await markPasswordAccountVerified(ctx, user._id, email);
       if (!isMember) continue;
       const profile = await ctx.db
         .query("userProfiles")
@@ -401,4 +402,19 @@ export async function ensureDemoTenancy(
   const archivedTitles = await archiveDemoJunk(ctx, companyIds, counts);
   await attachAgentLinks(ctx, companyIds, counts);
   return { counts, archivedTitles, companyIds };
+}
+
+/**
+ * Convex Auth's Password provider asks for an email code whenever `authAccounts.emailVerified` is
+ * unset, regardless of `users.emailVerificationTime`. Seeded accounts (whose addresses receive no
+ * mail) are marked verified on the account row too, so they sign in without a code.
+ */
+export async function markPasswordAccountVerified(ctx: MutationCtx, userId: Id<"users">, email: string): Promise<boolean> {
+  const account = await ctx.db
+    .query("authAccounts")
+    .withIndex("providerAndAccountId", (q) => q.eq("provider", "password").eq("providerAccountId", email))
+    .unique();
+  if (account === null || account.userId !== userId || account.emailVerified === email) return false;
+  await ctx.db.patch(account._id, { emailVerified: email });
+  return true;
 }

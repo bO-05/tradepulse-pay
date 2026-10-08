@@ -384,7 +384,7 @@ describe("static guard sweep over convex/**", () => {
     "accessibleProjectIds",
   ];
   const TENANCY = new RegExp(`\\b(${TENANCY_GUARDS.join("|")})\\(`);
-  const GUARD = new RegExp(`\\b(requireRole|requireRoleInAction|requireAgreementAccess|getViewer|${TENANCY_GUARDS.join("|")})\\(`);
+  const GUARD = new RegExp(`\\b(requireRole|requireRoleInAction|requireAgreementAccess|getViewer|requireVerifiedUser|${TENANCY_GUARDS.join("|")})\\(`);
   // Same lists as scripts/tools/guard-audit.mjs.
   const NO_PROJECT_DATA = new Set([
     "crons:getCronStatus",
@@ -392,6 +392,7 @@ describe("static guard sweep over convex/**", () => {
     "llmRouter:runModelDiagnostic",
     "contractorDiscovery:scrapeContractorWebsite",
     "profiles:me",
+    "onboarding:createCompany",
   ]);
 
   function publicExports() {

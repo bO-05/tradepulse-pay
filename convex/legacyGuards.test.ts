@@ -268,8 +268,14 @@ describe("legacy public mutations and actions are GC-only", () => {
       const mod = path.replace(/^\.\//, "").replace(/\.ts$/, "");
       for (const match of src.matchAll(/^export const (\w+) = (?:mutation|action)\(/gm)) exported.push(`${mod}:${match[1]}`);
     }
-    // agentLinks is GC-guarded and has its own denial tests in agentLinks.test.ts.
-    const covered = new Set([...CASES.map((c) => c.name), "agentLinks:addAgentLink", "agentLinks:revokeAgentLink"]);
+    // agentLinks is GC-guarded and has its own denial tests in agentLinks.test.ts; onboarding is
+    // for verified users without a company, covered in onboarding.test.ts.
+    const covered = new Set([
+      ...CASES.map((c) => c.name),
+      "agentLinks:addAgentLink",
+      "agentLinks:revokeAgentLink",
+      "onboarding:createCompany",
+    ]);
     expect(exported.filter((name) => !covered.has(name))).toEqual([]);
   });
 

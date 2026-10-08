@@ -25,6 +25,7 @@
     "@ai-sdk/anthropic": "4.0.72",
     "@auth/core": "^0.41.3",
     "@convex-dev/auth": "^0.0.96",
+    "@convex-dev/rate-limiter": "^0.4.1",
     "@convex-dev/static-hosting": "^0.2.1",
     "@firecrawl/firecrawl-convex": "^0.1.1",
     "@onkernel/sdk": "0.119.0",

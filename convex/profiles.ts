@@ -4,6 +4,7 @@ import { internalMutation, internalQuery, query } from "./_generated/server";
 import { DEMO_ACCOUNTS } from "./demoAccounts";
 import { roleValidator } from "./schema";
 import { getViewer, requireRole } from "./lib/roles";
+import { findActiveMembership } from "./lib/tenancy";
 
 /**
  * The signed-in identity for the app shell. Returns null when signed out, and
@@ -17,9 +18,20 @@ export const me = query({
     if (userId === null) return null;
     const user = await ctx.db.get(userId);
     if (user === null) return null;
+    const membership = user.actorType === "agent" ? null : await findActiveMembership(ctx, userId);
+    const companyDoc = membership === null ? null : await ctx.db.get(membership.companyId);
+    const account = {
+      // Agents are verified by AgentID; humans must confirm an emailed code.
+      emailVerified: user.actorType === "agent" || user.emailVerificationTime !== undefined,
+      company:
+        companyDoc === null || membership === null
+          ? null
+          : { name: companyDoc.name, kind: companyDoc.kind, isDemo: companyDoc.isDemo, memberRole: membership.role },
+    };
     const viewer = await getViewer(ctx);
     if (viewer === null) {
       return {
+        ...account,
         userId,
         email: user.email ?? null,
         role: null,
@@ -34,6 +46,7 @@ export const me = query({
     }
     const contractor = viewer.profile.contractorId ? await ctx.db.get(viewer.profile.contractorId) : null;
     return {
+      ...account,
       userId,
       email: user.email ?? null,
       role: viewer.role,
