@@ -26,6 +26,10 @@ const rootSources = import.meta.glob("./*.{ts,tsx}", {
   eager: true,
 }) as Record<string, string>;
 
+const llmsTxt = Object.values(
+  import.meta.glob("../convex/lib/llmsTxt.ts", { query: "?raw", import: "default", eager: true }) as Record<string, string>
+)[0];
+
 const convexSources = import.meta.glob("../convex/*.ts", {
   query: "?raw",
   import: "default",
@@ -175,8 +179,8 @@ test("F9: inbox copy reflects plan-limit sharing, never a 'dedicated' claim", ()
   expect(tour).toContain("packages share an inbox once the plan limit is reached");
 
   const http = find("http.ts", convexSources);
-  expect(http).toContain("shared when the free-tier plan limit is reached");
   expect(http).not.toContain("Dedicated Stateful Project Inboxes");
+  expect(llmsTxt).not.toMatch(/dedicated/i);
 
   const diag = find("SponsorDiagnosticsView.tsx", componentSources);
   expect(diag).not.toContain("Dedicated Stateful Project Inboxes");
@@ -236,4 +240,33 @@ test("License UI never calls a license verified; only an active CSLB result is s
   expect(license).toContain('unverified: { label: "License unverified"');
   expect(license).toContain('none: { label: "No license check yet"');
   expect(reviews).toContain('none: "No license check yet"');
+});
+
+const FORBIDDEN_BRAND_COPY = [/all gas/i, /hackathon/i, /tradepulse pro\b/i, /wayne sutton/i, /vibe apps/i, /convex reactive/i];
+
+test("the product is TradePulse Pay everywhere a non-demo user or crawler looks", () => {
+  const header = find("Header.tsx", componentSources);
+  const app = find("App.tsx", rootSources);
+  for (const [label, src] of [
+    ["Header.tsx", header],
+    ["App.tsx", app],
+    ["llmsTxt.ts", llmsTxt],
+  ] as const) {
+    for (const pattern of FORBIDDEN_BRAND_COPY) expect(src, `${label} matches ${pattern}`).not.toMatch(pattern);
+  }
+  expect(header).toContain("TradePulse <span className=\"text-emerald-400\">Pay</span>");
+  expect(llmsTxt).toContain("TradePulse Pay");
+  expect(llmsTxt).toContain("github.com/bO-05/tradepulse-pay");
+  expect(find("http.ts", convexSources)).toContain("app: PRODUCT_NAME");
+});
+
+test("demo chrome is gated on the Demo company and the app keeps no browser-side data store", () => {
+  const app = find("App.tsx", rootSources);
+  expect(app).toContain("{isDemo && isTourOpen && (");
+  expect(app).toContain("{isDemo && (\n      <JudgeSimulationDock");
+  expect(app).toContain("const showDiagnostics = isDemo && activeTab === \"diagnostics\"");
+  expect(app).not.toMatch(/loadStandaloneData|saveStandaloneData|standaloneState|localStorage\.setItem\("tradepulse_standalone/);
+  // VAL-BRAND-006: the client never seeds data on its own.
+  expect(app).not.toMatch(/seedDataMutation\(\{ force: false \}\)/);
+  expect(Object.keys(rootSources).some((path) => path.includes("standaloneStore"))).toBe(false);
 });

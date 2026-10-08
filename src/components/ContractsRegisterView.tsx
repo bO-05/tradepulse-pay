@@ -182,7 +182,7 @@ const handlePrint = (agr: Agreement) => {
         {showWhyCare && (
           <div className="mt-3 pt-3 border-t border-slate-800 text-xs text-slate-300 leading-relaxed bg-slate-950/60 rounded-lg p-3 border animate-in fade-in">
             <span className="font-semibold text-emerald-400">Legal Safeguard: </span>
-            Manual subcontract generation takes 2 to 3 weeks of administrative delay, risking jobsite mobilization and material escalation costs. TradePulse Pro instantly generates standardized, 10-article <strong className="text-emerald-300 font-semibold">A401-style subcontract drafts</strong> populated with negotiated contract sums, mandatory inclusions, retainage percentages (10%), and liquidated damages for completion delay ($1,200/calendar day; ADR-0003 lead-time adjustments of $6,000/week are a separate schedule-impact term)—ready for execution and export.
+            Manual subcontract generation takes 2 to 3 weeks of administrative delay, risking jobsite mobilization and material escalation costs. TradePulse Pay instantly generates standardized, 10-article <strong className="text-emerald-300 font-semibold">A401-style subcontract drafts</strong> populated with negotiated contract sums, mandatory inclusions, retainage percentages (10%), and liquidated damages for completion delay ($1,200/calendar day; ADR-0003 lead-time adjustments of $6,000/week are a separate schedule-impact term)—ready for execution and export.
           </div>
         )}
       </div>
@@ -232,7 +232,7 @@ const handlePrint = (agr: Agreement) => {
           <h3 className="text-base font-bold text-white">No Subcontract Agreements Found</h3>
           <p className="text-xs text-slate-400 max-w-md mx-auto">
             {agreements.length === 0
-              ? "When you award a leveled bid in the Bid Leveling Matrix, TradePulse Pro automatically generates an A401-style subcontract draft for external execution."
+              ? "When you award a leveled bid in the Bid Leveling Matrix, TradePulse Pay automatically generates an A401-style subcontract draft for external execution."
               : "No agreements match your search criteria."}
           </p>
           {onNavigateToLeveling && agreements.length === 0 && (

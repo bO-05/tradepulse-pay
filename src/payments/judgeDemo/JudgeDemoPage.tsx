@@ -24,7 +24,7 @@ function elapsed(ms: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
-/** GC-only one-click TradePulse Pay demo against the real sandbox, reachable from the Judge Dock and the nav. */
+/** Demo-company GC only: one-click guided demo against the real sandbox, reachable from the demo simulator and the nav. */
 export function JudgeDemoPage() {
   const [runId, setRunId] = useState<Id<"judgeDemoRuns"> | null>(null);
   const run = useQuery(api.judgeDemo.runs.getRun, runId ? { runId } : {});
@@ -88,7 +88,12 @@ export function JudgeDemoPage() {
   return (
     <div className="max-w-4xl space-y-4" data-testid="judge-demo-page">
       <header className="space-y-2">
-        <h1 className="text-xl font-semibold">TradePulse Pay judge demo</h1>
+        <h1 className="text-xl font-semibold flex items-center gap-2">
+          Guided demo
+          <span className="rounded-full border border-amber-600 bg-amber-950/60 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-200">
+            Demo
+          </span>
+        </h1>
         <p className="text-sm text-slate-300">
           One click runs the full pay-application flow against the real PayPal sandbox, Anthropic and KERNEL: execute a fresh demo
           agreement (${DEMO_CONTRACT_SUM.toLocaleString("en-US")}, seismic bracing excluded) for sub1's contractor, fund Mobilization, file an
@@ -97,7 +102,7 @@ export function JudgeDemoPage() {
           order to the Owner.
         </p>
         <p className="text-xs text-amber-200">
-          The two pay apps are filed by this demo as stand-ins and are labeled "Judge demo" wherever they appear. PayPal approval
+          The two pay apps are filed by this demo as stand-ins and are labeled "Guided demo (Demo)" wherever they appear. PayPal approval
           and the Owner's invoice payment are real browser steps; the demo waits for them and never fakes them.
         </p>
         <div className="flex flex-wrap items-center gap-2">

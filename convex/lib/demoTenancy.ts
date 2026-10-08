@@ -1,5 +1,5 @@
 import type { Doc, Id } from "../_generated/dataModel";
-import type { MutationCtx } from "../_generated/server";
+import type { MutationCtx, QueryCtx } from "../_generated/server";
 import type { Role } from "./roles";
 import { findActiveMembership } from "./tenancy";
 
@@ -83,6 +83,15 @@ export async function ensureDemoCompanies(
     counts.companiesCreated++;
   }
   return ids as DemoCompanyIds;
+}
+
+/** The Demo GC company's id, or null before the Demo companies exist. Read-only. */
+export async function findDemoGcCompanyId(ctx: QueryCtx): Promise<Id<"companies"> | null> {
+  const demo = await ctx.db
+    .query("companies")
+    .withIndex("by_isDemo", (q) => q.eq("isDemo", true))
+    .take(100);
+  return demo.find((c) => c.demoKey === "gc")?._id ?? null;
 }
 
 /** Adds an active admin membership unless the user already belongs to a company (one per user). */

@@ -12,7 +12,9 @@ import { CompanySettingsPage } from "../company/CompanySettingsPage";
 import { QueryBoundary } from "../lib/QueryBoundary";
 import { PeoplePage } from "../people/PeoplePage";
 import { MyProjectsPage } from "../projects/MyProjectsPage";
-import { COMPANY_HASH, NAV_BY_ROLE, resolveRoute, type Role } from "./navigation";
+import { ActiveCompanyContext } from "./companyContext";
+import { ConnectionBanner } from "./ConnectionBanner";
+import { COMPANY_HASH, DEMO_ONLY_AREAS, navFor, resolveRoute, type Role } from "./navigation";
 import { useHash } from "./useHash";
 
 const PaymentsDashboard = lazy(() => import("../dashboard/PaymentsDashboard"));
@@ -26,13 +28,15 @@ export type ShellIdentity = {
   contractorName: string | null;
   actorType: "human" | "agent";
   companyName?: string | null;
+  isDemo?: boolean;
 };
 
 export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procurementApp: ReactNode }) {
   const { signOut } = useAuthActions();
   const hash = useHash();
-  const route = resolveRoute(me.role, hash);
-  const nav = NAV_BY_ROLE[me.role];
+  const isDemo = me.isDemo === true;
+  const route = resolveRoute(me.role, hash, isDemo);
+  const nav = navFor(me.role, isDemo);
   const homeHash = nav[0].hash;
 
   let content: ReactNode;
@@ -64,6 +68,18 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
         </p>
       </div>
     );
+  else if (route.area === "not-found")
+    content = (
+      <div role="alert" className="max-w-xl rounded-2xl border border-slate-700 bg-slate-900/60 p-6" data-testid="not-found">
+        <h1 className="text-lg font-semibold text-slate-100">Not found</h1>
+        <p className="mt-2 text-sm text-slate-300">
+          This page does not exist.{" "}
+          <a href={homeHash} className="text-emerald-300 underline">
+            Back to {nav[0].label}
+          </a>
+        </p>
+      </div>
+    );
   else if (route.area === "ledger") {
     const backHash = nav.find((item) => item.area === "payments")?.hash ?? homeHash;
     content = <AgreementLedgerView agreementId={route.agreementId ?? ""} backHash={backHash} />;
@@ -72,7 +88,9 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
   const isLegacyFullPage = route.area === "procurement";
 
   return (
+    <ActiveCompanyContext.Provider value={{ name: me.companyName ?? null, isDemo }}>
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans">
+      <ConnectionBanner />
       <nav
         aria-label="Workspace"
         className="w-full bg-slate-900 border-b border-slate-800 px-4 py-2 flex flex-wrap items-center gap-3 text-sm"
@@ -81,6 +99,14 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
         {me.companyName ? (
           <span className="mr-2 text-sm font-semibold text-slate-200" data-testid="active-company-name">
             {me.companyName}
+          </span>
+        ) : null}
+        {isDemo ? (
+          <span
+            className="mr-2 rounded-full border border-amber-600 bg-amber-950/60 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-200"
+            data-testid="demo-badge"
+          >
+            Demo
           </span>
         ) : null}
         <ul className="flex flex-wrap items-center gap-1">
@@ -96,6 +122,11 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
                   }`}
                 >
                   {item.label}
+                  {DEMO_ONLY_AREAS.has(item.area) ? (
+                    <span className="ml-1.5 rounded border border-amber-600 px-1 text-[9px] font-bold uppercase text-amber-200">
+                      Demo
+                    </span>
+                  ) : null}
                 </a>
               </li>
             );
@@ -143,5 +174,6 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
         </main>
       )}
     </div>
+    </ActiveCompanyContext.Provider>
   );
 }

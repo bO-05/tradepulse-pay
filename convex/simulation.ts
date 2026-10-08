@@ -1,6 +1,7 @@
 import { mutation, internalMutation, internalQuery } from "./_generated/server";
 import { requireDocOfProject, requireDocScope, requireProjectScope } from "./lib/projectScope";
 import { v, ConvexError } from "convex/values";
+import { notFound } from "./lib/tenancy";
 import { deleteAgreementCascade } from "./payments/cascade";
 import { internal } from "./_generated/api";
 import { generateAiaA401AgreementText, getStateAbbreviation } from "./agreements";
@@ -8,10 +9,9 @@ import { persistPendingRfi } from "./rfq";
 import { LIQUIDATED_DAMAGES_PER_DAY, RETAINAGE_PERCENT } from "./terms";
 
 /**
- * 60-Second Judge Simulation Engine:
- * Executes simulated subcontractor events (RFI questions, quotes with hidden exclusions)
- * directly into the internal reactive pipeline, bypassing external Svix webhook signatures.
- * Enables 100% reliable 1-click evaluations for judges and automated tests.
+ * Demo simulation (Demo company only; everyone else gets "Not found."): inserts simulated
+ * subcontractor events (RFI questions, quotes with hidden exclusions) directly into the inbound
+ * pipeline. Nothing is emailed; the sender addresses are only used as labels.
  */
 export const triggerJudgeSimulation = mutation({
   args: {
@@ -23,7 +23,9 @@ export const triggerJudgeSimulation = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    const { doc: tradePkg } = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"], write: true });
+    const scope = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"], write: true });
+    if (scope.company?.isDemo !== true) throw notFound();
+    const tradePkg = scope.doc;
 
     const isHvac = tradePkg.csiDivision.startsWith("23");
     const isPlumbing = tradePkg.csiDivision.startsWith("22");
@@ -286,7 +288,7 @@ export const submitCustomRfi = mutation({
       throw new ConvexError("RFI subject lines are limited to 200 characters.");
     }
 
-    let fromEmail = "guest.inquiry@tradepulse-pro.test";
+    let fromEmail = "guest.inquiry@tradepulse-pay.test";
     let resolvedContractorId: any = args.contractorId;
     if (args.contractorId) {
       const contractor = await ctx.db.get(args.contractorId);
@@ -310,10 +312,9 @@ export const submitCustomRfi = mutation({
           tradePackageId: args.tradePackageId,
           companyName: "Guest / Inquiring Subcontractor",
           contactEmail: fromEmail,
-          phone: "+1 (512) 555-0100",
-          licenseNumber: "GUEST-INQUIRY",
+                    licenseNumber: "GUEST-INQUIRY",
           licenseStatus: "Unverified / Guest Inquiry",
-          sourceUrl: "https://tradepulse-pro.test/guest",
+          sourceUrl: "https://tradepulse-pay.test/guest",
           rfqStatus: "discovered",
         });
       }
@@ -345,7 +346,7 @@ export const submitCustomRfi = mutation({
     return {
       success: true,
       conversationId,
-      message: "Custom RFI submitted to TradePulse autonomous AI clarification engine.",
+      message: "RFI recorded; the AI clarification draft is being prepared.",
     };
   },
 });
@@ -392,7 +393,7 @@ export const retryRfiAnalysis = mutation({
 });
 
 /**
- * 1-Click Full Autonomous Procurement Lifecycle Simulation:
+ * Demo company only. 1-click full procurement lifecycle simulation (no email is sent):
  * Executes the entire causal lifecycle from discovery -> RFQ dispatch ->
  * pre-bid RFI clarification -> dual-quote ingestion & forensic leveling ->
  * to AIA Document A401 contract award in a single click.
@@ -404,6 +405,7 @@ export const runFullProcurementCycle = mutation({
   },
   handler: async (ctx, args) => {
     const access = await requireProjectScope(ctx, args.projectId, { roles: ["gc"], write: true });
+    if (access.company?.isDemo !== true) throw notFound();
     const project = access.project;
 
     // 1. Select or create trade package
@@ -800,7 +802,7 @@ export const runFullProcurementCycle = mutation({
     const executedAgreement = packageAgreementsBefore.find((a) => a.status === "executed");
     if (executedAgreement) {
       throw new ConvexError(
-        `This package has an executed subcontract (${executedAgreement.agreementNumber}). The full-cycle simulation cannot run here â€” choose a package without an executed contract.`
+        `This package has an executed subcontract (${executedAgreement.agreementNumber}). The full-cycle simulation cannot run here — choose a package without an executed contract.`
       );
     }
 
@@ -816,7 +818,7 @@ export const runFullProcurementCycle = mutation({
       bidId: bid1Id,
       contractorId: c1!._id,
       agreementNumber,
-      documentTitle: "Subcontract Agreement (A401-style structure) â€” generated draft, not an AIA-licensed form",
+      documentTitle: "Subcontract Agreement (A401-style structure) — generated draft, not an AIA-licensed form",
       subcontractorName: c1Name,
       generalContractorName: "Austin Commercial, LP",
       projectTitle: project?.title || "The Domain Tower B - Commercial MEP",

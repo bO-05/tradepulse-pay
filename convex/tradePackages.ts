@@ -252,11 +252,16 @@ export const generateTradePackagesFromSpec = action({
       // The LLM route is best-effort: if every provider fails or returns unusable JSON,
       // fall back to the deterministic multi-trade package set so the workflow always completes.
       try {
+        const companyName: string | null = await ctx.runQuery(
+          internal.projects.getProjectCompanyNameInternal,
+          { projectId: args.projectId }
+        );
         const reasoningResult: any = await ctx.runAction(internal.llmRouter.executeReasoning, {
           taskType: "spec_generation",
           prompt: specText,
+          companyName: companyName ?? undefined,
           systemPrompt:
-            "You are TradePulse Pro, an expert construction cost engineer and CSI MasterFormat specialist. Analyze the building specifications and deconstruct them into discrete commercial trade packages with CSI division numbers, trade titles, budget estimates, and mandatory inclusions.",
+            `You are TradePulse Pay${companyName ? `, working on behalf of ${companyName},` : ","} an expert construction cost engineer and CSI MasterFormat specialist. Analyze the building specifications and deconstruct them into discrete commercial trade packages with CSI division numbers, trade titles, budget estimates, and mandatory inclusions.`,
         });
         const parsed = reasoningResult?.parsedJson;
         pkgs = (Array.isArray(parsed?.packages) && parsed.packages.length > 0)

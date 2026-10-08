@@ -3,6 +3,7 @@ import { useQuery, useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { formatFullDateTime } from "../lib/datetime.ts";
 import { PayAppEvalPanel } from "../dashboard/PayAppEvalPanel";
+import { buildLlmsTxt } from "../../convex/lib/llmsTxt";
 import {
   Activity,
   CheckCircle2,
@@ -29,27 +30,7 @@ const CONVEX_SITE_URL =
  * A6-13: only used when the live /llms.txt fetch fails; the panel prefers the
  * live endpoint so its copy can never drift from what the deployment serves.
  */
-const LLMS_FALLBACK_TEXT = `# TradePulse Pro - Autonomous Construction Procurement API
-> Autonomous Trade Subcontractor Procurement, RFQ Distribution & Real-Time Bid Leveling
-> Built for the Convex "All Gas" Hackathon 2026
-
-## Overview
-TradePulse Pro automates the $1.8T commercial construction subcontractor procurement workflow:
-1. CSI MasterFormat Trade Scoping (Div 22 Plumbing, Div 23 HVAC, Div 26 Electrical)
-2. Subcontractor Web Discovery & Licensing Verification via Firecrawl
-3. Programmatic Project Inboxes via AgentMail (@agentmail.to) - shared when the free-tier plan limit is reached, disclosed on each package
-4. Autonomous Pre-Bid RFI Clarifications via OpenAI, Gemini & Claude reasoning (OpenAI is a BYOK adapter; Gemini/Claude run when no OpenAI key is configured)
-5. Forensic Bid Leveling & Scope Gap Normalization via Claude & OpenAI (OpenAI is a BYOK adapter; Claude runs when no OpenAI key is configured)
-6. A401-style Subcontract Draft Generation (not an AIA-licensed form)
-
-## Live Endpoints
-- Web UI: ${CONVEX_SITE_URL}
-- Webhook Ingest: POST ${CONVEX_SITE_URL}/agentmail/webhook
-- Discoverability: GET ${CONVEX_SITE_URL}/llms.txt
-- Reactive Engine: Convex Realtime WebSockets (Zero Polling Invariant)
-
-## Normalization Formula (ADR-0003)
-Leveled Cost = Base Bid + Sum(Scope Gaps) + Lead Time Penalty + COI Penalty - Accepted Alternates`;
+const LLMS_FALLBACK_TEXT = buildLlmsTxt(CONVEX_SITE_URL);
 
 export const SponsorDiagnosticsView: React.FC = () => {
   // Real-World Chief Estimator Evaluation State & Telemetry
@@ -232,7 +213,7 @@ export const SponsorDiagnosticsView: React.FC = () => {
     }
   };
 
-  const sponsors = [
+  const integrations = [
     {
       name: "Convex",
       role: "Real-Time Reactive Backend, File Storage & Crons",
@@ -254,7 +235,7 @@ export const SponsorDiagnosticsView: React.FC = () => {
         "Activated automatically the moment OPENAI_API_KEY is configured on the deployment",
         "Structured JSON forensic line-item extraction via response_format on OpenAI",
         "The router falls through to Gemini and Claude while the adapter has no key",
-        "No OpenAI API credits are provided by the hackathon; the adapter is bring-your-own-key",
+        "The adapter is bring-your-own-key; no OpenAI key ships with the deployment",
       ],
       icon: Bot,
       badgeColor: "text-emerald-400 bg-emerald-950/50 border-emerald-800/60",
@@ -293,7 +274,10 @@ export const SponsorDiagnosticsView: React.FC = () => {
       <div>
         <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
           <Activity className="w-5 h-5 text-emerald-400" />
-          Sponsor Integration Hub, Multi-Model Router & Diagnostics
+          Model checks and integrations
+          <span className="rounded-full border border-amber-600 bg-amber-950/60 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-200">
+            Demo
+          </span>
         </h2>
         <p className="text-xs text-slate-400 mt-0.5">
           Live integration status across Convex, OpenAI (BYOK adapter), Firecrawl, AgentMail, and the multi-model router.
@@ -711,8 +695,7 @@ export const SponsorDiagnosticsView: React.FC = () => {
 
         {providerAvailability && !(providerAvailability as any).openai && (
           <div className="rounded-xl border border-amber-800/60 bg-amber-950/30 p-3 text-[11px] text-amber-200 leading-relaxed">
-            The OpenAI adapter is wired into the router but no key is configured on this deployment (the hackathon
-            provides no OpenAI API credits). Add one with{" "}
+            The OpenAI adapter is wired into the router but no key is configured on this deployment. Add one with{" "}
             <span className="font-mono">npx convex env set OPENAI_API_KEY &lt;key&gt;</span> to run it live; until then the
             pipeline routes to the configured providers.
           </div>
@@ -790,9 +773,9 @@ export const SponsorDiagnosticsView: React.FC = () => {
         )}
       </div>
 
-      {/* Sponsor Cards Grid */}
+      {/* Integration cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {sponsors.map((s) => {
+        {integrations.map((s) => {
           const Icon = s.icon;
           return (
             <div
@@ -832,13 +815,13 @@ export const SponsorDiagnosticsView: React.FC = () => {
         })}
       </div>
 
-      {/* Wayne Sutton / Vibe Apps llms.txt Explorer */}
+      {/* llms.txt explorer */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
         <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-3">
           <div className="flex items-center gap-2">
             <FileText className="w-4 h-4 text-emerald-400" />
             <h3 className="text-sm font-bold text-white">
-              Wayne Sutton / Vibe Apps Discoverability Endpoint (/llms.txt)
+              Machine-readable product description (/llms.txt)
             </h3>
           </div>
           <span className="text-[11px] text-slate-400 font-mono">

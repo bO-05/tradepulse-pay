@@ -11,7 +11,6 @@ import {
   Scale,
   Activity,
   Zap,
-  Radio,
   Plus,
   ChevronDown,
   Clock,
@@ -44,7 +43,9 @@ interface HeaderProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   onOpenSimulation: () => void;
-  isStandaloneMode?: boolean;
+  /** Demo companies get the guided tour, simulator and diagnostics; everyone else never sees them. */
+  isDemo?: boolean;
+  companyName?: string | null;
   clashCount?: number;
   isTourOpen?: boolean;
   onToggleTour?: () => void;
@@ -64,7 +65,8 @@ export const Header: React.FC<HeaderProps> = ({
   activeTab,
   setActiveTab,
   onOpenSimulation,
-  isStandaloneMode = false,
+  isDemo = false,
+  companyName = null,
   clashCount = 0,
   isTourOpen = false,
   onToggleTour,
@@ -112,18 +114,21 @@ export const Header: React.FC<HeaderProps> = ({
       else if (e.key === "5") setActiveTab("coordination");
       else if (e.key === "6") setActiveTab("contracts");
       else if (e.key === "7") setActiveTab("audit");
-      else if (e.key === "8") setActiveTab("diagnostics");
+      else if (e.key === "8" && isDemo) setActiveTab("diagnostics");
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [setActiveTab]);
+  }, [setActiveTab, isDemo]);
 
   // The empty-state "Create your first project" button outside the header opens the same dialog.
   useEffect(() => {
-    const open = () => setIsNewProjectModalOpen(true);
+    const open = () => {
+      setNewGeneralContractor((prev) => prev || companyName || "");
+      setIsNewProjectModalOpen(true);
+    };
     window.addEventListener(OPEN_NEW_PROJECT_EVENT, open);
     return () => window.removeEventListener(OPEN_NEW_PROJECT_EVENT, open);
-  }, []);
+  }, [companyName]);
 
   useEffect(() => {
     if (!isNewProjectModalOpen) return;
@@ -147,7 +152,7 @@ export const Header: React.FC<HeaderProps> = ({
       id: "discovery",
       step: "02",
       label: "Discovery",
-      sublabel: "Firecrawl SERP",
+      sublabel: "Find bidders",
       icon: Search,
       badge: `${contractorsCount} Subs`,
     },
@@ -187,8 +192,8 @@ export const Header: React.FC<HeaderProps> = ({
   ];
 
   const utilityTabs = [
-    { id: "audit", label: "Live Activity Audit", icon: Clock },
-    { id: "diagnostics", label: "Evals & Architecture", icon: Activity },
+    { id: "audit", label: "Activity log", icon: Clock },
+    ...(isDemo ? [{ id: "diagnostics", label: "Model checks (Demo)", icon: Activity }] : []),
   ];
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
@@ -215,7 +220,7 @@ export const Header: React.FC<HeaderProps> = ({
         targetCompletionWeeks: validation.weeks as number,
         specDocumentText: newSpec.trim() || `Project Scope for ${newTitle.trim()}. Standard CSI MasterFormat commercial obligations.`,
         isDemoProject: false,
-        generalContractorName: newGeneralContractor.trim() || "Austin Commercial, LP",
+        generalContractorName: newGeneralContractor.trim() || companyName || undefined,
       });
       setIsNewProjectModalOpen(false);
       setNewTitle("");
@@ -235,53 +240,42 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="border-b border-slate-800 bg-slate-900/95 backdrop-blur sticky top-0 z-40 shadow-lg">
-      {/* Top Banner with Sponsor Integration Badges & Presentation Mode */}
-      <div className="border-b border-slate-800/80 px-4 lg:px-8 py-2 flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-2">
-          <span className="flex items-center gap-1.5 font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-800/50 px-2 py-0.5 rounded-full" title={isStandaloneMode ? "Serving the local snapshot of the dataset because Convex is unreachable. Figures may be stale." : "Live data is streaming from the Convex deployment."}>
-            <Radio className={`w-3 h-3 text-emerald-400 ${isStandaloneMode ? "" : "animate-pulse"}`} />
-            {isStandaloneMode ? "Offline snapshot mode — data may be stale" : "Convex Reactive WebSockets Active"}
+      {isDemo && (
+        <div
+          className="border-b border-amber-800/60 bg-amber-950/40 px-4 lg:px-8 py-2 flex flex-wrap items-center justify-between gap-3 text-xs"
+          data-testid="demo-toolbar"
+        >
+          <span className="flex items-center gap-2 font-semibold text-amber-200">
+            <span className="rounded-full border border-amber-600 bg-amber-900/60 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+              Demo
+            </span>
+            Sample data for the Demo company only
           </span>
-          <span className="text-slate-400 hidden sm:inline">•</span>
-          <span className="text-slate-400 hidden sm:inline font-mono text-[11px]">
-            Convex "All Gas" Hackathon 2026
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <div className="hidden xl:flex items-center gap-1.5 mr-1">
-            <span className="text-slate-400 text-[11px]">Sponsors:</span>
-            <span className="bg-orange-950/40 text-orange-300 border border-orange-800/40 px-1.5 py-0.5 rounded text-[10px] font-mono">Convex</span>
-            <span className="bg-emerald-950/40 text-emerald-300 border border-emerald-800/40 px-1.5 py-0.5 rounded text-[10px] font-mono">OpenAI</span>
-            <span className="bg-amber-950/40 text-amber-300 border border-amber-800/40 px-1.5 py-0.5 rounded text-[10px] font-mono">Firecrawl</span>
-            <span className="bg-blue-950/40 text-blue-300 border border-blue-800/40 px-1.5 py-0.5 rounded text-[10px] font-mono">AgentMail</span>
-          </div>
-
-          {/* Investor Demo Tour Toggle Button */}
-          {onToggleTour && (
+          <div className="flex items-center gap-2">
+            {onToggleTour && (
+              <button
+                onClick={onToggleTour}
+                className={`font-bold px-2.5 py-1 rounded-lg flex items-center gap-1.5 text-xs transition border shadow-sm ${
+                  isTourOpen
+                    ? "bg-amber-400 text-slate-950 border-amber-300 ring-2 ring-amber-400/40"
+                    : "bg-slate-800 hover:bg-slate-750 text-amber-300 border-amber-500/40 hover:border-amber-400"
+                }`}
+                title="Show or hide the guided tour of the Demo company"
+              >
+                <Tv className="w-3.5 h-3.5" />
+                <span>Guided tour (Demo)</span>
+              </button>
+            )}
             <button
-              onClick={onToggleTour}
-              className={`font-bold px-2.5 py-1 rounded-lg flex items-center gap-1.5 text-xs transition border shadow-sm ${
-                isTourOpen
-                  ? "bg-amber-400 text-slate-950 border-amber-300 ring-2 ring-amber-400/40"
-                  : "bg-slate-800 hover:bg-slate-750 text-amber-300 border-amber-500/40 hover:border-amber-400"
-              }`}
-              title="Toggle Investor Demo Tour Teleprompter"
+              onClick={onOpenSimulation}
+              className="bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-slate-950 font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-sm text-xs transition"
             >
-              <Tv className="w-3.5 h-3.5" />
-              <span>🎬 Demo Tour</span>
+              <Zap className="w-3 h-3 fill-slate-950" />
+              Demo simulator
             </button>
-          )}
-
-          <button
-            onClick={onOpenSimulation}
-            className="bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-slate-950 font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-sm text-xs transition"
-          >
-            <Zap className="w-3 h-3 fill-slate-950" />
-            ⚡ 60s Judge Dock
-          </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Main Header Bar */}
       <div className="px-4 lg:px-8 py-2 flex flex-wrap items-center justify-between gap-4">
@@ -292,14 +286,16 @@ export const Header: React.FC<HeaderProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-base font-bold text-white tracking-tight flex items-center gap-1.5">
-                TradePulse <span className="text-emerald-400">Pro</span>
+                TradePulse <span className="text-emerald-400">Pay</span>
               </h1>
-              <span className="text-[10px] uppercase font-bold tracking-wider bg-slate-800 text-slate-300 border border-slate-700 px-1.5 py-0.5 rounded">
-                CSI MasterFormat
-              </span>
+              {companyName ? (
+                <span className="text-[11px] font-semibold text-slate-300 border border-slate-700 px-1.5 py-0.5 rounded">
+                  {companyName}
+                </span>
+              ) : null}
             </div>
             <p className="text-[11px] text-slate-400 hidden sm:block">
-              Autonomous Subcontractor Procurement, Dynamic Pre-Bid Q&A & Real-Time Bid Leveling
+              Procurement: trade packages, bidder questions, bid leveling and subcontracts
             </p>
           </div>
         </div>
@@ -335,7 +331,7 @@ export const Header: React.FC<HeaderProps> = ({
               setNewBudget("");
               setNewWeeks("");
               setNewSpec("");
-              setNewGeneralContractor("");
+              setNewGeneralContractor(companyName ?? "");
               setIsNewProjectModalOpen(true);
             }}
             className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600 text-xs font-semibold px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 transition shadow-sm"
@@ -551,7 +547,7 @@ export const Header: React.FC<HeaderProps> = ({
                   value={newGeneralContractor}
                   aria-label="General contractor or contracting entity"
                   onChange={(e) => setNewGeneralContractor(e.target.value)}
-                  placeholder="e.g. Austin Commercial, LP"
+                  placeholder={companyName || "e.g. Bayview Builders Inc."}
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>

@@ -123,7 +123,7 @@ export const JudgeSimulationDock: React.FC<JudgeSimulationDockProps> = ({
             </div>
             <div>
               <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <span id="judge-dock-title">⚡ 60-Second Executive Demo & Simulation Engine</span>
+                <span id="judge-dock-title">Demo simulator</span>
                 <span className="text-[10px] font-semibold uppercase bg-amber-400/20 text-amber-300 border border-amber-400/30 px-2 py-0.5 rounded-full">
                   Instant Showcase
                 </span>
@@ -135,7 +135,7 @@ export const JudgeSimulationDock: React.FC<JudgeSimulationDockProps> = ({
           </div>
           <button
             onClick={onClose}
-            aria-label="Close 60-second judge dock"
+            aria-label="Close demo simulator"
             className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition"
           >
             <X className="w-5 h-5" />

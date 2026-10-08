@@ -347,6 +347,8 @@ export default defineSchema({
   agentLinks: defineTable({
     agentEmail: v.string(), // lowercased
     contractorId: v.id("contractors"),
+    // Contractor name when the link was made, so the list stays readable after the contractor row is gone.
+    contractorName: v.optional(v.string()),
     agreementId: v.optional(v.id("agreements")),
     status: v.union(v.literal("active"), v.literal("revoked")),
     createdBy: v.id("users"),

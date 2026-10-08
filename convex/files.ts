@@ -453,10 +453,15 @@ async function doExtractBid(
   }
 
   // 1. Forensic reasoning via token-optimized LLM router
+  const gcCompanyName: string | null = await ctx.runQuery(
+    internal.projects.getProjectCompanyNameInternal,
+    { projectId: args.projectId }
+  );
   const reasoningResult: any = await ctx.runAction(internal.llmRouter.executeReasoning, {
     taskType: "bid_leveling",
     prompt: proposalText,
     division: tradePackage.csiDivision,
+    companyName: gcCompanyName ?? undefined,
   });
 
   // A1-01: when a contractor was explicitly selected, the contractor record's
@@ -741,7 +746,7 @@ async function doGeneratePreBidAddendum(
 **Project:** ${project?.title || "Commercial Construction Project"}  
 **Location:** ${project?.location || "Project Site"}  
 **Issuance Date:** ${nowStr}  
-**Prepared by:** TradePulse Pro Pre-Bid Clarification Engine  
+**Prepared by:** TradePulse Pay pre-bid clarification log  
 **Distribution:** All Registered CSI MasterFormat Trade Subcontractors  
 
 ---

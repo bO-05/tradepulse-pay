@@ -53,6 +53,8 @@ type PreparedInvite = {
   email: string;
   companyId: Id<"companies">;
   companyName: string;
+  /** Demo company invites are copy-link only; nothing is emailed. */
+  companyIsDemo: boolean;
   inviterName: string;
   projectId: Id<"projects"> | null;
   projectTitle: string | null;
@@ -227,6 +229,7 @@ export const prepareCreate = internalMutation({
       email,
       companyId: company._id,
       companyName: company.name,
+      companyIsDemo: company.isDemo,
       inviterName: personName(user),
       projectId: project?._id ?? null,
       projectTitle: project?.title ?? null,
@@ -274,6 +277,7 @@ export const prepareRotate = internalMutation({
       email: invite.email,
       companyId: company._id,
       companyName: company.name,
+      companyIsDemo: company.isDemo,
       inviterName: personName(user),
       projectId: project?._id ?? null,
       projectTitle: project?.title ?? null,
@@ -327,7 +331,7 @@ function inviteEmail(p: PreparedInvite, link: string): { subject: string; text: 
 type DeliveryResult = { emailStatus: InviteEmailStatus; emailError: string | null };
 
 async function deliver(ctx: ActionCtx, p: PreparedInvite, token: string, link: string, send: boolean): Promise<DeliveryResult> {
-  if (!send) return { emailStatus: "not_sent", emailError: null };
+  if (!send || p.companyIsDemo) return { emailStatus: "not_sent", emailError: null };
   const { subject, text, html } = inviteEmail(p, link);
   const result = await sendEmail(ctx, {
     kind: "invite",

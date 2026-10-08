@@ -21,7 +21,7 @@ import { api } from "../../convex/_generated/api.js";
 import {
   REAL_DOCUMENTS,
 } from "../../convex/realDocuments.ts";
-import { extractTextFromPdfStream } from "../standaloneStore.ts";
+import { extractTextFromPdfStream } from "../lib/documentText.ts";
 import { Project, TradePackage, ProjectFile, Contractor } from "../types.ts";
 import { ConfirmDialog } from "./ConfirmDialog.tsx";
 import { useDialogFocus } from "../lib/useDialogFocus.ts";

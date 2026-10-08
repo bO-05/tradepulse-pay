@@ -700,7 +700,7 @@ ARTICLE 1 - THE SUBCONTRACT DOCUMENTS
   (3) the Conditions of the Subcontract (General, Supplementary, and Special);
   (4) CSI MasterFormat Division ${params.csiDivision} (${params.tradeName}) Drawings and Specifications;
   (5) Addenda issued prior to execution; and
-  (6) Written Pre-Bid Clarifications and Modifications recorded in TradePulse Pro.
+  (6) Written Pre-Bid Clarifications and Modifications recorded in TradePulse Pay.
 
 --------------------------------------------------------------------------------
 ARTICLE 2 - MUTUAL RIGHTS AND RESPONSIBILITIES
@@ -714,7 +714,7 @@ all obligations and responsibilities that the Owner assumes toward the Contracto
 ARTICLE 3 - CONTRACTOR OBLIGATIONS & SITE LOGISTICS
 --------------------------------------------------------------------------------
 § 3.1 Contractor shall coordinate utility hookup points, establish perimeter benchmarks,
-and administer the TradePulse Pro project procurement portal for RFI clarifications.
+and administer the TradePulse Pay project portal for RFI clarifications.
 All hoisting logistics, floor loading capacities, and crane pick zones shall be
 coordinated through Contractor's field superintendent.
 
@@ -798,7 +798,7 @@ By: ___________________________________       Date: ${params.formattedDate}
     Authorized Corporate Principal
 
 ================================================================================
-Generated autonomously via TradePulse Pro Procurement Platform
+Prepared in TradePulse Pay for ${params.generalContractor}
 Generated draft based on the AIA A401 article structure — not an AIA-licensed form
 ================================================================================`;
 }

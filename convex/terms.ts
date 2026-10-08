@@ -1,5 +1,5 @@
 /**
- * Canonical commercial terms for TradePulse Pro.
+ * Canonical commercial terms for TradePulse Pay.
  *
  * Every surface that quotes these figures (AIA A401 agreements, ADR-0003 leveling,
  * generated specifications, addenda and UI copy) must read them from here so the

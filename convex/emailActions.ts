@@ -222,11 +222,16 @@ export const handleRfiProcessing = internalAction({
         tradePackageId: args.tradePackageId,
       });
 
+      const gcCompanyName: string | null = tradePkg?.projectId
+        ? await ctx.runQuery(internal.projects.getProjectCompanyNameInternal, { projectId: tradePkg.projectId })
+        : null;
+
       // Call LLM Router for RFI reply
       const llmResult = await ctx.runAction(internal.llmRouter.executeReasoning, {
         taskType: "rfi_reply",
         prompt: `Inbound Contractor Subject: ${args.subject}\nInbound Question: ${args.text}\nContext: CSI MasterFormat Commercial Subcontractor Procurement for CSI ${tradePkg?.csiDivision || "trade"} (${tradePkg?.tradeName || "Trade Package"}). Mandatory inclusions: ${(tradePkg?.mandatoryInclusions || []).join("; ")}. Answer authoritatively referencing Division 01 General Requirements and Section ${tradePkg?.csiDivision || "specifications"}. Format the answer as concise markdown: a one-line determination, the specific reasons with spec/section references, and any action required of the bidder.`,
-        systemPrompt: "You draft answers to subcontractor pre-bid questions for TradePulse Pay. A GC project manager reviews every draft before it is sent. Answer factually and clearly based on the contract specifications.",
+        systemPrompt: `You draft answers to subcontractor pre-bid questions for TradePulse Pay${gcCompanyName ? ` on behalf of ${gcCompanyName}` : ""}. A GC project manager reviews every draft before it is sent. Answer factually and clearly based on the contract specifications.`,
+        companyName: gcCompanyName ?? undefined,
       });
 
       const subjectLower = args.subject.toLowerCase();
@@ -308,12 +313,16 @@ export const handleBidProcessing = internalAction({
       contractorId,
     });
     const subName = contractorRecord?.companyName || "Commercial Subcontractor";
+    const gcCompanyName: string | null = tradePkg?.projectId
+      ? await ctx.runQuery(internal.projects.getProjectCompanyNameInternal, { projectId: tradePkg.projectId })
+      : null;
 
     // Call LLM Router for forensic Bid Leveling extraction
     const llmResult = await ctx.runAction(internal.llmRouter.executeReasoning, {
       taskType: "bid_leveling",
       prompt: `Analyze this commercial subcontractor bid proposal for ${tradePkg?.tradeName || "Trade"} (CSI ${tradePkg?.csiDivision || ""}):\nMandatory package requirements: ${(tradePkg?.mandatoryInclusions || []).join("; ")}\nContractor: ${subName}\nSubject: ${args.subject}\nBody:\n${args.text}\nIdentify base bid amount, line items, subtle scope exclusions, crane hoisting exclusions, long lead times, and insurance compliance. Return structured bid leveling data.`,
       division: tradePkg?.csiDivision,
+      companyName: gcCompanyName ?? undefined,
     });
 
     let bidData: any = llmResult.parsedJson;

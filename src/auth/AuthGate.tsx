@@ -80,7 +80,7 @@ export function AuthGate({ procurementApp }: { procurementApp: ReactNode }) {
         <div className="max-w-md text-center space-y-3 px-4">
           <h1 className="text-lg font-semibold">No access yet</h1>
           <p className="text-sm text-slate-400">
-            {me?.email ?? "This account"} is signed in but has no TradePulse role. Ask your general contractor to grant
+            {me?.email ?? "This account"} is signed in but has no TradePulse Pay role. Ask your general contractor to grant
             access.
           </p>
           <button
@@ -94,5 +94,10 @@ export function AuthGate({ procurementApp }: { procurementApp: ReactNode }) {
       </FullScreenStatus>
     );
   }
-  return <RoleShell me={{ ...me, role: me.role, companyName: me.company?.name ?? null }} procurementApp={procurementApp} />;
+  return (
+    <RoleShell
+      me={{ ...me, role: me.role, companyName: me.company?.name ?? null, isDemo: me.company?.isDemo === true }}
+      procurementApp={procurementApp}
+    />
+  );
 }

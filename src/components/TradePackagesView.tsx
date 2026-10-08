@@ -311,7 +311,7 @@ Furnish and install domestic cold, hot, and recirculated water piping, sanitary 
         {showWhyCare && (
           <div className="mt-3 pt-3 border-t border-slate-800 text-xs text-slate-300 leading-relaxed bg-slate-950/60 rounded-lg p-3 border animate-in fade-in">
             <span className="font-semibold text-emerald-400">GC Preconstruction Baseline: </span>
-            General Contractors prevent scope voids and trade clash claims by defining clear CSI MasterFormat boundaries before soliciting bids. TradePulse provisions programmatic <code className="text-emerald-300 bg-slate-900 px-1 py-0.5 rounded font-mono">@agentmail.to</code> inboxes per trade package — shared when the AgentMail plan limit is reached, and labeled as shared on the package card — so all subcontractor communications are tracked and audit-ready.
+            General Contractors prevent scope voids and trade clash claims by defining clear CSI MasterFormat boundaries before soliciting bids. TradePulse Pay provisions programmatic <code className="text-emerald-300 bg-slate-900 px-1 py-0.5 rounded font-mono">@agentmail.to</code> inboxes per trade package — shared when the AgentMail plan limit is reached, and labeled as shared on the package card — so all subcontractor communications are tracked and audit-ready.
           </div>
         )}
       </div>

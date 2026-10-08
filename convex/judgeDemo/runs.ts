@@ -70,6 +70,7 @@ async function ensureAgentLink(ctx: MutationCtx, contractorId: Id<"contractors">
   const linkId = await ctx.db.insert("agentLinks", {
     agentEmail,
     contractorId,
+    contractorName: contractor?.companyName,
     gcCompanyId: demoCompanies.gc,
     subCompanyId: contractor?.linkedCompanyId,
     status: "active",

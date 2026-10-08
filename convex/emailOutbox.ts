@@ -1,5 +1,6 @@
 import { v } from "convex/values";
-import { internalMutation, internalQuery } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
+import { internalMutation, internalQuery, type QueryCtx } from "./_generated/server";
 import { readDailyBudget, sendLimitFor, utcDayKey } from "./lib/mailer";
 
 const mailKind = v.union(
@@ -12,6 +13,19 @@ const mailKind = v.union(
 
 /** A pending attempt older than this is treated as abandoned (the action died mid-call). */
 const STALE_PENDING_MS = 2 * 60 * 1000;
+
+/** Demo-company mail (by sender company or project) never leaves the system. */
+async function isDemoSender(
+  ctx: QueryCtx,
+  companyId: Id<"companies"> | undefined,
+  projectId: Id<"projects"> | undefined,
+): Promise<boolean> {
+  if (companyId !== undefined && (await ctx.db.get(companyId))?.isDemo === true) return true;
+  if (projectId === undefined) return false;
+  const project = await ctx.db.get(projectId);
+  if (project?.gcCompanyId === undefined) return false;
+  return (await ctx.db.get(project.gcCompanyId))?.isDemo === true;
+}
 
 /**
  * Budget check and slot reservation in one transaction, so concurrent sends can
@@ -28,6 +42,9 @@ export const reserveSend = internalMutation({
     projectId: v.optional(v.id("projects")),
   },
   handler: async (ctx, args) => {
+    if (await isDemoSender(ctx, args.companyId, args.projectId)) {
+      return { action: "demo_blocked" as const };
+    }
     const now = Date.now();
     const day = utcDayKey(now);
     const existing = await ctx.db

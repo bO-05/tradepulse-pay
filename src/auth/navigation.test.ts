@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { agreementHash, ledgerHash, NAV_BY_ROLE, parseHash, resolveRoute } from "./navigation";
+import { agreementHash, ledgerHash, NAV_BY_ROLE, navFor, parseHash, resolveRoute } from "./navigation";
 
 describe("role navigation", () => {
   test("GC gets procurement, payments and the read-only overview; sub and owner never get procurement", () => {
@@ -39,9 +39,17 @@ describe("role navigation", () => {
     expect(resolveRoute("gc", "#/inbox")).toEqual({ area: "inbox" });
     expect(resolveRoute("sub", "#/inbox")).toEqual({ area: "sub-portal" });
     expect(resolveRoute("owner", "#/inbox")).toEqual({ area: "owner-portal" });
-    expect(resolveRoute("gc", "#/judge-demo")).toEqual({ area: "judge-demo" });
-    expect(resolveRoute("sub", "#/judge-demo")).toEqual({ area: "sub-portal" });
-    expect(resolveRoute("owner", "#/judge-demo")).toEqual({ area: "owner-portal" });
+  });
+
+  test("the guided demo is a Demo-company area; every other company gets Not found", () => {
+    expect(resolveRoute("gc", "#/judge-demo", true)).toEqual({ area: "judge-demo" });
+    expect(resolveRoute("sub", "#/judge-demo", true)).toEqual({ area: "sub-portal" });
+    for (const role of ["gc", "sub", "owner"] as const) {
+      expect(resolveRoute(role, "#/judge-demo")).toEqual({ area: "not-found" });
+      expect(navFor(role).some((i) => i.area === "judge-demo")).toBe(false);
+    }
+    expect(navFor("gc", true).some((i) => i.area === "judge-demo")).toBe(true);
+    expect(NAV_BY_ROLE.gc.find((i) => i.area === "judge-demo")?.label).toBe("Guided demo");
   });
 
   test("dashboard: GC and owner reach it, a sub's direct route is access denied", () => {

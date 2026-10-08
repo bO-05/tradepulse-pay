@@ -45,6 +45,8 @@ export type SendEmailResult =
   | { status: "skipped_budget"; outboxId: Id<"emailOutbox">; message: string }
   | { status: "failed"; outboxId?: Id<"emailOutbox">; error: string };
 
+export const DEMO_NO_EMAIL_MESSAGE = "Demo company: no external email is sent.";
+
 export const BUDGET_SKIP_MESSAGE = "Email limit reached for today. No email was sent.";
 
 export function utcDayKey(ms: number): string {
@@ -112,6 +114,9 @@ export async function sendEmail(ctx: MailerCtx, req: SendEmailRequest, opts: Mai
     projectId: req.projectId,
   });
 
+  if (reservation.action === "demo_blocked") {
+    return { status: "failed", error: DEMO_NO_EMAIL_MESSAGE };
+  }
   if (reservation.action === "already_sent") {
     return {
       status: "sent",

@@ -58,6 +58,7 @@ import type * as lib_authErrors from "../lib/authErrors.js";
 import type * as lib_companyProfile from "../lib/companyProfile.js";
 import type * as lib_demoTenancy from "../lib/demoTenancy.js";
 import type * as lib_inviteRules from "../lib/inviteRules.js";
+import type * as lib_llmsTxt from "../lib/llmsTxt.js";
 import type * as lib_mailer from "../lib/mailer.js";
 import type * as lib_money from "../lib/money.js";
 import type * as lib_packageContractors from "../lib/packageContractors.js";
@@ -199,6 +200,7 @@ declare const fullApi: ApiFromModules<{
   "lib/companyProfile": typeof lib_companyProfile;
   "lib/demoTenancy": typeof lib_demoTenancy;
   "lib/inviteRules": typeof lib_inviteRules;
+  "lib/llmsTxt": typeof lib_llmsTxt;
   "lib/mailer": typeof lib_mailer;
   "lib/money": typeof lib_money;
   "lib/packageContractors": typeof lib_packageContractors;

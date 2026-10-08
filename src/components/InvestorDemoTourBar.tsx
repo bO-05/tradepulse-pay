@@ -94,7 +94,7 @@ export function buildDemoScenes(ctx: TourLiveContext): DemoScene[] {
       title: "The Scope Exclusion Trap & Automated Scoping",
       problemStatement:
         "Commercial GCs lose six figures on MEP buyout to fine-print scope exclusions and trade overlaps hidden in architectural specs.",
-      talkTrack: `"Welcome to TradePulse Pro. TradePulse parses complex CSI specifications into trade packages — each with a programmatic @agentmail.to inbox for trade communication. On the AgentMail free tier, packages share an inbox once the plan limit is reached, and the package card labels it. The active project currently has ${pkgLabel}."`,
+      talkTrack: `"Welcome to TradePulse Pay. TradePulse parses complex CSI specifications into trade packages — each with a programmatic @agentmail.to inbox for trade communication. On the AgentMail free tier, packages share an inbox once the plan limit is reached, and the package card labels it. The active project currently has ${pkgLabel}."`,
       keyMetric:
         ctx.packagesCount > 0
           ? `${pkgLabel} • AgentMail inbox per package`
@@ -255,7 +255,7 @@ export const InvestorDemoTourBar: React.FC<InvestorDemoTourBarProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h4 className="text-xs font-bold text-white tracking-wide">
-                  Investor Demo Tour Complete • All 6 Procurement Lifecycle Stages Covered
+                  Guided tour (Demo) complete • All 6 procurement stages covered
                 </h4>
                 <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-mono font-bold">
                   Complete
@@ -270,9 +270,9 @@ export const InvestorDemoTourBar: React.FC<InvestorDemoTourBarProps> = ({
             <button
               onClick={() => handleGoToScene(0)}
               className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs py-1.5 px-3 rounded-lg flex items-center gap-1.5 shadow transition"
-              title="Restart Demo Tour from Scene 01"
+              title="Restart the guided tour from scene 01"
             >
-              <span>🔄 Restart Demo Tour</span>
+              <span>Restart guided tour</span>
             </button>
             <button
               onClick={onClose}
@@ -294,10 +294,10 @@ export const InvestorDemoTourBar: React.FC<InvestorDemoTourBarProps> = ({
         <button
           onClick={() => setIsMinimized(false)}
           className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold px-3.5 py-2 rounded-xl flex items-center gap-2 shadow-2xl border border-amber-300/40 text-xs transition"
-          title="Expand Investor Demo Teleprompter"
+          title="Expand the guided tour"
         >
           <Tv className="w-4 h-4 text-slate-950" />
-          <span>🎬 Investor Demo Tour ({scene.stepNumber}/06)</span>
+          <span>Guided tour (Demo) ({scene.stepNumber}/06)</span>
           <Maximize2 className="w-3.5 h-3.5 text-slate-950/80" />
         </button>
       </div>
@@ -383,10 +383,10 @@ export const InvestorDemoTourBar: React.FC<InvestorDemoTourBarProps> = ({
               <button
                 onClick={onOpenSimulationModal}
                 className="hidden md:flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold transition"
-                title="Launch 60-second automated investor simulation"
+                title="Open the demo simulator"
               >
                 <Zap className="w-3 h-3 text-amber-400 fill-amber-400" />
-                <span className="text-[11px]">60s Sim</span>
+                <span className="text-[11px]">Simulator (Demo)</span>
               </button>
             )}
 
@@ -401,7 +401,7 @@ export const InvestorDemoTourBar: React.FC<InvestorDemoTourBarProps> = ({
             <button
               onClick={onClose}
               className="text-slate-400 hover:text-rose-400 p-1 rounded hover:bg-slate-800 transition"
-              title="Close Demo Tour"
+              title="Close the guided tour"
             >
               <X className="w-3.5 h-3.5" />
             </button>

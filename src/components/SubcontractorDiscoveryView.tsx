@@ -442,7 +442,7 @@ export const SubcontractorDiscoveryView: React.FC<SubcontractorDiscoveryViewProp
         {showWhyCare && (
           <div className="mt-3 pt-3 border-t border-slate-800 text-xs text-slate-300 leading-relaxed bg-slate-950/60 rounded-lg p-3 border animate-in fade-in">
             <span className="font-semibold text-amber-300">Vetting & Compliance: </span>
-            Unlicensed or non-compliant specialty subcontractors expose commercial GCs to stop-work orders, OSHA fines, and catastrophic mechanics liens. TradePulse Pro utilizes <strong className="text-amber-300 font-semibold">Firecrawl</strong> web discovery to gather candidate contractors and records the provenance of every data point, so license status is never presented as verified unless the source itself is a registry page.
+            Unlicensed or non-compliant specialty subcontractors expose commercial GCs to stop-work orders, OSHA fines, and catastrophic mechanics liens. TradePulse Pay utilizes <strong className="text-amber-300 font-semibold">Firecrawl</strong> web discovery to gather candidate contractors and records the provenance of every data point, so license status is never presented as verified unless the source itself is a registry page.
           </div>
         )}
       </div>

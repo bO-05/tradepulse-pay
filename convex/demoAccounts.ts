@@ -4,7 +4,13 @@ import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalAction, internalMutation, internalQuery, type MutationCtx } from "./_generated/server";
 import type { Role } from "./lib/roles";
-import { attachProjectToDemo, ensureDemoAccounts, ensureDemoCompanies, repairDemoContractorRefs } from "./lib/demoTenancy";
+import {
+  attachProjectToDemo,
+  ensureDemoAccounts,
+  ensureDemoCompanies,
+  findDemoGcCompanyId,
+  repairDemoContractorRefs,
+} from "./lib/demoTenancy";
 
 /** Shared, publicly documented password for the demo accounts (README "Demo accounts"). */
 export const DEMO_PASSWORD = "TradePulseDemo!2026";
@@ -50,11 +56,15 @@ export const DEMO_ACCOUNTS: readonly DemoAccount[] = [
   },
 ];
 
+/** A bidder of the Demo GC company's seeded project with this exact name; other companies are never searched. */
 export async function findDemoContractorId(ctx: MutationCtx, companyName: string): Promise<Id<"contractors"> | undefined> {
-  const demoProject = await ctx.db
+  const demoGcId = await findDemoGcCompanyId(ctx);
+  if (demoGcId === null) return undefined;
+  const demoProjects = await ctx.db
     .query("projects")
-    .withIndex("by_demo", (q) => q.eq("isDemoProject", true))
-    .first();
+    .withIndex("by_gcCompanyId", (q) => q.eq("gcCompanyId", demoGcId))
+    .take(2000);
+  const demoProject = demoProjects.find((p) => p.isDemoProject === true);
   if (!demoProject) return undefined;
   const packages = await ctx.db
     .query("tradePackages")

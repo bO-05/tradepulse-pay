@@ -14,14 +14,22 @@ export type AreaId =
   | "company"
   | "agreement"
   | "ledger"
-  | "access-denied";
+  | "access-denied"
+  | "not-found";
 
-export type NavItem = { area: Exclude<AreaId, "agreement" | "ledger" | "access-denied" | "company">; label: string; hash: string };
+export type NavItem = {
+  area: Exclude<AreaId, "agreement" | "ledger" | "access-denied" | "not-found" | "company">;
+  label: string;
+  hash: string;
+};
 
 export type Route = { area: AreaId; agreementId?: string; projectId?: string };
 
 /** Areas whose direct route shows an access-denied page (instead of the role home) to roles without them. */
 const DENY_WHEN_DISALLOWED = new Set<AreaId>(["dashboard"]);
+
+/** Areas that exist only for Demo companies; everyone else gets "Not found" on the direct route. */
+export const DEMO_ONLY_AREAS = new Set<AreaId>(["judge-demo"]);
 
 const AREA_HASH: Record<NavItem["area"], string> = {
   procurement: "#/procurement",
@@ -52,7 +60,7 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { area: "people", label: "People", hash: AREA_HASH.people },
     { area: "billing-agents", label: "Billing agents", hash: AREA_HASH["billing-agents"] },
     { area: "dashboard", label: "Dashboard", hash: AREA_HASH.dashboard },
-    { area: "judge-demo", label: "Judge demo", hash: AREA_HASH["judge-demo"] },
+    { area: "judge-demo", label: "Guided demo", hash: AREA_HASH["judge-demo"] },
   ],
   sub: [
     { area: "sub-portal", label: "My agreements & pay applications", hash: AREA_HASH["sub-portal"] },
@@ -97,10 +105,16 @@ export function parseHash(hash: string): Route | null {
   return null;
 }
 
+/** The role's nav items; Demo-only items appear only for Demo companies. */
+export function navFor(role: Role, isDemo = false): NavItem[] {
+  return NAV_BY_ROLE[role].filter((item) => isDemo || !DEMO_ONLY_AREAS.has(item.area));
+}
+
 /** The route the role actually gets: unknown or disallowed areas fall back to the role's home. */
-export function resolveRoute(role: Role, hash: string): Route {
-  const nav = NAV_BY_ROLE[role];
+export function resolveRoute(role: Role, hash: string, isDemo = false): Route {
+  const nav = navFor(role, isDemo);
   const parsed = parseHash(hash);
+  if (parsed && DEMO_ONLY_AREAS.has(parsed.area) && !isDemo) return { area: "not-found" };
   if (parsed?.area === "agreement" || parsed?.area === "ledger" || parsed?.area === "company") return parsed;
   if (parsed && nav.some((item) => item.area === parsed.area)) return parsed;
   if (parsed && DENY_WHEN_DISALLOWED.has(parsed.area)) return { area: "access-denied" };

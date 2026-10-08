@@ -4,6 +4,7 @@ import { requireCompanyMember } from "./lib/tenancy";
 import { auditActor, callerProjects, requireDemoCompany, requireProjectScope } from "./lib/projectScope";
 import type { Doc } from "./_generated/dataModel";
 import { linkDemoProfiles } from "./demoAccounts";
+import { attachProjectToDemo, ensureDemoCompanies, type DemoCompanyIds } from "./lib/demoTenancy";
 import { applyDemoLicenseNumbers } from "./kernel/demoLicenses";
 import { remapAgentLinks, snapshotActiveAgentLinks } from "./lib/agentLinkRemap";
 import { v, ConvexError } from "convex/values";
@@ -56,6 +57,16 @@ export const getProjectInternal = internalQuery({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.projectId);
+  },
+});
+
+export const getProjectCompanyNameInternal = internalQuery({
+  args: { projectId: v.id("projects") },
+  handler: async (ctx, args): Promise<string | null> => {
+    const project = await ctx.db.get(args.projectId);
+    if (!project?.gcCompanyId) return null;
+    const company = await ctx.db.get(project.gcCompanyId);
+    return company?.name ?? null;
   },
 });
 
@@ -115,199 +126,97 @@ export const createProject = mutation({
   },
 });
 
+/** The Demo GC company's seeded walkthrough projects (isDemoProject), found through the company id. */
+async function demoSeedProjects(ctx: MutationCtx, demoIds: DemoCompanyIds): Promise<Doc<"projects">[]> {
+  const owned = await ctx.db
+    .query("projects")
+    .withIndex("by_gcCompanyId", (q) => q.eq("gcCompanyId", demoIds.gc))
+    .take(2000);
+  return owned.filter((p) => p.isDemoProject === true);
+}
+
+/** Deletes one Demo-company project and every row reached from it by id. */
+async function deleteDemoProjectRows(ctx: MutationCtx, proj: Doc<"projects">): Promise<void> {
+  const pkgs = await ctx.db
+    .query("tradePackages")
+    .withIndex("by_project", (q) => q.eq("projectId", proj._id))
+    .collect();
+  for (const pkg of pkgs) {
+    const contractors = await ctx.db
+      .query("contractors")
+      .withIndex("by_package", (q) => q.eq("tradePackageId", pkg._id))
+      .collect();
+    for (const c of contractors) await deleteContractorCascade(ctx, c._id);
+    const convos = await ctx.db
+      .query("conversations")
+      .withIndex("by_package", (q) => q.eq("tradePackageId", pkg._id))
+      .collect();
+    for (const c of convos) await ctx.db.delete(c._id);
+    const bids = await ctx.db
+      .query("bids")
+      .withIndex("by_package", (q) => q.eq("tradePackageId", pkg._id))
+      .collect();
+    for (const b of bids) await ctx.db.delete(b._id);
+    const agreements = await ctx.db
+      .query("agreements")
+      .withIndex("by_package", (q) => q.eq("tradePackageId", pkg._id))
+      .collect();
+    for (const a of agreements) await deleteAgreementCascade(ctx, a._id);
+    await ctx.db.delete(pkg._id);
+  }
+  const projAgreements = await ctx.db
+    .query("agreements")
+    .withIndex("by_project", (q) => q.eq("projectId", proj._id))
+    .collect();
+  for (const a of projAgreements) await deleteAgreementCascade(ctx, a._id);
+  const files = await ctx.db
+    .query("projectFiles")
+    .withIndex("by_project", (q) => q.eq("projectId", proj._id))
+    .collect();
+  for (const f of files) {
+    if (f.storageId && !f.storageId.startsWith("http") && !f.storageId.startsWith("local_") && !f.storageId.startsWith("/")) {
+      try {
+        await ctx.storage.delete(f.storageId as any);
+      } catch {
+        // Ignore if blob already removed
+      }
+    }
+    await ctx.db.delete(f._id);
+  }
+  const members = await ctx.db
+    .query("projectMembers")
+    .withIndex("by_projectId", (q) => q.eq("projectId", proj._id))
+    .collect();
+  for (const m of members) await ctx.db.delete(m._id);
+  // auditLogs are kept as history; listRecentLogs hides entries of deleted projects.
+  await ctx.db.delete(proj._id);
+}
+
 /**
- * Ensures rich, realistic commercial MEP data is seeded for demo & judge evaluation.
- * Fulfills the 60-Second Invariant: zero empty states, instant live view.
+ * Seeds the Demo company's walkthrough project (The Domain Tower B). `force` deletes and recreates
+ * only the Demo GC company's seeded demo projects, reached by id from the Demo company; rows of
+ * other companies are never read for deletion, whatever their names, emails or phone numbers.
  */
 async function seedDemoProject(ctx: MutationCtx, args: { force?: boolean }) {
   {
-    const existing = await ctx.db
+    const demoIds = await ensureDemoCompanies(ctx);
+    // Pre-tenancy demo projects (no company yet) belong to the Demo company, as in the migration.
+    const flagged = await ctx.db
       .query("projects")
       .withIndex("by_demo", (q) => q.eq("isDemoProject", true))
-      .first();
-
-    // Detect if database currently has obsolete legacy demo data (e.g. 555- numbers, example.com emails, or old demo names)
-    let hasLegacyMockData = false;
-    // Only the demo project's own bidders count: contractors of other companies' projects (which may
-    // legitimately use example.com addresses) must never trigger a demo reseed.
-    const sampleContractors: Doc<"contractors">[] = [];
-    if (existing) {
-      const demoPackages = await ctx.db
-        .query("tradePackages")
-        .withIndex("by_project", (q) => q.eq("projectId", existing._id))
-        .take(20);
-      for (const pkg of demoPackages) {
-        sampleContractors.push(
-          ...(await ctx.db
-            .query("contractors")
-            .withIndex("by_package", (q) => q.eq("tradePackageId", pkg._id))
-            .take(20)),
-        );
-      }
+      .take(50);
+    for (const p of flagged) {
+      if (p.gcCompanyId === undefined) await attachProjectToDemo(ctx, p._id, demoIds);
     }
-    for (const sc of sampleContractors) {
-      if (
-        sc.contactEmail.includes("example.com") ||
-        sc.contactEmail.includes("lone-star") ||
-        sc.contactEmail.includes("austin-metro") ||
-        sc.contactEmail.includes("capitalcitygrid") ||
-        sc.contactEmail.includes("@agentmail.to") ||
-        sc.companyName.includes("Direct Inbound") ||
-        sc.companyName.includes("Division 23 HVAC") ||
-        sc.licenseNumber === "TX-VERIFY-PENDING" ||
-        sc.companyName.includes("Lone Star") ||
-        sc.companyName.includes("Austin Metro") ||
-        sc.companyName.includes("Capital City") ||
-        sc.companyName.includes("Colorado River") ||
-        sc.companyName.includes("Apex Commercial") ||
-        sc.companyName.includes("Travis County") ||
-        sc.companyName.includes("Austin Central Air") ||
-        sc.companyName.includes("Hill Country") ||
-        (sc.phone && sc.phone.includes("555-"))
-      ) {
-        hasLegacyMockData = true;
-        break;
-      }
-    }
+    const demoProjects = (await demoSeedProjects(ctx, demoIds)).sort((a, b) => a._creationTime - b._creationTime);
+    const existing = demoProjects[0];
 
-    if (existing && !args.force && !hasLegacyMockData) {
+    if (existing && !args.force) {
       return { status: "already_seeded", projectId: existing._id };
     }
 
-    // Clean up all existing demo records and legacy mock records
-    if (args.force || hasLegacyMockData || existing) {
-      const allDemoProjects = await ctx.db
-        .query("projects")
-        .withIndex("by_demo", (q) => q.eq("isDemoProject", true))
-        .collect();
-
-      for (const proj of allDemoProjects) {
-        const pkgs = await ctx.db
-          .query("tradePackages")
-          .withIndex("by_project", (q) => q.eq("projectId", proj._id))
-          .collect();
-
-        for (const pkg of pkgs) {
-          const contractors = await ctx.db
-            .query("contractors")
-            .withIndex("by_package", (q) => q.eq("tradePackageId", pkg._id))
-            .collect();
-          for (const c of contractors) {
-            await deleteContractorCascade(ctx, c._id);
-          }
-
-          const convos = await ctx.db
-            .query("conversations")
-            .withIndex("by_package", (q) => q.eq("tradePackageId", pkg._id))
-            .collect();
-          for (const c of convos) {
-            await ctx.db.delete(c._id);
-          }
-
-          const bids = await ctx.db
-            .query("bids")
-            .withIndex("by_package", (q) => q.eq("tradePackageId", pkg._id))
-            .collect();
-          for (const b of bids) {
-            await ctx.db.delete(b._id);
-          }
-
-          const agreements = await ctx.db
-            .query("agreements")
-            .withIndex("by_package", (q) => q.eq("tradePackageId", pkg._id))
-            .collect();
-          for (const a of agreements) {
-            await deleteAgreementCascade(ctx, a._id);
-          }
-
-          await ctx.db.delete(pkg._id);
-        }
-
-        const projAgreements = await ctx.db
-          .query("agreements")
-          .withIndex("by_project", (q) => q.eq("projectId", proj._id))
-          .collect();
-        for (const a of projAgreements) {
-          await deleteAgreementCascade(ctx, a._id);
-        }
-
-        const files = await ctx.db
-          .query("projectFiles")
-          .withIndex("by_project", (q) => q.eq("projectId", proj._id))
-          .collect();
-        for (const f of files) {
-          if (f.storageId && !f.storageId.startsWith("http") && !f.storageId.startsWith("local_") && !f.storageId.startsWith("/")) {
-            try {
-              await ctx.storage.delete(f.storageId as any);
-            } catch {
-              // Ignore if blob already removed
-            }
-          }
-          await ctx.db.delete(f._id);
-        }
-
-        const members = await ctx.db
-          .query("projectMembers")
-          .withIndex("by_projectId", (q) => q.eq("projectId", proj._id))
-          .collect();
-        for (const m of members) await ctx.db.delete(m._id);
-
-        // auditLogs are kept as history; listRecentLogs hides entries of deleted projects.
-        await ctx.db.delete(proj._id);
-      }
-
-      // Explicit sweep of any orphaned contractors, bids, or agreements containing legacy mock data
-      const orphanedContractors = await ctx.db.query("contractors").collect();
-      for (const c of orphanedContractors) {
-        if (
-          c.contactEmail.includes("example.com") ||
-          c.contactEmail.includes("lone-star") ||
-          c.contactEmail.includes("austin-metro") ||
-          c.contactEmail.includes("capitalcitygrid") ||
-          c.contactEmail.includes("@agentmail.to") ||
-          c.companyName.includes("Direct Inbound") ||
-          c.companyName.includes("Division 23 HVAC") ||
-          c.licenseNumber === "TX-VERIFY-PENDING" ||
-          c.companyName.includes("Lone Star") ||
-          c.companyName.includes("Austin Metro") ||
-          c.companyName.includes("Capital City") ||
-          c.companyName.includes("Colorado River") ||
-          c.companyName.includes("Apex Commercial") ||
-          c.companyName.includes("Travis County") ||
-          c.companyName.includes("Austin Central Air") ||
-          c.companyName.includes("Hill Country") ||
-          (c.phone && c.phone.includes("555-"))
-        ) {
-          await deleteContractorCascade(ctx, c._id);
-        }
-      }
-
-      const orphanedBids = await ctx.db.query("bids").collect();
-      for (const b of orphanedBids) {
-        if (
-          b.subcontractorName.includes("Lone Star") ||
-          b.subcontractorName.includes("Austin Metro") ||
-          b.subcontractorName.includes("Capital City") ||
-          b.subcontractorName.includes("Colorado River") ||
-          b.subcontractorName.includes("Apex Commercial") ||
-          b.subcontractorName.includes("Travis County") ||
-          b.subcontractorName.includes("Austin Central Air") ||
-          b.subcontractorName.includes("Hill Country")
-        ) {
-          await ctx.db.delete(b._id);
-        }
-      }
-
-      const orphanedAgreements = await ctx.db.query("agreements").collect();
-      for (const a of orphanedAgreements) {
-        if (
-          a.subcontractorName.includes("Lone Star") ||
-          a.subcontractorName.includes("Austin Metro") ||
-          a.subcontractorName.includes("Capital City")
-        ) {
-          await deleteAgreementCascade(ctx, a._id);
-        }
-      }
+    for (const proj of demoProjects) {
+      await deleteDemoProjectRows(ctx, proj);
     }
 
     // 1. Seed Project Root
@@ -325,6 +234,7 @@ Section 26 00 00 - Electrical Systems:
 Furnish and install 1600A main service switchboard, 480/277V step-down distribution dry transformers, lighting control panels, emergency battery backup inverters, and branch conduit routing. Subcontractor is strictly responsible for crane rigging and hoisting up to 14th-floor penthouse plant room. All firestop floor/wall penetration penetrations must comply with UL 1479.`,
       isDemoProject: true,
       generalContractorName: DEFAULT_GENERAL_CONTRACTOR,
+      gcCompanyId: demoIds.gc,
       createdAt: Date.now() - 86400000 * 3,
     });
 
@@ -978,7 +888,7 @@ Furnish and install 1600A main service switchboard, 480/277V step-down distribut
       bidId: b1,
       contractorId: c1,
       agreementNumber,
-      documentTitle: "Subcontract Agreement (A401-style structure) â€” generated draft, not an AIA-licensed form",
+      documentTitle: "Subcontract Agreement (A401-style structure) — generated draft, not an AIA-licensed form",
       subcontractorName: "Rosendin Electric, Inc.",
       generalContractorName: DEFAULT_GENERAL_CONTRACTOR,
       subcontractorEmail: "estimating@rosendin.com",

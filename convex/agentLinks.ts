@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import { requireRole } from "./lib/roles";
 import { normalizeAgentEmail, syncAgentProfilesForEmail } from "./lib/agentAccess";
 import { scopedAgreements } from "./lib/agreementScope";
@@ -27,20 +27,23 @@ export const listAgentLinks = query({
       .withIndex("by_gcCompanyId", (q) => q.eq("gcCompanyId", company._id))
       .order("desc")
       .take(200);
-    return await Promise.all(
+    const rows = await Promise.all(
       links.map(async (link) => {
         const contractor = await ctx.db.get(link.contractorId);
+        // A revoked link whose contractor was removed grants nothing and has nothing left to show.
+        if (contractor === null && link.status === "revoked") return null;
         return {
           _id: link._id,
           agentEmail: link.agentEmail,
           contractorId: link.contractorId,
-          contractorName: contractor?.companyName ?? "Unknown contractor",
+          contractorName: contractor?.companyName ?? link.contractorName ?? "Removed contractor",
           status: link.status,
           createdAt: link.createdAt,
           revokedAt: link.revokedAt ?? null,
         };
       }),
     );
+    return rows.filter((row) => row !== null);
   },
 });
 
@@ -88,6 +91,7 @@ export const addAgentLink = mutation({
     const linkId = await ctx.db.insert("agentLinks", {
       agentEmail,
       contractorId: args.contractorId,
+      contractorName: contractor.companyName,
       gcCompanyId,
       subCompanyId: contractor.linkedCompanyId,
       status: "active",
@@ -134,5 +138,25 @@ export const revokeAgentLink = mutation({
       timestamp: Date.now(),
     });
     return null;
+  },
+});
+
+/** Idempotent backfill of `contractorName` on links whose contractor still exists. */
+export const backfillContractorNames = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    let updated = 0;
+    let missingContractor = 0;
+    for await (const link of ctx.db.query("agentLinks")) {
+      if (link.contractorName !== undefined) continue;
+      const contractor = await ctx.db.get(link.contractorId);
+      if (contractor === null) {
+        missingContractor++;
+        continue;
+      }
+      await ctx.db.patch(link._id, { contractorName: contractor.companyName });
+      updated++;
+    }
+    return { updated, missingContractor };
   },
 });

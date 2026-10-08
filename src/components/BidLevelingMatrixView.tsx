@@ -30,7 +30,7 @@ import {
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../convex/_generated/api.js";
 import { Bid, TradePackage, Agreement, Contractor, ScopeExclusion, ValueEngineeringAlternate } from "../types.ts";
-import { extractTextFromPdfStream } from "../standaloneStore.ts";
+import { extractTextFromPdfStream } from "../lib/documentText.ts";
 import { getDeceptiveBidIds, getSuspiciouslyLowBidIds, leadPenaltyArithmetic, leadTargetWeeksFor } from "../leveling.ts";
 import { ConfirmDialog } from "./ConfirmDialog.tsx";
 import { roundDollarsToCents } from "../../convex/lib/money.ts";
@@ -816,7 +816,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
         {showWhyCare && (
           <div className="mt-3 pt-3 border-t border-slate-800 text-xs text-slate-300 leading-relaxed bg-slate-950/60 rounded-lg p-3 border animate-in fade-in">
             <span className="font-semibold text-emerald-400">The $186,000 Scope Exclusion Trap: </span>
-            Subcontractors submit deceptively low base prices on paper, but bury exclusions for crane hoisting, UL firestopping, and seismic bracing in proposal fine print. TradePulse Pro's ADR-0003 engine parses proposal exclusions, applies lead-time delay penalties ($6,000/wk schedule-impact rate, distinct from the contract's $1,200/day liquidated damages), adds COI insurance penalties, and subtracts accepted Value Engineering (VE) alternates—to deliver apples-to-apples procurement.
+            Subcontractors submit deceptively low base prices on paper, but bury exclusions for crane hoisting, UL firestopping, and seismic bracing in proposal fine print. TradePulse Pay's ADR-0003 engine parses proposal exclusions, applies lead-time delay penalties ($6,000/wk schedule-impact rate, distinct from the contract's $1,200/day liquidated damages), adds COI insurance penalties, and subtracts accepted Value Engineering (VE) alternates—to deliver apples-to-apples procurement.
           </div>
         )}
       </div>
