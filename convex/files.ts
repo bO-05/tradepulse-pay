@@ -1,8 +1,7 @@
 import { mutation, query, action, internalMutation, internalAction, internalQuery } from "./_generated/server";
 import { requireRole } from "./lib/roles";
-import { requireCompanyMember } from "./lib/tenancy";
-import type { Doc } from "./_generated/dataModel";
-import type { QueryCtx } from "./_generated/server";
+import type { Doc, Id } from "./_generated/dataModel";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { ProjectAccess } from "./lib/tenancy";
 import { auditActor, callerProjects, requireDemoCompany, requireDocOfProject, requireDocScope, requireProjectScope } from "./lib/projectScope";
 import { requireProjectScopeInAction } from "./lib/tenancyAction";
@@ -34,19 +33,73 @@ export { extractTextFromPdfStream };
  * subcontractor quote files, ACORD 25 certificates of insurance,
  * and formal legal addenda.
  */
+/** Upload intents outlive the one-hour Convex upload URL so a slow upload can still be saved. */
+const UPLOAD_INTENT_TTL_MS = 2 * 60 * 60 * 1000;
+const INVALID_UPLOAD_MESSAGE = "This upload could not be verified for this project. Upload the file again.";
+
+/**
+ * Upload URL for one project's files. The returned intent id binds whatever is uploaded with this
+ * URL to the caller, its company and the project; saveFileRecord accepts nothing else.
+ */
 export const generateUploadUrl = mutation({
-  args: {},
-  handler: async (ctx) => {
+  args: { projectId: v.id("projects") },
+  returns: v.object({ uploadUrl: v.string(), uploadIntentId: v.id("uploadIntents") }),
+  handler: async (ctx, args) => {
     await requireRole(ctx, ["gc"]);
-    // An upload URL carries no project data; the stored file only becomes visible through
-    // saveFileRecord, which checks project access.
-    const { user, company } = await requireCompanyMember(ctx);
-    if (company.kind !== "gc" || user.emailVerificationTime === undefined) {
+    const access = await requireProjectScope(ctx, args.projectId, { roles: ["gc"], write: true });
+    if (access.company === null || access.company.kind !== "gc") {
       throw new ConvexError({ code: "FORBIDDEN", message: "Forbidden: a verified general contractor account is required." });
     }
-    return await ctx.storage.generateUploadUrl();
+    const now = Date.now();
+    const uploadIntentId = await ctx.db.insert("uploadIntents", {
+      userId: access.user._id,
+      companyId: access.company._id,
+      projectId: access.project._id,
+      createdAt: now,
+      expiresAt: now + UPLOAD_INTENT_TTL_MS,
+    });
+    return { uploadUrl: await ctx.storage.generateUploadUrl(), uploadIntentId };
   },
 });
+
+/**
+ * Claims a just-uploaded storage object for the caller's upload intent. Refused when the intent is
+ * someone else's, for another project, used or expired, or when the object predates the intent or
+ * is already attached to any file, so a storage id from another company can never be re-attached.
+ */
+async function claimUpload(
+  ctx: MutationCtx,
+  access: ProjectAccess,
+  uploadIntentId: Id<"uploadIntents">,
+  rawStorageId: string,
+): Promise<Id<"_storage">> {
+  const invalid = () => new ConvexError({ code: "INVALID_UPLOAD", message: INVALID_UPLOAD_MESSAGE });
+  const intent = await ctx.db.get(uploadIntentId);
+  if (
+    intent === null ||
+    intent.userId !== access.user._id ||
+    intent.projectId !== access.project._id ||
+    intent.companyId !== access.company?._id ||
+    intent.usedAt !== undefined ||
+    intent.expiresAt < Date.now()
+  ) {
+    throw invalid();
+  }
+  const storageId = ctx.db.system.normalizeId("_storage", rawStorageId);
+  const metadata = storageId === null ? null : await ctx.db.system.get(storageId);
+  if (storageId === null || metadata === null || metadata._creationTime < intent._creationTime) throw invalid();
+  const attached = await ctx.db
+    .query("projectFiles")
+    .withIndex("by_storageId", (q) => q.eq("storageId", storageId))
+    .first();
+  const claimed = await ctx.db
+    .query("uploadIntents")
+    .withIndex("by_storageId", (q) => q.eq("storageId", storageId))
+    .first();
+  if (attached !== null || claimed !== null) throw invalid();
+  await ctx.db.patch(intent._id, { storageId, usedAt: Date.now() });
+  return storageId;
+}
 
 /** Bundled demo PDFs (public by design) keep their path; stored uploads are served only through the authenticated route. */
 function isPublicDocumentPath(storageId: string): boolean {
@@ -91,6 +144,7 @@ export const saveFileRecord = mutation({
   args: {
     projectId: v.id("projects"),
     tradePackageId: v.optional(v.id("tradePackages")),
+    uploadIntentId: v.id("uploadIntents"),
     storageId: v.string(),
     fileName: v.string(),
     fileType: v.string(), // "blueprint" | "spec" | "quote_pdf" | "coi_certificate" | "addendum"
@@ -105,6 +159,7 @@ export const saveFileRecord = mutation({
       throw new Error("Project uploads must use a Convex Storage identifier.");
     }
     if (args.tradePackageId) await requireDocOfProject(ctx, access, "tradePackages", args.tradePackageId);
+    await claimUpload(ctx, access, args.uploadIntentId, args.storageId);
     // The uploader is the signed-in person, not a client-supplied label.
     const actor = auditActor(access);
     const fileName = validateUploadFileName(args.fileName, args.fileType === "addendum");
@@ -268,10 +323,19 @@ export const deleteFile = mutation({
       throw new ConvexError("This quote file is linked to a bid and cannot be deleted until the bid is removed.");
     }
 
-    try {
-      await ctx.storage.delete(file.storageId as any);
-    } catch {
-      // ignore if non-storageId
+    // Never delete bytes another file record still points at.
+    const sharedWith = (
+      await ctx.db
+        .query("projectFiles")
+        .withIndex("by_storageId", (q) => q.eq("storageId", file.storageId))
+        .take(2)
+    ).filter((f) => f._id !== file._id);
+    if (sharedWith.length === 0) {
+      try {
+        await ctx.storage.delete(file.storageId as any);
+      } catch {
+        // ignore if non-storageId
+      }
     }
     await ctx.db.delete(args.fileId);
 
@@ -795,7 +859,6 @@ Each proposal submitted must include affirmative written acknowledgement of ${ad
 
   const blob = new Blob([addendumText], { type: "text/markdown" });
   const storageId = await ctx.storage.store(blob);
-  const downloadUrl = (await ctx.storage.getUrl(storageId as any)) ?? undefined;
 
   const fileId: any = await ctx.runMutation(internal.files.saveFileRecordInternal, {
     projectId: args.projectId,
@@ -818,8 +881,8 @@ Each proposal submitted must include affirmative written acknowledgement of ${ad
     fileName: `${addendumFileBase}_CLARIFICATIONS.md`,
     addendumText,
     fileId,
-    storageId,
-    downloadUrl,
+    // Served only through the authenticated route; a raw storage URL would bypass project access.
+    downloadPath: `${PROJECT_FILE_DOWNLOAD_PREFIX}${fileId}`,
     qaCount,
     csiDivisionCount,
   };

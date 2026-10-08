@@ -3,6 +3,8 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type QueryCtx } from "./_generated/server";
 import { callerProjects, isNotFoundError, partyMaySeeContractor, requireProjectScope } from "./lib/projectScope";
 import { notFound } from "./lib/tenancy";
+import { ownerChangeOrdersOfProject } from "./lib/ownerView";
+import { changeOrderLabel } from "./payments/changeOrderMath";
 
 /** Project People screen (architecture §13) and the project switcher for subs and owners. */
 
@@ -137,7 +139,8 @@ export const myProjects = query({
 });
 
 /**
- * One project as a sub or owner sees it: title, GC and the agreements this party may see. Returns
+ * One project as a sub or owner sees it: title, GC, the sub's own agreements or the owner's change
+ * orders (owners never get subcontract agreements or sums). Returns
  * null when the caller has no access (never existed, other company, or removed), so the UI can say so.
  */
 export const projectOverview = query({
@@ -160,6 +163,18 @@ export const projectOverview = query({
     const gcContacts =
       project.gcCompanyId === undefined ? [] : (await activeMembers(ctx, project.gcCompanyId)).filter((m) => m.role === "admin");
     const yourTeam = access.company === null ? [] : await activeMembers(ctx, access.company._id);
+    // Owners see the change orders invoiced to them, never the subcontracts behind them.
+    const changeOrders =
+      access.partyRole === "owner"
+        ? (await ownerChangeOrdersOfProject(ctx, project._id)).map(({ changeOrder: co }) => ({
+            _id: co._id,
+            label: changeOrderLabel(co.number),
+            description: co.description,
+            amountCents: co.amountCents,
+            status: co.status,
+            payerViewUrl: co.payerViewUrl ?? null,
+          }))
+        : [];
     return {
       gcContacts: gcContacts.map((m) => ({ name: m.name, email: m.email })),
       yourCompanyName: access.company?.name ?? null,
@@ -177,6 +192,7 @@ export const projectOverview = query({
         status: a.status,
         contractSum: a.contractSum,
       })),
+      changeOrders,
     };
   },
 });

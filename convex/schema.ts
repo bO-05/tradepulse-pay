@@ -552,6 +552,9 @@ export default defineSchema({
     paypalInvoiceId: v.optional(v.string()),
     payerViewUrl: v.optional(v.string()),
     recipientEmail: v.optional(v.string()),
+    // Bumped when the project's owner changes before the invoice exists, so the PayPal create
+    // request id changes and PayPal's idempotency cache cannot replay an invoice to the old owner.
+    recipientRevision: v.optional(v.number()),
     paypalInvoiceStatus: v.optional(v.string()),
     error: v.optional(v.string()),
     auditRecorded: v.optional(v.boolean()),
@@ -791,7 +794,20 @@ export default defineSchema({
     textContent: v.optional(v.string()),
   })
     .index("by_project", ["projectId"])
-    .index("by_package", ["tradePackageId"]),
+    .index("by_package", ["tradePackageId"])
+    .index("by_storageId", ["storageId"]),
+
+  // One per generated upload URL: binds the stored object to the uploader, company and project,
+  // so saveFileRecord only accepts storage ids the caller itself uploaded for that project.
+  uploadIntents: defineTable({
+    userId: v.id("users"),
+    companyId: v.id("companies"),
+    projectId: v.id("projects"),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+    storageId: v.optional(v.id("_storage")),
+    usedAt: v.optional(v.number()),
+  }).index("by_storageId", ["storageId"]),
 
   // Live Reactive Activity Audit Stream
   auditLogs: defineTable({

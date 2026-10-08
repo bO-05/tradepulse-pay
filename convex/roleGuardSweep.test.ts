@@ -373,6 +373,7 @@ describe("static guard sweep over convex/**", () => {
     "requireDocScope",
     "findDocScope",
     "scopedAgreements",
+    "gcAgreementsAndOwnerProjects",
     "requireProjectScopeInAction",
     "requireDemoCompany",
     "requireDemoCompanyInAction",

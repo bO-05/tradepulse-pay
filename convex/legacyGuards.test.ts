@@ -45,7 +45,16 @@ async function setup() {
     const contractor = (await ctx.db.query("contractors").first())!;
     const conversation = (await ctx.db.query("conversations").first())!;
     const file = (await ctx.db.query("projectFiles").first())!;
+    const uploadIntentId = await ctx.db.insert("uploadIntents", {
+      userId: (await ctx.db.query("users").first())!._id,
+      companyId: (await ctx.db.query("companies").first())!._id,
+      projectId: project._id,
+      createdAt: 0,
+      expiresAt: 0,
+    });
+    await ctx.db.delete(uploadIntentId);
     return {
+      uploadIntentId,
       projectId: project._id,
       packageId: pkg._id,
       bidId: bid._id,
@@ -168,9 +177,10 @@ const CASES: Case[] = [
   m("crons:runDeadlineMonitorNow", api.crons.runDeadlineMonitorNow, (i) => ({ projectId: i.projectId })),
   m("crons:runComplianceAuditNow", api.crons.runComplianceAuditNow, (i) => ({ projectId: i.projectId })),
   a("evals:executeEvalSuite", api.evals.executeEvalSuite, () => ({})),
-  m("files:generateUploadUrl", api.files.generateUploadUrl, () => ({})),
+  m("files:generateUploadUrl", api.files.generateUploadUrl, (i) => ({ projectId: i.projectId })),
   m("files:saveFileRecord", api.files.saveFileRecord, (i) => ({
     projectId: i.projectId,
+    uploadIntentId: i.uploadIntentId,
     storageId: "forged",
     fileName: "forged.pdf",
     fileType: "spec",

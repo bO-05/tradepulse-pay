@@ -2,7 +2,8 @@ import { v } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
 import { query } from "../_generated/server";
 import { requireRole } from "../lib/roles";
-import { scopedAgreements } from "../lib/agreementScope";
+import { gcAgreementsAndOwnerProjects } from "../lib/agreementScope";
+import { ownerChangeOrdersOfProject } from "../lib/ownerView";
 import { percentageOfCents, sumCents } from "../lib/money";
 import {
   createReadBudget,
@@ -51,18 +52,18 @@ function sumTotals(list: LedgerTotals[]): LedgerTotals {
  * dashboard and the agreement ledger always agree. Voided (superseded) agreements stay in when
  * they carry money history, with their real status. Only the caller's projects count (one
  * project when `projectId` is given; another company's id reads "Not found."): the GC sees its
- * projects, the owner only projects it is the owner on, without per-sub AI review internals. Subs
- * and billing agents have no dashboard access.
+ * projects' subcontract ledgers. On projects where the caller is the owner it gets owner items
+ * only (change orders invoiced to it), never subcontract sums, payments, pay apps, retainage,
+ * milestones or AI review internals. Subs and billing agents have no dashboard access.
  */
 export const getDashboardData = query({
   args: { projectId: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const viewer = await requireRole(ctx, ["gc", "owner"]);
-    const scoped = await scopedAgreements(ctx, { parties: ["gc", "owner"], projectId: args.projectId, limit: DASHBOARD_MAX_AGREEMENTS });
+    const scoped = await gcAgreementsAndOwnerProjects(ctx, { projectId: args.projectId, limit: DASHBOARD_MAX_AGREEMENTS });
     const agreementsTruncated = scoped.truncated;
     const all = scoped.rows.map((r) => r.agreement);
-    const ownerView = new Set(scoped.rows.filter((r) => r.access.partyRole !== "gc").map((r) => r.agreement._id as string));
-    const readOnly = viewer.role !== "gc" || ownerView.size > 0;
+    const readOnly = viewer.role !== "gc" || scoped.ownerProjects.length > 0;
     const budget = createReadBudget(DASHBOARD_READ_BUDGET - all.length);
 
     const agreements = [];
@@ -116,8 +117,7 @@ export const getDashboardData = query({
       const billed = new Map(fin.billing.rows.map((b) => [b._id as string, b]));
       for (const raw of apps.rows) {
         const app: Doc<"payApplications"> = billed.get(raw._id) ?? raw;
-        // Owners get pay-app totals only, never the per-sub AI review.
-        const review = ownerView.has(a._id) ? undefined : app.review;
+        const review = app.review;
         const verdicts = review?.lines.map((l) => l.verdict) ?? [];
         payApps.push({
           payAppId: app._id,
@@ -157,8 +157,6 @@ export const getDashboardData = query({
       }
 
       for (const co of fin.history.changeOrders) {
-        // Drafts are the GC's working copies; the owner sees a change order once it is invoiced.
-        if (ownerView.has(a._id) && co.status === "draft") continue;
         changeOrders.push({
           changeOrderId: co._id,
           agreementId: a._id,
@@ -189,8 +187,34 @@ export const getDashboardData = query({
       }
     }
 
+    const ownerChangeOrders: Doc<"changeOrders">[] = [];
+    for (const project of scoped.ownerProjects) {
+      for (const { agreement, changeOrder: co } of await ownerChangeOrdersOfProject(ctx, project._id)) {
+        ownerChangeOrders.push(co);
+        changeOrders.push({
+          changeOrderId: co._id,
+          agreementId: agreement._id,
+          number: co.number,
+          description: co.description,
+          status: co.status,
+          amountCents: co.amountCents,
+          createdAt: co.createdAt,
+          invoicedAt: co.invoicedAt ?? null,
+          paidAt: co.paidAt ?? null,
+        });
+      }
+    }
+    const gcTotals = sumTotals(perAgreementTotals);
     const totals = {
-      ...sumTotals(perAgreementTotals),
+      ...gcTotals,
+      changeOrdersInvoicedCents: sumCents([
+        gcTotals.changeOrdersInvoicedCents,
+        ...ownerChangeOrders.filter((c) => c.status === "invoiced").map((c) => c.amountCents),
+      ]),
+      changeOrdersPaidCents: sumCents([
+        gcTotals.changeOrdersPaidCents,
+        ...ownerChangeOrders.filter((c) => c.status === "paid").map((c) => c.amountCents),
+      ]),
       pendingPayAppCents: sumCents(
         payApps.filter((p) => PENDING_PAY_APP_STATUSES.has(p.status)).map((p) => p.requestedCents),
       ),

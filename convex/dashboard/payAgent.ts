@@ -3,7 +3,7 @@ import type { Doc } from "../_generated/dataModel";
 import { query, type QueryCtx } from "../_generated/server";
 import { formatCents, sumCents } from "../lib/money";
 import { requireRole } from "../lib/roles";
-import { scopedAgreements } from "../lib/agreementScope";
+import { gcAgreementsAndOwnerProjects } from "../lib/agreementScope";
 import {
   createReadBudget,
   hasFinancialHistory,
@@ -69,7 +69,8 @@ function subcontractorTotals(subcontractor: string, list: PayRow[]) {
 
 /**
  * Ledger totals per agreement and per subcontractor for the Studio "TradePulse pay agent", limited
- * to the caller's projects (one project when `projectId` is given). Voided
+ * to projects where the caller is the GC (one project when `projectId` is given; owners get no
+ * subcontract rows). Voided
  * agreements stay in when they carry money history. Each amount is the same computeLedgerTotals figure the agreement ledger view shows, summed in
  * integer cents and pre-formatted so the model quotes Convex numbers instead of doing arithmetic.
  */
@@ -77,7 +78,8 @@ export const getPaySummary = query({
   args: { projectId: v.optional(v.string()) },
   handler: async (ctx, args) => {
     await requireRole(ctx, ["gc", "owner"]);
-    const scoped = await scopedAgreements(ctx, { parties: ["gc", "owner"], projectId: args.projectId, limit: DASHBOARD_MAX_AGREEMENTS });
+    // Subcontract ledgers are GC data: owner projects contribute nothing here.
+    const scoped = await gcAgreementsAndOwnerProjects(ctx, { projectId: args.projectId, limit: DASHBOARD_MAX_AGREEMENTS });
     const agreementsTruncated = scoped.truncated;
     const all = scoped.rows.map((r) => r.agreement);
     const budget = createReadBudget(DASHBOARD_READ_BUDGET - all.length);

@@ -4,6 +4,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { query, type QueryCtx } from "./_generated/server";
 import { requireRole } from "./lib/roles";
 import { callerProjects, requireDocScope, subContractorScope } from "./lib/projectScope";
+import { ownerChangeOrdersOfProject } from "./lib/ownerView";
 import { changeOrderView } from "./payments/changeOrderDb";
 import { loadMilestoneFunding } from "./payments/milestoneFundingState";
 import { WITHDRAWABLE_PAY_APP_STATUSES } from "./payApps/validation";
@@ -199,22 +200,19 @@ export const ownerOverview = query({
     for (const project of (await callerProjects(ctx)).slice(0, 50)) {
       const access = await requireDocScope(ctx, "projects", project._id, { roles: ["owner", "gc"] }).catch(() => null);
       if (access === null) continue;
-      const agreements = await ctx.db
-        .query("agreements")
-        .withIndex("by_project", (q) => q.eq("projectId", project._id))
-        .take(100);
-      const visible = agreements.filter((a) => a.status !== "superseded");
-      const changeOrders = [];
-      for (const agreement of visible) {
-        const cos = await ctx.db
-          .query("changeOrders")
-          .withIndex("by_agreementId_and_number", (q) => q.eq("agreementId", agreement._id))
-          .take(100);
-        for (const co of cos) {
-          if (co.status === "draft") continue;
-          changeOrders.push(changeOrderView(co, agreement));
-        }
-      }
+      const changeOrders = (await ownerChangeOrdersOfProject(ctx, project._id))
+        .filter(({ agreement }) => agreement.status !== "superseded")
+        .map(({ agreement, changeOrder }) => changeOrderView(changeOrder, agreement));
+      // Subcontract agreements (sums, subcontractors) are GC data; the owner gets the project summary only.
+      const agreements =
+        access.partyRole === "gc"
+          ? (
+              await ctx.db
+                .query("agreements")
+                .withIndex("by_project", (q) => q.eq("projectId", project._id))
+                .take(100)
+            ).filter((a) => a.status !== "superseded")
+          : [];
       result.push({
         _id: project._id,
         title: project.title,
@@ -222,7 +220,8 @@ export const ownerOverview = query({
         projectType: project.projectType,
         estBudget: project.estBudget,
         isDemoProject: project.isDemoProject,
-        agreements: visible.map(agreementSummary),
+        partyRole: access.partyRole,
+        agreements: agreements.map(agreementSummary),
         changeOrders,
       });
     }

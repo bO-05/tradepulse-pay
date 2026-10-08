@@ -55,11 +55,13 @@ test("F1: created project persists in listProjects", async () => {
 test("F3/F4: saveFileRecord accepts real storage ids and persists records", async () => {
   const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "F4 Upload Project");
+  const { uploadIntentId } = await t.mutation(api.files.generateUploadUrl, { projectId });
   const storageId = await t.run(async (ctx) =>
     await ctx.storage.store(new Blob(["spec body for regression"], { type: "text/plain" }))
   );
   const fileId = await t.mutation(api.files.saveFileRecord, {
     projectId,
+    uploadIntentId,
     storageId,
     fileName: "26_00_00_Regression_Spec.txt",
     fileType: "spec",
@@ -73,7 +75,8 @@ test("F3/F4: saveFileRecord accepts real storage ids and persists records", asyn
 });
 
 test("F3/A7CONV-R2C-F3: addendum requires at least one PM-certified RFI; zero certified is refused server-side", async () => {
-  const t = await asGc(convexTest(schema, modules));
+  const base = convexTest(schema, modules);
+  const t = await asGc(base);
   const projectId = await createProject(t, "F3 Addendum Project");
   // A7CONV-R2C-F3: zero certified RFIs must be refused by the action itself,
   // not only by the disabled UI button.
@@ -99,9 +102,19 @@ test("F3/A7CONV-R2C-F3: addendum requires at least one PM-certified RFI; zero ce
   );
   const result: any = await t.action(api.files.generatePreBidAddendum, { projectId });
   expect(result.success).toBe(true);
-  expect(result.storageId).toBeTruthy();
+  // The filed addendum is reachable only through the authenticated file route, never a public storage URL.
+  expect(result.downloadUrl).toBeUndefined();
+  expect(result.storageId).toBeUndefined();
+  expect(result.downloadPath).toBe(`/api/project-files/${result.fileId}`);
+  expect(JSON.stringify(result)).not.toMatch(/\/api\/storage\/|convex\.cloud/);
   const files = await t.query(api.files.listFilesByProject, { projectId });
   expect(files.some((f) => f.fileType === "addendum")).toBe(true);
+
+  const ok = await t.fetch(result.downloadPath, { method: "GET" });
+  expect(ok.status).toBe(200);
+  expect(await ok.text()).toContain("ADDENDUM");
+  const anon = await base.fetch(result.downloadPath, { method: "GET" });
+  expect([401, 404]).toContain(anon.status);
 });
 
 test("F9: invalid CSI divisions are rejected and valid ones accepted", async () => {

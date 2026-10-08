@@ -2,7 +2,7 @@ import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { agreementHash, myProjectHash } from "../auth/navigation";
 import { formatDollars } from "../payments/format";
-import { Card, EmptyState, PageHeader, StatusPill } from "../ui";
+import { Card, EmptyState, Money, PageHeader, StatusPill } from "../ui";
 
 /** Project switcher for subs and owners: each project is labeled with its general contractor. */
 export function MyProjectsPage({ projectId }: { projectId?: string }) {
@@ -66,6 +66,32 @@ function ProjectView({ projectId, projects }: { projectId: string; projects: Pro
         back={{ href: "#/my-projects", label: "All projects" }}
         meta={<span>{project.gcCompanyName ? `General contractor: ${project.gcCompanyName}` : null}{project.location ? ` · ${project.location}` : ""}</span>}
       />
+      {project.partyRole === "owner" ? (
+        <Card title="Change orders">
+          {project.changeOrders.length === 0 ? (
+            <p className="text-sm text-ink-subtle">No change orders have been invoiced to you on this project yet.</p>
+          ) : (
+            <ul className="divide-y divide-line text-sm">
+              {project.changeOrders.map((co) => (
+                <li key={co._id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                  <span>
+                    <span className="font-medium">{co.label}</span> · {co.description}
+                    {co.payerViewUrl ? (
+                      <a href={co.payerViewUrl} target="_blank" rel="noreferrer" className="ml-2 text-emerald-300 hover:underline">
+                        View invoice
+                      </a>
+                    ) : null}
+                  </span>
+                  <span className="flex items-center gap-3">
+                    <Money cents={co.amountCents} />
+                    <StatusPill status={co.status} />
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      ) : (
       <Card title="Agreements">
         {project.agreements.length === 0 ? (
           <p className="text-sm text-ink-subtle">No agreements on this project yet.</p>
@@ -85,6 +111,7 @@ function ProjectView({ projectId, projects }: { projectId: string; projects: Pro
           </ul>
         )}
       </Card>
+      )}
       <Card title="People">
         <div className="grid gap-4 sm:grid-cols-2 text-sm">
           <div>

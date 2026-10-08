@@ -61,6 +61,7 @@ import type * as lib_inviteRules from "../lib/inviteRules.js";
 import type * as lib_llmsTxt from "../lib/llmsTxt.js";
 import type * as lib_mailer from "../lib/mailer.js";
 import type * as lib_money from "../lib/money.js";
+import type * as lib_ownerView from "../lib/ownerView.js";
 import type * as lib_packageContractors from "../lib/packageContractors.js";
 import type * as lib_passwordPolicy from "../lib/passwordPolicy.js";
 import type * as lib_projectScope from "../lib/projectScope.js";
@@ -203,6 +204,7 @@ declare const fullApi: ApiFromModules<{
   "lib/llmsTxt": typeof lib_llmsTxt;
   "lib/mailer": typeof lib_mailer;
   "lib/money": typeof lib_money;
+  "lib/ownerView": typeof lib_ownerView;
   "lib/packageContractors": typeof lib_packageContractors;
   "lib/passwordPolicy": typeof lib_passwordPolicy;
   "lib/projectScope": typeof lib_projectScope;

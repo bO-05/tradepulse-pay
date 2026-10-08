@@ -69,7 +69,7 @@ async function invoiceChangeOrder(ctx: ActionCtx, changeOrderId: Id<"changeOrder
       const created = await paypal.request<unknown>({
         method: "POST",
         path: "/v2/invoicing/invoices",
-        requestId: `co_${changeOrderId}_create`,
+        requestId: `co_${changeOrderId}_create${begun.createRequestSuffix}`,
         body: buildInvoiceBody(begun.input),
       });
       auditRecorded &&= created.auditRecorded ?? false;

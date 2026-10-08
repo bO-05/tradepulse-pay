@@ -247,7 +247,9 @@ describe("portal queries", () => {
     await expect(sub.query(api.portal.ownerOverview, {})).rejects.toThrow(/Forbidden/);
     await expect(t.query(api.portal.getAgreementSummary, { agreementId: "x" })).rejects.toThrow(/Not authenticated/);
     const overview = await owner.query(api.portal.ownerOverview, {});
-    expect(overview[0].agreements.length).toBeGreaterThan(0);
+    expect(overview.length).toBeGreaterThan(0);
+    // Owners get the project summary and change orders, never the subcontract agreements.
+    expect(overview[0].agreements).toEqual([]);
   });
 
   test("profiles.me reflects sign-in state and role", async () => {

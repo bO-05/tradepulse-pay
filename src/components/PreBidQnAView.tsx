@@ -18,10 +18,17 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { useAction, useMutation } from "convex/react";
+import { useAuthToken } from "@convex-dev/auth/react";
+import { fetchAuthenticatedFile } from "../lib/storedFile.ts";
 import { api } from "../../convex/_generated/api.js";
 import { Conversation, Contractor, TradePackage } from "../types.ts";
 import { MarkdownLite } from "../lib/markdown.tsx";
 import { formatFullDateTime } from "../lib/datetime.ts";
+
+const CONVEX_ENV = {
+  VITE_CONVEX_SITE_URL: import.meta.env.VITE_CONVEX_SITE_URL as string | undefined,
+  VITE_CONVEX_URL: import.meta.env.VITE_CONVEX_URL as string | undefined,
+};
 
 interface PreBidQnAViewProps {
   currentPackage: TradePackage | null;
@@ -98,25 +105,33 @@ export const PreBidQnAView: React.FC<PreBidQnAViewProps> = ({
   const [addendumResult, setAddendumResult] = useState<{
     success: boolean;
     fileName: string;
-    storageId: string;
-    downloadUrl?: string;
+    /** Authenticated download route for the filed addendum, e.g. "/api/project-files/<id>". */
+    downloadPath?: string | null;
     addendumText?: string;
     qaCount: number;
     csiDivisionCount: number;
     isLocalPreview?: boolean;
   } | null>(null);
 
+  const authToken = useAuthToken();
   const generatePreBidAddendumAction = useAction(api.files.generatePreBidAddendum);
   const reviewEscalatedRfiMutation = useMutation(api.rfq.reviewEscalatedRfi);
 
-  const handleDownloadAddendumFile = () => {
+  const handleDownloadAddendumFile = async () => {
     if (!addendumResult) return;
-    if (addendumResult.downloadUrl) {
-      window.open(addendumResult.downloadUrl, "_blank");
-      return;
+    let blob: Blob | null = null;
+    if (addendumResult.downloadPath) {
+      try {
+        blob = await fetchAuthenticatedFile(addendumResult, authToken, CONVEX_ENV);
+      } catch (err) {
+        setAddendumError(`the addendum was filed, but its download did not complete (${getErrorMessage(err)}).`);
+        return;
+      }
     }
-    const content = addendumResult.addendumText || "# ADDENDUM NO. 01\nCSI Specifications Addendum";
-    const blob = new Blob([content], { type: "text/markdown;charset=utf-8;" });
+    if (blob === null) {
+      const content = addendumResult.addendumText || "# ADDENDUM NO. 01\nCSI Specifications Addendum";
+      blob = new Blob([content], { type: "text/markdown;charset=utf-8;" });
+    }
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
@@ -336,7 +351,6 @@ Each proposal submitted must include affirmative written acknowledgement of ADDE
       setAddendumResult({
         success: true,
         fileName: mockFileName,
-        storageId: `local_addendum_${Date.now()}`,
         addendumText: dynamicAddendumText,
         qaCount: activeList.length,
         csiDivisionCount: currentPackage ? 1 : 2,
@@ -541,26 +555,14 @@ Each proposal submitted must include affirmative written acknowledgement of ADDE
               </p>
             </div>
           </div>
-          {addendumResult.downloadUrl ? (
-            <a
-              href={addendumResult.downloadUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1 shrink-0 transition"
-            >
-              <FileDown className="w-3.5 h-3.5" />
-              Download Addendum
-            </a>
-          ) : (
-            <button
-              type="button"
-              onClick={handleDownloadAddendumFile}
-              className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1 shrink-0 transition"
-            >
-              <FileDown className="w-3.5 h-3.5" />
-              Download Addendum
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => void handleDownloadAddendumFile()}
+            className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1 shrink-0 transition"
+          >
+            <FileDown className="w-3.5 h-3.5" />
+            Download Addendum
+          </button>
         </div>
       )}
       {addendumError && (

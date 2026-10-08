@@ -27,6 +27,7 @@ export function OwnerPortal() {
             </p>
           </div>
 
+          {project.partyRole === "gc" && (
           <div>
             <h3 className="text-sm font-semibold mb-2">Subcontract agreements</h3>
             {project.agreements.length === 0 ? (
@@ -60,6 +61,7 @@ export function OwnerPortal() {
               </table>
             )}
           </div>
+          )}
 
           <div>
             <h3 className="text-sm font-semibold mb-2">Change-order invoices</h3>

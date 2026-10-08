@@ -87,9 +87,10 @@ export async function requireRoleInAction(ctx: ActionCtx, roles: readonly Role[]
   return await ctx.runQuery(internal.profiles.requireRoleForAction, { roles: [...roles] });
 }
 
-/** A sub (human or linked billing agent) may only see agreements of its own contractor. */
+/** A sub (human or linked billing agent) may only see agreements of its own contractor; owners never see subcontracts. */
 export function canViewAgreement(viewer: Viewer, agreement: Doc<"agreements">): boolean {
-  if (viewer.role === "gc" || viewer.role === "owner") return true;
+  if (viewer.role === "gc") return true;
+  if (viewer.role === "owner") return false;
   return viewer.profile.contractorId !== undefined && agreement.contractorId === viewer.profile.contractorId;
 }
 

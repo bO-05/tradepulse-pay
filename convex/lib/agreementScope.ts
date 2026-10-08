@@ -39,3 +39,27 @@ export async function scopedAgreements(
   rows.sort((a, b) => b.agreement._creationTime - a.agreement._creationTime);
   return { rows: rows.slice(0, opts.limit), truncated: rows.length > opts.limit };
 }
+
+/**
+ * Dashboard scope: subcontract agreements of the projects where the caller is the GC, plus the
+ * projects where the caller is the owner (which only get owner-safe data, never these agreements).
+ * With `projectId`, that one project must be accessible as GC or owner, else "Not found.".
+ */
+export async function gcAgreementsAndOwnerProjects(
+  ctx: QueryCtx,
+  opts: { projectId?: Id<"projects"> | string; limit: number },
+): Promise<{ rows: ScopedAgreement[]; truncated: boolean; ownerProjects: Doc<"projects">[] }> {
+  if (opts.projectId !== undefined) {
+    const access = await requireProjectScope(ctx, opts.projectId, { roles: ["gc", "owner"] });
+    if (access.partyRole === "owner") return { rows: [], truncated: false, ownerProjects: [access.project] };
+    const gc = await scopedAgreements(ctx, { parties: ["gc"], projectId: access.project._id, limit: opts.limit });
+    return { ...gc, ownerProjects: [] };
+  }
+  const gc = await scopedAgreements(ctx, { parties: ["gc"], limit: opts.limit });
+  const ownerProjects: Doc<"projects">[] = [];
+  for (const projectId of await accessibleProjectIds(ctx)) {
+    const access = await requireProjectAccess(ctx, projectId);
+    if (access.partyRole === "owner") ownerProjects.push(access.project);
+  }
+  return { ...gc, ownerProjects };
+}

@@ -181,11 +181,13 @@ export const ProjectFilesView: React.FC<ProjectFilesViewProps> = ({
       }
     }
     let storageId: string;
+    let uploadIntentId: string | undefined;
     if (currentProject._id.startsWith("proj_")) {
       storageId = `local_storage_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     } else {
-      const postUrl = await generateUploadUrlMutation();
-      const result = await fetch(postUrl, {
+      const upload = await generateUploadUrlMutation({ projectId: currentProject._id as any });
+      uploadIntentId = upload.uploadIntentId;
+      const result = await fetch(upload.uploadUrl, {
         method: "POST",
         headers: { "Content-Type": file.type || "application/octet-stream" },
         body: file,
@@ -198,9 +200,10 @@ export const ProjectFilesView: React.FC<ProjectFilesViewProps> = ({
       storageId = res.storageId;
     }
 
-    if (!currentProject._id.startsWith("proj_")) {
+    if (!currentProject._id.startsWith("proj_") && uploadIntentId) {
       await saveFileRecordMutation({
         projectId: currentProject._id as any,
+        uploadIntentId: uploadIntentId as any,
         tradePackageId:
           activePackage && !activePackage._id.startsWith("pkg_") ? (activePackage._id as any) : undefined,
         storageId,

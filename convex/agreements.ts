@@ -316,6 +316,7 @@ export const getAgreementByPackage = query({
   },
 });
 
+/** Subcontract agreements: the GC sees all, a sub only its own vendor's, an owner none. */
 export const listAgreements = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {

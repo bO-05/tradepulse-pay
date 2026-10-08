@@ -18,7 +18,7 @@ function fakeInvoicing() {
   const calls: Call[] = [];
   const invoices = new Map<string, { id: string; status: string; body: any }>();
   const byRequestId = new Map<string, string>();
-  const state = { n: 0, failSend: false };
+  const state = { n: 0, failSend: false, failCreate: false };
   const json = (status: number, body: unknown) =>
     new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
   const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
@@ -32,6 +32,10 @@ function fakeInvoicing() {
     const self = (id: string) => ({ rel: "self", href: `https://api.sandbox.paypal.com/v2/invoicing/invoices/${id}`, method: "GET" });
 
     if (req.method === "POST" && url.pathname === "/v2/invoicing/invoices") {
+      if (state.failCreate) {
+        state.failCreate = false;
+        return json(422, { name: "UNPROCESSABLE_ENTITY", details: [{ issue: "INVALID_STRING_LENGTH" }], debug_id: "dbg-create" });
+      }
       let id = requestId ? byRequestId.get(requestId) : undefined;
       if (!id) {
         id = `INV2-TEST-${++state.n}`;
@@ -93,6 +97,14 @@ async function setup() {
   return { t, gc, owner, sub, agreement };
 }
 type Setup = Awaited<ReturnType<typeof setup>>;
+
+async function removeOwners(t: Setup["t"], projectId: Id<"projects">) {
+  await t.run(async (ctx) => {
+    for (const m of await ctx.db.query("projectMembers").withIndex("by_projectId", (q) => q.eq("projectId", projectId)).collect()) {
+      if (m.partyRole === "owner") await ctx.db.patch(m._id, { status: "removed" });
+    }
+  });
+}
 
 async function changeOrders(t: Setup["t"]) {
   return await t.run(async (ctx) => await ctx.db.query("changeOrders").collect());
@@ -259,6 +271,80 @@ describe("change order invoices", () => {
     const again = await gc.as.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId: co._id });
     expect(again.alreadyInvoiced).toBe(true);
     expect(fake.posts(/\/send$/)).toHaveLength(2);
+  });
+
+  test("retry after the owner was removed is refused with the disabled reason; nothing goes to PayPal", async () => {
+    const { t, gc, agreement } = await setup();
+    fake.state.failCreate = true;
+    await errorOf(gc.as.action(api.payments.invoices.createChangeOrder, { agreementId: agreement._id, description: "Bollards", amountCents: 40_000 }));
+    let [co] = await changeOrders(t);
+    expect(co).toMatchObject({ status: "draft", recipientEmail: OWNER_EMAIL });
+    expect(co.paypalInvoiceId).toBeUndefined();
+    const createsBefore = fake.posts(/^\/v2\/invoicing\/invoices$/).length;
+
+    await removeOwners(t, agreement.projectId);
+    const list = await gc.as.query(api.payments.changeOrderDb.listForAgreement, { agreementId: agreement._id });
+    expect(list!.invoicing.enabled).toBe(false);
+
+    const err = await errorOf(gc.as.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId: co._id }));
+    expect(err.data.code).toBe("NO_OWNER_EMAIL");
+    expect(err.data.message).toBe(list!.invoicing.reason);
+    expect(fake.posts(/^\/v2\/invoicing\/invoices$/)).toHaveLength(createsBefore);
+    expect(fake.posts(/\/send$/)).toHaveLength(0);
+    [co] = await changeOrders(t);
+    expect(co.status).toBe("draft");
+  });
+
+  test("a draft already addressed to a removed owner is never sent", async () => {
+    const { t, gc, agreement } = await setup();
+    fake.state.failSend = true;
+    await errorOf(gc.as.action(api.payments.invoices.createChangeOrder, { agreementId: agreement._id, description: "Signage", amountCents: 9_900 }));
+    const [co] = await changeOrders(t);
+    expect(co.paypalInvoiceId).toBe("INV2-TEST-1");
+    await removeOwners(t, agreement.projectId);
+    const err = await errorOf(gc.as.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId: co._id }));
+    expect(err.data.code).toBe("NO_OWNER_EMAIL");
+    expect(fake.posts(/\/send$/)).toHaveLength(1);
+    expect(fake.invoices.get("INV2-TEST-1")!.status).toBe("DRAFT");
+  });
+
+  test("owner replaced before the invoice existed: the retry invoices the current owner under a new request id", async () => {
+    const { t, gc, agreement } = await setup();
+    fake.state.failCreate = true;
+    await errorOf(gc.as.action(api.payments.invoices.createChangeOrder, { agreementId: agreement._id, description: "Canopy", amountCents: 12_000 }));
+    const [co] = await changeOrders(t);
+    const firstRequestId = fake.posts(/^\/v2\/invoicing\/invoices$/)[0].requestId;
+
+    await removeOwners(t, agreement.projectId);
+    const NEW_OWNER = "new-owner@harborpoint.test";
+    await t.run(async (ctx) => {
+      const companyId = await ctx.db.insert("companies", { name: "New Owner LLC", kind: "owner", isDemo: false, billingEmail: NEW_OWNER, createdAt: Date.now() });
+      await ctx.db.insert("projectMembers", { projectId: agreement.projectId, companyId, partyRole: "owner", status: "active", createdAt: Date.now() });
+    });
+
+    const retry = await gc.as.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId: co._id });
+    expect(retry.status).toBe("invoiced");
+    const creates = fake.posts(/^\/v2\/invoicing\/invoices$/);
+    const last = creates.at(-1)!;
+    expect((last.body as any).primary_recipients[0].billing_info.email_address).toBe(NEW_OWNER);
+    expect(last.requestId).not.toBe(firstRequestId);
+    const [after] = await changeOrders(t);
+    expect(after.recipientEmail).toBe(NEW_OWNER);
+  });
+
+  test("a PayPal draft addressed to a previous owner is refused rather than sent to the new owner's project", async () => {
+    const { t, gc, agreement } = await setup();
+    fake.state.failSend = true;
+    await errorOf(gc.as.action(api.payments.invoices.createChangeOrder, { agreementId: agreement._id, description: "Ramp", amountCents: 5_000 }));
+    const [co] = await changeOrders(t);
+    await removeOwners(t, agreement.projectId);
+    await t.run(async (ctx) => {
+      const companyId = await ctx.db.insert("companies", { name: "Other Owner", kind: "owner", isDemo: false, billingEmail: "other@owner.test", createdAt: Date.now() });
+      await ctx.db.insert("projectMembers", { projectId: agreement.projectId, companyId, partyRole: "owner", status: "active", createdAt: Date.now() });
+    });
+    const err = await errorOf(gc.as.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId: co._id }));
+    expect(err.data.code).toBe("OWNER_CHANGED");
+    expect(fake.posts(/\/send$/)).toHaveLength(1);
   });
 
   test("only the GC can create change orders; subs see none; the owner cannot create", async () => {

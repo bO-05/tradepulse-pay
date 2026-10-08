@@ -19,6 +19,7 @@ const TENANCY_GUARDS = [
   "requireDocScope",
   "findDocScope",
   "scopedAgreements",
+  "gcAgreementsAndOwnerProjects",
   "requireProjectScopeInAction",
   "requireDemoCompany",
   "requireDemoCompanyInAction",

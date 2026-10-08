@@ -30,6 +30,7 @@ type Ids = {
   agreementId: Id<"agreements">;
   conversationId: Id<"conversations">;
   fileId: Id<"projectFiles">;
+  uploadIntentId: Id<"uploadIntents">;
 };
 
 const fetchSpy = vi.fn(async () => {
@@ -191,6 +192,15 @@ async function setup() {
     agreementId: a.agreementId,
     conversationId: extra.conversationId,
     fileId: extra.fileId,
+    uploadIntentId: await freshId(t, (ctx) =>
+      ctx.db.insert("uploadIntents", {
+        userId: fx.gcA.admin.userId,
+        companyId: fx.gcA.companyId,
+        projectId: a.projectId,
+        createdAt: 0,
+        expiresAt: 0,
+      }),
+    ),
   };
   const missing: Ids = {
     projectId: await freshId(t, (ctx) =>
@@ -280,6 +290,7 @@ async function setup() {
         uploadedAt: 0,
       }),
     ),
+    uploadIntentId: bayview.uploadIntentId,
   };
   return { t, fx, ray, bayview, missing, extra };
 }
@@ -358,6 +369,7 @@ const GC_ONLY: Case[] = [
   q("files:listFilesByPackage (owner allowed)", api.files.listFilesByPackage, (i) => ({ tradePackageId: i.tradePackageId })),
   m("files:saveFileRecord", api.files.saveFileRecord, (i) => ({
     projectId: i.projectId,
+    uploadIntentId: i.uploadIntentId,
     storageId: "kg2forgedstorageid",
     fileName: "forged.pdf",
     fileType: "spec",

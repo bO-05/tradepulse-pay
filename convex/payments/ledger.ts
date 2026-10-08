@@ -85,7 +85,7 @@ export const listLedgerAgreements = query({
 export const getAgreementLedger = query({
   args: { agreementId: v.string() },
   handler: async (ctx, args) => {
-    const scope = await findDocScope(ctx, "agreements", args.agreementId);
+    const scope = await findDocScope(ctx, "agreements", args.agreementId, { roles: ["gc", "sub"] });
     if (scope === null) return null;
     const agreement = scope.doc;
     const id = agreement._id;

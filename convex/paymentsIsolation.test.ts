@@ -512,21 +512,20 @@ describe("company-wide lists never mix companies or vendors", () => {
 });
 
 describe("the owner sees project summary and owner items only", () => {
-  test("owner dashboard has totals and invoiced change orders but no per-sub AI review internals or drafts", async () => {
+  test("owner dashboard has only its invoiced change orders: no subcontract rows, pay apps, AI review internals or drafts", async () => {
     const { fx, bayview } = await setup();
     const data = await fx.owner.admin.as.query(api.dashboard.queries.getDashboardData, {});
     expect(data.readOnly).toBe(true);
-    expect(new Set(data.agreements.map((x) => x.project))).toEqual(new Set(["Harbor Point Dental Office TI"]));
-    const app = data.payApps.find((p) => p.payAppId === bayview.payAppId)!;
-    expect(app).toMatchObject({
-      requestedCents: 1_600_000,
-      aiRecommendedCents: null,
-      reviewEngine: null,
-      overbilledLines: 0,
-      licenseIssue: false,
-    });
+    expect(data.agreements).toEqual([]);
+    expect(data.payApps).toEqual([]);
+    expect(data.payments).toEqual([]);
+    expect(data.retainage).toEqual([]);
+    expect(data.milestones).toEqual([]);
+    expect(data.totals.contractSumCents).toBe(0);
+    expect(data.changeOrders.length).toBeGreaterThan(0);
     expect(data.changeOrders.map((c) => c.status)).not.toContain("draft");
     expect(JSON.stringify(data)).not.toContain(SECRET_REVIEW_NOTE);
+    expect(JSON.stringify(data)).not.toContain(bayview.payAppId);
 
     const dana = await fx.gcA.admin.as.query(api.dashboard.queries.getDashboardData, {});
     expect(dana.payApps.find((p) => p.payAppId === bayview.payAppId)).toMatchObject({ aiRecommendedCents: 1_200_000, overbilledLines: 1 });
@@ -550,8 +549,8 @@ describe("the owner sees project summary and owner items only", () => {
     });
     const pat = t.withIdentity({ subject: `${mesaUser}|test-session`, email: "pat@mesa-owner.test" });
     const text = JSON.stringify(await pat.query(api.dashboard.queries.getDashboardData, {}));
-    expect(text).toContain("Camelback Suite 400");
-    expect(text).not.toMatch(/Harbor Point|BAYVIEW/);
+    expect(text).toContain("SONORAN added outlets");
+    expect(text).not.toMatch(/Harbor Point|BAYVIEW|Camelback/);
     expect(await pat.query(api.payments.changeOrderDb.listForAgreement, { agreementId: bayview.agreementId })).toBeNull();
     expect(await outcome(pat.query(api.dashboard.queries.getDashboardData, { projectId: bayview.projectId }))).toBe(NOT_FOUND);
   });

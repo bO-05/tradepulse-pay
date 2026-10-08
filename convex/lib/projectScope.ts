@@ -82,7 +82,15 @@ async function assertVisibleToParty<T extends ProjectScopedTable>(
   table: T,
   doc: Doc<T>,
 ): Promise<void> {
-  if (access.partyRole !== "sub") return;
+  if (access.partyRole === "gc") return;
+  if (access.partyRole === "owner") {
+    // Owners get the project summary and owner items only. Change orders are invoiced to the owner;
+    // every other vendor-specific record (bids, agreements, SOV, pay apps, payments, retainage) is
+    // subcontract detail.
+    if (table === "changeOrders") return;
+    if ((await contractorOfDoc(ctx, table, doc)) !== undefined) throw notFound();
+    return;
+  }
   const contractorId = await contractorOfDoc(ctx, table, doc);
   if (contractorId === undefined) return;
   if (contractorId === null || !access.contractorIds.includes(contractorId)) throw notFound();
@@ -90,7 +98,8 @@ async function assertVisibleToParty<T extends ProjectScopedTable>(
 
 /**
  * Loads a project-scoped document by a client-supplied id and authorizes the caller on the
- * project it belongs to. Sub callers only reach documents of their own vendor records. Missing,
+ * project it belongs to. Sub callers only reach documents of their own vendor records; owner
+ * callers reach no vendor-specific document except change orders. Missing,
  * foreign-company and other-vendor documents all fail with the same "Not found.".
  */
 export async function requireDocScope<T extends ProjectScopedTable>(
@@ -147,9 +156,13 @@ export async function requireDocOfProject<T extends ProjectScopedTable>(
   return doc;
 }
 
-/** Whether a sub caller may see records of `contractorId`; GC and owner parties always may. */
+/**
+ * Whether the caller may see subcontract records of `contractorId`: the GC always, a sub only its
+ * own vendor's, an owner never (owners get owner-safe projections instead).
+ */
 export function partyMaySeeContractor(access: ProjectAccess, contractorId: Id<"contractors"> | undefined): boolean {
-  if (access.partyRole !== "sub") return true;
+  if (access.partyRole === "gc") return true;
+  if (access.partyRole === "owner") return false;
   return contractorId !== undefined && access.contractorIds.includes(contractorId);
 }
 

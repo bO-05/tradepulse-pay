@@ -3,6 +3,7 @@ import type { Doc } from "../_generated/dataModel";
 import { internalMutation, internalQuery, query, type MutationCtx } from "../_generated/server";
 import { requireRole } from "../lib/roles";
 import { findDocScope } from "../lib/projectScope";
+import { ownerAgreementForChangeOrders } from "../lib/ownerView";
 import { invoiceRecipientForProject } from "./changeOrderRecipient";
 import { canMoveChangeOrder, changeOrderLabel, changeOrderStatusFromInvoice, type ChangeOrderStatus } from "./changeOrderMath";
 
@@ -41,9 +42,11 @@ export const listForAgreement = query({
   handler: async (ctx, args) => {
     await requireRole(ctx, ["gc", "sub", "owner"]);
     const scope = await findDocScope(ctx, "agreements", args.agreementId);
-    if (scope === null) return null;
-    const agreement = scope.doc;
-    const role = scope.partyRole;
+    // Owners cannot read the subcontract itself, only the change orders invoiced to them on it.
+    const ownerAgreement = scope === null ? await ownerAgreementForChangeOrders(ctx, args.agreementId) : null;
+    const agreement = scope?.doc ?? ownerAgreement;
+    if (agreement === null) return null;
+    const role = scope?.partyRole ?? "owner";
     const noInvoicing = { enabled: false, reason: null, recipientEmail: null };
     if (role === "sub") return { canCreate: false, canRefresh: false, nextNumber: 1, invoicing: noInvoicing, changeOrders: [] };
     const rows = await ctx.db
@@ -134,6 +137,7 @@ const beginInvoiceResult = v.union(
   v.object({
     state: v.literal("ready"),
     paypalInvoiceId: v.optional(v.string()),
+    createRequestSuffix: v.string(),
     projectId: v.id("projects"),
     agreementId: v.id("agreements"),
     input: v.object({
@@ -161,19 +165,33 @@ export const beginInvoice = internalMutation({
     }
     const agreement = await ctx.db.get(co.agreementId);
     if (agreement === null) throw new ConvexError({ code: "NOT_FOUND", message: "Agreement not found." });
-    let recipientEmail = co.recipientEmail;
-    if (recipientEmail === undefined) {
-      const recipient = await invoiceRecipientForProject(ctx, agreement.projectId);
-      if (!recipient.ok) {
-        await ctx.db.patch(changeOrderId, { error: recipient.reason });
-        throw new ConvexError({ code: "NO_OWNER_EMAIL", message: recipient.reason });
-      }
-      recipientEmail = recipient.email;
+    // A cached recipient is never trusted on its own: the owner may have been removed or replaced
+    // since the last attempt, so every attempt re-resolves the project's current owner.
+    const recipient = await invoiceRecipientForProject(ctx, agreement.projectId);
+    if (!recipient.ok) {
+      await ctx.db.patch(changeOrderId, { error: recipient.reason });
+      throw new ConvexError({ code: "NO_OWNER_EMAIL", message: recipient.reason });
     }
-    if (co.recipientEmail === undefined) await ctx.db.patch(changeOrderId, { recipientEmail });
+    const recipientEmail = recipient.email;
+    const cached = co.recipientEmail;
+    const recipientChanged = cached !== undefined && cached.toLowerCase() !== recipientEmail.toLowerCase();
+    if (recipientChanged && co.paypalInvoiceId !== undefined) {
+      const reason =
+        "The PayPal invoice draft for this change order is addressed to a previous project owner, so it was not sent. Create a new change order to invoice the current owner.";
+      await ctx.db.patch(changeOrderId, { error: reason });
+      throw new ConvexError({ code: "OWNER_CHANGED", message: reason });
+    }
+    if (cached !== recipientEmail) {
+      await ctx.db.patch(changeOrderId, {
+        recipientEmail,
+        ...(recipientChanged ? { recipientRevision: (co.recipientRevision ?? 0) + 1 } : {}),
+      });
+    }
+    const revision = recipientChanged ? (co.recipientRevision ?? 0) + 1 : (co.recipientRevision ?? 0);
     return {
       state: "ready",
       paypalInvoiceId: co.paypalInvoiceId,
+      createRequestSuffix: revision > 0 ? `_r${revision}` : "",
       projectId: agreement.projectId,
       agreementId: agreement._id,
       input: {

@@ -18,8 +18,8 @@ Public functions: 141. Problems: 0. Without a tenancy guard: 0.
 | `agreements:voidExecutedAgreement` | mutation | `convex/agreements.ts:258` | requireDocScope() at line 264 | requireDocScope() |
 | `agreements:getAgreementByBid` | query | `convex/agreements.ts:296` | requireDocScope() at line 299 | requireDocScope() |
 | `agreements:getAgreementByPackage` | query | `convex/agreements.ts:307` | requireDocScope() at line 310 | requireDocScope() |
-| `agreements:listAgreements` | query | `convex/agreements.ts:319` | requireProjectScope() at line 322 | requireProjectScope() |
-| `agreements:executeAgreement` | mutation | `convex/agreements.ts:332` | requireDocScope() at line 335 | requireDocScope() |
+| `agreements:listAgreements` | query | `convex/agreements.ts:320` | requireProjectScope() at line 323 | requireProjectScope() |
+| `agreements:executeAgreement` | mutation | `convex/agreements.ts:333` | requireDocScope() at line 336 | requireDocScope() |
 | `auditLogs:listRecentLogs` | query | `convex/auditLogs.ts:41` | requireProjectScope() at line 53 | requireProjectScope() |
 | `bids:listByPackage` | query | `convex/bids.ts:81` | requireDocScope() at line 85 | requireDocScope() |
 | `bids:listAllProjectBids` | query | `convex/bids.ts:93` | requireProjectScope() at line 96 | requireProjectScope() |
@@ -50,22 +50,22 @@ Public functions: 141. Problems: 0. Without a tenancy guard: 0.
 | `crons:runDeadlineMonitorNow` | mutation | `convex/crons.ts:178` | requireProjectScope() at line 181 | requireProjectScope() |
 | `crons:runComplianceAuditNow` | mutation | `convex/crons.ts:240` | requireProjectScope() at line 243 | requireProjectScope() |
 | `crons:getCronStatus` | query | `convex/crons.ts:289` | requireRole() at line 292 | none needed: static cron schedule |
-| `dashboard/payAgent:getPaySummary` | query | `convex/dashboard/payAgent.ts:76` | requireRole() at line 79 | scopedAgreements() |
-| `dashboard/queries:getDashboardData` | query | `convex/dashboard/queries.ts:57` | requireRole() at line 60 | scopedAgreements() |
+| `dashboard/payAgent:getPaySummary` | query | `convex/dashboard/payAgent.ts:77` | requireRole() at line 80 | gcAgreementsAndOwnerProjects() |
+| `dashboard/queries:getDashboardData` | query | `convex/dashboard/queries.ts:59` | requireRole() at line 62 | gcAgreementsAndOwnerProjects() |
 | `dashboard/studioProxy:studioPreflight` | httpAction | `convex/dashboard/studioProxy.ts:42` | CORS preflight only, no data access | none needed: CORS preflight |
 | `dashboard/studioProxy:studioProxy` | httpAction | `convex/dashboard/studioProxy.ts:53` | Bearer token, then authorizeStudioCaller (requireRole + requireCompanyMember) before fetch | requireCompanyMember() via authorizeStudioCaller; reads no app data itself |
 | `evals:getLatestEvalRun` | query | `convex/evals.ts:101` | requireDemoCompany() at line 104 | requireDemoCompany() |
 | `evals:listTracesForRun` | query | `convex/evals.ts:132` | requireDemoCompany() at line 135 | requireDemoCompany() |
 | `evals:executeEvalSuite` | action | `convex/evals.ts:147` | requireDemoCompanyInAction() at line 153 | requireDemoCompanyInAction() |
-| `files:generateUploadUrl` | mutation | `convex/files.ts:37` | requireRole() at line 40 | requireCompanyMember() |
-| `files:saveFileRecord` | mutation | `convex/files.ts:90` | requireProjectScope() at line 103 | requireProjectScope() |
-| `files:repairSeededDocumentSizes` | mutation | `convex/files.ts:200` | requireDemoCompany() at line 203 | requireDemoCompany() |
-| `files:listFilesByProject` | query | `convex/files.ts:231` | requireProjectScope() at line 234 | requireProjectScope() |
-| `files:listFilesByPackage` | query | `convex/files.ts:244` | requireDocScope() at line 247 | requireDocScope() |
-| `files:deleteFile` | mutation | `convex/files.ts:257` | requireDocScope() at line 260 | requireDocScope() |
-| `files:extractBidFromQuoteFile` | action | `convex/files.ts:834` | requireProjectScopeInAction() at line 846 | requireProjectScopeInAction() |
-| `files:extractBidFromFile` | action | `convex/files.ts:862` | requireProjectScopeInAction() at line 872 | requireProjectScopeInAction() |
-| `files:generatePreBidAddendum` | action | `convex/files.ts:910` | requireProjectScopeInAction() at line 917 | requireProjectScopeInAction() |
+| `files:generateUploadUrl` | mutation | `convex/files.ts:44` | requireRole() at line 48 | requireProjectScope() |
+| `files:saveFileRecord` | mutation | `convex/files.ts:143` | requireProjectScope() at line 157 | requireProjectScope() |
+| `files:repairSeededDocumentSizes` | mutation | `convex/files.ts:255` | requireDemoCompany() at line 258 | requireDemoCompany() |
+| `files:listFilesByProject` | query | `convex/files.ts:286` | requireProjectScope() at line 289 | requireProjectScope() |
+| `files:listFilesByPackage` | query | `convex/files.ts:299` | requireDocScope() at line 302 | requireDocScope() |
+| `files:deleteFile` | mutation | `convex/files.ts:312` | requireDocScope() at line 315 | requireDocScope() |
+| `files:extractBidFromQuoteFile` | action | `convex/files.ts:897` | requireProjectScopeInAction() at line 909 | requireProjectScopeInAction() |
+| `files:extractBidFromFile` | action | `convex/files.ts:925` | requireProjectScopeInAction() at line 935 | requireProjectScopeInAction() |
+| `files:generatePreBidAddendum` | action | `convex/files.ts:973` | requireProjectScopeInAction() at line 980 | requireProjectScopeInAction() |
 | `invites:create` | action | `convex/invites.ts:368` | requireCompanyMemberInAction() at line 380 | requireCompanyMemberInAction() |
 | `invites:resend` | action | `convex/invites.ts:394` | requireCompanyMemberInAction() at line 398 | requireCompanyMemberInAction() |
 | `invites:revoke` | mutation | `convex/invites.ts:410` | requireCompanyMember() at line 414 | requireCompanyMember() |
@@ -94,7 +94,7 @@ Public functions: 141. Problems: 0. Without a tenancy guard: 0.
 | `payApps/submit:payAppFormContext` | query | `convex/payApps/submit.ts:54` | findDocScope() at line 57 | findDocScope() |
 | `payApps/submit:submitPayApplication` | mutation | `convex/payApps/submit.ts:77` | requireDocScope() at line 87 | requireDocScope() |
 | `payApps/submit:withdrawPayApplication` | mutation | `convex/payApps/submit.ts:185` | requireDocScope() at line 188 | requireDocScope() |
-| `payments/changeOrderDb:listForAgreement` | query | `convex/payments/changeOrderDb.ts:39` | requireRole() at line 42 | findDocScope() |
+| `payments/changeOrderDb:listForAgreement` | query | `convex/payments/changeOrderDb.ts:40` | requireRole() at line 43 | findDocScope() |
 | `payments/invoices:createChangeOrder` | action | `convex/payments/invoices.ts:139` | requireProjectScopeInAction() at line 143 | requireProjectScopeInAction() |
 | `payments/invoices:sendChangeOrderInvoice` | action | `convex/payments/invoices.ts:153` | requireProjectScopeInAction() at line 157 | requireProjectScopeInAction() |
 | `payments/invoices:refreshChangeOrderStatus` | action | `convex/payments/invoices.ts:163` | requireProjectScopeInAction() at line 167 | requireProjectScopeInAction() |
@@ -114,14 +114,14 @@ Public functions: 141. Problems: 0. Without a tenancy guard: 0.
 | `payments/sandboxTopUp:captureTopUpOrder` | action | `convex/payments/sandboxTopUp.ts:75` | requireRoleInAction() at line 80 | requireDemoCompanyInAction() |
 | `payments/sandboxTopUpDb:listTopUps` | query | `convex/payments/sandboxTopUpDb.ts:79` | requireDemoCompany() at line 82 | requireDemoCompany() |
 | `payments/webhook:paypalWebhook` | httpAction | `convex/payments/webhook.ts:115` | PayPal signature verification before any write | none needed: PayPal-signed delivery; no caller session |
-| `people:listForProject` | query | `convex/people.ts:28` | requireProjectScope() at line 31 | requireProjectScope() |
-| `people:removeProjectMember` | mutation | `convex/people.ts:85` | requireProjectScope() at line 89 | requireProjectScope() |
-| `people:myProjects` | query | `convex/people.ts:127` | callerProjects() at line 130 | callerProjects() |
-| `people:projectOverview` | query | `convex/people.ts:143` | requireProjectScope() at line 148 | requireProjectScope() |
-| `portal:mySubPortal` | query | `convex/portal.ts:89` | subContractorScope() at line 92 | subContractorScope() |
-| `portal:mySubPayApps` | query | `convex/portal.ts:126` | subContractorScope() at line 129 | subContractorScope() |
-| `portal:getAgreementSummary` | query | `convex/portal.ts:179` | requireDocScope() at line 184 | requireDocScope() |
-| `portal:ownerOverview` | query | `convex/portal.ts:194` | requireRole() at line 197 | callerProjects() |
+| `people:listForProject` | query | `convex/people.ts:30` | requireProjectScope() at line 33 | requireProjectScope() |
+| `people:removeProjectMember` | mutation | `convex/people.ts:87` | requireProjectScope() at line 91 | requireProjectScope() |
+| `people:myProjects` | query | `convex/people.ts:129` | callerProjects() at line 132 | callerProjects() |
+| `people:projectOverview` | query | `convex/people.ts:146` | requireProjectScope() at line 151 | requireProjectScope() |
+| `portal:mySubPortal` | query | `convex/portal.ts:90` | subContractorScope() at line 93 | subContractorScope() |
+| `portal:mySubPayApps` | query | `convex/portal.ts:127` | subContractorScope() at line 130 | subContractorScope() |
+| `portal:getAgreementSummary` | query | `convex/portal.ts:180` | requireDocScope() at line 185 | requireDocScope() |
+| `portal:ownerOverview` | query | `convex/portal.ts:195` | requireRole() at line 198 | callerProjects() |
 | `profiles:me` | query | `convex/profiles.ts:13` | getAuthUserId(): caller's own users row only, then getViewer() | none needed: caller's own profile |
 | `projectFileDownload:projectFilePreflight` | httpAction | `convex/projectFileDownload.ts:41` | CORS preflight only, no data access | none needed: CORS preflight |
 | `projectFileDownload:projectFileDownload` | httpAction | `convex/projectFileDownload.ts:50` | Bearer token, then authorizeDownload (requireDocScope) before ctx.storage | requireDocScope() via authorizeDownload |
