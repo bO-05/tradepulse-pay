@@ -9,8 +9,8 @@ How it was built (2026-10-08):
 - Backend-read names: every `process.env.X` and `env.X` in `convex/` (tests and `_generated/`
   excluded), the names declared in `convex/convex.config.ts`, the `PAYPAL_SANDBOX_*_EMAIL` names
   read through `process.env[name]`, and the Convex deployment names in `.env.example`.
-- Configured names: `npx convex env list | cut -d= -f1` on production (deploy key prefix
-  `prod:earnest-mongoose-745|` checked first) and on dev `exuberant-boar-323` for comparison.
+- Configured names: `npx convex env list | cut -d= -f1` on production (the production deploy key for
+  `earnest-mongoose-745` was confirmed first) and on dev `exuberant-boar-323` for comparison.
 
 Categories:
 

@@ -5,6 +5,7 @@ import { deleteAgreementCascade } from "./payments/cascade";
 import { syncAgreementForBid } from "./agreements";
 import { validateNonNegativeAmount, validatePositiveAmount, validateProjectText } from "./validation";
 import { leadTimePenaltyFor, targetWeeksForDivision } from "./terms";
+import { contractorCanBidOnPackage } from "./lib/packageContractors";
 
 /**
  * Plausibility guard for every bid ingestion path. Blocks six/seven-figure data-entry
@@ -130,7 +131,7 @@ export const awardContract = mutation({
     const tradePkg = await ctx.db.get(args.tradePackageId);
     if (!tradePkg) throw new Error("Trade package not found");
     const contractor = await ctx.db.get(awardedBid.contractorId);
-    if (!contractor || contractor.tradePackageId !== tradePkg._id) {
+    if (!contractor || !contractorCanBidOnPackage(contractor, tradePkg)) {
       throw new Error("The selected bid is not linked to a contractor in this trade package.");
     }
     const existingAgreement = await ctx.db

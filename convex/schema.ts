@@ -437,6 +437,8 @@ export default defineSchema({
     mandatoryInclusions: v.array(v.string()), // ["Crane hoisting", "Seismic bracing", "Temporary power"]
     bidDeadline: v.string(),
     status: v.string(), // "draft" | "rfqs_dispatched" | "leveling" | "awarded"
+    // Existing contractors (discovered for another package) invited to bid on this one.
+    invitedContractorIds: v.optional(v.array(v.id("contractors"))),
   }).index("by_project", ["projectId"]),
 
   // Discovered Subcontractors

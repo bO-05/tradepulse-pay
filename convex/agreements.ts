@@ -4,6 +4,7 @@ import { v, ConvexError } from "convex/values";
 import { DEFAULT_GENERAL_CONTRACTOR, validateProjectText } from "./validation";
 import { LIQUIDATED_DAMAGES_PER_DAY, RETAINAGE_PERCENT } from "./terms";
 import { ensureSovAndMilestones, removeSovAndMilestonesIfUnbilled } from "./payments/sov";
+import { contractorCanBidOnPackage } from "./lib/packageContractors";
 
 /**
  * AIA Document A401™ - 2017 Standard Form of Agreement Between Contractor and Subcontractor.
@@ -70,7 +71,7 @@ export const generateAgreement = mutation({
     const { city: gcCity, state: gcState, stateAbbr } = parseCityAndState(contractLocation);
     const generalContractor = project.generalContractorName?.trim() || DEFAULT_GENERAL_CONTRACTOR;
     const contractor = await ctx.db.get(bid.contractorId);
-    if (!contractor || contractor.tradePackageId !== tradePkg._id) {
+    if (!contractor || !contractorCanBidOnPackage(contractor, tradePkg)) {
       throw new Error("The selected bid is not linked to a valid contractor in this trade package.");
     }
     const subName = contractor.companyName.trim();
@@ -525,7 +526,7 @@ export async function syncAgreementForBid(ctx: any, bidId: any): Promise<any> {
   if (!project) return null;
 
   const contractor = await ctx.db.get(bid.contractorId);
-  if (!contractor || contractor.tradePackageId !== tradePkg._id || !contractor.companyName.trim()) {
+  if (!contractor || !contractorCanBidOnPackage(contractor, tradePkg) || !contractor.companyName.trim()) {
     throw new Error("The awarded bid is not linked to a valid contractor in this trade package.");
   }
   const subcontractorName = contractor.companyName.trim();

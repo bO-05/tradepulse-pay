@@ -27,7 +27,7 @@ import {
 const SUB1_EMAIL = "sub1@demo.tradepulse";
 const GC_NAME = "Austin Commercial, LP";
 
-async function sub1Account(ctx: MutationCtx): Promise<{ userId: Id<"users">; contractorId: Id<"contractors"> }> {
+export async function sub1Account(ctx: MutationCtx): Promise<{ userId: Id<"users">; contractorId: Id<"contractors"> }> {
   const user = await ctx.db
     .query("users")
     .withIndex("email", (q) => q.eq("email", SUB1_EMAIL))
