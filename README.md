@@ -4,7 +4,7 @@
 
 TradePulse Pay is MIT licensed (see [`LICENSE`](./LICENSE)).
 
-**Live URL: https://earnest-mongoose-745.convex.site** (the production deployment `earnest-mongoose-745` of the `tradepulse-pay` Convex project, with the demo data and demo accounts seeded). All PayPal calls use the sandbox (`api-m.sandbox.paypal.com`); no real money moves. Billing-agent sign-in through AgentID on the live URL needs its redirect URI registered on the AgentID client; until then AgentID answers "redirect_uri is forbidden" there, and the password demo accounts are unaffected.
+**Live URL: https://earnest-mongoose-745.convex.site** (the production deployment `earnest-mongoose-745` of the `tradepulse-pay` Convex project, with the demo data and demo accounts seeded). All PayPal calls use the sandbox (`api-m.sandbox.paypal.com`); no real money moves. AgentID billing-agent sign-in works on the live URL as well as the password demo accounts.
 
 > The earlier TradePulse Pro submission for the Convex hackathon lives on a separate, frozen deployment (`brainy-skunk-440`). It is not TradePulse Pay and does not run this code.
 

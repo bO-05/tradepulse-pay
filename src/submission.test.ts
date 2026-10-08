@@ -110,6 +110,8 @@ describe("README", () => {
     const intro = README.slice(0, README.indexOf("\n---\n"));
     expect(intro).toContain("https://earnest-mongoose-745.convex.site");
     expect(intro).not.toMatch(/added here after the production deploy/);
+    expect(intro).not.toMatch(/redirect_uri is forbidden/);
+    expect(intro).toContain("AgentID billing-agent sign-in works on the live URL");
   });
 
   test("states the MIT license, matching LICENSE", () => {
