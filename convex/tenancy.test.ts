@@ -76,6 +76,55 @@ describe("identity helpers", () => {
     });
     expect(await errorOf(f.gcA.member.as.run((ctx) => requireCompanyMember(ctx)))).toMatchObject({ code: "NO_COMPANY" });
   });
+
+  test("many removed memberships never hide the current active one or allow a second company", async () => {
+    const t = newTest();
+    const f = await buildTenancyFixture(t);
+    const userId = f.gcA.member.userId;
+    await t.run(async (ctx) => {
+      const rows = await ctx.db
+        .query("companyMembers")
+        .withIndex("by_userId", (q) => q.eq("userId", userId))
+        .collect();
+      for (const r of rows) await ctx.db.patch(r._id, { status: "removed" });
+      for (let i = 0; i < 25; i++) {
+        await ctx.db.insert("companyMembers", {
+          companyId: i % 2 === 0 ? f.gcB.companyId : f.gcA.companyId,
+          userId,
+          role: "member",
+          status: "removed",
+          createdAt: i,
+        });
+      }
+      await ctx.db.insert("companyMembers", {
+        companyId: f.gcA.companyId,
+        userId,
+        role: "member",
+        status: "active",
+        createdAt: 100,
+      });
+    });
+
+    const member = await f.gcA.member.as.run((ctx) => requireCompanyMember(ctx));
+    expect(member.company._id).toBe(f.gcA.companyId);
+    expect((await f.gcA.member.as.run((ctx) => requireProjectAccess(ctx, f.gcA.project.projectId))).partyRole).toBe("gc");
+    expect(
+      await errorOf(
+        f.gcA.member.as.mutation(api.onboarding.createCompany, {
+          name: "Second Co",
+          address: { line1: "1 Main St", city: "Oakland", state: "CA", zip: "94607" },
+          phone: "5105550100",
+        }),
+      ),
+    ).toMatchObject({ code: "ALREADY_ONBOARDED" });
+    const active = await t.run((ctx) =>
+      ctx.db
+        .query("companyMembers")
+        .withIndex("by_userId_and_status", (q) => q.eq("userId", userId).eq("status", "active"))
+        .collect(),
+    );
+    expect(active).toHaveLength(1);
+  });
 });
 
 describe("requireProjectAccess", () => {

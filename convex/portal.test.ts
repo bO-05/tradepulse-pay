@@ -5,6 +5,7 @@ import { api, internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import schema from "./schema";
 import { signInAs } from "./lib/testIdentity";
+import { buildTenancyFixture, insertProjectFor } from "./lib/tenancyFixtures";
 
 const modules = import.meta.glob("/convex/**/*.ts");
 
@@ -132,6 +133,38 @@ describe("mySubPayApps history", () => {
     expect((await page(sub2, 25)).page).toEqual([]);
     const loose = await signInAs(t, "sub", { email: "loose@test.tradepulse" });
     expect(await page(loose, 25)).toMatchObject({ page: [], isDone: true });
+  });
+});
+
+describe("mySubPayApps across contractor relationships", () => {
+  test("a sub company working for two GCs pages through both, and keeps the second after the first is removed", async () => {
+    const t = convexTest(schema, modules);
+    const fx = await buildTenancyFixture(t);
+    const second = await t.run((ctx) =>
+      insertProjectFor(ctx, fx.gcB.companyId, { title: "Camelback Suite 500", subCompanyId: fx.sub.companyId, bidderName: "Eastbay Electric" }),
+    );
+    const kim = fx.sub.admin;
+    const agreements = await t.run(async (ctx) => ({
+      first: (await ctx.db.get(fx.gcA.project.agreementId))!,
+      second: (await ctx.db.get(second.agreementId))!,
+    }));
+    const base = Date.now();
+    for (let i = 0; i < 3; i++) {
+      await insertPayApp(t, agreements.first, kim.userId, `Bayview #${i}`, "submitted", base + 2 * i);
+      await insertPayApp(t, agreements.second, kim.userId, `Sonoran #${i}`, "submitted", base + 2 * i + 1);
+    }
+    const all = await allPages(kim, 2);
+    expect(all.map((p) => p.periodLabel)).toEqual(["Sonoran #2", "Bayview #2", "Sonoran #1", "Bayview #1", "Sonoran #0", "Bayview #0"]);
+
+    await t.run(async (ctx) => {
+      const rows = await ctx.db
+        .query("projectMembers")
+        .withIndex("by_project_company", (q) => q.eq("projectId", fx.gcA.project.projectId).eq("companyId", fx.sub.companyId))
+        .collect();
+      for (const r of rows) await ctx.db.patch(r._id, { status: "removed" });
+    });
+    expect((await allPages(kim, 2)).map((p) => p.periodLabel)).toEqual(["Sonoran #2", "Sonoran #1", "Sonoran #0"]);
+    expect((await fx.gcB.admin.as.query(api.portal.mySubPayApps, { paginationOpts: { numItems: 10, cursor: null } }).catch(() => null))).toBeNull();
   });
 });
 

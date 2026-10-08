@@ -328,13 +328,12 @@ describe("procurement reads admit only the parties allowed on the project", () =
   type Label = "gc" | "unauthenticated" | "sub (own contractor)" | "sub (other contractor)" | "owner" | "unlinked agent" | "linked billing agent";
   type ReadCase = { name: string; fn: AnyRef; args: (i: Ids) => Record<string, unknown>; allow: Label[] };
   const SUBS: Label[] = ["sub (own contractor)", "sub (other contractor)", "linked billing agent"];
-  const SIGNED_IN: Label[] = ["gc", "owner", ...SUBS, "unlinked agent"];
   const READS: ReadCase[] = [
     { name: "agreements:listAgreements", fn: api.agreements.listAgreements, args: (i) => ({ projectId: i.projectId }), allow: ["gc", "owner", ...SUBS] },
     { name: "agreements:getAgreementByBid", fn: api.agreements.getAgreementByBid, args: (i) => ({ bidId: i.bidId }), allow: ["gc"] },
     { name: "agreements:getAgreementByPackage", fn: api.agreements.getAgreementByPackage, args: (i) => ({ tradePackageId: i.tradePackageId }), allow: ["gc"] },
-    // An inaccessible project reads like a deleted one: an empty feed.
-    { name: "auditLogs:listRecentLogs", fn: api.auditLogs.listRecentLogs, args: (i) => ({ projectId: i.projectId }), allow: SIGNED_IN },
+    // An explicit inaccessible project reads like a deleted one: "Not found.".
+    { name: "auditLogs:listRecentLogs", fn: api.auditLogs.listRecentLogs, args: (i) => ({ projectId: i.projectId }), allow: ["gc", "owner", ...SUBS] },
     { name: "bids:listByPackage", fn: api.bids.listByPackage, args: (i) => ({ tradePackageId: i.tradePackageId }), allow: ["gc"] },
     { name: "bids:listAllProjectBids", fn: api.bids.listAllProjectBids, args: (i) => ({ projectId: i.projectId }), allow: ["gc"] },
     { name: "contractors:listByPackage", fn: api.contractors.listByPackage, args: (i) => ({ tradePackageId: i.tradePackageId }), allow: ["gc"] },

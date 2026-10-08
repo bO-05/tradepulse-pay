@@ -342,7 +342,7 @@ test("QA7-7: deleteProject removes clashResolutions and every project child", as
   expect(remaining.conversations).toHaveLength(0);
   // Audit history is kept for deleted projects but no longer listed.
   expect(remaining.logs.length).toBeGreaterThan(0);
-  expect(await t.query(api.auditLogs.listRecentLogs, { projectId })).toEqual([]);
+  await expect(t.query(api.auditLogs.listRecentLogs, { projectId })).rejects.toThrow(/Not found/);
 });
 
 // ---------------------------------------------------------------- Item 8

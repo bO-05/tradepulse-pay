@@ -367,6 +367,7 @@ export const deductDoubleBuyCredit = mutation({
   handler: async (ctx, args) => {
     const access = await requireProjectScope(ctx, args.projectId, { roles: ["gc"], write: true });
     const tradePkg = await requireDocOfProject(ctx, access, "tradePackages", args.tradePackageId);
+    const explicitBid = args.bidId === undefined ? null : await requireDocOfProject(ctx, access, "bids", args.bidId);
     const deductAmount = validatePositiveAmount(args.deductAmount, "Double-buy credit");
     const description = validateProjectText(args.description, "Double-buy description");
     await assertCrossTradeEvidence(ctx, args.projectId);
@@ -390,10 +391,9 @@ export const deductDoubleBuyCredit = mutation({
 
     // Locate single target bid: explicitly passed, or awarded bid, or best leveled bid
     let targetBid: any = null;
-    if (args.bidId) {
-      targetBid = await ctx.db.get(args.bidId);
-      if (!targetBid) throw new Error("The selected bid was not found.");
-      if (targetBid && targetBid.tradePackageId !== args.tradePackageId) {
+    if (explicitBid !== null) {
+      targetBid = explicitBid;
+      if (targetBid.tradePackageId !== args.tradePackageId) {
         throw new Error("The selected bid does not belong to the target trade package.");
       }
     } else {
@@ -612,6 +612,7 @@ export const assignScopeVoidToTrade = mutation({
   handler: async (ctx, args) => {
     const access = await requireProjectScope(ctx, args.projectId, { roles: ["gc"], write: true });
     const tradePkg = await requireDocOfProject(ctx, access, "tradePackages", args.tradePackageId);
+    const explicitBid = args.bidId === undefined ? null : await requireDocOfProject(ctx, access, "bids", args.bidId);
     const additionalCost = validateNonNegativeAmount(args.additionalCost, "Scope void cost");
     const description = validateProjectText(args.description, "Scope void description");
     await assertCrossTradeEvidence(ctx, args.projectId);
@@ -640,10 +641,9 @@ export const assignScopeVoidToTrade = mutation({
 
     // Locate target bid: explicitly passed, or awarded bid, or best leveled bid
     let targetBid: any = null;
-    if (args.bidId) {
-      targetBid = await ctx.db.get(args.bidId);
-      if (!targetBid) throw new Error("The selected bid was not found.");
-      if (targetBid && targetBid.tradePackageId !== args.tradePackageId) {
+    if (explicitBid !== null) {
+      targetBid = explicitBid;
+      if (targetBid.tradePackageId !== args.tradePackageId) {
         throw new Error("The selected bid does not belong to the target trade package.");
       }
     } else {

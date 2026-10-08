@@ -36,7 +36,7 @@ async function projectFeed(
 /**
  * Activity feed for one project, or for every project the caller can access. GC parties see the
  * whole project; subs only their own vendor's events; owners their own and owner-safe events.
- * A project the caller cannot access reads exactly like a deleted one (an empty feed).
+ * An explicit projectId the caller cannot access fails exactly like a deleted one ("Not found.").
  */
 export const listRecentLogs = query({
   args: {
@@ -48,14 +48,7 @@ export const listRecentLogs = query({
     const maxLimit = Math.max(1, Math.min(args.limit ?? 50, 500));
 
     if (args.projectId) {
-      let access: ProjectAccess;
-      try {
-        access = await requireProjectScope(ctx, args.projectId);
-      } catch (error) {
-        const code = (error as { data?: { code?: string } }).data?.code;
-        if (code === "NOT_FOUND") return [];
-        throw error;
-      }
+      const access = await requireProjectScope(ctx, args.projectId);
       return await projectFeed(ctx, access, maxLimit);
     }
 

@@ -467,6 +467,54 @@ describe("another company's ids read exactly like missing ids", () => {
   });
 });
 
+describe("a foreign secondary id next to the caller's own primary id reads like a missing one", () => {
+  const MIXED: { name: string; run: (c: Caller, own: Ids, secondary: Ids) => Promise<unknown> }[] = [
+    {
+      name: "coordination:deductDoubleBuyCredit bidId",
+      run: (c, own, s) =>
+        c.mutation(api.coordination.deductDoubleBuyCredit, {
+          projectId: own.projectId,
+          clashId: "c1",
+          tradePackageId: own.tradePackageId,
+          deductAmount: 100,
+          description: "x",
+          bidId: s.bidId,
+        }),
+    },
+    {
+      name: "coordination:assignScopeVoidToTrade bidId",
+      run: (c, own, s) =>
+        c.mutation(api.coordination.assignScopeVoidToTrade, {
+          projectId: own.projectId,
+          voidId: "v1",
+          tradePackageId: own.tradePackageId,
+          additionalCost: 100,
+          description: "x",
+          bidId: s.bidId,
+        }),
+    },
+    {
+      name: "simulation:submitCustomRfi contractorId",
+      run: (c, own, s) =>
+        c.mutation(api.simulation.submitCustomRfi, {
+          tradePackageId: own.tradePackageId,
+          contractorId: s.contractorId,
+          subject: "x",
+          question: "y",
+        }),
+    },
+  ];
+
+  test.each(MIXED)("$name", async (c) => {
+    const { t, fx, bayview, missing } = await setup();
+    const foreign = { ...missing, bidId: fx.gcB.project.bidId, contractorId: fx.gcB.project.contractorId };
+    const before = await snapshot(t);
+    expect(await outcome(c.run(fx.gcA.admin.as, bayview, foreign)), "foreign secondary id").toBe(NOT_FOUND);
+    expect(await outcome(c.run(fx.gcA.admin.as, bayview, missing)), "missing secondary id").toBe(NOT_FOUND);
+    expect(await snapshot(t)).toBe(before);
+  });
+});
+
 describe("parties on the project without the GC role get the same Not found", () => {
   test.each(GC_ONLY)("$name", async (c) => {
     const { t, fx, ray, bayview } = await setup();
@@ -665,7 +713,8 @@ describe("activity feeds never mix companies or vendors", () => {
       (await c.query(api.auditLogs.listRecentLogs, args)).map((l) => l.title).sort();
     expect(await titles(fx.gcA.admin.as, { projectId: bayview.projectId })).toEqual(["Eastbay bid received", "Package created"]);
     expect(await titles(fx.gcA.admin.as)).toEqual(["Eastbay bid received", "Package created"]);
-    expect(await titles(fx.gcB.admin.as, { projectId: bayview.projectId })).toEqual([]);
+    expect(await outcome(fx.gcB.admin.as.query(api.auditLogs.listRecentLogs, { projectId: bayview.projectId }))).toBe(NOT_FOUND);
+    expect(await outcome(fx.demo.gc.as.query(api.auditLogs.listRecentLogs, { projectId: bayview.projectId }))).toBe(NOT_FOUND);
     expect(await titles(fx.gcB.admin.as)).toEqual([]);
     expect(await titles(fx.demo.gc.as)).toEqual([]);
     expect(await titles(ray.as, { projectId: bayview.projectId })).toEqual([]);
@@ -718,5 +767,52 @@ describe("Demo-only diagnostics", () => {
       expect(await outcome(caller.mutation(api.projects.seedInitialData, { force: false }))).toBe(NOT_FOUND);
       expect(await outcome(caller.mutation(api.files.repairSeededDocumentSizes, {}))).toBe(NOT_FOUND);
     }
+  });
+
+  test("the Demo company cannot read a real company's traces by run id", async () => {
+    const { t, fx } = await setup();
+    const trace = (runId: string, caseId: string, rawPrompt: string) => ({
+      runId,
+      caseId,
+      csiDivision: "26",
+      contractorName: "x",
+      provider: "Anthropic",
+      model: "m",
+      rawPrompt,
+      rawResponse: "r",
+      parsedOutput: null,
+      groundTruth: null,
+      metrics: null,
+      status: "AGENT_PROPOSED",
+      latencyMs: 1,
+      inputTokens: 1,
+      outputTokens: 1,
+      costUsd: 0,
+      timestamp: 1,
+    });
+    await t.run(async (ctx) => {
+      await ctx.db.insert("agentTraces", trace("pay_agent_bayview_1", "bayview-pay-app", "Bayview secret prompt"));
+      await ctx.db.insert("agentTraces", trace("eval_demo_1", "case-26-01", "fixture prompt"));
+      await ctx.db.insert("evalRuns", {
+        runId: "eval_demo_1",
+        targetEnvironment: "dev",
+        triggeredBy: "test",
+        totalCases: 1,
+        passedCases: 1,
+        scopeRecallAvg: 1,
+        scopePrecisionAvg: 1,
+        leveledCostMape: 0,
+        veAccuracyAvg: 1,
+        coiF1Score: 1,
+        clashRecallAvg: 1,
+        aiaConformityAvg: 1,
+        overallScore: 1,
+        totalDurationMs: 1,
+        createdAt: 1,
+      });
+    });
+    expect(await fx.demo.gc.as.query(api.evals.listTracesForRun, { runId: "pay_agent_bayview_1" })).toEqual([]);
+    const own = await fx.demo.gc.as.query(api.evals.listTracesForRun, { runId: "eval_demo_1" });
+    expect(own.map((r) => r.rawPrompt)).toEqual(["fixture prompt"]);
   });
 });

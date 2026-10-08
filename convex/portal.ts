@@ -119,30 +119,61 @@ export const mySubPortal = query({
   },
 });
 
+/** Rows read per contractor relationship for one page, so a page stays within query limits. */
+const PAY_APP_SCAN_LIMIT = 2_000;
+
 /**
- * The caller's contractor's pay applications across all its agreements, newest first, one cursor
- * page at a time. Listed per contractor (not per submitter) so pay apps filed by a linked billing
- * agent show up too. Rows on superseded agreements are dropped, so a page can be shorter than asked.
+ * Newest-first pay applications on the caller's visible agreements, merged across every contractor
+ * relationship of the caller's company. The cursor is the _creationTime of the last row returned.
+ */
+async function subPayAppPage(
+  ctx: QueryCtx,
+  contractorIds: Id<"contractors">[],
+  agreements: Map<string, Doc<"agreements">>,
+  opts: { numItems: number; cursor: string | null },
+) {
+  const numItems = Math.max(1, Math.min(Math.floor(opts.numItems), 200));
+  const parsed = opts.cursor === null || opts.cursor === "" ? null : Number(opts.cursor);
+  const before = parsed !== null && Number.isFinite(parsed) ? parsed : null;
+  const candidates: Doc<"payApplications">[] = [];
+  for (const contractorId of contractorIds) {
+    const rows = ctx.db
+      .query("payApplications")
+      .withIndex("by_contractorId", (q) =>
+        before === null ? q.eq("contractorId", contractorId) : q.eq("contractorId", contractorId).lt("_creationTime", before),
+      )
+      .order("desc");
+    let kept = 0;
+    let scanned = 0;
+    for await (const p of rows) {
+      if (++scanned > PAY_APP_SCAN_LIMIT) break;
+      if (!agreements.has(p.agreementId)) continue;
+      candidates.push(p);
+      if (++kept > numItems) break;
+    }
+  }
+  candidates.sort((a, b) => b._creationTime - a._creationTime);
+  const page = candidates.slice(0, numItems);
+  const isDone = candidates.length <= numItems;
+  const last = page.at(-1);
+  return { page, isDone, continueCursor: last === undefined ? (opts.cursor ?? "") : String(last._creationTime) };
+}
+
+/**
+ * The caller's pay applications across all its contractor relationships and agreements, newest
+ * first, one cursor page at a time. Listed per contractor (not per submitter) so pay apps filed by
+ * a linked billing agent show up too. Rows on superseded agreements are left out.
  */
 export const mySubPayApps = query({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, args) => {
     const scope = await subContractorScope(ctx, { includeArchived: true });
-    const viewer = scope.viewer;
-    const contractorId = scope.contractorIds.includes(viewer.profile.contractorId as Id<"contractors">)
-      ? viewer.profile.contractorId
-      : scope.contractorIds[0];
-    if (contractorId === undefined) return { page: [], isDone: true, continueCursor: "" };
+    if (scope.contractorIds.length === 0) return { page: [], isDone: true, continueCursor: "" };
     const agreements = new Map((await subAgreements(ctx, scope)).map((a) => [a._id as string, a]));
-    const result = await ctx.db
-      .query("payApplications")
-      .withIndex("by_contractorId", (q) => q.eq("contractorId", contractorId))
-      .order("desc")
-      .paginate(args.paginationOpts);
+    const result = await subPayAppPage(ctx, scope.contractorIds, agreements, args.paginationOpts);
     const page = [];
     for (const p of result.page) {
-      const agreement = agreements.get(p.agreementId);
-      if (agreement === undefined) continue;
+      const agreement = agreements.get(p.agreementId)!;
       const payments = await ctx.db
         .query("payments")
         .withIndex("by_payAppId", (q) => q.eq("payAppId", p._id))

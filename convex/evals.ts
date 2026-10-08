@@ -133,10 +133,18 @@ export const listTracesForRun = query({
   args: { runId: v.string() },
   handler: async (ctx, args) => {
     await requireDemoCompany(ctx, ["gc"]);
-    return await ctx.db
-      .query("agentTraces")
+    // agentTraces also holds real companies' pay-app review and agent traces, so only runs of the
+    // Demo-only eval suites are listed, and traces about a pay application are never returned.
+    const run = await ctx.db
+      .query("evalRuns")
       .withIndex("by_runId", (q) => q.eq("runId", args.runId))
-      .collect();
+      .first();
+    if (run === null) return [];
+    const traces = await ctx.db
+      .query("agentTraces")
+      .withIndex("by_runId", (q) => q.eq("runId", run.runId))
+      .take(500);
+    return traces.filter((t) => ctx.db.normalizeId("payApplications", t.caseId) === null);
   },
 });
 

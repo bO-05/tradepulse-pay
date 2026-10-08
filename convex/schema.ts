@@ -195,6 +195,7 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_userId", ["userId"])
+    .index("by_userId_and_status", ["userId", "status"])
     .index("by_companyId", ["companyId"])
     .index("by_companyId_and_userId", ["companyId", "userId"]),
 

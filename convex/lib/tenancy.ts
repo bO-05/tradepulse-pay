@@ -42,11 +42,10 @@ export async function requireVerifiedUser(ctx: QueryCtx): Promise<Doc<"users">> 
 
 /** The caller's single active membership, or null. */
 export async function findActiveMembership(ctx: QueryCtx, userId: Id<"users">): Promise<Doc<"companyMembers"> | null> {
-  const memberships = await ctx.db
+  return await ctx.db
     .query("companyMembers")
-    .withIndex("by_userId", (q) => q.eq("userId", userId))
-    .take(20);
-  return memberships.find((m) => m.status === "active") ?? null;
+    .withIndex("by_userId_and_status", (q) => q.eq("userId", userId).eq("status", "active"))
+    .first();
 }
 
 export type CompanyMember = {

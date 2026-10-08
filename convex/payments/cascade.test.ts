@@ -199,7 +199,7 @@ describe("agreement cascade delete", () => {
     for (const l of listed) {
       if (l.projectId) expect(await t.run(async (ctx) => await ctx.db.get(l.projectId!))).not.toBeNull();
     }
-    expect(await gc.as.query(api.auditLogs.listRecentLogs, { projectId: project._id })).toEqual([]);
+    await expect(gc.as.query(api.auditLogs.listRecentLogs, { projectId: project._id })).rejects.toThrow(/Not found/);
   });
 
   test("deleting a trade package removes its agreements' payment rows", async () => {

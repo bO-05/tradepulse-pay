@@ -274,7 +274,9 @@ export const submitCustomRfi = mutation({
     question: v.string(),
   },
   handler: async (ctx, args) => {
-    await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"], write: true });
+    const access = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"], write: true });
+    const contractor =
+      args.contractorId === undefined ? null : await requireDocOfProject(ctx, access, "contractors", args.contractorId);
 
     const subject = args.subject.trim();
     const question = args.question.trim();
@@ -290,9 +292,8 @@ export const submitCustomRfi = mutation({
 
     let fromEmail = "guest.inquiry@tradepulse-pay.test";
     let resolvedContractorId: any = args.contractorId;
-    if (args.contractorId) {
-      const contractor = await ctx.db.get(args.contractorId);
-      if (!contractor || contractor.tradePackageId !== args.tradePackageId) {
+    if (contractor !== null) {
+      if (contractor.tradePackageId !== args.tradePackageId) {
         throw new ConvexError("The selected contractor does not belong to this trade package.");
       }
       fromEmail = contractor.contactEmail;
