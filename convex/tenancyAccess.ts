@@ -9,7 +9,7 @@ import {
   requireProjectScope,
 } from "./lib/projectScope";
 import { roleValidator } from "./schema";
-import { notFound } from "./lib/tenancy";
+import { notFound, requireCompanyMember } from "./lib/tenancy";
 
 export const scopedTableValidator = v.union(
   v.literal("projects"),
@@ -64,6 +64,15 @@ export const resolveForAction = internalQuery({
       contractorIds: access.contractorIds,
       actor: actor.actor,
     };
+  },
+});
+
+/** Action-side variant of requireCompanyMember: the caller's own active company. */
+export const resolveCompanyForAction = internalQuery({
+  args: { admin: v.optional(v.boolean()) },
+  handler: async (ctx, args) => {
+    const { user, membership, company } = await requireCompanyMember(ctx, { admin: args.admin });
+    return { userId: user._id, companyId: company._id, companyKind: company.kind, memberRole: membership.role };
   },
 });
 

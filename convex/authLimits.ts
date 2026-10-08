@@ -16,6 +16,8 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   authEmailGlobal: { kind: "fixed window", rate: 50, period: 24 * HOUR },
   signUpGlobal: { kind: "token bucket", rate: 30, period: HOUR, capacity: 10 },
   signUpBurst: { kind: "token bucket", rate: 5, period: MINUTE, capacity: 5 },
+  // Invite creates/rotations per inviting company; emailed ones also count against EMAIL_DAILY_BUDGET.
+  invitePerCompany: { kind: "token bucket", rate: 60, period: HOUR, capacity: 20 },
 });
 
 const AUTH_EMAIL_LIMITS = ["authEmailCooldown", "authEmailPerAddress", "authEmailGlobal"] as const;

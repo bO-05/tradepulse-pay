@@ -22,6 +22,7 @@ import type * as auth from "../auth.js";
 import type * as authLimits from "../authLimits.js";
 import type * as authMigrations from "../authMigrations.js";
 import type * as bids from "../bids.js";
+import type * as companies from "../companies.js";
 import type * as contractorDiscovery from "../contractorDiscovery.js";
 import type * as contractors from "../contractors.js";
 import type * as coordination from "../coordination.js";
@@ -39,6 +40,7 @@ import type * as evals from "../evals.js";
 import type * as files from "../files.js";
 import type * as http from "../http.js";
 import type * as inboundEmail from "../inboundEmail.js";
+import type * as invites from "../invites.js";
 import type * as judgeDemo_runs from "../judgeDemo/runs.js";
 import type * as judgeDemo_scenario from "../judgeDemo/scenario.js";
 import type * as kernel_cslb from "../kernel/cslb.js";
@@ -55,6 +57,7 @@ import type * as lib_authEmail from "../lib/authEmail.js";
 import type * as lib_authErrors from "../lib/authErrors.js";
 import type * as lib_companyProfile from "../lib/companyProfile.js";
 import type * as lib_demoTenancy from "../lib/demoTenancy.js";
+import type * as lib_inviteRules from "../lib/inviteRules.js";
 import type * as lib_mailer from "../lib/mailer.js";
 import type * as lib_money from "../lib/money.js";
 import type * as lib_packageContractors from "../lib/packageContractors.js";
@@ -122,6 +125,7 @@ import type * as payments_testing from "../payments/testing.js";
 import type * as payments_webhook from "../payments/webhook.js";
 import type * as payments_webhookDb from "../payments/webhookDb.js";
 import type * as payments_webhookEvents from "../payments/webhookEvents.js";
+import type * as people from "../people.js";
 import type * as portal from "../portal.js";
 import type * as procurementScenario from "../procurementScenario.js";
 import type * as profiles from "../profiles.js";
@@ -136,6 +140,7 @@ import type * as tenancyMigration from "../tenancyMigration.js";
 import type * as terms from "../terms.js";
 import type * as tradePackages from "../tradePackages.js";
 import type * as validation from "../validation.js";
+import type * as vendors from "../vendors.js";
 
 import type {
   ApiFromModules,
@@ -158,6 +163,7 @@ declare const fullApi: ApiFromModules<{
   authLimits: typeof authLimits;
   authMigrations: typeof authMigrations;
   bids: typeof bids;
+  companies: typeof companies;
   contractorDiscovery: typeof contractorDiscovery;
   contractors: typeof contractors;
   coordination: typeof coordination;
@@ -175,6 +181,7 @@ declare const fullApi: ApiFromModules<{
   files: typeof files;
   http: typeof http;
   inboundEmail: typeof inboundEmail;
+  invites: typeof invites;
   "judgeDemo/runs": typeof judgeDemo_runs;
   "judgeDemo/scenario": typeof judgeDemo_scenario;
   "kernel/cslb": typeof kernel_cslb;
@@ -191,6 +198,7 @@ declare const fullApi: ApiFromModules<{
   "lib/authErrors": typeof lib_authErrors;
   "lib/companyProfile": typeof lib_companyProfile;
   "lib/demoTenancy": typeof lib_demoTenancy;
+  "lib/inviteRules": typeof lib_inviteRules;
   "lib/mailer": typeof lib_mailer;
   "lib/money": typeof lib_money;
   "lib/packageContractors": typeof lib_packageContractors;
@@ -258,6 +266,7 @@ declare const fullApi: ApiFromModules<{
   "payments/webhook": typeof payments_webhook;
   "payments/webhookDb": typeof payments_webhookDb;
   "payments/webhookEvents": typeof payments_webhookEvents;
+  people: typeof people;
   portal: typeof portal;
   procurementScenario: typeof procurementScenario;
   profiles: typeof profiles;
@@ -272,6 +281,7 @@ declare const fullApi: ApiFromModules<{
   terms: typeof terms;
   tradePackages: typeof tradePackages;
   validation: typeof validation;
+  vendors: typeof vendors;
 }>;
 
 /**

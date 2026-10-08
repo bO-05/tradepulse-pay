@@ -9,13 +9,16 @@ export type AreaId =
   | "billing-agents"
   | "dashboard"
   | "judge-demo"
+  | "people"
+  | "my-projects"
+  | "company"
   | "agreement"
   | "ledger"
   | "access-denied";
 
-export type NavItem = { area: Exclude<AreaId, "agreement" | "ledger" | "access-denied">; label: string; hash: string };
+export type NavItem = { area: Exclude<AreaId, "agreement" | "ledger" | "access-denied" | "company">; label: string; hash: string };
 
-export type Route = { area: AreaId; agreementId?: string };
+export type Route = { area: AreaId; agreementId?: string; projectId?: string };
 
 /** Areas whose direct route shows an access-denied page (instead of the role home) to roles without them. */
 const DENY_WHEN_DISALLOWED = new Set<AreaId>(["dashboard"]);
@@ -29,7 +32,12 @@ const AREA_HASH: Record<NavItem["area"], string> = {
   "billing-agents": "#/billing-agents",
   dashboard: "#/dashboard",
   "judge-demo": "#/judge-demo",
+  people: "#/people",
+  "my-projects": "#/my-projects",
 };
+
+/** Company settings: opened from the user menu, available to every role. */
+export const COMPANY_HASH = "#/company";
 
 /**
  * Role-based navigation: each area is registered with the roles allowed to see it.
@@ -41,16 +49,19 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { area: "payments", label: "Payments", hash: AREA_HASH.payments },
     { area: "inbox", label: "Approval inbox", hash: AREA_HASH.inbox },
     { area: "owner-portal", label: "Projects overview", hash: AREA_HASH["owner-portal"] },
+    { area: "people", label: "People", hash: AREA_HASH.people },
     { area: "billing-agents", label: "Billing agents", hash: AREA_HASH["billing-agents"] },
     { area: "dashboard", label: "Dashboard", hash: AREA_HASH.dashboard },
     { area: "judge-demo", label: "Judge demo", hash: AREA_HASH["judge-demo"] },
   ],
   sub: [
     { area: "sub-portal", label: "My agreements & pay applications", hash: AREA_HASH["sub-portal"] },
+    { area: "my-projects", label: "Projects", hash: AREA_HASH["my-projects"] },
     { area: "payments", label: "Payments", hash: AREA_HASH.payments },
   ],
   owner: [
     { area: "owner-portal", label: "Projects & change orders", hash: AREA_HASH["owner-portal"] },
+    { area: "my-projects", label: "My projects", hash: AREA_HASH["my-projects"] },
     { area: "dashboard", label: "Dashboard", hash: AREA_HASH.dashboard },
   ],
 };
@@ -63,8 +74,19 @@ export function ledgerHash(agreementId: string): string {
   return `#/payments/${encodeURIComponent(agreementId)}`;
 }
 
+export function peopleHash(projectId: string): string {
+  return `#/people/${encodeURIComponent(projectId)}`;
+}
+
+export function myProjectHash(projectId: string): string {
+  return `#/my-projects/${encodeURIComponent(projectId)}`;
+}
+
 export function parseHash(hash: string): Route | null {
   const path = hash.replace(/^#/, "");
+  if (`#${path}` === COMPANY_HASH) return { area: "company" };
+  const projectMatch = path.match(/^\/(people|my-projects)\/([^/?#]+)$/);
+  if (projectMatch) return { area: projectMatch[1] as "people" | "my-projects", projectId: decodeURIComponent(projectMatch[2]) };
   const agreementMatch = path.match(/^\/agreements\/([^/?#]+)$/);
   if (agreementMatch) return { area: "agreement", agreementId: decodeURIComponent(agreementMatch[1]) };
   const ledgerMatch = path.match(/^\/payments\/([^/?#]+)$/);
@@ -79,7 +101,7 @@ export function parseHash(hash: string): Route | null {
 export function resolveRoute(role: Role, hash: string): Route {
   const nav = NAV_BY_ROLE[role];
   const parsed = parseHash(hash);
-  if (parsed?.area === "agreement" || parsed?.area === "ledger") return parsed;
+  if (parsed?.area === "agreement" || parsed?.area === "ledger" || parsed?.area === "company") return parsed;
   if (parsed && nav.some((item) => item.area === parsed.area)) return parsed;
   if (parsed && DENY_WHEN_DISALLOWED.has(parsed.area)) return { area: "access-denied" };
   return { area: nav[0].area };

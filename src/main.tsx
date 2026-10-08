@@ -5,6 +5,9 @@ import { ConvexReactClient } from "convex/react";
 import App from "./App.tsx";
 import { AuthGate } from "./auth/AuthGate";
 import { useHash } from "./auth/useHash";
+import { InvitePage } from "./invites/InvitePage";
+import { inviteTokenFromHash } from "./invites/inviteSession";
+import { ToastProvider } from "./ui";
 import "./index.css";
 
 // Dev-only design-system gallery; the constant-false branch lets the production build drop the chunk.
@@ -19,6 +22,8 @@ function Root() {
       </Suspense>
     );
   }
+  const inviteToken = inviteTokenFromHash(hash);
+  if (inviteToken !== null) return <InvitePage key={inviteToken} token={inviteToken} />;
   return <AuthGate procurementApp={<App />} />;
 }
 
@@ -36,7 +41,9 @@ const convex = new ConvexReactClient(getConvexUrl());
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ConvexAuthProvider client={convex}>
-      <Root />
+      <ToastProvider>
+        <Root />
+      </ToastProvider>
     </ConvexAuthProvider>
   </React.StrictMode>
 );

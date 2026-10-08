@@ -10,6 +10,7 @@ export { DateText, type DateTextProps } from "./DateText";
 export { Field, focusFirstInvalid, type FieldProps } from "./Field";
 export { TextInput, MoneyInput, PercentInput, DateInput } from "./Inputs";
 export { ConfirmDialog, type ConfirmDialogProps, type ConfirmDetail } from "./ConfirmDialog";
+export { Dialog, type DialogProps } from "./Dialog";
 export { EmptyState, type EmptyStateProps } from "./EmptyState";
 export { ToastProvider, useToast, type ToastApi } from "./Toast";
 export { STATUS_LABELS, statusLabel, statusMeta, type StatusTone } from "./statusLabels";

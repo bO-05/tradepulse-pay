@@ -20,7 +20,16 @@ export const me = query({
     if (user === null) return null;
     const membership = user.actorType === "agent" ? null : await findActiveMembership(ctx, userId);
     const companyDoc = membership === null ? null : await ctx.db.get(membership.companyId);
+    // Someone removed from their company sees "not a member" wording instead of first-time onboarding.
+    const formerMembership =
+      membership !== null || user.actorType === "agent"
+        ? null
+        : await ctx.db
+            .query("companyMembers")
+            .withIndex("by_userId", (q) => q.eq("userId", userId))
+            .first();
     const account = {
+      wasRemovedFromCompany: formerMembership !== null,
       // Agents are verified by AgentID; humans must confirm an emailed code.
       emailVerified: user.actorType === "agent" || user.emailVerificationTime !== undefined,
       company:

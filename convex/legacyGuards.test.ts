@@ -269,12 +269,22 @@ describe("legacy public mutations and actions are GC-only", () => {
       for (const match of src.matchAll(/^export const (\w+) = (?:mutation|action)\(/gm)) exported.push(`${mod}:${match[1]}`);
     }
     // agentLinks is GC-guarded and has its own denial tests in agentLinks.test.ts; onboarding is
-    // for verified users without a company, covered in onboarding.test.ts.
+    // for verified users without a company, covered in onboarding.test.ts. Invites, People and
+    // Company settings have their permission and cross-company tests in invites.test.ts.
     const covered = new Set([
       ...CASES.map((c) => c.name),
       "agentLinks:addAgentLink",
       "agentLinks:revokeAgentLink",
       "onboarding:createCompany",
+      "companies:updateProfile",
+      "companies:setMemberRole",
+      "companies:removeMember",
+      "invites:create",
+      "invites:resend",
+      "invites:revoke",
+      "invites:accept",
+      "invites:acceptMine",
+      "people:removeProjectMember",
     ]);
     expect(exported.filter((name) => !covered.has(name))).toEqual([]);
   });

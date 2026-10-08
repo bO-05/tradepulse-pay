@@ -8,7 +8,11 @@ import { OwnerPortal } from "../payments/OwnerPortal";
 import { SubPortal } from "../payments/SubPortal";
 import { BillingAgentsView } from "./BillingAgentsView";
 import { JudgeDemoPage } from "../payments/judgeDemo/JudgeDemoPage";
-import { NAV_BY_ROLE, resolveRoute, type Role } from "./navigation";
+import { CompanySettingsPage } from "../company/CompanySettingsPage";
+import { QueryBoundary } from "../lib/QueryBoundary";
+import { PeoplePage } from "../people/PeoplePage";
+import { MyProjectsPage } from "../projects/MyProjectsPage";
+import { COMPANY_HASH, NAV_BY_ROLE, resolveRoute, type Role } from "./navigation";
 import { useHash } from "./useHash";
 
 const PaymentsDashboard = lazy(() => import("../dashboard/PaymentsDashboard"));
@@ -39,6 +43,9 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
   else if (route.area === "billing-agents") content = <BillingAgentsView />;
   else if (route.area === "inbox") content = <ApprovalInbox />;
   else if (route.area === "judge-demo") content = <JudgeDemoPage />;
+  else if (route.area === "people") content = <PeoplePage projectId={route.projectId} />;
+  else if (route.area === "my-projects") content = <MyProjectsPage projectId={route.projectId} />;
+  else if (route.area === "company") content = <CompanySettingsPage />;
   else if (route.area === "dashboard")
     content = (
       <Suspense fallback={<p className="text-sm text-slate-400">Loading dashboard…</p>}>
@@ -110,6 +117,15 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
               </span>
             ) : null}
           </span>
+          {me.actorType === "human" ? (
+            <a
+              href={COMPANY_HASH}
+              aria-current={route.area === "company" ? "page" : undefined}
+              className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs hover:bg-slate-800"
+            >
+              Company settings
+            </a>
+          ) : null}
           <button
             type="button"
             onClick={() => void signOut()}
@@ -119,7 +135,13 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
           </button>
         </div>
       </nav>
-      {isLegacyFullPage ? content : <main className="p-4 sm:p-6">{content}</main>}
+      {isLegacyFullPage ? (
+        content
+      ) : (
+        <main className="p-4 sm:p-6">
+          <QueryBoundary resetKey={hash}>{content}</QueryBoundary>
+        </main>
+      )}
     </div>
   );
 }

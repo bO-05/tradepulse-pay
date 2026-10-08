@@ -27,6 +27,7 @@ const TENANCY_GUARDS = [
   "requireProjectAccess",
   "requireDocInProject",
   "requireCompanyMember",
+  "requireCompanyMemberInAction",
   "accessibleProjectIds",
 ];
 const TENANCY = new RegExp(`\\b(${TENANCY_GUARDS.join("|")})\\(`);
@@ -41,6 +42,10 @@ const NO_PROJECT_DATA = new Map([
   ["contractorDiscovery:scrapeContractorWebsite", "scrapes a public URL, no project data"],
   ["profiles:me", "caller's own profile"],
   ["onboarding:createCompany", "creates the caller's own GC company and membership; no client-chosen company or project"],
+  ["invites:accept", "invite token + the caller's verified email must equal the invited email; joins only the invite's company/project"],
+  ["invites:acceptMine", "the invite must be addressed to the caller's verified email; joins only the invite's company/project"],
+  ["invites:listMine", "invites addressed to the caller's own verified email"],
+  ["invites:getByToken", "possession of the 256-bit invite token; returns inviter/project names only for a pending invite"],
   ["payments/webhook:paypalWebhook", "PayPal-signed delivery; no caller session"],
   ["agentmailWebhook:agentmailWebhook", "AgentMail-signed delivery; no caller session. Routing by stored thread or ref; unmatched mail carries no tenant ids"],
   ["dashboard/studioProxy:studioPreflight", "CORS preflight"],
@@ -49,6 +54,9 @@ const NO_PROJECT_DATA = new Map([
 // The app-shell identity query: it reads only the caller's own users row (by getAuthUserId) and
 // returns role null for accounts without a profile, so it cannot expose other users' data.
 const SELF_ONLY = new Map([["profiles:me", /\bgetAuthUserId\(ctx\)/]]);
+// Public by design: the invite accept page works before sign-in. The 256-bit token is the
+// credential; the token's hash must be computed before any read, and nothing is written.
+const TOKEN_GATED = new Map([["invites:getByToken", /\bhashInviteToken\(token\)/]]);
 const DATA_ACCESS = /\bctx\.(db|runQuery|runMutation|runAction|storage)\b/;
 const EXPORT = /^export const (\w+) = (query|mutation|action|httpAction|internalQuery|internalMutation|internalAction)\(/gm;
 
@@ -130,6 +138,12 @@ for (const file of walk(ROOT).sort()) {
       guardText = "Bearer token, then authorizeStudioCaller (requireRole + requireCompanyMember) before fetch";
       if (identityAt === -1 || authorizeAt < identityAt || fetchAt < authorizeAt || /runMutation|runAction/.test(body)) {
         problems.push(`${fnName}: model call is not behind the session and company check`);
+      }
+    } else if (TOKEN_GATED.has(fnName)) {
+      const hashed = body.match(TOKEN_GATED.get(fnName));
+      guardText = "Invite token (sha256 lookup) before any read; read-only";
+      if (!hashed || (access && access.index < hashed.index) || /ctx\.db\.(insert|patch|replace|delete)|runMutation/.test(body)) {
+        problems.push(`${fnName} (${where}): reads before hashing the token, or writes`);
       }
     } else if (SELF_ONLY.has(fnName)) {
       const self = body.match(SELF_ONLY.get(fnName));

@@ -10,13 +10,34 @@ import { ForgotPasswordForm } from "./ForgotPasswordForm";
 import { VerifyEmailForm } from "./VerifyEmailForm";
 
 
-/** Sign in, Create account, Verify email and Forgot password, all reachable from the sign-in page. */
-export function SignInPage() {
-  const [screen, setScreen] = useState<AuthScreen>({ kind: "signIn" });
-  const toSignIn = (email?: string, notice?: string) => setScreen({ kind: "signIn", email, notice });
+/**
+ * Sign in, Create account, Verify email and Forgot password, all reachable from the sign-in page.
+ * The invite page opens it on a chosen screen with the invited email filled in and a context note.
+ */
+export function SignInPage({
+  initialScreen = "signIn",
+  initialEmail,
+  context,
+}: {
+  initialScreen?: "signIn" | "signUp";
+  initialEmail?: string;
+  context?: string;
+} = {}) {
+  const [screen, setScreen] = useState<AuthScreen>(
+    initialScreen === "signUp" ? { kind: "signUp" } : { kind: "signIn", email: initialEmail, notice: context },
+  );
+  const toSignIn = (email?: string, notice?: string) => setScreen({ kind: "signIn", email: email ?? initialEmail, notice: notice ?? context });
 
   if (screen.kind === "signUp") {
-    return <CreateAccountForm onVerify={(next) => setScreen(next)} onBack={() => toSignIn()} onForgot={(email) => setScreen({ kind: "forgot", email })} />;
+    return (
+      <CreateAccountForm
+        initialEmail={initialEmail}
+        notice={context}
+        onVerify={(next) => setScreen(next)}
+        onBack={() => toSignIn()}
+        onForgot={(email) => setScreen({ kind: "forgot", email })}
+      />
+    );
   }
   if (screen.kind === "verify") {
     return <VerifyEmailForm key={screen.email} screen={screen} onBack={() => toSignIn(screen.email)} />;

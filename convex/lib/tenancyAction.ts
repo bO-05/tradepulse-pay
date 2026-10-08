@@ -32,6 +32,14 @@ export async function requireProjectScopeInAction(
   });
 }
 
+/** Action variant of requireCompanyMember: the caller's own active company, derived from the session. */
+export async function requireCompanyMemberInAction(
+  ctx: ActionCtx,
+  opts: { admin?: boolean } = {},
+): Promise<{ userId: Id<"users">; companyId: Id<"companies">; companyKind: Role; memberRole: "admin" | "member" }> {
+  return await ctx.runQuery(internal.tenancyAccess.resolveCompanyForAction, { admin: opts.admin });
+}
+
 /** Action variant of requireDemoCompany: the caller's company must be a Demo company. */
 export async function requireDemoCompanyInAction(
   ctx: ActionCtx,

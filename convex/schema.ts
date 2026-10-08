@@ -204,7 +204,10 @@ export default defineSchema({
     companyId: v.id("companies"),
     partyRole: roleValidator,
     contractorId: v.optional(v.id("contractors")),
+    vendorId: v.optional(v.id("vendors")),
     addedByUserId: v.optional(v.id("users")),
+    removedAt: v.optional(v.number()),
+    removedByUserId: v.optional(v.id("users")),
     status: v.union(v.literal("active"), v.literal("removed")),
     createdAt: v.number(),
   })
@@ -220,17 +223,53 @@ export default defineSchema({
     inviterCompanyId: v.id("companies"),
     projectId: v.optional(v.id("projects")),
     contractorId: v.optional(v.id("contractors")),
+    vendorId: v.optional(v.id("vendors")),
+    // Suggested name for the company the invitee creates (owner invites; editable on accept).
+    companyName: v.optional(v.string()),
     status: v.union(v.literal("pending"), v.literal("accepted"), v.literal("revoked"), v.literal("expired")),
     expiresAt: v.number(),
     acceptedByUserId: v.optional(v.id("users")),
+    acceptedAt: v.optional(v.number()),
+    revokedAt: v.optional(v.number()),
     emailStatus: v.union(v.literal("sent"), v.literal("failed"), v.literal("skipped_budget"), v.literal("not_sent")),
+    emailError: v.optional(v.string()),
     lastSentAt: v.optional(v.number()),
+    // Increments on every token rotation; part of the email idempotency key.
+    tokenVersion: v.optional(v.number()),
     createdByUserId: v.id("users"),
     createdAt: v.number(),
   })
     .index("by_tokenHash", ["tokenHash"])
     .index("by_inviterCompanyId", ["inviterCompanyId"])
-    .index("by_email", ["email"]),
+    .index("by_email", ["email"])
+    .index("by_projectId", ["projectId"]),
+
+  // Hashes of invite tokens replaced by a resend, so an old link reads "no longer valid" instead of "not valid".
+  retiredInviteTokens: defineTable({
+    tokenHash: v.string(),
+    inviteId: v.id("invites"),
+    retiredAt: v.number(),
+  }).index("by_tokenHash", ["tokenHash"]),
+
+  // A GC company's vendor directory (architecture §14). linkedCompanyId is set when the vendor's sub accepts an invite.
+  vendors: defineTable({
+    companyId: v.id("companies"),
+    name: v.string(),
+    trades: v.array(v.string()), // CSI divisions, e.g. "26 00 00"
+    contactName: v.string(),
+    email: v.string(), // lowercased
+    phone: v.optional(v.string()),
+    licenseNumber: v.optional(v.string()),
+    licenseState: v.optional(v.string()),
+    linkedCompanyId: v.optional(v.id("companies")),
+    payoutEmailConfirmed: v.optional(
+      v.object({ email: v.string(), confirmedByUserId: v.id("users"), confirmedAt: v.number() })
+    ),
+    status: v.union(v.literal("active"), v.literal("inactive")),
+    createdAt: v.number(),
+  })
+    .index("by_companyId", ["companyId"])
+    .index("by_linkedCompanyId", ["linkedCompanyId"]),
 
   // One row per send attempt key, written only by convex/lib/mailer.ts. Never stores codes or invite tokens.
   emailOutbox: defineTable({
@@ -573,6 +612,9 @@ export default defineSchema({
     generalContractorName: v.optional(v.string()),
     // Owning GC company. Optional only until every writer sets it; the tenancy migration backfills it.
     gcCompanyId: v.optional(v.id("companies")),
+    // Owner's name as typed by the GC, and the owner company once its contact accepts an invite.
+    ownerName: v.optional(v.string()),
+    ownerCompanyId: v.optional(v.id("companies")),
     // Archived projects stay readable by id but are hidden from project lists by default.
     archived: v.optional(v.boolean()),
     createdAt: v.number(),
@@ -614,6 +656,7 @@ export default defineSchema({
     updatedAt: v.optional(v.number()),
     // The sub company that operates this bidder record, once linked (invite accept or demo migration).
     linkedCompanyId: v.optional(v.id("companies")),
+    vendorId: v.optional(v.id("vendors")),
   })
     .index("by_package", ["tradePackageId"])
     .index("by_linkedCompanyId", ["linkedCompanyId"]),

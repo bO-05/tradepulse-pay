@@ -381,6 +381,7 @@ describe("static guard sweep over convex/**", () => {
     "requireProjectAccess",
     "requireDocInProject",
     "requireCompanyMember",
+    "requireCompanyMemberInAction",
     "accessibleProjectIds",
   ];
   const TENANCY = new RegExp(`\\b(${TENANCY_GUARDS.join("|")})\\(`);
@@ -393,7 +394,13 @@ describe("static guard sweep over convex/**", () => {
     "contractorDiscovery:scrapeContractorWebsite",
     "profiles:me",
     "onboarding:createCompany",
+    "invites:accept",
+    "invites:acceptMine",
+    "invites:listMine",
+    "invites:getByToken",
   ]);
+  // Public before sign-in by design; the invite token is the credential (see guard-audit.mjs TOKEN_GATED).
+  const TOKEN_GATED = new Set(["invites:getByToken"]);
 
   function publicExports() {
     const out: { name: string; kind: string; body: string }[] = [];
@@ -413,7 +420,11 @@ describe("static guard sweep over convex/**", () => {
   test("every exported public query, mutation and action checks the caller's role", () => {
     const fns = publicExports().filter((f) => f.kind !== "httpAction");
     expect(fns.length).toBeGreaterThan(100);
-    expect(fns.filter((f) => !GUARD.test(f.body)).map((f) => f.name)).toEqual([]);
+    expect(fns.filter((f) => !GUARD.test(f.body) && !TOKEN_GATED.has(f.name)).map((f) => f.name)).toEqual([]);
+    const tokenGated = fns.find((f) => f.name === "invites:getByToken")!;
+    expect(tokenGated.body.search(/hashInviteToken\(token\)/)).toBeGreaterThan(-1);
+    expect(tokenGated.body.search(/hashInviteToken\(token\)/)).toBeLessThan(tokenGated.body.search(/ctx\.db/));
+    expect(tokenGated.body).not.toMatch(/ctx\.db\.(insert|patch|replace|delete)|runMutation/);
   });
 
   test("every public function has a company-tenancy guard unless it reads no project data", () => {

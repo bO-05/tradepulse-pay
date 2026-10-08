@@ -1,7 +1,8 @@
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useConvexAuth, useQuery } from "convex/react";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { api } from "../../convex/_generated/api";
+import { pendingInviteToken } from "../invites/inviteSession";
 import { SetUpCompanyPage } from "../onboarding/SetUpCompanyPage";
 import { AgentNotAuthorized } from "./AgentNotAuthorized";
 import { RoleShell } from "./RoleShell";
@@ -20,6 +21,14 @@ export function AuthGate({ procurementApp }: { procurementApp: ReactNode }) {
   const { isLoading, isAuthenticated } = useConvexAuth();
   const me = useQuery(api.profiles.me, isAuthenticated ? {} : "skip");
   const { signOut } = useAuthActions();
+  const needsCompany = me !== undefined && me !== null && me.actorType !== "agent" && me.company === null;
+
+  // Someone who opened an invite link and then signed up or signed in elsewhere in this tab goes back
+  // to the invite instead of "Set up your company".
+  useEffect(() => {
+    const token = needsCompany ? pendingInviteToken() : null;
+    if (token) window.location.hash = `#/invite/${encodeURIComponent(token)}`;
+  }, [needsCompany]);
 
   if (isLoading) {
     return <FullScreenStatus>Checking your session…</FullScreenStatus>;
@@ -63,7 +72,7 @@ export function AuthGate({ procurementApp }: { procurementApp: ReactNode }) {
     );
   }
   if (me !== null && me.actorType !== "agent" && me.company === null) {
-    return <SetUpCompanyPage email={me.email} />;
+    return <SetUpCompanyPage email={me.email} wasRemoved={me.wasRemovedFromCompany} />;
   }
   if (me === null || me.role === null) {
     return (

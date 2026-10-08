@@ -10,10 +10,14 @@ import { isCodeSendError, type VerifyScreen } from "./authScreens";
 type FieldErrors = { name?: string; email?: string; password?: string };
 
 export function CreateAccountForm({
+  initialEmail = "",
+  notice,
   onVerify,
   onBack,
   onForgot,
 }: {
+  initialEmail?: string;
+  notice?: string;
   onVerify: (screen: VerifyScreen) => void;
   onBack: () => void;
   onForgot: (email: string) => void;
@@ -21,7 +25,7 @@ export function CreateAccountForm({
   const { signIn } = useAuthActions();
   const formRef = useRef<HTMLFormElement>(null);
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<{ message: string; exists: boolean } | null>(null);
@@ -76,6 +80,7 @@ export function CreateAccountForm({
       }
     >
       <form ref={formRef} onSubmit={onSubmit} noValidate aria-label="Create account" className="space-y-4">
+        {notice && <FormAlert tone="info">{notice}</FormAlert>}
         <TextInput
           id="signup-name"
           label="Your name"

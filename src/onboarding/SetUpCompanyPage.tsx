@@ -1,5 +1,5 @@
 import { useAuthActions } from "@convex-dev/auth/react";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { FormEvent, useRef, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import {
@@ -10,14 +10,34 @@ import {
 } from "../../convex/lib/companyProfile";
 import { FormAlert } from "../auth/AuthLayout";
 import { describeAuthError } from "../auth/authErrors";
-import { Button, Field, focusFirstInvalid, TextInput } from "../ui";
+import { myProjectHash } from "../auth/navigation";
+import { INVITE_KIND_LABEL } from "../../convex/lib/inviteRules";
+import { getErrorMessage } from "../lib/errors";
+import { Button, DateText, Field, focusFirstInvalid, TextInput } from "../ui";
 import { inputClass } from "../ui/Field";
 
 /**
  * First screen for a verified person with no company and no invite: they create their general
  * contractor company and become its admin (onboarding.createCompany). Nothing else of the app shows.
  */
-export function SetUpCompanyPage({ email }: { email: string | null }) {
+export function SetUpCompanyPage({ email, wasRemoved = false }: { email: string | null; wasRemoved?: boolean }) {
+  const invites = useQuery(api.invites.listMine, {});
+  const acceptMine = useMutation(api.invites.acceptMine);
+  const [acceptingId, setAcceptingId] = useState<string | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const openInvites = (invites ?? []).filter((i) => i.expiresAt > Date.now());
+  const onAcceptInvite = async (inviteId: string) => {
+    if (acceptingId) return;
+    setInviteError(null);
+    setAcceptingId(inviteId);
+    try {
+      const result = await acceptMine({ inviteId });
+      window.location.hash = result.kind === "teammate" || result.projectId === null ? "#/" : myProjectHash(result.projectId);
+    } catch (err) {
+      setInviteError(getErrorMessage(err, "We couldn't accept the invite. Try again."));
+      setAcceptingId(null);
+    }
+  };
   const createCompany = useMutation(api.onboarding.createCompany);
   const { signOut } = useAuthActions();
   const formRef = useRef<HTMLFormElement>(null);
@@ -65,8 +85,48 @@ export function SetUpCompanyPage({ email }: { email: string | null }) {
     <div className="min-h-screen bg-surface-sunken text-ink flex items-center justify-center px-4 py-10 font-sans">
       <div className="w-full max-w-lg">
         <p className="text-lg font-bold tracking-tight mb-6">TradePulse Pay</p>
+        {wasRemoved && (
+          <div role="status" className="mb-4 rounded-2xl border border-amber-700/70 bg-amber-950/40 p-4">
+            <h1 className="text-lg font-semibold text-amber-100">You are not a member of a company</h1>
+            <p className="mt-1 text-sm text-amber-100/80">
+              An admin removed you from your company. Accept a pending invite below, or set up your own company.
+            </p>
+          </div>
+        )}
+        {openInvites.length > 0 && (
+          <section aria-labelledby="pending-invites" className="mb-4 bg-surface border border-line rounded-2xl p-5">
+            <h2 id="pending-invites" className="text-base font-semibold">
+              Pending invites for {email ?? "you"}
+            </h2>
+            <ul className="mt-3 space-y-3">
+              {openInvites.map((i) => (
+                <li key={i._id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line px-3 py-2 text-sm">
+                  <span>
+                    <span className="font-semibold">{i.inviterCompanyName}</span> · {INVITE_KIND_LABEL[i.kind]}
+                    {i.projectTitle ? ` · ${i.projectTitle}` : ""}
+                    <span className="block text-xs text-ink-subtle">
+                      Expires <DateText value={i.expiresAt} />
+                    </span>
+                  </span>
+                  <Button size="sm" onClick={() => void onAcceptInvite(i._id)} loading={acceptingId === i._id} loadingLabel="Accepting…">
+                    Accept
+                  </Button>
+                </li>
+              ))}
+            </ul>
+            {inviteError && (
+              <div className="mt-3">
+                <FormAlert>{inviteError}</FormAlert>
+              </div>
+            )}
+          </section>
+        )}
         <main className="bg-surface border border-line rounded-2xl p-6 shadow-xl">
-          <h1 className="text-xl font-semibold">Set up your company</h1>
+          {wasRemoved ? (
+            <h2 className="text-xl font-semibold">Set up your company</h2>
+          ) : (
+            <h1 className="text-xl font-semibold">Set up your company</h1>
+          )}
           <p className="mt-1 text-sm text-ink-subtle">
             Create your general contractor company. You'll be its admin and can invite your team, subcontractors and
             owners next.

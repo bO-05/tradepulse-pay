@@ -8,12 +8,22 @@ describe("role navigation", () => {
       "payments",
       "inbox",
       "owner-portal",
+      "people",
       "billing-agents",
       "dashboard",
       "judge-demo",
     ]);
-    expect(NAV_BY_ROLE.sub.map((i) => i.area)).toEqual(["sub-portal", "payments"]);
-    expect(NAV_BY_ROLE.owner.map((i) => i.area)).toEqual(["owner-portal", "dashboard"]);
+    expect(NAV_BY_ROLE.sub.map((i) => i.area)).toEqual(["sub-portal", "my-projects", "payments"]);
+    expect(NAV_BY_ROLE.owner.map((i) => i.area)).toEqual(["owner-portal", "my-projects", "dashboard"]);
+  });
+
+  test("People is GC-only; project switcher for subs and owners; Company settings for every role", () => {
+    expect(resolveRoute("gc", "#/people/k97p")).toEqual({ area: "people", projectId: "k97p" });
+    expect(resolveRoute("sub", "#/people/k97p")).toEqual({ area: "sub-portal" });
+    expect(resolveRoute("sub", "#/my-projects/k97p")).toEqual({ area: "my-projects", projectId: "k97p" });
+    expect(resolveRoute("owner", "#/my-projects")).toEqual({ area: "my-projects" });
+    expect(resolveRoute("gc", "#/my-projects")).toEqual({ area: "procurement" });
+    for (const role of ["gc", "sub", "owner"] as const) expect(resolveRoute(role, "#/company")).toEqual({ area: "company" });
   });
 
   test("disallowed or unknown areas fall back to the role's home", () => {
