@@ -16,6 +16,7 @@
 import { ConvexError, v } from "convex/values";
 import { internalMutation, internalQuery } from "../_generated/server";
 import { findDemoContractorId } from "../demoAccounts";
+import { attachProjectToDemo } from "../lib/demoTenancy";
 import { ensureSovAndMilestones } from "../payments/sov";
 import { RETAINAGE_PERCENT } from "../terms";
 
@@ -141,6 +142,7 @@ export const seedReviewScenario = internalMutation({
       actor: "TradePulse Pay (demo seed)",
       timestamp: now,
     });
+    await attachProjectToDemo(ctx, projectId);
     return { agreementId, agreementNumber, created: true };
   },
 });

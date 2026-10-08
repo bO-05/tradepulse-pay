@@ -189,7 +189,7 @@ export const App: React.FC = () => {
   const [standaloneState, setStandaloneState] = useState<StandaloneData>(() => loadStandaloneData());
 
   // Convex Real-Time Subscriptions (Zero Polling Invariant)
-  const projectsData = useQuery(api.projects.listProjects);
+  const projectsData = useQuery(api.projects.listProjects, {});
   const isConvexConnected = projectsData !== undefined;
 
   // Never render standalone demo data while a connected Convex query is still resolving.

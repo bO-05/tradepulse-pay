@@ -4,6 +4,7 @@ import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalAction, internalMutation, internalQuery, type MutationCtx } from "./_generated/server";
 import type { Role } from "./lib/roles";
+import { attachProjectToDemo, ensureDemoAccounts, ensureDemoCompanies, repairDemoContractorRefs } from "./lib/demoTenancy";
 
 /** Shared, publicly documented password for the demo accounts (README "Demo accounts"). */
 export const DEMO_PASSWORD = "TradePulseDemo!2026";
@@ -101,7 +102,7 @@ export async function linkDemoProfiles(ctx: MutationCtx) {
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
       .unique();
     if (existing) {
-      await ctx.db.replace(existing._id, { ...fields, createdAt: existing.createdAt });
+      await ctx.db.replace(existing._id, { ...fields, companyId: existing.companyId, createdAt: existing.createdAt });
     } else {
       await ctx.db.insert("userProfiles", { ...fields, createdAt: Date.now() });
     }
@@ -113,6 +114,14 @@ export async function linkDemoProfiles(ctx: MutationCtx) {
       hasPaypalEmail: paypalEmail !== undefined,
     });
   }
+  const companyIds = await ensureDemoCompanies(ctx);
+  await ensureDemoAccounts(ctx, companyIds);
+  const demoProjects = await ctx.db
+    .query("projects")
+    .withIndex("by_demo", (q) => q.eq("isDemoProject", true))
+    .take(10);
+  for (const p of demoProjects) await attachProjectToDemo(ctx, p._id, companyIds);
+  await repairDemoContractorRefs(ctx, companyIds);
   return results;
 }
 

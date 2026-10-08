@@ -3,6 +3,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import { mutation, query, type MutationCtx } from "../_generated/server";
 import { normalizeAgentEmail, syncAgentProfilesForEmail } from "../lib/agentAccess";
 import { requireRole } from "../lib/roles";
+import { attachProjectToDemo, ensureDemoCompanies } from "../lib/demoTenancy";
 import { recordPayApplication, payAppSovContext } from "../payApps/submit";
 import { RETAINAGE_PERCENT } from "../terms";
 import {
@@ -64,9 +65,12 @@ async function ensureAgentLink(ctx: MutationCtx, contractorId: Id<"contractors">
     return { linkId: active._id, created: false };
   }
   const contractor = await ctx.db.get(contractorId);
+  const demoCompanies = await ensureDemoCompanies(ctx);
   const linkId = await ctx.db.insert("agentLinks", {
     agentEmail,
     contractorId,
+    gcCompanyId: demoCompanies.gc,
+    subCompanyId: contractor?.linkedCompanyId,
     status: "active",
     createdBy: gc.userId,
     createdAt: Date.now(),
@@ -179,6 +183,7 @@ export const startRun = mutation({
       actor: gcEmail,
       timestamp: now,
     });
+    await attachProjectToDemo(ctx, projectId);
     return { runId, agreementId, agreementNumber };
   },
 });

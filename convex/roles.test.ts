@@ -77,11 +77,14 @@ describe("requireRole", () => {
     expect(viewer.role).toBe("owner");
   });
 
-  test("checks that a given project exists", async () => {
+  test("with a projectId, requires the caller's company to own the project", async () => {
     const t = newTest();
-    const { as } = await signInAs(t, "gc");
-    const projectId = await t.run((ctx) =>
-      ctx.db.insert("projects", {
+    const { as, userId } = await signInAs(t, "gc");
+    const { as: otherGc } = await signInAs(t, "gc");
+    const projectId = await t.run(async (ctx) => {
+      const companyId = await ctx.db.insert("companies", { name: "GC Co", kind: "gc", isDemo: false, createdAt: 0 });
+      await ctx.db.insert("companyMembers", { companyId, userId, role: "admin", status: "active", createdAt: 0 });
+      return await ctx.db.insert("projects", {
         title: "P",
         location: "Austin, TX",
         projectType: "x",
@@ -89,12 +92,14 @@ describe("requireRole", () => {
         targetCompletionWeeks: 1,
         specDocumentText: "s",
         isDemoProject: false,
+        gcCompanyId: companyId,
         createdAt: 0,
-      }),
-    );
+      });
+    });
     await expect(as.run((ctx) => requireRole(ctx, ["gc"], projectId))).resolves.toMatchObject({ role: "gc" });
+    await expect(otherGc.run((ctx) => requireRole(ctx, ["gc"], projectId))).rejects.toThrow(/Not found/);
     await t.run((ctx) => ctx.db.delete(projectId));
-    await expect(as.run((ctx) => requireRole(ctx, ["gc"], projectId))).rejects.toThrow(/Project not found/);
+    await expect(as.run((ctx) => requireRole(ctx, ["gc"], projectId))).rejects.toThrow(/Not found/);
   });
 });
 

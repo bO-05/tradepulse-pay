@@ -1,5 +1,7 @@
 import { query, mutation, internalQuery, internalMutation, type MutationCtx } from "./_generated/server";
 import { requireRole } from "./lib/roles";
+import { findActiveMembership } from "./lib/tenancy";
+import type { Doc } from "./_generated/dataModel";
 import { linkDemoProfiles } from "./demoAccounts";
 import { applyDemoLicenseNumbers } from "./kernel/demoLicenses";
 import { remapAgentLinks, snapshotActiveAgentLinks } from "./lib/agentLinkRemap";
@@ -37,10 +39,11 @@ export const getDemoProject = query({
 });
 
 export const listProjects = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { includeArchived: v.optional(v.boolean()) },
+  handler: async (ctx, args) => {
     await requireRole(ctx, ["gc", "owner"]);
-    return await ctx.db.query("projects").order("desc").collect();
+    const projects = await ctx.db.query("projects").order("desc").collect();
+    return args.includeArchived ? projects : projects.filter((p) => p.archived !== true);
   },
 });
 
@@ -71,7 +74,9 @@ export const createProject = mutation({
     generalContractorName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
+    const viewer = await requireRole(ctx, ["gc"]);
+    const membership = await findActiveMembership(ctx, viewer.userId);
+    const company = membership === null ? null : await ctx.db.get(membership.companyId);
     const title = validateProjectText(args.title, "Project title");
     const location = validateProjectText(args.location, "Project location");
     const projectType = validateProjectText(args.projectType, "Project type");
@@ -91,6 +96,7 @@ export const createProject = mutation({
       specDocumentText,
       isDemoProject: args.isDemoProject,
       generalContractorName,
+      gcCompanyId: company?.kind === "gc" ? company._id : undefined,
       createdAt: Date.now(),
     });
 
@@ -120,7 +126,23 @@ async function seedDemoProject(ctx: MutationCtx, args: { force?: boolean }) {
 
     // Detect if database currently has obsolete legacy demo data (e.g. 555- numbers, example.com emails, or old demo names)
     let hasLegacyMockData = false;
-    const sampleContractors = await ctx.db.query("contractors").take(20);
+    // Only the demo project's own bidders count: contractors of other companies' projects (which may
+    // legitimately use example.com addresses) must never trigger a demo reseed.
+    const sampleContractors: Doc<"contractors">[] = [];
+    if (existing) {
+      const demoPackages = await ctx.db
+        .query("tradePackages")
+        .withIndex("by_project", (q) => q.eq("projectId", existing._id))
+        .take(20);
+      for (const pkg of demoPackages) {
+        sampleContractors.push(
+          ...(await ctx.db
+            .query("contractors")
+            .withIndex("by_package", (q) => q.eq("tradePackageId", pkg._id))
+            .take(20)),
+        );
+      }
+    }
     for (const sc of sampleContractors) {
       if (
         sc.contactEmail.includes("example.com") ||
@@ -221,6 +243,12 @@ async function seedDemoProject(ctx: MutationCtx, args: { force?: boolean }) {
           }
           await ctx.db.delete(f._id);
         }
+
+        const members = await ctx.db
+          .query("projectMembers")
+          .withIndex("by_projectId", (q) => q.eq("projectId", proj._id))
+          .collect();
+        for (const m of members) await ctx.db.delete(m._id);
 
         // auditLogs are kept as history; listRecentLogs hides entries of deleted projects.
         await ctx.db.delete(proj._id);

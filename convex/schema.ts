@@ -4,6 +4,15 @@ import { authTables } from "@convex-dev/auth/server";
 
 export const roleValidator = v.union(v.literal("gc"), v.literal("sub"), v.literal("owner"));
 export const actorTypeValidator = v.union(v.literal("human"), v.literal("agent"));
+export const companyKindValidator = roleValidator;
+export const companyMemberRoleValidator = v.union(v.literal("admin"), v.literal("member"));
+export const addressValidator = v.object({
+  line1: v.string(),
+  line2: v.optional(v.string()),
+  city: v.string(),
+  state: v.string(),
+  zip: v.string(),
+});
 
 export const milestoneStatusValidator = v.union(
   v.literal("planned"),
@@ -150,11 +159,78 @@ export default defineSchema({
     agentEmail: v.optional(v.string()),
     ownerEmail: v.optional(v.string()),
     ownerName: v.optional(v.string()),
+    // The user's company (role mirrors its kind). Agents carry their linked sub company here.
+    companyId: v.optional(v.id("companies")),
     createdAt: v.number(),
   })
     .index("by_userId", ["userId"])
     .index("by_contractorId", ["contractorId"])
     .index("by_role", ["role"]),
+
+  companies: defineTable({
+    name: v.string(),
+    kind: companyKindValidator,
+    isDemo: v.boolean(),
+    // Stable key of a seeded Demo company ("gc", "sub:rosendin", ...); lets seeds find it by id, never by name.
+    demoKey: v.optional(v.string()),
+    legalName: v.optional(v.string()),
+    address: v.optional(addressValidator),
+    phone: v.optional(v.string()),
+    website: v.optional(v.string()),
+    billingEmail: v.optional(v.string()),
+    payoutPaypalEmail: v.optional(v.string()),
+    defaultRetainageBps: v.optional(v.number()),
+    createdByUserId: v.optional(v.id("users")),
+    createdAt: v.number(),
+  })
+    .index("by_kind", ["kind"])
+    .index("by_isDemo", ["isDemo"]),
+
+  // One active company per user (enforced by the writers, see convex/lib/tenancy.ts).
+  companyMembers: defineTable({
+    companyId: v.id("companies"),
+    userId: v.id("users"),
+    role: companyMemberRoleValidator,
+    status: v.union(v.literal("active"), v.literal("removed")),
+    createdAt: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_companyId", ["companyId"])
+    .index("by_companyId_and_userId", ["companyId", "userId"]),
+
+  // Company-level access to a project. The GC company also has access through projects.gcCompanyId.
+  projectMembers: defineTable({
+    projectId: v.id("projects"),
+    companyId: v.id("companies"),
+    partyRole: roleValidator,
+    contractorId: v.optional(v.id("contractors")),
+    addedByUserId: v.optional(v.id("users")),
+    status: v.union(v.literal("active"), v.literal("removed")),
+    createdAt: v.number(),
+  })
+    .index("by_projectId", ["projectId"])
+    .index("by_companyId", ["companyId"])
+    .index("by_project_company", ["projectId", "companyId"]),
+
+  // The plaintext token exists only in the invite link; only its sha256 hex is stored.
+  invites: defineTable({
+    tokenHash: v.string(),
+    email: v.string(), // lowercased
+    kind: v.union(v.literal("teammate"), v.literal("sub"), v.literal("owner")),
+    inviterCompanyId: v.id("companies"),
+    projectId: v.optional(v.id("projects")),
+    contractorId: v.optional(v.id("contractors")),
+    status: v.union(v.literal("pending"), v.literal("accepted"), v.literal("revoked"), v.literal("expired")),
+    expiresAt: v.number(),
+    acceptedByUserId: v.optional(v.id("users")),
+    emailStatus: v.union(v.literal("sent"), v.literal("failed"), v.literal("skipped_budget"), v.literal("not_sent")),
+    lastSentAt: v.optional(v.number()),
+    createdByUserId: v.id("users"),
+    createdAt: v.number(),
+  })
+    .index("by_tokenHash", ["tokenHash"])
+    .index("by_inviterCompanyId", ["inviterCompanyId"])
+    .index("by_email", ["email"]),
 
   // GC-managed authorization of AgentID billing agents to act for a sub.
   agentLinks: defineTable({
@@ -166,6 +242,9 @@ export default defineSchema({
     createdAt: v.number(),
     revokedBy: v.optional(v.id("users")),
     revokedAt: v.optional(v.number()),
+    // GC company that created the link, and the sub company of the linked contractor.
+    gcCompanyId: v.optional(v.id("companies")),
+    subCompanyId: v.optional(v.id("companies")),
   })
     .index("by_agentEmail_and_status", ["agentEmail", "status"])
     .index("by_contractorId", ["contractorId"]),
@@ -419,8 +498,14 @@ export default defineSchema({
     specDocumentText: v.string(),
     isDemoProject: v.boolean(), // Allows public read access for judges
     generalContractorName: v.optional(v.string()),
+    // Owning GC company. Optional only until every writer sets it; the tenancy migration backfills it.
+    gcCompanyId: v.optional(v.id("companies")),
+    // Archived projects stay readable by id but are hidden from project lists by default.
+    archived: v.optional(v.boolean()),
     createdAt: v.number(),
-  }).index("by_demo", ["isDemoProject"]),
+  })
+    .index("by_demo", ["isDemoProject"])
+    .index("by_gcCompanyId", ["gcCompanyId"]),
 
   // CSI MasterFormat Trade Packages
   tradePackages: defineTable({
@@ -454,7 +539,11 @@ export default defineSchema({
     dispatchedAt: v.optional(v.number()),
     /** A14-02: optimistic-concurrency marker for concurrent edits. */
     updatedAt: v.optional(v.number()),
-  }).index("by_package", ["tradePackageId"]),
+    // The sub company that operates this bidder record, once linked (invite accept or demo migration).
+    linkedCompanyId: v.optional(v.id("companies")),
+  })
+    .index("by_package", ["tradePackageId"])
+    .index("by_linkedCompanyId", ["linkedCompanyId"]),
 
   // Two-way Pre-Bid RFIs and Clarifications
   conversations: defineTable({

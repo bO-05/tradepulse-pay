@@ -13,7 +13,7 @@ import path from "node:path";
 
 const ROOT = "convex";
 const GUARD =
-  /\b(requireRole|requireRoleInAction|requireAgreementAccess|getViewer)\(|\b(ctx\.runQuery\(internal\.profiles\.requireRoleForAction)\b/;
+  /\b(requireRole|requireRoleInAction|requireAgreementAccess|requireProjectAccess|requireDocInProject|requireCompanyMember|getViewer)\(|\b(ctx\.runQuery\(internal\.profiles\.requireRoleForAction)\b/;
 // The app-shell identity query: it reads only the caller's own users row (by getAuthUserId) and
 // returns role null for accounts without a profile, so it cannot expose other users' data.
 const SELF_ONLY = new Map([["profiles:me", /\bgetAuthUserId\(ctx\)/]]);

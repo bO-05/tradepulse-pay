@@ -1,6 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { internalMutation } from "./_generated/server";
 import { sub1Account } from "./judgeDemo/runs";
+import { attachProjectToDemo } from "./lib/demoTenancy";
 
 /**
  * Internal fixture: a fresh project with one Div 26 trade package in bid leveling, where sub1's
@@ -167,6 +168,7 @@ export const seedProcurementScenario = internalMutation({
       actor: "Procurement scenario fixture",
       timestamp: now,
     });
+    await attachProjectToDemo(ctx, projectId);
     return {
       created: true,
       projectId,

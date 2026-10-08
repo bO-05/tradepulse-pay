@@ -4,6 +4,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { ActionCtx, QueryCtx } from "../_generated/server";
 import { internal } from "../_generated/api";
 import { findActiveAgentLink } from "./agentAccess";
+import { requireProjectAccess } from "./tenancy";
 
 export type Role = "gc" | "sub" | "owner";
 
@@ -44,9 +45,10 @@ export async function getViewer(ctx: QueryCtx): Promise<Viewer | null> {
 
 /**
  * Throws a ConvexError unless the caller is signed in with one of `roles`.
- * When `projectId` is given the project must exist. All GC and owner accounts
- * currently share every project (single-GC demo tenancy); per-project
- * membership would be enforced here.
+ * When `projectId` is given the check is company-scoped (convex/lib/tenancy.ts):
+ * the caller's company must have access to the project ("Not found." otherwise,
+ * also for missing projects) and `roles` is matched against the caller's party
+ * on that project, which the returned viewer carries as `role`.
  */
 export async function requireRole(
   ctx: QueryCtx,
@@ -64,14 +66,11 @@ export async function requireRole(
       message: "Forbidden: this account has no TradePulse role assigned.",
     });
   }
+  if (projectId !== undefined) {
+    return (await requireProjectAccess(ctx, projectId, { roles })).viewer;
+  }
   if (!roles.includes(viewer.role)) {
     throw new ConvexError({ code: "FORBIDDEN", message: forbiddenMessage(roles) });
-  }
-  if (projectId !== undefined) {
-    const project = await ctx.db.get(projectId);
-    if (project === null) {
-      throw new ConvexError({ code: "NOT_FOUND", message: "Project not found." });
-    }
   }
   return viewer;
 }
