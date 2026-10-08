@@ -454,7 +454,7 @@
                 "capture"
               ]
             },
-            "description": "Release & pay: captures part of the hold, as `captureApproved` does through `PaymentsController.captureAuthorizedPayment` (`convex/payments/captures.ts`, request id `cap_<key>`). `final_capture` is true only when the amount equals the remaining authorized amount. Only `COMPLETED` or `PENDING` captures count as paid.",
+            "description": "Release & pay: captures part of the hold, as `captureApproved` does through `PaymentsController.captureAuthorizedPayment` (`convex/payments/captures.ts`, request id `cap_<key>`). `final_capture` is true only when the amount equals the remaining authorized amount. A `COMPLETED` capture has been collected; a `PENDING` capture is still awaiting settlement. Neither status alone means the subcontractor payout succeeded.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"amount\": {\n    \"currency_code\": \"USD\",\n    \"value\": \"0.50\"\n  },\n  \"final_capture\": false\n}",
@@ -1002,6 +1002,21 @@
       "value": "",
       "type": "string",
       "description": "paypal-transmission-time header of a delivery."
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Environment values beat collection variables even when empty, and the shipped environment holds names only.",
+          "// An empty environment value therefore falls back to the collection default for this request only.",
+          "pm.collectionVariables.toObject && Object.entries(pm.collectionVariables.toObject()).forEach(([key, fallback]) => {",
+          "  if (fallback !== \"\" && fallback !== undefined && pm.environment.has(key) && pm.environment.get(key) === \"\") pm.variables.set(key, fallback);",
+          "});"
+        ]
+      }
     }
   ]
 }

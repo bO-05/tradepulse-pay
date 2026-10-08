@@ -113,6 +113,19 @@ describe("Postman collection", () => {
     expect(env).not.toBeNull();
     for (const v of env!.values) if (secretKeys.includes(v.key)) expect(v.value, v.key).toBe("");
   });
+
+  test("the environment file holds variable names only, and empty values fall back to collection defaults", () => {
+    const env = JSON.parse(postmanFiles[ENVIRONMENT] ?? "null") as { values: { key: string; value: string }[] } | null;
+    expect(env!.values.length).toBeGreaterThan(5);
+    for (const v of env!.values) expect(v.value, v.key).toBe("");
+    const defaults = (collection!.variable ?? []).filter((v) => (v.value ?? "") !== "").map((v) => v.key);
+    expect(defaults).toEqual(expect.arrayContaining(["convexSite", "paypalBase", "replayEventId", "payoutSenderBatchId", "webhookAuthAlgo"]));
+    const raw = JSON.parse(postmanFiles[COLLECTION] ?? "null") as { event?: { listen: string; script: { exec: string[] } }[] };
+    const pre = (raw.event ?? []).find((e) => e.listen === "prerequest")?.script.exec.join("\n") ?? "";
+    expect(pre).toContain("pm.collectionVariables.toObject()");
+    expect(pre).toContain('pm.environment.get(key) === ""');
+    expect(pre).toContain("pm.variables.set(key, fallback)");
+  });
 });
 
 describe("APIMatic log", () => {

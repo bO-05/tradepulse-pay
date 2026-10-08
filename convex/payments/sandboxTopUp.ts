@@ -2,11 +2,11 @@ import { CheckoutPaymentIntent } from "@paypal/paypal-server-sdk";
 import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc } from "../_generated/dataModel";
-import { action, env } from "../_generated/server";
+import { action, env, type ActionCtx } from "../_generated/server";
 import { formatCents, toPayPalString } from "../lib/money";
 import { requireRoleInAction } from "../lib/roles";
 import { payPalClientForAction } from "./paypalClient";
-import { MAX_TOP_UP_CENTS, MIN_TOP_UP_CENTS } from "./sandboxTopUpDb";
+import { MAX_TOP_UP_CENTS, MIN_TOP_UP_CENTS, topUpStatusForCapture } from "./sandboxTopUpDb";
 
 /**
  * Sandbox-only setup step, GC only: tops up the platform's sandbox business balance with a CAPTURE order
@@ -80,8 +80,23 @@ export const captureTopUpOrder = action({
     if (row.status === "captured") {
       return { status: "captured", paypalCaptureId: row.paypalCaptureId ?? null, message: "This top-up was already captured." };
     }
+    if (row.status === "denied") {
+      return {
+        status: "denied",
+        paypalCaptureId: row.paypalCaptureId ?? null,
+        message: `PayPal ${row.captureStatus ?? "denied"} this top-up capture; no funds reached the platform account. Create a new top-up.`,
+      };
+    }
     const actor: string = await ctx.runQuery(internal.payments.release.actorForUser, { userId: viewer.userId });
     const paypal = payPalClientForAction(ctx, env, { actor });
+    if (row.status === "pending" && row.paypalCaptureId) {
+      // The order is already captured; only read the existing capture so a pending settlement is never captured twice.
+      const { data } = await paypal.request<{ status?: string }>({
+        method: "GET",
+        path: `/v2/payments/captures/${encodeURIComponent(row.paypalCaptureId)}`,
+      });
+      return await applyCapture(ctx, row, row.paypalCaptureId, data?.status);
+    }
     let capture: { id?: string; status?: string } | undefined;
     try {
       const out = await paypal.sdkWrite("paypal.orders.capture", `topup_cap_${paypalOrderId}`, (sdk, paypalRequestId) =>
@@ -106,20 +121,45 @@ export const captureTopUpOrder = action({
       }
       throw e;
     }
-    if (!capture?.id || (capture.status !== "COMPLETED" && capture.status !== "PENDING")) {
+    if (!capture?.id) {
       const error = `PayPal returned capture status ${capture?.status ?? "missing"}.`;
       await ctx.runMutation(internal.payments.sandboxTopUpDb.recordTopUpOutcome, { topUpId: row._id, status: "failed", error });
       throw new ConvexError({ code: "PAYPAL_ERROR", message: error });
     }
-    await ctx.runMutation(internal.payments.sandboxTopUpDb.recordTopUpOutcome, {
-      topUpId: row._id,
-      status: "captured",
-      paypalCaptureId: capture.id,
-    });
-    return {
-      status: "captured",
-      paypalCaptureId: capture.id,
-      message: `Captured ${formatCents(row.amountCents)} into the sandbox platform account (PayPal keeps its fee; funds can take ~15 s to become available).`,
-    };
+    return await applyCapture(ctx, row, capture.id, capture.status);
   },
 });
+
+async function applyCapture(
+  ctx: Pick<ActionCtx, "runMutation">,
+  row: Doc<"sandboxTopUps">,
+  paypalCaptureId: string,
+  captureStatus: string | undefined,
+): Promise<{ status: string; paypalCaptureId: string | null; message: string }> {
+  const status = topUpStatusForCapture(captureStatus);
+  if (status === null) {
+    const error = `PayPal returned capture status ${captureStatus ?? "missing"}.`;
+    await ctx.runMutation(internal.payments.sandboxTopUpDb.recordTopUpOutcome, {
+      topUpId: row._id,
+      status: "failed",
+      paypalCaptureId,
+      ...(captureStatus ? { captureStatus } : {}),
+      error,
+    });
+    throw new ConvexError({ code: "PAYPAL_ERROR", message: error });
+  }
+  await ctx.runMutation(internal.payments.sandboxTopUpDb.recordTopUpOutcome, {
+    topUpId: row._id,
+    status,
+    paypalCaptureId,
+    captureStatus,
+    ...(status === "denied" ? { error: `PayPal ${captureStatus} the capture.` } : {}),
+  });
+  const message =
+    status === "captured"
+      ? `Captured ${formatCents(row.amountCents)} into the sandbox platform account (PayPal keeps its fee; funds can take ~15 s to become available).`
+      : status === "pending"
+        ? `PayPal accepted the capture of ${formatCents(row.amountCents)} but it is still PENDING, so it does not fund the platform account yet. Check again shortly.`
+        : `PayPal ${captureStatus} the capture of ${formatCents(row.amountCents)}; no funds reached the platform account.`;
+  return { status, paypalCaptureId, message };
+}

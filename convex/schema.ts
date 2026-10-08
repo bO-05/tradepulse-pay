@@ -698,9 +698,11 @@ export default defineSchema({
   sandboxTopUps: defineTable({
     paypalOrderId: v.string(),
     amountCents: v.number(),
-    status: v.union(v.literal("created"), v.literal("captured"), v.literal("failed")),
+    // "pending" = PayPal returned a PENDING capture; only "captured" (capture COMPLETED) funds the platform.
+    status: v.union(v.literal("created"), v.literal("pending"), v.literal("captured"), v.literal("denied"), v.literal("failed")),
     approveUrl: v.optional(v.string()),
     paypalCaptureId: v.optional(v.string()),
+    captureStatus: v.optional(v.string()),
     error: v.optional(v.string()),
     createdBy: v.id("users"),
     createdAt: v.number(),

@@ -109,14 +109,21 @@ Keep real values in a secrets file outside the repo. The setup scripts read it, 
 ### 3. Convex deployment (sandbox setup)
 
 ```bash
-export SECRETS_FILE=/path/to/secrets.env          # must define CONVEX_DEPLOY_KEY for your deployment
+export SECRETS_FILE=/path/to/secrets.env          # must define CONVEX_DEPLOY_KEY for your dev deployment
 export EXPECTED_DEPLOYMENT=<your-deployment-name>  # the scripts refuse any other deployment
 
-bash scripts/sync-convex-env.sh            # app env incl. ANTHROPIC_MODEL and SITE_URL=http://localhost:3150
-bash scripts/setup-convex-auth-keys.sh     # JWT_PRIVATE_KEY + JWKS (skips if already set)
-npx convex dev --once                      # push functions (writes CONVEX_DEPLOYMENT and VITE_CONVEX_URL to .env.local)
-npx convex run demoAccounts:seedDemo '{}'  # demo project (if missing), demo accounts and role profiles
+# Load only the deploy key into this shell. The two scripts read the secrets file in their own
+# child shell, so nothing they load reaches this shell; the `npx convex` commands below need the key here.
+export CONVEX_DEPLOY_KEY="$(set -a; . "$SECRETS_FILE"; printf '%s' "${CONVEX_DEPLOY_KEY:-}")"
+case "$CONVEX_DEPLOY_KEY" in *":$EXPECTED_DEPLOYMENT|"*) echo "deploy key targets $EXPECTED_DEPLOYMENT";; *) echo "deploy key missing or for another deployment";; esac
+
+bash scripts/sync-convex-env.sh            # target: EXPECTED_DEPLOYMENT. App env incl. ANTHROPIC_MODEL and SITE_URL=http://localhost:3150
+bash scripts/setup-convex-auth-keys.sh     # target: EXPECTED_DEPLOYMENT. JWT_PRIVATE_KEY + JWKS (skips if already set)
+npx convex dev --once                      # target: the deployment named in CONVEX_DEPLOY_KEY. Pushes functions
+npx convex run demoAccounts:seedDemo '{}'  # target: the deployment named in CONVEX_DEPLOY_KEY. Demo project, accounts and role profiles
 ```
+
+Neither command prints a secret. If you keep the key in another secret store, `export CONVEX_DEPLOY_KEY=...` from that store instead of the `$(...)` line; `set -a; . "$SECRETS_FILE"; set +a` also works but exports every value in the file to your shell. Each `npx convex` command targets the deployment encoded in `CONVEX_DEPLOY_KEY` (a `dev:<name>|...` key); the scripts additionally refuse a key that does not match `EXPECTED_DEPLOYMENT`. A production key (`prod:<name>|...`) is deployed with `npx convex deploy` instead of `npx convex dev --once`.
 
 Run the env sync before the first push: the Firecrawl component requires `FIRECRAWL_API_KEY`, and the push fails without it.
 
@@ -191,7 +198,7 @@ Sign in as `gc@demo.tradepulse`, open the **⚡ 60s Judge Dock** and click **Run
 
 The page shows each step's status from Convex and PayPal, and the time from start to the change-order invoice. "Continue this run" resumes after a reload or re-sign-in.
 
-**Sandbox-only setup step: top up the platform balance before releasing retainage.** PayPal keeps about 3.5% + $0.49 of every capture, so after paying subs 90% the sandbox platform account holds less than the retainage it owes, and a retainage release fails with `INSUFFICIENT_FUNDS`. The demo page's optional closeout section has a GC-only **Sandbox setup: top up the platform balance** panel (`payments/sandboxTopUp:createTopUpOrder` / `captureTopUpOrder`). It creates a PayPal CAPTURE order (suggested amount: 110% of the retainage held), opens the PayPal checkout in a new tab (pay as guest with the card above), and then **Capture top-up** moves the funds into the platform account. Wait about 15 s, then click **Release retainage**. The top-up is not linked to any agreement and is never counted in ledger or dashboard totals. It refuses to run unless `PAYPAL_ENV` is `sandbox`.
+**Sandbox-only setup step: top up the platform balance before releasing retainage.** PayPal keeps about 3.5% + $0.49 of every capture, so after paying subs 90% the sandbox platform account holds less than the retainage it owes, and a retainage release fails with `INSUFFICIENT_FUNDS`. The demo page's optional closeout section has a GC-only **Sandbox setup: top up the platform balance** panel (`payments/sandboxTopUp:createTopUpOrder` / `captureTopUpOrder`). It creates a PayPal CAPTURE order (suggested amount: 110% of the retainage held), opens the PayPal checkout in a new tab (pay as guest with the card above), and then **Capture top-up** moves the funds into the platform account. If PayPal reports the capture as `PENDING`, the top-up stays pending and does not count as funding; **Check capture status** reads the same capture again (it never captures twice) until PayPal marks it `COMPLETED` or denies it. Wait about 15 s, then click **Release retainage**. The top-up is not linked to any agreement and is never counted in ledger or dashboard totals. It refuses to run unless `PAYPAL_ENV` is `sandbox`.
 
 ### Agreement ledger totals
 
@@ -239,8 +246,17 @@ Funded authorizations are watched hourly (`convex/crons.ts`): after the 3-day ho
 
 ## 📮 API collection (Postman) and APIMatic log
 
-- Postman v2.1 collection: [`docs/postman/TradePulse-Pay.postman_collection.json`](./docs/postman/TradePulse-Pay.postman_collection.json), with the sandbox environment [`docs/postman/TradePulse-Pay-sandbox.postman_environment.json`](./docs/postman/TradePulse-Pay-sandbox.postman_environment.json). It covers `/api/health`, `/llms.txt`, an unsigned `/paypal/webhook` replay (documented 400, recorded `verified=false`, one row per event id), `/ai/studio`, and the PayPal sandbox calls the app makes (OAuth token, AUTHORIZE order, authorize, capture, void, payout, payout batch, invoice create/send/get, webhook signature verification). Secret variables are empty; set your own sandbox `clientId` / `clientSecret` locally, and set `convexSite` to your deployment's `.convex.site` URL.
-- Run it from the CLI: `npx -y newman run docs/postman/TradePulse-Pay.postman_collection.json -e docs/postman/TradePulse-Pay-sandbox.postman_environment.json --folder "TradePulse endpoints"`.
+- Postman v2.1 collection: [`docs/postman/TradePulse-Pay.postman_collection.json`](./docs/postman/TradePulse-Pay.postman_collection.json), with the sandbox environment [`docs/postman/TradePulse-Pay-sandbox.postman_environment.json`](./docs/postman/TradePulse-Pay-sandbox.postman_environment.json). It covers `/api/health`, `/llms.txt`, an unsigned `/paypal/webhook` replay (documented 400, recorded `verified=false`, one row per event id), `/ai/studio`, and the PayPal sandbox calls the app makes (OAuth token, AUTHORIZE order, authorize, capture, void, payout, payout batch, invoice create/send/get, webhook signature verification). The environment file holds variable names only, with every value empty. Non-secret defaults (`convexSite` = the dev deployment `https://exuberant-boar-323.convex.site`, `paypalBase` = the PayPal sandbox, the replay event id, the payout `sender_batch_id` and the webhook auth algorithm) are collection variables, and a collection pre-request script uses them whenever the environment value is empty. Set your own values locally: `convexSite` for your deployment's `.convex.site` URL, and your sandbox `clientId` / `clientSecret` for the PayPal folder.
+- Run the TradePulse endpoints from the CLI (pass `--env-var` for each value you set; drop the `convexSite` flag to use the dev default):
+
+  ```bash
+  npx -y newman run docs/postman/TradePulse-Pay.postman_collection.json \
+    -e docs/postman/TradePulse-Pay-sandbox.postman_environment.json \
+    --folder "TradePulse endpoints" \
+    --env-var "convexSite=https://<deployment>.convex.site"
+  ```
+
+  The PayPal sandbox folder also needs `--env-var "clientId=$PAYPAL_CLIENT_ID" --env-var "clientSecret=$PAYPAL_CLIENT_SECRET"` (from your own shell; never commit them), plus `subPayPalEmail` / `ownerPayPalEmail` for the payout and invoice requests and the `webhook*` values for signature verification.
 - APIMatic Context Plugin log: [`docs/apimatic-log.md`](./docs/apimatic-log.md). It lists the plugin tools queried and the Server SDK methods they informed. Plugin coverage is limited to Orders and Payments; Payouts, Invoicing and webhook verification use plain REST.
 
 ---
@@ -258,7 +274,7 @@ npm run verify:docs             # README and docs links resolve, hackathon log i
 npm run verify:reports          # the archived audit reports render offline (needs Chrome or Edge)
 ```
 
-Against your deployment (needs `CONVEX_DEPLOY_KEY` in the shell):
+Against your deployment (needs `CONVEX_DEPLOY_KEY` in the shell, loaded as in [step 3](#3-convex-deployment-sandbox-setup); both target the deployment named in the key):
 
 ```bash
 npx convex run demoAccounts:seedDemo '{}'   # idempotent; re-creates missing demo accounts

@@ -7,7 +7,7 @@ import { describe, expect, test } from "vitest";
 const raw = (files: Record<string, unknown>) => files as Record<string, string>;
 
 const rootFiles = raw(
-  import.meta.glob(["../README.md", "../LICENSE", "../.env.example", "../package.json", "../vite.config.ts"], {
+  import.meta.glob(["../README.md", "../LICENSE", "../.env.example", "../package.json", "../vite.config.ts", "../docs/prod-env-names.md"], {
     query: "?raw",
     import: "default",
     eager: true,
@@ -191,5 +191,38 @@ describe(".env.example", () => {
   test("has no values except non-secret literals", () => {
     const populated = entries.filter(([, v]) => v !== "" && !ALLOWED_VALUES.has(v));
     expect(populated).toEqual([]);
+  });
+
+  test("every backend-read name is optional, system-provided, or set on prod per docs/prod-env-names.md", () => {
+    const lines = ENV_EXAMPLE.split("\n").map((l) => l.trim());
+    const optional = new Set<string>();
+    lines.forEach((l, i) => {
+      const m = /^([A-Z0-9_]+)=/.exec(l);
+      if (m && i > 0 && /^# optional: \S/.test(lines[i - 1])) optional.add(m[1]);
+    });
+
+    const doc = rootFiles["../docs/prod-env-names.md"] ?? "";
+    const category = new Map<string, string>();
+    for (const m of doc.matchAll(/^\| `([A-Z0-9_]+)` \| (set on prod|system-provided|optional) \|/gm)) category.set(m[1], m[2]);
+    expect(category.size).toBeGreaterThan(20);
+
+    const backendRead = new Set<string>();
+    for (const [file, src] of Object.entries(appSources)) {
+      if (!file.startsWith("../convex/")) continue;
+      for (const m of src.matchAll(/\b(?:process\.)?env\.([A-Z][A-Z0-9_]+)/g)) backendRead.add(m[1]);
+      for (const m of src.matchAll(/"(PAYPAL_SANDBOX_[A-Z0-9_]+_EMAIL)"/g)) backendRead.add(m[1]);
+      if (file === "../convex/convex.config.ts") for (const m of src.matchAll(/^\s+([A-Z][A-Z0-9_]+): v\./gm)) backendRead.add(m[1]);
+    }
+    const deploymentSection = ENV_EXAMPLE.slice(ENV_EXAMPLE.indexOf("# 3. Convex deployment variables"));
+    for (const m of deploymentSection.matchAll(/^([A-Z0-9_]+)=/gm)) backendRead.add(m[1]);
+    expect(backendRead.size).toBeGreaterThan(30);
+
+    const unreconciled = [...backendRead].filter((n) => {
+      const c = category.get(n);
+      if (c === "set on prod" || c === "system-provided") return false;
+      return !(c === "optional" && optional.has(n));
+    });
+    expect(unreconciled.sort()).toEqual([]);
+    for (const n of optional) expect(category.get(n) ?? "optional", n).not.toBe("set on prod");
   });
 });

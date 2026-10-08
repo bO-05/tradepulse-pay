@@ -14,6 +14,7 @@ type Call = { method: string; path: string; requestId: string | null; body: unkn
 function fakePayPal() {
   const calls: Call[] = [];
   const approved = new Set<string>();
+  const settings = { captureStatus: "COMPLETED", settledStatus: "PENDING" };
   const json = (status: number, body: unknown) =>
     new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
   const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
@@ -42,12 +43,16 @@ function fakePayPal() {
       return json(201, {
         id: m[1],
         status: "COMPLETED",
-        purchase_units: [{ payments: { captures: [{ id: `CAP-${m[1]}`, status: "COMPLETED", amount: { currency_code: "USD", value: "50.00" } }] } }],
+        purchase_units: [
+          { payments: { captures: [{ id: `CAP-${m[1]}`, status: settings.captureStatus, amount: { currency_code: "USD", value: "50.00" } }] } },
+        ],
       });
     }
+    const cap = url.pathname.match(/^\/v2\/payments\/captures\/([^/]+)$/);
+    if (req.method === "GET" && cap) return json(200, { id: cap[1], status: settings.settledStatus });
     return json(404, { name: "RESOURCE_NOT_FOUND" });
   });
-  return { calls, approved, fetchImpl, posts: () => calls.filter((c) => c.method === "POST" && c.path !== "/v1/oauth2/token") };
+  return { calls, approved, settings, fetchImpl, posts: () => calls.filter((c) => c.method === "POST" && c.path !== "/v1/oauth2/token") };
 }
 
 let fake: ReturnType<typeof fakePayPal>;
@@ -129,5 +134,66 @@ describe("sandbox platform top-up", () => {
     const audits = await t.run((ctx) => ctx.db.query("auditLogs").collect());
     expect(audits.some((a) => /orders\.create/.test(JSON.stringify(a)))).toBe(true);
     expect(JSON.stringify(audits)).not.toContain("test-secret");
+  });
+
+  async function capturePending(t: ReturnType<typeof convexTest>) {
+    const gc = await signInAs(t, "gc");
+    await gc.as.action(api.payments.sandboxTopUp.createTopUpOrder, { amountCents: 5_000 });
+    fake.approved.add("TOPUP1");
+    fake.settings.captureStatus = "PENDING";
+    const first = await gc.as.action(api.payments.sandboxTopUp.captureTopUpOrder, { paypalOrderId: "TOPUP1" });
+    expect(first).toMatchObject({ status: "pending", paypalCaptureId: "CAP-TOPUP1" });
+    expect(first.message).toMatch(/PENDING/);
+    expect(first.message).not.toMatch(/^Captured/);
+    const rows = await gc.as.query(api.payments.sandboxTopUpDb.listTopUps, {});
+    expect(rows[0]).toMatchObject({ status: "pending", captureStatus: "PENDING", paypalCaptureId: "CAP-TOPUP1", capturedAt: null });
+    return gc;
+  }
+
+  const captureWrites = () => fake.posts().filter((c) => c.path.endsWith("/capture"));
+  const captureReads = () => fake.calls.filter((c) => c.method === "GET" && c.path === "/v2/payments/captures/CAP-TOPUP1");
+
+  test("a PENDING capture stays pending and later reconciles to COMPLETED without a second capture", async () => {
+    const t = convexTest(schema, modules);
+    const gc = await capturePending(t);
+
+    fake.settings.settledStatus = "PENDING";
+    const still = await gc.as.action(api.payments.sandboxTopUp.captureTopUpOrder, { paypalOrderId: "TOPUP1" });
+    expect(still.status).toBe("pending");
+
+    fake.settings.settledStatus = "COMPLETED";
+    const done = await gc.as.action(api.payments.sandboxTopUp.captureTopUpOrder, { paypalOrderId: "TOPUP1" });
+    expect(done).toMatchObject({ status: "captured", paypalCaptureId: "CAP-TOPUP1" });
+    expect(done.message).toMatch(/^Captured/);
+
+    expect(captureWrites()).toHaveLength(1);
+    expect(captureReads()).toHaveLength(2);
+    const rows = await gc.as.query(api.payments.sandboxTopUpDb.listTopUps, {});
+    expect(rows[0]).toMatchObject({ status: "captured", captureStatus: "COMPLETED" });
+    expect(rows[0].capturedAt).not.toBeNull();
+
+    const again = await gc.as.action(api.payments.sandboxTopUp.captureTopUpOrder, { paypalOrderId: "TOPUP1" });
+    expect(again.message).toMatch(/already captured/);
+    expect(captureWrites()).toHaveLength(1);
+    expect(captureReads()).toHaveLength(2);
+  });
+
+  test("a PENDING capture that PayPal later denies becomes denied, never funding, without a second capture", async () => {
+    const t = convexTest(schema, modules);
+    const gc = await capturePending(t);
+
+    fake.settings.settledStatus = "DECLINED";
+    const denied = await gc.as.action(api.payments.sandboxTopUp.captureTopUpOrder, { paypalOrderId: "TOPUP1" });
+    expect(denied.status).toBe("denied");
+    expect(denied.message).toMatch(/no funds reached/);
+
+    fake.settings.settledStatus = "COMPLETED";
+    const after = await gc.as.action(api.payments.sandboxTopUp.captureTopUpOrder, { paypalOrderId: "TOPUP1" });
+    expect(after.status).toBe("denied");
+
+    expect(captureWrites()).toHaveLength(1);
+    expect(captureReads()).toHaveLength(1);
+    const rows = await gc.as.query(api.payments.sandboxTopUpDb.listTopUps, {});
+    expect(rows[0]).toMatchObject({ status: "denied", captureStatus: "DECLINED", capturedAt: null });
   });
 });

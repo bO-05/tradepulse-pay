@@ -57,7 +57,7 @@ export function JudgeDemoPage() {
       ledger: ledger ?? (ledger === null ? null : undefined),
       honest,
       agent,
-      changeOrderCount: changeOrders ? changeOrders.changeOrders.length : null,
+      changeOrder: changeOrders ? changeOrder : undefined,
     },
     setRunId,
   );

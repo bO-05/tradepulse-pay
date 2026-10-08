@@ -3,6 +3,7 @@
  * inbox and change orders), so the page shows what Convex and PayPal actually recorded.
  */
 import { formatCents } from "../../../convex/lib/money";
+import { changeOrderInvoiced } from "./changeOrderStep";
 
 export const JUDGE_DEMO_AUTOSTART_KEY = "tradepulse.judgeDemo.autostart";
 
@@ -128,7 +129,7 @@ export function deriveSteps(s: DemoState): DemoStep[] {
   const agentPayout = moneyProposal(s.agent, "payout");
   const proposalError = [honestPayout, agentPayout].find((p) => p?.status === "failed");
   const co = s.changeOrder;
-  const coInvoiced = co !== null && (co.status === "invoiced" || co.status === "paid") && co.payerViewUrl !== null;
+  const coInvoiced = changeOrderInvoiced(co);
 
   const dt = s.dashboardTotals ?? null;
   const dashboardMatches =

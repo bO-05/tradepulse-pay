@@ -33,7 +33,8 @@ export function SandboxTopUpPanel({ suggestedCents }: { suggestedCents: number }
     }
   }
 
-  const open = topUps?.find((t) => t.status === "created") ?? null;
+  const open = topUps?.find((t) => t.status === "created" || t.status === "pending") ?? null;
+  const pending = open?.status === "pending";
 
   return (
     <section className="rounded-xl border border-amber-800/70 bg-amber-950/20 p-4 space-y-3" data-testid="sandbox-top-up" aria-label="Sandbox platform top-up">
@@ -81,8 +82,11 @@ export function SandboxTopUpPanel({ suggestedCents }: { suggestedCents: number }
       {open && (
         <div className="rounded-lg border border-slate-700 bg-slate-900 p-3 text-xs space-y-2" data-testid="sandbox-top-up-open">
           <p>
-            Order <span className="font-mono">{open.paypalOrderId}</span> for {formatCents(open.amountCents)} is waiting for payment.{" "}
-            {open.approveUrl && (
+            Order <span className="font-mono">{open.paypalOrderId}</span> for {formatCents(open.amountCents)}{" "}
+            {pending
+              ? "was captured, but PayPal still reports the capture as PENDING. It does not fund the platform account until PayPal completes it."
+              : "is waiting for payment."}{" "}
+            {!pending && open.approveUrl && (
               <a href={open.approveUrl} target="_blank" rel="noreferrer" className="text-emerald-300 underline" data-testid="sandbox-top-up-approve-link">
                 Open PayPal checkout
               </a>
@@ -100,7 +104,7 @@ export function SandboxTopUpPanel({ suggestedCents }: { suggestedCents: number }
               })
             }
           >
-            Capture top-up
+            {pending ? "Check capture status" : "Capture top-up"}
           </button>
         </div>
       )}
