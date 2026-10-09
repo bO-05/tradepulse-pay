@@ -5,7 +5,7 @@ function calls a role guard before it reads or writes data, and a company-tenanc
 (`convex/lib/tenancy.ts`, `convex/lib/projectScope.ts`) unless it reads no project data.
 Internal functions (165 `internal*` exports) are not callable from clients and are not listed.
 
-Public functions: 154. Problems: 0. Without a tenancy guard: 0.
+Public functions: 164. Problems: 0. Without a tenancy guard: 0.
 
 | Function | Kind | Location | Guard | Tenancy |
 |---|---|---|---|---|
@@ -32,10 +32,10 @@ Public functions: 154. Problems: 0. Without a tenancy guard: 0.
 | `bids:updateBidAdjustments` | mutation | `convex/bids.ts:384` | requireDocScope() at line 411 | requireDocScope() |
 | `bids:submitDirectBid` | mutation | `convex/bids.ts:465` | requireDocScope() at line 510 | requireDocScope() |
 | `companies:myCompany` | query | `convex/companies.ts:19` | requireCompanyMember() at line 22 | requireCompanyMember() |
-| `companies:updateProfile` | mutation | `convex/companies.ts:94` | requireCompanyMember() at line 104 | requireCompanyMember() |
-| `companies:updateDefaults` | mutation | `convex/companies.ts:143` | requireCompanyMember() at line 147 | requireCompanyMember() |
-| `companies:setMemberRole` | mutation | `convex/companies.ts:176` | requireCompanyMember() at line 180 | requireCompanyMember() |
-| `companies:removeMember` | mutation | `convex/companies.ts:192` | requireCompanyMember() at line 196 | requireCompanyMember() |
+| `companies:updateProfile` | mutation | `convex/companies.ts:96` | requireCompanyMember() at line 106 | requireCompanyMember() |
+| `companies:updateDefaults` | mutation | `convex/companies.ts:145` | requireCompanyMember() at line 149 | requireCompanyMember() |
+| `companies:setMemberRole` | mutation | `convex/companies.ts:178` | requireCompanyMember() at line 182 | requireCompanyMember() |
+| `companies:removeMember` | mutation | `convex/companies.ts:194` | requireCompanyMember() at line 198 | requireCompanyMember() |
 | `contractorDiscovery:discoverSubcontractors` | action | `convex/contractorDiscovery.ts:341` | requireProjectScopeInAction() at line 346 | requireProjectScopeInAction() |
 | `contractorDiscovery:scrapeContractorWebsite` | action | `convex/contractorDiscovery.ts:510` | requireRoleInAction() at line 515 | none needed: scrapes a public URL, no project data |
 | `contractors:listByPackage` | query | `convex/contractors.ts:10` | requireDocScope() at line 13 | requireDocScope() |
@@ -71,13 +71,13 @@ Public functions: 154. Problems: 0. Without a tenancy guard: 0.
 | `files:extractBidFromQuoteFile` | action | `convex/files.ts:896` | requireProjectScopeInAction() at line 908 | requireProjectScopeInAction() |
 | `files:extractBidFromFile` | action | `convex/files.ts:924` | requireProjectScopeInAction() at line 934 | requireProjectScopeInAction() |
 | `files:generatePreBidAddendum` | action | `convex/files.ts:972` | requireProjectScopeInAction() at line 979 | requireProjectScopeInAction() |
-| `invites:create` | action | `convex/invites.ts:391` | requireCompanyMemberInAction() at line 403 | requireCompanyMemberInAction() |
-| `invites:resend` | action | `convex/invites.ts:417` | requireCompanyMemberInAction() at line 421 | requireCompanyMemberInAction() |
-| `invites:revoke` | mutation | `convex/invites.ts:433` | requireCompanyMember() at line 437 | requireCompanyMember() |
-| `invites:accept` | mutation | `convex/invites.ts:696` | requireVerifiedUser() at line 700 | none needed: invite token + the caller's verified email must equal the invited email; joins only the invite's company/project |
-| `invites:acceptMine` | mutation | `convex/invites.ts:715` | requireVerifiedUser() at line 719 | none needed: the invite must be addressed to the caller's verified email; joins only the invite's company/project |
-| `invites:listMine` | query | `convex/invites.ts:728` | requireVerifiedUser() at line 731 | none needed: invites addressed to the caller's own verified email |
-| `invites:getByToken` | query | `convex/invites.ts:763` | Invite token (sha256 lookup) before any read; read-only | none needed: possession of the 256-bit invite token; returns inviter/project names only for a pending invite |
+| `invites:create` | action | `convex/invites.ts:392` | requireCompanyMemberInAction() at line 404 | requireCompanyMemberInAction() |
+| `invites:resend` | action | `convex/invites.ts:418` | requireCompanyMemberInAction() at line 422 | requireCompanyMemberInAction() |
+| `invites:revoke` | mutation | `convex/invites.ts:434` | requireCompanyMember() at line 438 | requireCompanyMember() |
+| `invites:accept` | mutation | `convex/invites.ts:742` | requireVerifiedUser() at line 746 | none needed: invite token + the caller's verified email must equal the invited email; joins only the invite's company/project |
+| `invites:acceptMine` | mutation | `convex/invites.ts:761` | requireVerifiedUser() at line 765 | none needed: the invite must be addressed to the caller's verified email; joins only the invite's company/project |
+| `invites:listMine` | query | `convex/invites.ts:774` | requireVerifiedUser() at line 777 | none needed: invites addressed to the caller's own verified email |
+| `invites:getByToken` | query | `convex/invites.ts:809` | Invite token (sha256 lookup) before any read; read-only | none needed: possession of the 256-bit invite token; returns inviter/project names only for a pending invite |
 | `judgeDemo/runs:startRun` | mutation | `convex/judgeDemo/runs.ts:92` | requireDemoCompany() at line 95 | requireDemoCompany() |
 | `judgeDemo/runs:fileDemoPayApp` | mutation | `convex/judgeDemo/runs.ts:204` | requireDemoCompany() at line 207 | requireDemoCompany() |
 | `judgeDemo/runs:getRun` | query | `convex/judgeDemo/runs.ts:272` | requireDemoCompany() at line 275 | requireDemoCompany() |
@@ -85,7 +85,13 @@ Public functions: 154. Problems: 0. Without a tenancy guard: 0.
 | `kernel/licenseChecks:requestLicenseCheck` | mutation | `convex/kernel/licenseChecks.ts:227` | requireDocScope() at line 230 | requireDocScope() |
 | `llmRouter:getProviderAvailability` | query | `convex/llmRouter.ts:2770` | requireDemoCompany() at line 2773 | requireDemoCompany() |
 | `llmRouter:runModelDiagnostic` | action | `convex/llmRouter.ts:2789` | requireDemoCompanyInAction() at line 2795 | requireDemoCompanyInAction() |
+| `notifications:summary` | query | `convex/notifications.ts:29` | requireCompanyMember() at line 33 | requireCompanyMember() |
+| `notifications:list` | query | `convex/notifications.ts:55` | requireCompanyMember() at line 58 | requireCompanyMember() |
+| `notifications:markRead` | mutation | `convex/notifications.ts:69` | requireCompanyMember() at line 73 | requireCompanyMember() |
+| `notifications:markAllRead` | mutation | `convex/notifications.ts:83` | requireCompanyMember() at line 87 | requireCompanyMember() |
 | `onboarding:createCompany` | mutation | `convex/onboarding.ts:11` | requireVerifiedUser() at line 25 | none needed: creates the caller's own GC company and membership; no client-chosen company or project |
+| `partyProfiles:getVendor` | query | `convex/partyProfiles.ts:27` | requireCompanyMember() at line 30 | requireCompanyMember() |
+| `partyProfiles:getProjectOwner` | query | `convex/partyProfiles.ts:60` | requireProjectScope() at line 63 | requireProjectScope() |
 | `payApps/proposals:listInbox` | query | `convex/payApps/proposals.ts:115` | requireRole() at line 118 | scopedAgreements() |
 | `payApps/proposals:getAgentTrace` | query | `convex/payApps/proposals.ts:211` | findSubcontractDocScope() at line 214 | findSubcontractDocScope() |
 | `payApps/proposals:approveProposal` | mutation | `convex/payApps/proposals.ts:245` | requireDocScope() at line 248 | requireDocScope() |
@@ -99,6 +105,10 @@ Public functions: 154. Problems: 0. Without a tenancy guard: 0.
 | `payApps/submit:payAppFormContext` | query | `convex/payApps/submit.ts:54` | findSubcontractDocScope() at line 57 | findSubcontractDocScope() |
 | `payApps/submit:submitPayApplication` | mutation | `convex/payApps/submit.ts:77` | requireDocScope() at line 87 | requireDocScope() |
 | `payApps/submit:withdrawPayApplication` | mutation | `convex/payApps/submit.ts:187` | requireDocScope() at line 190 | requireDocScope() |
+| `payee:setPayoutEmail` | mutation | `convex/payee.ts:43` | requireVerifiedUser() at line 47 | requireCompanyMember() |
+| `payee:setBillingEmail` | mutation | `convex/payee.ts:89` | requireVerifiedUser() at line 93 | requireCompanyMember() |
+| `payee:myPayoutStatus` | query | `convex/payee.ts:115` | requireCompanyMember() at line 118 | requireCompanyMember() |
+| `payee:confirmPayee` | mutation | `convex/payee.ts:152` | requireVerifiedUser() at line 156 | requireCompanyMember() |
 | `payments/changeOrderDb:listForAgreement` | query | `convex/payments/changeOrderDb.ts:40` | requireRole() at line 43 | findDocScope() |
 | `payments/invoices:createChangeOrder` | action | `convex/payments/invoices.ts:139` | requireProjectScopeInAction() at line 143 | requireProjectScopeInAction() |
 | `payments/invoices:sendChangeOrderInvoice` | action | `convex/payments/invoices.ts:153` | requireProjectScopeInAction() at line 157 | requireProjectScopeInAction() |
@@ -123,10 +133,10 @@ Public functions: 154. Problems: 0. Without a tenancy guard: 0.
 | `people:removeProjectMember` | mutation | `convex/people.ts:112` | requireProjectScope() at line 116 | requireProjectScope() |
 | `people:myProjects` | query | `convex/people.ts:155` | callerProjects() at line 158 | callerProjects() |
 | `people:projectOverview` | query | `convex/people.ts:172` | requireProjectScope() at line 177 | requireProjectScope() |
-| `portal:mySubPortal` | query | `convex/portal.ts:90` | subContractorScope() at line 93 | subContractorScope() |
-| `portal:mySubPayApps` | query | `convex/portal.ts:128` | subContractorScope() at line 131 | subContractorScope() |
-| `portal:getAgreementSummary` | query | `convex/portal.ts:186` | findSubcontractDocScope() at line 189 | findSubcontractDocScope() |
-| `portal:ownerOverview` | query | `convex/portal.ts:197` | requireRole() at line 200 | callerProjects() |
+| `portal:mySubPortal` | query | `convex/portal.ts:96` | subContractorScope() at line 99 | subContractorScope() |
+| `portal:mySubPayApps` | query | `convex/portal.ts:134` | subContractorScope() at line 137 | subContractorScope() |
+| `portal:getAgreementSummary` | query | `convex/portal.ts:192` | findSubcontractDocScope() at line 195 | findSubcontractDocScope() |
+| `portal:ownerOverview` | query | `convex/portal.ts:203` | requireRole() at line 206 | callerProjects() |
 | `profiles:me` | query | `convex/profiles.ts:13` | getLiveAuthUserId(): caller's own users row only, then getViewer() | none needed: caller's own profile |
 | `projectFileDownload:projectFilePreflight` | httpAction | `convex/projectFileDownload.ts:41` | CORS preflight only, no data access | none needed: CORS preflight |
 | `projectFileDownload:projectFileDownload` | httpAction | `convex/projectFileDownload.ts:50` | Bearer token, then authorizeDownload (requireDocScope) before ctx.storage | requireDocScope() via authorizeDownload |
@@ -157,12 +167,12 @@ Public functions: 154. Problems: 0. Without a tenancy guard: 0.
 | `tradePackages:updateStatus` | mutation | `convex/tradePackages.ts:128` | requireDocScope() at line 139 | requireDocScope() |
 | `tradePackages:generateTradePackagesFromSpec` | action | `convex/tradePackages.ts:217` | requireProjectScopeInAction() at line 238 | requireProjectScopeInAction() |
 | `tradePackages:deleteTradePackage` | mutation | `convex/tradePackages.ts:400` | requireDocScope() at line 405 | requireDocScope() |
-| `vendors:listVendors` | query | `convex/vendors.ts:46` | requireCompanyMember() at line 49 | requireCompanyMember() |
-| `vendors:createVendor` | mutation | `convex/vendors.ts:80` | requireVerifiedUser() at line 83 | requireCompanyMember() |
-| `vendors:updateVendor` | mutation | `convex/vendors.ts:90` | requireVerifiedUser() at line 93 | requireCompanyMember() |
-| `vendors:setVendorStatus` | mutation | `convex/vendors.ts:112` | requireVerifiedUser() at line 115 | requireCompanyMember() |
-| `vendors:importVendors` | mutation | `convex/vendors.ts:127` | requireVerifiedUser() at line 143 | requireCompanyMember() |
-| `vendors:myGcRelationships` | query | `convex/vendors.ts:180` | requireCompanyMember() at line 183 | requireCompanyMember() |
+| `vendors:listVendors` | query | `convex/vendors.ts:47` | requireCompanyMember() at line 50 | requireCompanyMember() |
+| `vendors:createVendor` | mutation | `convex/vendors.ts:87` | requireVerifiedUser() at line 90 | requireCompanyMember() |
+| `vendors:updateVendor` | mutation | `convex/vendors.ts:97` | requireVerifiedUser() at line 100 | requireCompanyMember() |
+| `vendors:setVendorStatus` | mutation | `convex/vendors.ts:119` | requireVerifiedUser() at line 122 | requireCompanyMember() |
+| `vendors:importVendors` | mutation | `convex/vendors.ts:134` | requireVerifiedUser() at line 150 | requireCompanyMember() |
+| `vendors:myGcRelationships` | query | `convex/vendors.ts:187` | requireCompanyMember() at line 190 | requireCompanyMember() |
 
 ## Inline HTTP routes in `convex/http.ts`
 

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import { Button, ConfirmDialog, EmptyState, PageHeader, StatusPill, Table, useToast, type TableColumn } from "../ui";
 import { inputClass } from "../ui/Field";
+import { vendorHash } from "../auth/navigation";
 import { ImportVendorsDialog } from "./ImportVendorsDialog";
 import { downloadCsv, vendorsToCsv } from "./vendorCsv";
 import { VendorFormDialog, type EditableVendor } from "./VendorFormDialog";
@@ -72,7 +73,9 @@ export function VendorsPage() {
       header: "Vendor",
       render: (v) => (
         <span className="flex flex-col">
-          <span className="font-semibold">{v.name}</span>
+          <a href={vendorHash(v._id)} className="font-semibold text-emerald-300 hover:underline">
+            {v.name}
+          </a>
           {v.contactName && <span className="text-xs text-ink-subtle">{v.contactName}</span>}
         </span>
       ),
@@ -96,6 +99,7 @@ export function VendorsPage() {
         <span className="flex flex-wrap gap-1">
           <StatusPill status={v.status} />
           {v.linked && <StatusPill status="linked" label="Linked · company account" />}
+          {v.payeeStatus !== "none" && <StatusPill status={`payee_${v.payeeStatus}`} />}
         </span>
       ),
     },

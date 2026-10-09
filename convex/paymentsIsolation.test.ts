@@ -6,7 +6,7 @@ import { api } from "./_generated/api";
 import type { Doc, Id, TableNames } from "./_generated/dataModel";
 import schema from "./schema";
 import { buildTenancyFixture, type FixtureUser, type TenancyFixture } from "./lib/tenancyFixtures";
-import { NO_PROJECT_OWNER_REASON } from "./payments/changeOrderRecipient";
+import { NO_PROJECT_OWNER_REASON, noOwnerEmailReason } from "./payments/changeOrderRecipient";
 import { withSession } from "./lib/testIdentity";
 
 /**
@@ -560,9 +560,13 @@ describe("the owner sees project summary and owner items only", () => {
 
 describe("change-order invoices go to THAT project's owner", () => {
   test("each GC's invoicing recipient is the owner on its own project", async () => {
-    const { fx } = await setup();
+    const { t, fx } = await setup();
+    // A member's sign-in email is never a fallback: without a billing email invoicing is disabled.
+    const noEmail = await fx.gcA.admin.as.query(api.payments.changeOrderDb.listForAgreement, { agreementId: fx.gcA.project.agreementId });
+    expect(noEmail!.invoicing).toEqual({ enabled: false, reason: noOwnerEmailReason("Harbor Point Dental LLC"), recipientEmail: null });
+    await t.run((ctx) => ctx.db.patch(fx.owner.companyId, { billingEmail: "ap@harborpoint.test" }));
     const bay = await fx.gcA.admin.as.query(api.payments.changeOrderDb.listForAgreement, { agreementId: fx.gcA.project.agreementId });
-    expect(bay!.invoicing).toEqual({ enabled: true, reason: null, recipientEmail: "alicia@harborpoint.test" });
+    expect(bay!.invoicing).toEqual({ enabled: true, reason: null, recipientEmail: "ap@harborpoint.test" });
     expect(bay!.canCreate).toBe(true);
     const son = await fx.gcB.admin.as.query(api.payments.changeOrderDb.listForAgreement, { agreementId: fx.gcB.project.agreementId });
     expect(son!.invoicing).toEqual({ enabled: true, reason: null, recipientEmail: "ap@mesa-owner.test" });

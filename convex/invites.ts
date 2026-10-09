@@ -23,6 +23,7 @@ import { getLiveAuthUserId } from "./lib/session";
 import { requireCompanyMemberInAction } from "./lib/tenancyAction";
 import { findActiveMembership, notFound, requireCompanyMember, requireVerifiedUser } from "./lib/tenancy";
 import { findVendorByEmail } from "./lib/vendorDirectory";
+import { notify } from "./lib/notify";
 
 /**
  * Invites (architecture §13): a GC company invites teammates, a vendor's sub contact for a project,
@@ -576,6 +577,46 @@ async function linkVendorContractors(
   return first;
 }
 
+/** In-app notice to the inviting GC company (never email). A newly linked sub with a payout email also needs payee confirmation. */
+async function notifyInviteAccepted(
+  ctx: MutationCtx,
+  a: {
+    user: Doc<"users">;
+    inviter: Doc<"companies">;
+    joinedCompanyId: Id<"companies">;
+    project: Doc<"projects"> | null;
+    newlyLinkedVendor: Doc<"vendors"> | null;
+  },
+) {
+  const joined = await ctx.db.get(a.joinedCompanyId);
+  if (joined === null) return;
+  if (a.project === null) {
+    await notify(ctx, { companyId: a.inviter._id }, {
+      kind: "invite_accepted",
+      title: `${personName(a.user)} joined ${a.inviter.name}`,
+      body: `${personName(a.user)} accepted your teammate invite and is now a member of ${a.inviter.name}.`,
+      link: "#/company",
+    });
+    return;
+  }
+  await notify(ctx, { companyId: a.inviter._id }, {
+    kind: "invite_accepted",
+    title: `${joined.name} joined ${a.project.title}`,
+    body: `${personName(a.user)} of ${joined.name} accepted the invite to ${a.project.title}.`,
+    link: `#/people/${a.project._id}`,
+    projectId: a.project._id,
+  });
+  const vendor = a.newlyLinkedVendor;
+  if (vendor !== null && joined.payoutPaypalEmail !== undefined && vendor.payoutEmailConfirmed?.email !== joined.payoutPaypalEmail) {
+    await notify(ctx, { companyId: a.inviter._id }, {
+      kind: "payee_change_pending",
+      title: `Payee change pending for ${vendor.name}`,
+      body: `${joined.name} has a payout PayPal email on file. Payouts to ${vendor.name} are on hold until someone at ${a.inviter.name} confirms it on the vendor page.`,
+      link: `#/vendors/${vendor._id}`,
+    });
+  }
+}
+
 function cleanCompanyName(raw: string | null | undefined): string {
   return (raw ?? "").trim().replace(/\s+/g, " ");
 }
@@ -603,6 +644,8 @@ async function acceptInvite(ctx: MutationCtx, user: Doc<"users">, invite: Doc<"i
   const current = membership === null ? null : await ctx.db.get(membership.companyId);
   const now = Date.now();
   let joinedCompanyId: Id<"companies">;
+  let joinedProject: Doc<"projects"> | null = null;
+  let newlyLinkedVendor: Doc<"vendors"> | null = null;
 
   if (invite.kind === "teammate") {
     if (current !== null && current._id !== inviter._id) throw alreadyInCompany(current, `${inviter.name}`);
@@ -634,6 +677,7 @@ async function acceptInvite(ctx: MutationCtx, user: Doc<"users">, invite: Doc<"i
         });
         await addCompanyMember(ctx, subCompanyId, user._id, "admin");
       }
+      if (vendor.linkedCompanyId === undefined) newlyLinkedVendor = vendor;
       await ctx.db.patch(vendor._id, { linkedCompanyId: subCompanyId });
       const contractorId = await linkVendorContractors(ctx, project._id, vendor, subCompanyId);
       await upsertProjectMember(ctx, {
@@ -673,6 +717,7 @@ async function acceptInvite(ctx: MutationCtx, user: Doc<"users">, invite: Doc<"i
       await upsertProfile(ctx, user, "owner", ownerCompanyId);
       joinedCompanyId = ownerCompanyId;
     }
+    joinedProject = project;
   }
 
   await ctx.db.patch(invite._id, { status: "accepted", acceptedByUserId: user._id, acceptedAt: now });
@@ -683,6 +728,7 @@ async function acceptInvite(ctx: MutationCtx, user: Doc<"users">, invite: Doc<"i
     user,
     companyId: joinedCompanyId,
   });
+  await notifyInviteAccepted(ctx, { user, inviter, joinedCompanyId, project: joinedProject, newlyLinkedVendor });
   return { companyId: joinedCompanyId, kind: invite.kind, projectId: invite.projectId ?? null };
 }
 

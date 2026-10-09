@@ -37,6 +37,7 @@ export function ProjectPage({ projectId }: { projectId: string }) {
       />
       {archived && <ArchivedBanner projectId={project._id} />}
       <ProjectDetailsCard project={project} />
+      <OwnerCompanyCard projectId={project._id} />
       <TradePackagesSection projectId={project._id} projectTitle={project.title} readOnly={archived} />
     </div>
   );
@@ -115,6 +116,42 @@ function ProjectDetailsCard({ project }: { project: Doc<"projects"> }) {
           </div>
         ))}
       </dl>
+    </Card>
+  );
+}
+
+/** The project's owner company (maintained by the owner's admins) and whether change-order invoices can go out. */
+function OwnerCompanyCard({ projectId }: { projectId: Id<"projects"> }) {
+  const owner = useQuery(api.partyProfiles.getProjectOwner, { projectId });
+  if (owner === undefined) return null;
+  const { company, invoicing } = owner;
+  return (
+    <Card
+      title="Owner company"
+      description={company ? `Maintained by ${company.name}. Only its admins can change it.` : undefined}
+      actions={<StatusPill status={invoicing.enabled ? "active" : "invoicing_disabled"} tone={invoicing.enabled ? "success" : "warning"} label={invoicing.enabled ? "Invoicing ready" : "Invoicing disabled"} />}
+    >
+      {company ? (
+        <dl className="grid gap-x-6 text-sm sm:grid-cols-2">
+          <div className="flex justify-between gap-4 border-b border-line py-2">
+            <dt className="text-ink-subtle">Company</dt>
+            <dd className="text-right">{company.name}</dd>
+          </div>
+          <div className="flex justify-between gap-4 border-b border-line py-2">
+            <dt className="text-ink-subtle">Billing email</dt>
+            <dd className="break-all text-right" data-testid="owner-billing-email">
+              {company.billingEmail ?? "Not set"}
+            </dd>
+          </div>
+        </dl>
+      ) : (
+        <p className="text-sm text-ink-muted">No owner company has joined this project yet.</p>
+      )}
+      {!invoicing.enabled && invoicing.reason && (
+        <p role="note" className="mt-3 text-sm text-amber-200">
+          {invoicing.reason}
+        </p>
+      )}
     </Card>
   );
 }

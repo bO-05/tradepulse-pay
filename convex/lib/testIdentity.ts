@@ -4,6 +4,7 @@ import type { MutationCtx } from "../_generated/server";
 import type schema from "../schema";
 import { ensureDemoCompanies } from "./demoTenancy";
 import type { Role } from "./roles";
+import { attachBidderVendor } from "./vendorDirectory";
 
 type T = TestConvex<typeof schema>;
 
@@ -101,6 +102,38 @@ async function joinCompanyFor(
 }
 
 /**
+ * Legacy tests pass `paypalEmail` to mean "this party can be paid / invoiced": a sub gets it as its
+ * company payout email, confirmed on the contractor's vendor row (as the demo seed does); an owner
+ * gets it as its company billing email.
+ */
+async function applyTestPaymentAddress(
+  ctx: MutationCtx,
+  userId: Id<"users">,
+  role: Role,
+  paypalEmail: string,
+  contractorId: Id<"contractors"> | undefined,
+): Promise<void> {
+  const email = paypalEmail.trim().toLowerCase();
+  const membership = await ctx.db
+    .query("companyMembers")
+    .withIndex("by_userId_and_status", (q) => q.eq("userId", userId).eq("status", "active"))
+    .first();
+  if (membership === null) return;
+  if (role === "owner") {
+    await ctx.db.patch(membership.companyId, { billingEmail: email });
+    return;
+  }
+  if (role !== "sub" || contractorId === undefined) return;
+  await ctx.db.patch(membership.companyId, { payoutPaypalEmail: email });
+  const vendorId = await attachBidderVendor(ctx, contractorId);
+  if (vendorId === null) return;
+  await ctx.db.patch(vendorId, {
+    linkedCompanyId: membership.companyId,
+    payoutEmailConfirmed: { email, confirmedByUserId: userId, confirmedAt: Date.now() },
+  });
+}
+
+/**
  * Test-only helper: inserts a verified users row (+ userProfiles row when `role` is set) and
  * returns an accessor whose identity matches what Convex Auth issues (subject =
  * "<userId>|<sessionId>", with a live authSessions row). The user joins the Demo company of its role (subs: the company linked
@@ -130,6 +163,7 @@ export async function signInAs(
       });
     }
     await syncLegacyTestTenancy(ctx);
+    if (role !== null && opts.paypalEmail !== undefined) await applyTestPaymentAddress(ctx, id, role, opts.paypalEmail, opts.contractorId);
     return id;
   });
   const inner = await withSession(t, userId, email);

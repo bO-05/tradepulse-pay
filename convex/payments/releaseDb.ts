@@ -1,6 +1,7 @@
 import { ConvexError, v, type Infer } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx } from "../_generated/server";
+import { payoutBlockedMessage, payoutReceiverForContractor } from "../lib/payee";
 import { syncProposalForPayment } from "../payApps/proposalSync";
 import { isCaptureDenied, settleRelease, takeEarlySettlement } from "./captureSettlement";
 import { assertPaymentTransition, canTransitionMilestone, canTransitionPayment, type MilestoneStatus } from "./stateMachine";
@@ -55,16 +56,6 @@ async function milestonePayouts(ctx: MutationCtx, milestoneId: Id<"milestones">)
     .withIndex("by_milestoneId", (q) => q.eq("milestoneId", milestoneId))
     .take(200);
   return rows.filter((p) => p.kind === "payout");
-}
-
-/** The sub's payout address: the human sub profile linked to the agreement's contractor. */
-export async function receiverFor(ctx: MutationCtx, contractorId: Id<"contractors">): Promise<string | undefined> {
-  const profiles = await ctx.db
-    .query("userProfiles")
-    .withIndex("by_contractorId", (q) => q.eq("contractorId", contractorId))
-    .take(50);
-  const sub = profiles.find((p) => p.role === "sub" && p.actorType !== "agent" && p.paypalEmail);
-  return sub?.paypalEmail?.trim() || undefined;
 }
 
 const beginReleaseResult = v.union(
@@ -126,13 +117,14 @@ export const beginRelease = internalMutation({
     const check = checkCaptureAmount(args.amountCents, remainingAuthorizedCents(funding));
     if (!check.ok) throw new ConvexError({ code: "INVALID_AMOUNT", message: check.message });
 
-    const receiverEmail = await receiverFor(ctx, agreement.contractorId);
-    if (!receiverEmail) {
+    const receiver = await payoutReceiverForContractor(ctx, agreement.contractorId);
+    if (!receiver.ok) {
       throw new ConvexError({
         code: "NO_PAYOUT_ACCOUNT",
-        message: `${agreement.subcontractorName} has no PayPal payout email on file. Nothing was captured or paid.`,
+        message: payoutBlockedMessage(agreement.subcontractorName, receiver.reason, "Nothing was captured or paid."),
       });
     }
+    const receiverEmail = receiver.email;
     const split = computePayoutSplit(args.amountCents, retainagePercentFor(agreement));
     const paymentId = await ctx.db.insert("payments", {
       agreementId: agreement._id,

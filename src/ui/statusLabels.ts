@@ -19,6 +19,12 @@ export const STATUS_LABELS = {
   active: { label: "Active", tone: "success" },
   inactive: { label: "Inactive", tone: "muted" },
   linked: { label: "Linked", tone: "info" },
+
+  // Payee control (vendor payout email)
+  payee_pending: { label: "Payee change pending", tone: "warning" },
+  payee_confirmed: { label: "Payee confirmed", tone: "success" },
+  payee_none: { label: "No payout email", tone: "muted" },
+  payee_awaiting_gc: { label: "Pending GC confirmation", tone: "warning" },
   removed: { label: "Removed", tone: "muted" },
   archived: { label: "Archived", tone: "muted" },
   closed: { label: "Closed", tone: "muted" },

@@ -14,17 +14,18 @@ export type AreaId =
   | "my-projects"
   | "gc-projects"
   | "company"
+  | "notifications"
   | "agreement"
   | "ledger"
   | "not-found";
 
 export type NavItem = {
-  area: Exclude<AreaId, "agreement" | "ledger" | "not-found" | "company">;
+  area: Exclude<AreaId, "agreement" | "ledger" | "not-found" | "company" | "notifications">;
   label: string;
   hash: string;
 };
 
-export type Route = { area: AreaId; agreementId?: string; projectId?: string; view?: "new" | "settings" };
+export type Route = { area: AreaId; agreementId?: string; projectId?: string; vendorId?: string; view?: "new" | "settings" };
 
 /** Areas that exist only for Demo companies; everyone else gets "Not found" on the direct route. */
 export const DEMO_ONLY_AREAS = new Set<AreaId>(["judge-demo"]);
@@ -46,6 +47,13 @@ const AREA_HASH: Record<NavItem["area"], string> = {
 
 /** Company settings: opened from the user menu, available to every role. */
 export const COMPANY_HASH = "#/company";
+
+/** All notifications ("See all" from the bell), available to every role. */
+export const NOTIFICATIONS_HASH = "#/notifications";
+
+export function vendorHash(vendorId: string): string {
+  return `#/vendors/${encodeURIComponent(vendorId)}`;
+}
 
 /**
  * Role-based navigation: each area is registered with the roles allowed to see it.
@@ -107,6 +115,9 @@ export function gcProjectSettingsHash(projectId: string): string {
 export function parseHash(hash: string): Route | null {
   const path = hash.replace(/^#/, "");
   if (`#${path}` === COMPANY_HASH) return { area: "company" };
+  if (`#${path}` === NOTIFICATIONS_HASH) return { area: "notifications" };
+  const vendorMatch = path.match(/^\/vendors\/([^/?#]+)$/);
+  if (vendorMatch) return { area: "vendors", vendorId: decodeURIComponent(vendorMatch[1]) };
   if (`#${path}` === NEW_PROJECT_HASH) return { area: "gc-projects", view: "new" };
   const gcProject = path.match(/^\/all-projects\/([^/?#]+)(\/settings)?$/);
   if (gcProject) {
@@ -152,7 +163,7 @@ export function resolveRoute(role: Role, hash: string, isDemo = false, search = 
   const parsed = parseHash(hash);
   if (!parsed) return { area: "not-found" };
   if (DEMO_ONLY_AREAS.has(parsed.area) && !isDemo) return { area: "not-found" };
-  if (parsed.area === "agreement" || parsed.area === "ledger" || parsed.area === "company") return parsed;
+  if (parsed.area === "agreement" || parsed.area === "ledger" || parsed.area === "company" || parsed.area === "notifications") return parsed;
   if (nav.some((item) => item.area === parsed.area)) return parsed;
   return { area: "not-found" };
 }

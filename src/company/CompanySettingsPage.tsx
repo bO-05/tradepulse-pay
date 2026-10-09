@@ -7,7 +7,8 @@ import { getErrorMessage } from "../lib/errors";
 import { InviteDialog } from "../people/InviteDialog";
 import { InviteList } from "../people/InviteList";
 import { formatRetainagePercent } from "../../convex/lib/retainageRules";
-import { Button, Card, ConfirmDialog, PageHeader, PercentInput, TextInput, useToast } from "../ui";
+import { US_STATES } from "../../convex/lib/companyProfile";
+import { Button, Card, ConfirmDialog, DateText, Field, PageHeader, PercentInput, StatusPill, TextInput, useToast } from "../ui";
 import { inputClass } from "../ui/Field";
 import { GcRelationshipsCard } from "../vendors/GcRelationshipsCard";
 
@@ -23,7 +24,12 @@ export function CompanySettingsPage() {
         title="Company settings"
         description={`${data.company.name} · ${COMPANY_KIND_LABEL[data.company.kind]}`}
       />
-      <ProfileCard key={`${data.company._id}-${data.company.name}-${data.company.phone}-${data.company.website}`} data={data} />
+      <ProfileCard
+        key={`${data.company._id}-${data.company.name}-${data.company.phone}-${data.company.website}-${JSON.stringify(data.company.address ?? null)}`}
+        data={data}
+      />
+      {data.company.kind === "sub" && <PayoutEmailCard key={`payout-${data.company.payoutPaypalEmail}`} data={data} />}
+      {data.company.kind === "owner" && <BillingEmailCard key={`billing-${data.company.billingEmail}`} data={data} />}
       {data.company.kind === "gc" && <DefaultsCard key={`defaults-${data.company.defaultRetainageBps}`} data={data} />}
       {data.company.kind === "sub" && <GcRelationshipsCard />}
       <MembersCard data={data} />
@@ -39,6 +45,11 @@ function ProfileCard({ data }: { data: Company }) {
   const [legalName, setLegalName] = useState(company.legalName);
   const [phone, setPhone] = useState(company.phone);
   const [website, setWebsite] = useState(company.website);
+  const [line1, setLine1] = useState(company.address?.line1 ?? "");
+  const [line2, setLine2] = useState(company.address?.line2 ?? "");
+  const [city, setCity] = useState(company.address?.city ?? "");
+  const [state, setState] = useState(company.address?.state ?? "");
+  const [zip, setZip] = useState(company.address?.zip ?? "");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -72,7 +83,14 @@ function ProfileCard({ data }: { data: Company }) {
     setFormError(null);
     setSaving(true);
     try {
-      await update({ name, legalName, phone, website });
+      const hasAddress = [line1, line2, city, state, zip].some((x) => x.trim() !== "");
+      await update({
+        name,
+        legalName,
+        phone,
+        website,
+        ...(hasAddress || company.address ? { address: { line1, ...(line2.trim() ? { line2 } : {}), city, state, zip } } : {}),
+      });
       toast.success("Company settings saved.");
     } catch (err) {
       const field = (err as { data?: { field?: string } }).data?.field;
@@ -101,11 +119,30 @@ function ProfileCard({ data }: { data: Company }) {
             placeholder="https://example.com"
           />
         </div>
-        {company.address && (
-          <p className="text-sm text-ink-subtle">
-            Address: {company.address.line1}, {company.address.city}, {company.address.state} {company.address.zip}
-          </p>
-        )}
+        <TextInput id="company-settings-line1" label="Street address" value={line1} onChange={setLine1} error={errors.line1} autoComplete="address-line1" />
+        <TextInput id="company-settings-line2" label="Suite or unit" value={line2} onChange={setLine2} autoComplete="address-line2" />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_8rem_7rem]">
+          <TextInput id="company-settings-city" label="City" value={city} onChange={setCity} error={errors.city} autoComplete="address-level2" />
+          <Field id="company-settings-state" label="State" error={errors.state}>
+            {(control) => (
+              <select
+                {...control}
+                value={state}
+                onChange={(e) => setState(e.target.value)}
+                autoComplete="address-level1"
+                className={inputClass(Boolean(errors.state))}
+              >
+                <option value="">Choose…</option>
+                {US_STATES.map((s) => (
+                  <option key={s.code} value={s.code}>
+                    {s.code} · {s.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
+          <TextInput id="company-settings-zip" label="ZIP" value={zip} onChange={setZip} error={errors.zip} inputMode="numeric" autoComplete="postal-code" />
+        </div>
         {formError && (
           <p role="alert" className="rounded-lg border border-rose-800 bg-rose-950 px-3 py-2 text-sm text-rose-200">
             {formError}
@@ -115,6 +152,134 @@ function ProfileCard({ data }: { data: Company }) {
           Save changes
         </Button>
       </form>
+    </Card>
+  );
+}
+
+function useEmailSetting(save: (email: string) => Promise<unknown>, initial: string | null, successMessage: string) {
+  const toast = useToast();
+  const [email, setEmail] = useState(initial ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (saving) return;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError("Enter a valid email address, like name@company.com.");
+      return;
+    }
+    setError(null);
+    setSaving(true);
+    try {
+      await save(email);
+      toast.success(successMessage);
+    } catch (err) {
+      setError(getErrorMessage(err, "We couldn't save the email. Try again."));
+    } finally {
+      setSaving(false);
+    }
+  };
+  return { email, setEmail: (next: string) => { setError(null); setEmail(next); }, error, saving, onSubmit };
+}
+
+function ReadOnlyEmail({ label, value }: { label: string; value: string | null }) {
+  return (
+    <p className="text-sm">
+      {label}: <strong className="break-all">{value ?? "Not set"}</strong>
+      <span className="mt-1 block text-ink-subtle">Only company admins can change this.</span>
+    </p>
+  );
+}
+
+/** Sub: the payout PayPal email. Each GC must confirm it before payouts go there. */
+function PayoutEmailCard({ data }: { data: Company }) {
+  const setPayoutEmail = useMutation(api.payee.setPayoutEmail);
+  const status = useQuery(api.payee.myPayoutStatus, {});
+  const current = data.company.payoutPaypalEmail ?? null;
+  const form = useEmailSetting((email) => setPayoutEmail({ email }), current, "Payout email saved. Each GC must confirm it before paying you there.");
+  const description =
+    "Where GCs send your payouts. When you change it, each GC must confirm the new email before any payout goes there.";
+  return (
+    <Card
+      title="Payout PayPal email"
+      description={description}
+      actions={
+        current === null ? undefined : status?.overall === "confirmed" ? (
+          <StatusPill status="payee_confirmed" />
+        ) : status?.overall === "pending" ? (
+          <StatusPill status="payee_awaiting_gc" />
+        ) : undefined
+      }
+    >
+      {data.isAdmin ? (
+        <form onSubmit={(e) => void form.onSubmit(e)} noValidate aria-label="Payout PayPal email" className="space-y-4">
+          <div className="max-w-md">
+            <TextInput
+              id="company-settings-payout-email"
+              label="Payout PayPal email"
+              type="email"
+              value={form.email}
+              onChange={form.setEmail}
+              error={form.error ?? undefined}
+              autoComplete="email"
+              placeholder="payouts@yourcompany.com"
+            />
+          </div>
+          <Button type="submit" loading={form.saving} loadingLabel="Saving…">
+            Save payout email
+          </Button>
+        </form>
+      ) : (
+        <ReadOnlyEmail label="Payout PayPal email" value={current} />
+      )}
+      {status && status.relationships.length > 0 && current !== null && (
+        <ul className="mt-4 divide-y divide-line text-sm" aria-label="Confirmation by GC">
+          {status.relationships.map((r) => (
+            <li key={r.gcCompanyId} className="flex flex-wrap items-center justify-between gap-2 py-2">
+              <span>{r.gcCompanyName}</span>
+              {r.status === "confirmed" ? (
+                <span className="text-ink-subtle">
+                  Confirmed <DateText value={r.confirmedAt} />
+                </span>
+              ) : (
+                <StatusPill status="payee_awaiting_gc" />
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+/** Owner: the billing email that change-order invoices for the company's projects go to. */
+function BillingEmailCard({ data }: { data: Company }) {
+  const setBillingEmail = useMutation(api.payee.setBillingEmail);
+  const current = data.company.billingEmail ?? null;
+  const form = useEmailSetting((email) => setBillingEmail({ email }), current, "Billing email saved.");
+  return (
+    <Card title="Billing email" description="Change-order invoices for your projects are sent here.">
+      {data.isAdmin ? (
+        <form onSubmit={(e) => void form.onSubmit(e)} noValidate aria-label="Billing email" className="space-y-4">
+          <div className="max-w-md">
+            <TextInput
+              id="company-settings-billing-email"
+              label="Billing email"
+              type="email"
+              value={form.email}
+              onChange={form.setEmail}
+              error={form.error ?? undefined}
+              autoComplete="email"
+              placeholder="ap@yourcompany.com"
+            />
+          </div>
+          <Button type="submit" loading={form.saving} loadingLabel="Saving…">
+            Save billing email
+          </Button>
+        </form>
+      ) : (
+        <ReadOnlyEmail label="Billing email" value={current} />
+      )}
     </Card>
   );
 }

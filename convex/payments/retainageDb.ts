@@ -1,7 +1,7 @@
 import { ConvexError, v, type Infer } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
-import { receiverFor } from "./releaseDb";
+import { payoutBlockedMessage, payoutReceiverForContractor } from "../lib/payee";
 import { isInterruptedRelease, releasableRetainageCents } from "./retainageMath";
 
 /**
@@ -48,13 +48,14 @@ export const beginRetainageRelease = internalMutation({
     const balanceCents = releasableRetainageCents(payments, await ledgerRows(ctx, agreementId));
     if (balanceCents <= 0) return { state: "nothing_to_release", balanceCents };
 
-    const receiverEmail = await receiverFor(ctx, agreement.contractorId);
-    if (!receiverEmail) {
+    const receiver = await payoutReceiverForContractor(ctx, agreement.contractorId);
+    if (!receiver.ok) {
       throw new ConvexError({
         code: "NO_PAYOUT_ACCOUNT",
-        message: `${agreement.subcontractorName} has no PayPal payout email on file. No retainage was released.`,
+        message: payoutBlockedMessage(agreement.subcontractorName, receiver.reason, "No retainage was released."),
       });
     }
+    const receiverEmail = receiver.email;
     const paymentId = await ctx.db.insert("payments", {
       agreementId,
       kind: "retainage_release",

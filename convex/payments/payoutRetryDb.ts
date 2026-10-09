@@ -4,7 +4,7 @@ import { internalMutation } from "../_generated/server";
 import { formatCents } from "../lib/money";
 import { isCaptureCollected } from "./captureSettlement";
 import { attemptsFor, checkRetry, retryKey } from "./payoutRetryMath";
-import { receiverFor } from "./releaseDb";
+import { payoutBlockedMessage, payoutReceiverForContractor } from "../lib/payee";
 
 /**
  * Creates the retry payout row for a captured-but-unpaid release (see payoutRetryMath.ts). Runs in one
@@ -37,13 +37,15 @@ export const beginPayoutRetry = internalMutation({
 
     const agreement = await ctx.db.get(root.agreementId);
     if (agreement === null) throw new ConvexError({ code: "NOT_FOUND", message: "Agreement not found." });
-    const receiverEmail = (await receiverFor(ctx, agreement.contractorId)) ?? root.receiverEmail;
-    if (!receiverEmail) {
+    // The retry pays the payee confirmed now, never the address stored on the failed attempt.
+    const receiver = await payoutReceiverForContractor(ctx, agreement.contractorId);
+    if (!receiver.ok) {
       throw new ConvexError({
         code: "NO_PAYOUT_ACCOUNT",
-        message: `${agreement.subcontractorName} has no PayPal payout email on file. Nothing was paid.`,
+        message: payoutBlockedMessage(agreement.subcontractorName, receiver.reason, "Nothing was paid."),
       });
     }
+    const receiverEmail = receiver.email;
     const idempotencyKey = retryKey(root.idempotencyKey, check.n);
     const now = Date.now();
     const retryPaymentId = await ctx.db.insert("payments", {

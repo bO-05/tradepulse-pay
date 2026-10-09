@@ -125,3 +125,17 @@ describe("role navigation", () => {
     expect(resolveRoute("sub", hash)).toEqual({ area: "ledger", agreementId: "k97abc" });
   });
 });
+
+describe("notifications and vendor detail routes", () => {
+  test("every role can open the notifications page", () => {
+    for (const role of ["gc", "sub", "owner"] as const) {
+      expect(resolveRoute(role, "#/notifications")).toEqual({ area: "notifications" });
+    }
+  });
+
+  test("vendor detail is a GC-only route", () => {
+    expect(resolveRoute("gc", "#/vendors/abc123")).toEqual({ area: "vendors", vendorId: "abc123" });
+    expect(resolveRoute("sub", "#/vendors/abc123")).toEqual({ area: "not-found" });
+    expect(resolveRoute("owner", "#/vendors/abc123")).toEqual({ area: "not-found" });
+  });
+});

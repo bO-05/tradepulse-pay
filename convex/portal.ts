@@ -86,6 +86,12 @@ async function subAgreements(
   return out;
 }
 
+/** The sub company's payout PayPal email (Company settings); profile-level emails are no longer used for payouts. */
+async function subPayoutEmail(ctx: QueryCtx, companyId: Id<"companies"> | undefined): Promise<string | null> {
+  const company = companyId ? await ctx.db.get(companyId) : null;
+  return company?.payoutPaypalEmail ?? null;
+}
+
 /** Sub portal: the caller's own contractor and agreements. Pay apps are paged by mySubPayApps. */
 export const mySubPortal = query({
   args: {},
@@ -112,7 +118,7 @@ export const mySubPortal = query({
     return {
       displayName: viewer.profile.displayName,
       contractorName: contractor?.companyName ?? null,
-      paypalEmail: viewer.profile.paypalEmail ?? null,
+      paypalEmail: await subPayoutEmail(ctx, viewer.profile.companyId),
       agreements: visible.map(agreementSummary),
       milestoneFunding,
     };

@@ -276,7 +276,8 @@ describe("legacy public mutations and actions are GC-only", () => {
     // Company settings have their permission and cross-company tests in invites.test.ts. Project
     // settings, archive/restore and company defaults have theirs in projectSetup.test.ts. Agreement
     // terms edits have their party, lock and cross-company tests in agreementTerms.test.ts. Vendor
-    // directory writes and directory bidders have theirs in vendors.test.ts.
+    // directory writes and directory bidders have theirs in vendors.test.ts. Payee control, billing
+    // email and notifications have theirs in payee.test.ts and notifications.test.ts.
     const covered = new Set([
       ...CASES.map((c) => c.name),
       "agentLinks:addAgentLink",
@@ -302,6 +303,11 @@ describe("legacy public mutations and actions are GC-only", () => {
       "vendors:importVendors",
       "contractors:addBiddersFromDirectory",
       "contractors:createVendorBidder",
+      "payee:setPayoutEmail",
+      "payee:setBillingEmail",
+      "payee:confirmPayee",
+      "notifications:markRead",
+      "notifications:markAllRead",
     ]);
     expect(exported.filter((name) => !covered.has(name))).toEqual([]);
   });

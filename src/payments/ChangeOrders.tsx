@@ -144,7 +144,7 @@ export function ChangeOrderList({
   );
 }
 
-function ChangeOrderForm({ agreementId, nextNumber }: { agreementId: Id<"agreements">; nextNumber: number }) {
+function ChangeOrderForm({ agreementId, nextNumber, disabledReason }: { agreementId: Id<"agreements">; nextNumber: number; disabledReason: string | null }) {
   const create = useAction(api.payments.invoices.createChangeOrder);
   const [number, setNumber] = useState("");
   const [description, setDescription] = useState("");
@@ -223,7 +223,9 @@ function ChangeOrderForm({ agreementId, nextNumber }: { agreementId: Id<"agreeme
         </label>
         <button
           type="submit"
-          disabled={busy}
+          disabled={busy || disabledReason !== null}
+          aria-describedby={disabledReason !== null ? "change-order-invoicing-disabled" : undefined}
+          title={disabledReason ?? undefined}
           className="rounded-lg px-3 py-1.5 text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50"
           data-testid="change-order-submit"
         >
@@ -264,11 +266,11 @@ export function AgreementChangeOrders({ agreementId }: { agreementId: Id<"agreem
         </p>
       )}
       {data.invoicing.reason && (
-        <p className="text-sm text-amber-300" role="status" data-testid="change-order-invoicing-disabled">
+        <p id="change-order-invoicing-disabled" className="text-sm text-amber-300" role="status" data-testid="change-order-invoicing-disabled">
           {data.invoicing.reason}
         </p>
       )}
-      {data.canCreate && <ChangeOrderForm agreementId={agreementId} nextNumber={data.nextNumber} />}
+      {data.canCreate && <ChangeOrderForm agreementId={agreementId} nextNumber={data.nextNumber} disabledReason={data.invoicing.reason ?? null} />}
       <ChangeOrderList changeOrders={data.changeOrders} canRefresh={data.canRefresh} canResend={data.canCreate} />
     </section>
   );

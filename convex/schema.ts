@@ -14,6 +14,26 @@ export const addressValidator = v.object({
   zip: v.string(),
 });
 
+/** In-app notification events (architecture §18). Notifications are never emailed. */
+export const notificationKindValidator = v.union(
+  v.literal("invite_accepted"),
+  v.literal("payee_change_pending"),
+  v.literal("payee_confirmed"),
+  v.literal("pay_app_submitted"),
+  v.literal("pay_app_reviewed"),
+  v.literal("pay_app_approved"),
+  v.literal("pay_app_revision_requested"),
+  v.literal("payout_sent"),
+  v.literal("payout_failed"),
+  v.literal("waiver_requested"),
+  v.literal("waiver_signed"),
+  v.literal("compliance_expiring"),
+  v.literal("compliance_expired"),
+  v.literal("change_order_submitted"),
+  v.literal("change_order_approved"),
+  v.literal("owner_pay_app_ready"),
+);
+
 export const agreementTermsValidator = v.object({
   retainageBps: v.number(),
   retainageReductionBpsAt50: v.optional(v.number()),
@@ -290,6 +310,22 @@ export default defineSchema({
     .index("by_companyId", ["companyId"])
     .index("by_companyId_and_email", ["companyId", "email"])
     .index("by_linkedCompanyId", ["linkedCompanyId"]),
+
+  // One row per recipient user, written only by convex/lib/notify.ts. companyId is the recipient's company
+  // at creation time; a user only sees rows of their current company.
+  notifications: defineTable({
+    userId: v.id("users"),
+    companyId: v.id("companies"),
+    projectId: v.optional(v.id("projects")),
+    kind: notificationKindValidator,
+    title: v.string(),
+    body: v.string(),
+    link: v.string(), // hash route, e.g. "#/vendors/<id>"
+    readAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_userId_and_companyId_and_createdAt", ["userId", "companyId", "createdAt"])
+    .index("by_userId_and_companyId_and_readAt", ["userId", "companyId", "readAt"]),
 
   // One row per send attempt key, written only by convex/lib/mailer.ts. Never stores codes or invite tokens.
   emailOutbox: defineTable({

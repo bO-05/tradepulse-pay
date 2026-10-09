@@ -11,6 +11,7 @@ import {
   validatedVendor,
   type VendorBackfillCounts,
 } from "./lib/vendorDirectory";
+import { payeeState } from "./lib/payee";
 import { VENDOR_IMPORT_MAX_ROWS, firstVendorError, isPlaceholderEmail, validateVendorInput } from "./lib/vendorRules";
 
 /**
@@ -51,15 +52,18 @@ export const listVendors = query({
       .query("vendors")
       .withIndex("by_companyId", (q) => q.eq("companyId", company._id))
       .take(2000);
-    const linkedNames = new Map<Id<"companies">, string>();
+    const linkedCompanies = new Map<Id<"companies">, Doc<"companies"> | null>();
     for (const r of rows) {
-      if (r.linkedCompanyId !== undefined && !linkedNames.has(r.linkedCompanyId)) {
-        linkedNames.set(r.linkedCompanyId, (await ctx.db.get(r.linkedCompanyId))?.name ?? "");
+      if (r.linkedCompanyId !== undefined && !linkedCompanies.has(r.linkedCompanyId)) {
+        linkedCompanies.set(r.linkedCompanyId, await ctx.db.get(r.linkedCompanyId));
       }
     }
     return rows
       .filter((r) => args.includeInactive === true || r.status === "active")
-      .map((r) => ({
+      .map((r) => {
+        const linkedCompany = r.linkedCompanyId !== undefined ? (linkedCompanies.get(r.linkedCompanyId) ?? null) : null;
+        const payee = payeeState(r, linkedCompany);
+        return {
         _id: r._id,
         name: r.name,
         trades: r.trades,
@@ -69,10 +73,13 @@ export const listVendors = query({
         licenseNumber: r.licenseNumber ?? "",
         licenseState: r.licenseState ?? "",
         linked: r.linkedCompanyId !== undefined,
-        linkedCompanyName: r.linkedCompanyId !== undefined ? linkedNames.get(r.linkedCompanyId) || null : null,
+        linkedCompanyName: linkedCompany?.name || null,
+        payeeStatus: payee.status,
+        payeeEmail: payee.currentEmail,
         status: r.status,
         createdAt: r.createdAt,
-      }))
+        };
+      })
       .sort((a, b) => a.name.localeCompare(b.name));
   },
 });

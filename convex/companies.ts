@@ -66,6 +66,8 @@ export const myCompany = query({
         website: company.website ?? "",
         address: company.address ?? null,
         defaultRetainageBps: company.defaultRetainageBps ?? DEFAULT_COMPANY_RETAINAGE_BPS,
+        payoutPaypalEmail: company.kind === "sub" ? (company.payoutPaypalEmail ?? null) : null,
+        billingEmail: company.kind === "owner" ? (company.billingEmail ?? null) : null,
       },
       isAdmin,
       members,

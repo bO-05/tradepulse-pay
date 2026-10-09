@@ -11,6 +11,7 @@ import {
   findDemoGcCompanyId,
   repairDemoContractorRefs,
 } from "./lib/demoTenancy";
+import { ensureDemoPayees } from "./lib/demoPayees";
 
 /** Shared, publicly documented password for the demo accounts (README "Demo accounts"). */
 export const DEMO_PASSWORD = "TradePulseDemo!2026";
@@ -132,6 +133,11 @@ export async function linkDemoProfiles(ctx: MutationCtx) {
     .take(10);
   for (const p of demoProjects) await attachProjectToDemo(ctx, p._id, companyIds);
   await repairDemoContractorRefs(ctx, companyIds);
+  const demoGcUser = await ctx.db
+    .query("users")
+    .withIndex("email", (q) => q.eq("email", "gc@demo.tradepulse"))
+    .first();
+  await ensureDemoPayees(ctx, companyIds, demoGcUser?._id ?? null);
   return results;
 }
 
