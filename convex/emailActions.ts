@@ -101,6 +101,7 @@ export const processInboundEmail = internalAction({
         threadId: args.threadId,
         inboundSubject: args.subject,
         inboundQuestion: args.text,
+        sourceInboundEmailId: args.inboundEmailId,
       });
       await ctx.runAction(internal.emailActions.handleRfiProcessing, {
         tradePackageId: args.tradePackageId,

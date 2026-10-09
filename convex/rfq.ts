@@ -43,13 +43,16 @@ export const getProjectDeliveryStatus = query({
   },
 });
 
+/** Certified and still-pending RFIs of the project, or of one package when the addendum covers only that package. */
 export const listClarifiedConversationsForProject = internalQuery({
-  args: { projectId: v.id("projects") },
+  args: { projectId: v.id("projects"), tradePackageId: v.optional(v.id("tradePackages")) },
   handler: async (ctx, args) => {
-    const packages = await ctx.db
-      .query("tradePackages")
-      .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
-      .collect();
+    const packages = (
+      await ctx.db
+        .query("tradePackages")
+        .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
+        .collect()
+    ).filter((pkg) => args.tradePackageId === undefined || pkg._id === args.tradePackageId);
 
     const clarified: any[] = [];
     const pending: any[] = [];
@@ -91,6 +94,7 @@ export async function persistPendingRfi(
     threadId: string;
     inboundSubject: string;
     inboundQuestion: string;
+    sourceInboundEmailId?: any;
   }
 ) {
   const contractor = await ctx.db.get(args.contractorId);
@@ -110,6 +114,7 @@ export async function persistPendingRfi(
     confidenceScore: 0,
     status: "pending_analysis",
     timestamp: Date.now(),
+    ...(args.sourceInboundEmailId ? { origin: "email" as const, sourceInboundEmailId: args.sourceInboundEmailId } : {}),
   });
 }
 
@@ -120,6 +125,7 @@ export const createPendingInboundRfi = internalMutation({
     threadId: v.string(),
     inboundSubject: v.string(),
     inboundQuestion: v.string(),
+    sourceInboundEmailId: v.optional(v.id("inboundEmails")),
   },
   handler: async (ctx, args) => {
     return await persistPendingRfi(ctx, args);
@@ -168,11 +174,11 @@ export const completeInboundRfi = internalMutation({
         eventType: isEscalated ? "compliance_audit" : "rfi_clarified",
         title: isEscalated
           ? `Pre-Bid RFI Escalated to PM: ${convo.inboundSubject}`
-          : `Pre-Bid RFI Clarified: ${convo.inboundSubject}`,
+          : `Pre-Bid RFI AI draft ready for review: ${convo.inboundSubject}`,
         description: isEscalated
           ? `Subcontractor inquiry from ${contractor?.companyName || "Contractor"} flagged for human PM review (scope waiver, schedule extension, or low confidence threshold).`
-          : `TradePulse AI autonomously answered pre-bid question for ${contractor?.companyName || "Contractor"} with ${Math.round(args.confidenceScore * 100)}% model confidence.`,
-        actor: isEscalated ? "Autonomous Pre-Bid Governance" : "TradePulse AI Spec Agent",
+          : `TradePulse AI drafted an answer to ${contractor?.companyName || "Contractor"}'s pre-bid question (${Math.round(args.confidenceScore * 100)}% model confidence) for GC review. Nothing was sent.`,
+        actor: isEscalated ? "Pre-Bid Review Queue" : "TradePulse AI Spec Agent",
         timestamp: Date.now(),
       });
     }

@@ -836,6 +836,29 @@ export default defineSchema({
     publishedQuestion: v.optional(v.string()),
     publishedAnswer: v.optional(v.string()),
     publishedByUserId: v.optional(v.id("users")),
+    // The routed inbound email the RFI came from; the GC's answer is sent as a reply to it.
+    sourceInboundEmailId: v.optional(v.id("inboundEmails")),
+    // The GC-reviewed answer sent by email (convex/rfiAnswers.ts). The AI draft is kept in aiDraft.
+    aiDraft: v.optional(v.string()),
+    answerText: v.optional(v.string()),
+    answerEmailStatus: v.optional(
+      v.union(
+        v.literal("sending"),
+        v.literal("sent"),
+        v.literal("uncertain"),
+        v.literal("failed"),
+        v.literal("skipped_budget"),
+        v.literal("demo_not_sent")
+      )
+    ),
+    answerEmailError: v.optional(v.string()),
+    answerAttempt: v.optional(v.number()),
+    answerClaimedAt: v.optional(v.number()),
+    answerOutboxId: v.optional(v.id("emailOutbox")),
+    answerMessageId: v.optional(v.string()),
+    answeredAt: v.optional(v.number()),
+    answeredByUserId: v.optional(v.id("users")),
+    answeredByName: v.optional(v.string()),
   })
     .index("by_contractor", ["contractorId"])
     .index("by_thread", ["threadId"])
@@ -980,6 +1003,20 @@ export default defineSchema({
     .index("by_project", ["projectId"])
     .index("by_package", ["tradePackageId"])
     .index("by_storageId", ["storageId"]),
+
+  // A bidder company's acknowledgment that it received an addendum on a package it bids.
+  addendumAcknowledgments: defineTable({
+    projectId: v.id("projects"),
+    projectFileId: v.id("projectFiles"),
+    tradePackageId: v.id("tradePackages"),
+    contractorId: v.id("contractors"),
+    companyId: v.id("companies"),
+    userId: v.id("users"),
+    userName: v.string(),
+    acknowledgedAt: v.number(),
+  })
+    .index("by_package_and_contractor", ["tradePackageId", "contractorId"])
+    .index("by_package", ["tradePackageId"]),
 
   // One per generated upload URL: binds the stored object to the uploader, company and project,
   // so saveFileRecord only accepts storage ids the caller itself uploaded for that project.

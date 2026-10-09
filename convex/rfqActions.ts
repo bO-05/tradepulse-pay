@@ -74,7 +74,7 @@ async function sendOneRfq(
     return { ...base, status: "not_sent", reason: "Demo company: no external email is sent" };
   }
 
-  const content = buildRfqEmail({ ...prepared.content, ref: prepared.ref, siteUrl: process.env.SITE_URL });
+  const content = buildRfqEmail({ ...prepared.content, ref: prepared.ref, siteUrl: process.env.SITE_URL, tradePackageId });
   const result = await sendEmail(ctx, {
     kind: "rfq",
     from: "rfq",

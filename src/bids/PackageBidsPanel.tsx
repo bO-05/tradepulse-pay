@@ -1,9 +1,9 @@
 import { useMutation, useQuery } from "convex/react";
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
 import { getErrorMessage } from "../lib/errors";
-import { Button, DateText, Dialog, Field, Money, StatusPill, TextInput, useToast } from "../ui";
+import { Button, DateText, Dialog, Field, Money, StatusPill, useToast } from "../ui";
 import { inputClass } from "../ui/Field";
 import { BidTermsForm } from "./BidTermsForm";
 import { BidTermsSummary } from "./BidTermsSummary";
@@ -212,118 +212,5 @@ export function PackageBidsPanel({
         </Dialog>
       )}
     </section>
-  );
-}
-
-/** Bidder questions for the GC: who asked, the AI draft, and publishing an anonymous answer to every bidder. */
-export function PackageQuestionsPanel({ tradePackageId, readOnly }: { tradePackageId: Id<"tradePackages">; readOnly?: boolean }) {
-  const questions = useQuery(api.bidPortal.listPackageQuestions, { tradePackageId });
-  if (questions === undefined) return null;
-  const portal = questions.filter((q) => q.origin === "portal" || q.publishedAt !== null);
-  return (
-    <section aria-label="Bidder questions" className="space-y-2">
-      <h4 className="text-sm font-semibold">Bidder Q&A ({portal.length})</h4>
-      {portal.length === 0 ? (
-        <p className="text-xs text-ink-subtle">No questions from the bid portal yet.</p>
-      ) : (
-        <ul className="divide-y divide-line text-sm" data-testid="package-questions">
-          {portal.map((q) => (
-            <QuestionRow key={q._id} q={q} readOnly={readOnly} />
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
-
-type QuestionView = {
-  _id: Id<"conversations">;
-  question: string;
-  askedAt: number;
-  askerCompanyName: string;
-  askerName: string | null;
-  draft: string;
-  status: string;
-  analysisError: string | null;
-  publishedAt: number | null;
-  publishedQuestion: string | null;
-  publishedAnswer: string | null;
-};
-
-function QuestionRow({ q, readOnly }: { q: QuestionView; readOnly?: boolean }) {
-  const publish = useMutation(api.bidPortal.publishQuestion);
-  const toast = useToast();
-  const [open, setOpen] = useState(false);
-  const [question, setQuestion] = useState(q.publishedQuestion ?? q.question);
-  const [answer, setAnswer] = useState(q.publishedAnswer ?? q.draft);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const published = q.publishedAt !== null;
-  const pill = published
-    ? { status: "clarified", label: "Published" }
-    : q.status === "pending_analysis"
-      ? { status: "pending_analysis", label: "Drafting answer…" }
-      : q.status === "failed_analysis"
-        ? { status: "failed_analysis", label: "AI draft failed" }
-        : { status: "draft", label: "Draft" };
-
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      await publish({ conversationId: q._id, question, answer });
-      toast.success("Published to every invited bidder, without the asker's name.");
-      setOpen(false);
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <li className="space-y-1 py-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="font-semibold">
-          {q.askerCompanyName}
-          {q.askerName ? <span className="font-normal text-ink-subtle"> · {q.askerName}</span> : null}
-        </span>
-        <span className="flex items-center gap-2 text-xs text-ink-subtle">
-          <StatusPill status={pill.status} label={pill.label} />
-          <DateText value={q.askedAt} withTime />
-        </span>
-      </div>
-      <p className="whitespace-pre-wrap break-words">{q.question}</p>
-      {!published && q.draft && (
-        <p className="whitespace-pre-wrap break-words rounded border border-dashed border-line p-2 text-xs text-ink-subtle">
-          <span className="font-semibold text-ink">AI draft (not sent): </span>
-          {q.draft}
-        </p>
-      )}
-      {published && q.publishedAnswer && <p className="whitespace-pre-wrap break-words text-xs text-ink-subtle">Published answer: {q.publishedAnswer}</p>}
-      {q.analysisError && !published && <p className="text-xs text-rose-300">{q.analysisError}</p>}
-      {!readOnly && !open && (
-        <Button size="sm" variant="ghost" onClick={() => setOpen(true)}>
-          {published ? "Edit published answer" : "Review and publish"}
-        </Button>
-      )}
-      {open && (
-        <form onSubmit={submit} noValidate className="space-y-2 rounded-lg border border-line p-2">
-          <TextInput label="Question as bidders will see it" value={question} onChange={setQuestion} hint="Remove anything that identifies the asker." />
-          <Field label="Answer" error={error ?? undefined}>
-            {(control) => <textarea {...control} rows={4} value={answer} onChange={(e) => setAnswer(e.target.value)} className={inputClass(Boolean(error))} />}
-          </Field>
-          <div className="flex flex-wrap gap-2">
-            <Button type="submit" size="sm" loading={busy} loadingLabel="Publishing…">
-              Publish to all bidders
-            </Button>
-            <Button size="sm" variant="secondary" onClick={() => setOpen(false)} disabled={busy}>
-              Cancel
-            </Button>
-          </div>
-        </form>
-      )}
-    </li>
   );
 }

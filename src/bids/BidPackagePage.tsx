@@ -87,9 +87,14 @@ export function BidPackagePage({ tradePackageId }: { tradePackageId: string }) {
 
       <Card title="Addenda and Q&A">
         {view.addenda.length > 0 && (
-          <p className="mb-3 text-sm text-ink-subtle">
-            Addenda: {view.addenda.map((a) => a.fileName).join(", ")} (download above).
-          </p>
+          <div className="mb-4">
+            <h3 className="text-sm font-semibold">Addenda</h3>
+            <ul className="mt-1 divide-y divide-line text-sm" data-testid="bid-addenda">
+              {view.addenda.map((a) => (
+                <AddendumRow key={a._id} tradePackageId={tradePackageId} addendum={a} />
+              ))}
+            </ul>
+          </div>
         )}
         {view.questions.length === 0 ? (
           <p className="text-sm text-ink-subtle">No answers published yet.</p>
@@ -247,6 +252,48 @@ function DocumentRow({ doc }: { doc: Doc }) {
           <ExternalLink className="h-4 w-4" aria-hidden="true" /> Open
         </a>
       ) : null}
+    </li>
+  );
+}
+
+function AddendumRow({
+  tradePackageId,
+  addendum,
+}: {
+  tradePackageId: string;
+  addendum: { _id: string; fileName: string; uploadedAt: number; acknowledgedAt: number | null };
+}) {
+  const acknowledge = useMutation(api.addenda.acknowledgeAddendum);
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const onAcknowledge = async () => {
+    setBusy(true);
+    try {
+      await acknowledge({ tradePackageId, fileId: addendum._id });
+      toast.success(`Receipt of ${addendum.fileName} acknowledged.`);
+    } catch (err) {
+      toast.error(err, "The acknowledgment was not saved.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-2 py-2">
+      <span className="min-w-0">
+        <span className="block break-all font-medium">{addendum.fileName}</span>
+        <span className="text-xs text-ink-subtle">
+          Issued <DateText value={addendum.uploadedAt} withTime /> · download it under Bid documents
+        </span>
+      </span>
+      {addendum.acknowledgedAt !== null ? (
+        <span className="text-xs text-ink-subtle">
+          <StatusPill status="acknowledged" label="Acknowledged" tone="success" /> <DateText value={addendum.acknowledgedAt} withTime />
+        </span>
+      ) : (
+        <Button size="sm" variant="secondary" loading={busy} loadingLabel="Saving…" onClick={() => void onAcknowledge()}>
+          Acknowledge receipt
+        </Button>
+      )}
     </li>
   );
 }

@@ -23,6 +23,7 @@ import {
 import { recordBidRevision, termsOfBid } from "./lib/bidRevisions";
 import { attributePlugs, cleanPlugNote, exclusionScopeText, keptPlugFields, type PlugActor } from "./lib/levelingPlugs";
 import { buildLevelingRows } from "./lib/levelingSummary";
+import { attributeDemoExclusions, findDemoGcPlugActor } from "./lib/demoPlugs";
 import type { ProjectAccess } from "./lib/tenancy";
 
 const MAX_BID_CENTS = 100_000_000_000; // $1,000,000,000.00
@@ -775,7 +776,7 @@ export const insertParsedBid = internalMutation({
     const project = await ctx.db.get(tradePkg.projectId);
     const gcCompany = project?.gcCompanyId ? await ctx.db.get(project.gcCompanyId) : null;
     const keepParsedPlugs = gcCompany ? gcCompany.isDemo : true;
-    const safeExclusions = normalizeExclusions(args.identifiedExclusions).map(({ plugNote: _note, ...parsed }) => {
+    const parsedExclusions = normalizeExclusions(args.identifiedExclusions).map(({ plugNote: _note, ...parsed }) => {
       const e = keepParsedPlugs ? parsed : { ...parsed, description: exclusionScopeText(parsed.description) };
       const gcPlug = existing?.identifiedExclusions.find((p) => p.description.trim() === e.description.trim() && p.plugEnteredAt !== undefined);
       if (gcPlug) return { ...e, ...keptPlugFields(gcPlug) };
@@ -784,6 +785,8 @@ export const insertParsedBid = internalMutation({
         costImpactCents: keepParsedPlugs && Number.isSafeInteger(e.costImpactCents) ? Math.max(0, e.costImpactCents) : 0,
       };
     });
+    const demoActor = gcCompany?.isDemo === true ? await findDemoGcPlugActor(ctx) : null;
+    const safeExclusions = demoActor ? attributeDemoExclusions(parsedExclusions, demoActor, Date.now()).next : parsedExclusions;
     const safeVeAlternates = normalizeVe(args.valueEngineeringAlternates ?? []).map((a) => ({
       ...a,
       costDeductCents: Number.isSafeInteger(a.costDeductCents) ? Math.max(0, a.costDeductCents) : 0,

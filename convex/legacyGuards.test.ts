@@ -285,6 +285,7 @@ describe("legacy public mutations and actions are GC-only", () => {
     // directory writes and directory bidders have theirs in vendors.test.ts. Payee control, billing
     // email and notifications have theirs in payee.test.ts and notifications.test.ts. Bid portal
     // submissions, GC bid entry/confirmation and Q&A publishing have theirs in bidPortal.test.ts.
+    // RFI answer sends and addendum acknowledgments have theirs in rfiAnswers.test.ts.
     const covered = new Set([
       ...CASES.map((c) => c.name),
       "agentLinks:addAgentLink",
@@ -320,6 +321,8 @@ describe("legacy public mutations and actions are GC-only", () => {
       "bidPortal:enterBidOnBehalf",
       "bidPortal:confirmParsedBid",
       "bidPortal:publishQuestion",
+      "rfiAnswers:sendRfiAnswer",
+      "addenda:acknowledgeAddendum",
     ]);
     expect(exported.filter((name) => !covered.has(name))).toEqual([]);
   });

@@ -289,7 +289,9 @@ export const PreBidQnAView: React.FC<PreBidQnAViewProps> = ({
     setAddendumError(null);
     if (pendingCertificationCount > 0) {
       setIsGeneratingAddendum(false);
-      setAddendumError(`PM certification is required before issuing a binding addendum. Review ${pendingCertificationCount} pending RFI(s).`);
+      setAddendumError(
+        `PM certification is required before issuing a binding addendum. Review ${pendingCertificationCount} pending RFI(s) in: ${currentPackage.csiDivision} ${currentPackage.tradeName}.`
+      );
       return;
     }
     const certifiedCount = addendumConversations.filter((c) => c.status === "clarified" && c.pmCertifiedAt).length;
@@ -299,7 +301,11 @@ export const PreBidQnAView: React.FC<PreBidQnAViewProps> = ({
       return;
     }
     try {
-      const res = await generatePreBidAddendumAction({ projectId: projectId as any });
+      const packageId = (currentPackage as any)?._id as string | undefined;
+      const res = await generatePreBidAddendumAction({
+        projectId: projectId as any,
+        ...(projectConversationsForAddendum === undefined && packageId && !packageId.startsWith("pkg_") ? { tradePackageId: packageId as any } : {}),
+      });
       setAddendumResult(res as any);
     } catch (err: any) {
       if (!projectId.startsWith("proj_")) {

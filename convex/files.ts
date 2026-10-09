@@ -775,6 +775,17 @@ async function doExtractBid(
   };
 }
 
+/** Names the packages that still have RFIs awaiting GC review, so the GC knows where to look. */
+export function pendingRfiMessage(pending: { csiDivision?: string; tradeName?: string }[]): string {
+  const counts = new Map<string, number>();
+  for (const c of pending) {
+    const label = [c.csiDivision, c.tradeName].filter(Boolean).join(" ") || "Unknown package";
+    counts.set(label, (counts.get(label) ?? 0) + 1);
+  }
+  const where = [...counts.entries()].map(([label, n]) => `${label} (${n})`).join(", ");
+  return `PM certification is required before issuing a binding addendum. Review ${pending.length} pending RFI(s) in: ${where}.`;
+}
+
 async function doGeneratePreBidAddendum(
   ctx: any,
   args: {
@@ -790,12 +801,10 @@ async function doGeneratePreBidAddendum(
   });
   const certificationResult: any = await ctx.runQuery(
     internal.rfq.listClarifiedConversationsForProject,
-    { projectId: args.projectId }
+    { projectId: args.projectId, tradePackageId: args.tradePackageId }
   );
   if (certificationResult.pending.length > 0) {
-    throw new ConvexError(
-      `PM certification is required before issuing a binding addendum. Review ${certificationResult.pending.length} pending RFI(s).`
-    );
+    throw new ConvexError(pendingRfiMessage(certificationResult.pending));
   }
   // A7CONV-R2C-F3: the certification gate must hold server-side even with zero
   // RFIs, otherwise the action files a "legally binding" addendum with no basis.
@@ -848,7 +857,7 @@ ${
 #### Item 2.${i + 1} - CSI Division ${c.csiDivision} (${c.tradeName}): ${c.inboundSubject}
 - **Subcontractor Inquiry:** "${c.inboundQuestion}"
 - **Authoritative Resolution:** ${c.autonomousReply}
-- **Model Confidence Score:** ${(c.confidenceScore * 100).toFixed(0)}% (CSI Verified)
+${c.answeredByName ? `- **Answered by:** ${c.answeredByName} (GC reviewed)` : `- **Model Confidence Score:** ${(c.confidenceScore * 100).toFixed(0)}% (CSI Verified)`}
 `
         )
         .join("\n")

@@ -56,6 +56,10 @@ export const STATUS_LABELS = {
   delivery_failed: { label: "Email not delivered", tone: "danger" },
   unrouted: { label: "Unrouted", tone: "muted" },
   blocked_recipient: { label: "Blocked (test recipient allowlist)", tone: "warning" },
+  sending: { label: "Sending", tone: "info" },
+  demo_not_sent: { label: "Demo — not sent", tone: "muted" },
+  answered: { label: "Answered", tone: "success" },
+  acknowledged: { label: "Acknowledged", tone: "success" },
 
   // Funding tranches / milestones
   planned: { label: "Planned", tone: "neutral" },

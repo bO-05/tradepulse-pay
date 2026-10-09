@@ -181,7 +181,7 @@ export const JudgeSimulationDock: React.FC<JudgeSimulationDockProps> = ({
               </span>
             </div>
             <p className="text-xs text-slate-300 leading-relaxed">
-              Executes the complete procurement causal loop in one click: scopes Div 26 package, discovers trade contractors, dispatches RFQ, resolves pre-bid RFI, ingests dual proposals, forensically levels with <strong className="text-emerald-300">ADR-0003</strong>, and drafts an A401-style subcontract agreement for external execution.
+              Executes the complete procurement causal loop in one click: scopes Div 26 package, discovers trade contractors, records a Demo RFQ (no email), drafts a pre-bid RFI answer for GC review, ingests dual proposals, forensically levels with <strong className="text-emerald-300">ADR-0003</strong>, and drafts an A401-style subcontract agreement for external execution.
             </p>
             <p className="text-[10px] text-slate-400">
               The three scenario cards below use fixed demonstration figures for repeatable walkthroughs; they write real records to the active project.

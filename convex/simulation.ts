@@ -1,5 +1,6 @@
 import { mutation, internalMutation, internalQuery } from "./_generated/server";
-import { requireDocOfProject, requireDocScope, requireProjectScope } from "./lib/projectScope";
+import { auditActor, requireDocOfProject, requireDocScope, requireProjectScope } from "./lib/projectScope";
+import { attributeDemoPlugsForProject } from "./lib/demoPlugs";
 import { v, ConvexError } from "convex/values";
 import { notFound } from "./lib/tenancy";
 import { deleteAgreementCascade } from "./payments/cascade";
@@ -569,8 +570,8 @@ export const runFullProcurementCycle = mutation({
       projectId: tradePkg.projectId,
       tradePackageId: packageId,
       eventType: "rfi_clarified",
-      title: "Pre-Bid RFI Clarified by AI Agent",
-      description: `Autonomous model answered ${tradePkg.tradeName} query citing Section ${tradePkg.csiDivision} with 98% confidence.`,
+      title: "Pre-Bid RFI AI draft ready for review (Demo)",
+      description: `Simulated: the AI drafted an answer to a ${tradePkg.tradeName} question citing Section ${tradePkg.csiDivision}. It is a draft for GC review; nothing is emailed in the Demo.`,
       actor: "TradePulse AI Spec Agent",
       timestamp: now + 500,
     });
@@ -757,6 +758,7 @@ export const runFullProcurementCycle = mutation({
 
     const bid1Id = await ctx.db.insert("bids", bidRowFromDollars(bid1Data) as any);
     await ctx.db.insert("bids", bidRowFromDollars(bid2Data) as any);
+    await attributeDemoPlugsForProject(ctx, project._id, { userId: access.user._id, name: auditActor(access).actor });
 
     await ctx.db.patch(packageId, { status: "awarded" });
 

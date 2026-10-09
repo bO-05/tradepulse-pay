@@ -51,6 +51,8 @@ export type SendEmailResult =
 
 export const DEMO_NO_EMAIL_MESSAGE = "Demo company: no external email is sent.";
 
+export const MAILER_IN_FLIGHT_MESSAGE = "This email is already being sent.";
+
 export const BUDGET_SKIP_MESSAGE = "Email limit reached for today. No email was sent.";
 
 export const UNCERTAIN_SEND_MESSAGE =
@@ -144,7 +146,7 @@ export async function sendEmail(ctx: MailerCtx, req: SendEmailRequest, opts: Mai
     return { status: "failed", outboxId: reservation.outboxId, error: reservation.error ?? "The email was not delivered." };
   }
   if (reservation.action === "in_flight") {
-    return { status: "failed", outboxId: reservation.outboxId, error: "This email is already being sent." };
+    return { status: "failed", outboxId: reservation.outboxId, error: MAILER_IN_FLIGHT_MESSAGE };
   }
   if (reservation.action === "skipped_budget") {
     return { status: "skipped_budget", outboxId: reservation.outboxId, message: BUDGET_SKIP_MESSAGE };

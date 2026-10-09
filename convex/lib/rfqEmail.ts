@@ -42,8 +42,9 @@ export function formatBidDue(bidDeadline: string, state: string | undefined): st
 }
 
 /** Where a bidder with a TradePulse Pay account views the invitation and submits a bid. */
-export function rfqPortalLink(siteUrl: string | undefined): string {
-  return `${(siteUrl?.trim() || "http://localhost:3150").replace(/\/$/, "")}/#/bids`;
+export function rfqPortalLink(siteUrl: string | undefined, tradePackageId?: string): string {
+  const base = `${(siteUrl?.trim() || "http://localhost:3150").replace(/\/$/, "")}/#/bids`;
+  return tradePackageId ? `${base}/${encodeURIComponent(tradePackageId)}` : base;
 }
 
 export interface RfqEmailInput {
@@ -59,6 +60,7 @@ export interface RfqEmailInput {
   bidderName: string;
   ref: string;
   siteUrl?: string;
+  tradePackageId?: string;
 }
 
 export function rfqSubject(input: Pick<RfqEmailInput, "gcName" | "projectTitle" | "csiDivision" | "tradeName" | "ref">): string {
@@ -66,7 +68,7 @@ export function rfqSubject(input: Pick<RfqEmailInput, "gcName" | "projectTitle" 
 }
 
 export function buildRfqEmail(input: RfqEmailInput): { subject: string; text: string; html: string; portalLink: string } {
-  const portalLink = rfqPortalLink(input.siteUrl);
+  const portalLink = rfqPortalLink(input.siteUrl, input.tradePackageId);
   const due = formatBidDue(input.bidDeadline, input.projectState);
   const where = input.projectLocation?.trim() ? ` in ${input.projectLocation.trim()}` : "";
   const inclusions = input.mandatoryInclusions.filter((s) => s.trim());
@@ -81,7 +83,7 @@ export function buildRfqEmail(input: RfqEmailInput): { subject: string; text: st
     "",
     "How to bid:",
     `- Reply to this email with your proposal or pre-bid questions. Keep the reference [TP-${input.ref}] in the subject.`,
-    `- Or, if your company has a TradePulse Pay account, open the bid portal: ${portalLink}`,
+    `- Or, if ${input.gcName} has invited your company to this project in TradePulse Pay, open the bid portal: ${portalLink}`,
     "",
     `${input.gcName}`,
     "Sent with TradePulse Pay",

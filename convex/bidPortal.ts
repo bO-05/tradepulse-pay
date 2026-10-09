@@ -62,7 +62,7 @@ function closedReason(pkg: Doc<"tradePackages">, project: Doc<"projects">): stri
 }
 
 /** The caller's bidder record on the package, for human sub company members only. */
-async function invitedBidderOf(
+export async function invitedBidderOf(
   ctx: QueryCtx,
   access: ProjectAccess & { doc: Doc<"tradePackages"> },
 ): Promise<{ access: ProjectAccess; pkg: Doc<"tradePackages">; contractor: Doc<"contractors"> }> {
@@ -390,6 +390,11 @@ export const getPackageForBidder = query({
       }));
     const bid = await bidOf(ctx, pkg._id, contractor._id);
     const revisions = bid ? historyView(await revisionsOf(ctx, bid._id)) : [];
+    const acks = await ctx.db
+      .query("addendumAcknowledgments")
+      .withIndex("by_package_and_contractor", (q) => q.eq("tradePackageId", pkg._id).eq("contractorId", contractor._id))
+      .take(200);
+    const acknowledged = new Map<string, number>(acks.map((a) => [a.projectFileId as string, a.acknowledgedAt]));
     return {
       package: {
         _id: pkg._id,
@@ -406,7 +411,9 @@ export const getPackageForBidder = query({
       status: invitationStatus(pkg, project, bid),
       closedReason: bid?.isAwarded ? "Your bid was awarded; revisions are closed." : closedReason(pkg, project),
       documents,
-      addenda: documents.filter((d) => d.fileType === "addendum"),
+      addenda: documents
+        .filter((d) => d.fileType === "addendum")
+        .map((d) => ({ ...d, acknowledgedAt: acknowledged.get(d._id) ?? null })),
       questions: await publishedQuestions(ctx, pkg._id),
       myQuestions,
       myBid: bid ? { ...bidderTermsView(bid), revisions: revisions.map(({ sourceInboundEmailId: _s, submittedByName: _n, ...r }) => r) } : null,
@@ -684,14 +691,40 @@ export const listPackageQuestions = query({
       .withIndex("by_package", (q) => q.eq("tradePackageId", access.doc._id))
       .order("desc")
       .take(200);
+    const gcCompany = access.project.gcCompanyId ? await ctx.db.get(access.project.gcCompanyId) : null;
+    const isDemo = gcCompany ? gcCompany.isDemo : true;
+    const inbound = await ctx.db
+      .query("inboundEmails")
+      .withIndex("by_tradePackageId", (q) => q.eq("tradePackageId", access.doc._id))
+      .order("desc")
+      .take(500);
+    const routedByThread = new Map<string, Doc<"inboundEmails">>();
+    for (const m of inbound) {
+      const key = `${m.threadId}|${m.contractorId}`;
+      if (m.routing === "routed" && !routedByThread.has(key)) routedByThread.set(key, m);
+    }
     const out = [];
     for (const c of rows) {
       const contractor = await ctx.db.get(c.contractorId);
       const company = c.askedByCompanyId ? await ctx.db.get(c.askedByCompanyId) : null;
       const asker = c.askedByUserId ? await ctx.db.get(c.askedByUserId) : null;
+      const sourceEmail = c.sourceInboundEmailId
+        ? await ctx.db.get(c.sourceInboundEmailId)
+        : c.origin === "portal"
+          ? null
+          : (routedByThread.get(`${c.threadId}|${c.contractorId}`) ?? null);
       out.push({
         _id: c._id,
         origin: c.origin ?? "email",
+        isDemo,
+        subject: c.inboundSubject,
+        replyTo: sourceEmail?.from ?? null,
+        aiDraft: c.aiDraft ?? null,
+        answerText: c.answerText ?? null,
+        answerEmailStatus: c.answerEmailStatus ?? null,
+        answerEmailError: c.answerEmailError ?? null,
+        answeredAt: c.answeredAt ?? null,
+        answeredByName: c.answeredByName ?? null,
         question: c.inboundQuestion,
         askedAt: c.timestamp,
         askerCompanyName: company?.name ?? contractor?.companyName ?? "Bidder",

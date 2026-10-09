@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as addenda from "../addenda.js";
 import type * as agent_agentLoop from "../agent/agentLoop.js";
 import type * as agent_payAgent from "../agent/payAgent.js";
 import type * as agent_proposalDb from "../agent/proposalDb.js";
@@ -69,6 +70,7 @@ import type * as lib_bidTerms from "../lib/bidTerms.js";
 import type * as lib_bidValidators from "../lib/bidValidators.js";
 import type * as lib_companyProfile from "../lib/companyProfile.js";
 import type * as lib_demoPayees from "../lib/demoPayees.js";
+import type * as lib_demoPlugs from "../lib/demoPlugs.js";
 import type * as lib_demoTenancy from "../lib/demoTenancy.js";
 import type * as lib_gcCompanyName from "../lib/gcCompanyName.js";
 import type * as lib_inviteRules from "../lib/inviteRules.js";
@@ -87,6 +89,7 @@ import type * as lib_projectSetup from "../lib/projectSetup.js";
 import type * as lib_projectSetupFixture from "../lib/projectSetupFixture.js";
 import type * as lib_recipientAllowlist from "../lib/recipientAllowlist.js";
 import type * as lib_retainageRules from "../lib/retainageRules.js";
+import type * as lib_rfiAnswerEmail from "../lib/rfiAnswerEmail.js";
 import type * as lib_rfqEmail from "../lib/rfqEmail.js";
 import type * as lib_roles from "../lib/roles.js";
 import type * as lib_session from "../lib/session.js";
@@ -169,6 +172,7 @@ import type * as profiles from "../profiles.js";
 import type * as projectFileDownload from "../projectFileDownload.js";
 import type * as projects from "../projects.js";
 import type * as realDocuments from "../realDocuments.js";
+import type * as rfiAnswers from "../rfiAnswers.js";
 import type * as rfq from "../rfq.js";
 import type * as rfqActions from "../rfqActions.js";
 import type * as rfqRecipients from "../rfqRecipients.js";
@@ -187,6 +191,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  addenda: typeof addenda;
   "agent/agentLoop": typeof agent_agentLoop;
   "agent/payAgent": typeof agent_payAgent;
   "agent/proposalDb": typeof agent_proposalDb;
@@ -248,6 +253,7 @@ declare const fullApi: ApiFromModules<{
   "lib/bidValidators": typeof lib_bidValidators;
   "lib/companyProfile": typeof lib_companyProfile;
   "lib/demoPayees": typeof lib_demoPayees;
+  "lib/demoPlugs": typeof lib_demoPlugs;
   "lib/demoTenancy": typeof lib_demoTenancy;
   "lib/gcCompanyName": typeof lib_gcCompanyName;
   "lib/inviteRules": typeof lib_inviteRules;
@@ -266,6 +272,7 @@ declare const fullApi: ApiFromModules<{
   "lib/projectSetupFixture": typeof lib_projectSetupFixture;
   "lib/recipientAllowlist": typeof lib_recipientAllowlist;
   "lib/retainageRules": typeof lib_retainageRules;
+  "lib/rfiAnswerEmail": typeof lib_rfiAnswerEmail;
   "lib/rfqEmail": typeof lib_rfqEmail;
   "lib/roles": typeof lib_roles;
   "lib/session": typeof lib_session;
@@ -348,6 +355,7 @@ declare const fullApi: ApiFromModules<{
   projectFileDownload: typeof projectFileDownload;
   projects: typeof projects;
   realDocuments: typeof realDocuments;
+  rfiAnswers: typeof rfiAnswers;
   rfq: typeof rfq;
   rfqActions: typeof rfqActions;
   rfqRecipients: typeof rfqRecipients;

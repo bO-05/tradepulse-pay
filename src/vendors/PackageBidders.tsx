@@ -5,7 +5,9 @@ import type { Id } from "../../convex/_generated/dataModel";
 import { getErrorMessage } from "../lib/errors";
 import { Button, Dialog, EmptyState, StatusPill, Tabs, focusFirstInvalid, useToast } from "../ui";
 import { inputClass } from "../ui/Field";
-import { PackageBidsPanel, PackageQuestionsPanel } from "../bids/PackageBidsPanel";
+import { PackageBidsPanel } from "../bids/PackageBidsPanel";
+import { PackageAddendaPanel } from "../bids/PackageAddendaPanel";
+import { PackageQuestionsPanel } from "../bids/PackageQuestionsPanel";
 import { BidderRfqStatus, PackageBidderMessages } from "./BidderRfqStatus";
 import { RfqSendDialog } from "./RfqSendDialog";
 import { RFQ_EMAIL_LABELS } from "./rfqLabels";
@@ -53,6 +55,11 @@ export function PackageBidders({ pkg, readOnly }: { pkg: Pkg; readOnly?: boolean
                 <span className="flex flex-col">
                   <span className="font-semibold">{vendor?.name ?? b.companyName}</span>
                   <span className="break-all text-xs text-ink-subtle">{b.contactEmail}</span>
+                  {vendor?.linked && !b.linkedCompanyId && (
+                    <span className="text-xs text-ink-subtle" data-testid="bidder-not-on-project">
+                      Has a TradePulse Pay account but is not on this project. Invite them from People to let them bid in the portal.
+                    </span>
+                  )}
                 </span>
                 <span className="flex flex-wrap gap-1">
                   {!(b.rfqStatus in RFQ_EMAIL_LABELS) && <StatusPill status={b.rfqStatus} />}
@@ -67,6 +74,7 @@ export function PackageBidders({ pkg, readOnly }: { pkg: Pkg; readOnly?: boolean
       )}
       {bidders.length > 0 && <PackageBidsPanel tradePackageId={pkg._id} bidders={bidders} readOnly={readOnly} />}
       {bidders.length > 0 && <PackageQuestionsPanel tradePackageId={pkg._id} readOnly={readOnly} />}
+      {bidders.length > 0 && <PackageAddendaPanel tradePackageId={pkg._id} />}
       {bidders.length > 0 && <PackageBidderMessages tradePackageId={pkg._id} bidders={bidders} />}
       {rfqReview && (
         <RfqSendDialog
