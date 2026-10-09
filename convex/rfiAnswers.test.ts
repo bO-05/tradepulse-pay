@@ -179,6 +179,44 @@ describe("the GC reviews, edits and sends the answer through the mailer", () => 
     expect(unsure.status).toBe("uncertain");
     await expect(f.gcA.admin.as.action(api.rfiAnswers.sendRfiAnswer, { conversationId, answer: "Changed again" })).rejects.toThrow(/not confirmed/);
   });
+
+  test("an uncertain send stays locked through a next-day budget refusal; only the same key may reconcile it", async () => {
+    const { t, f, calls, conversationId } = await setupWithInboundRfi();
+    vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+      calls.push({ url: String(url), body: JSON.parse(String(init.body)) });
+      return new Response("gateway", { status: 504 });
+    });
+    expect((await f.gcA.admin.as.action(api.rfiAnswers.sendRfiAnswer, { conversationId, answer: EDITED })).status).toBe("uncertain");
+    const [first] = (await outbox(t)).filter((r) => r.kind === "rfi_answer");
+    expect(first.status).toBe("uncertain");
+
+    // The next UTC day, with the non-auth budget already used up.
+    await t.run(async (ctx) => {
+      await ctx.db.patch(first._id, { day: "2000-01-01", updatedAt: Date.now() - 86_400_000 });
+      await ctx.db.patch(conversationId, { answerClaimedAt: Date.now() - 86_400_000 });
+    });
+    vi.stubEnv("EMAIL_DAILY_BUDGET", "10");
+    const callsBefore = calls.length;
+    const refused = await f.gcA.admin.as.action(api.rfiAnswers.sendRfiAnswer, { conversationId, answer: EDITED });
+    expect(refused.status).toBe("uncertain");
+    expect(calls).toHaveLength(callsBefore);
+    let convo = (await t.run(async (ctx) => await ctx.db.get(conversationId)))!;
+    expect(convo).toMatchObject({ answerEmailStatus: "uncertain", answerText: EDITED, answerAttempt: 1 });
+    expect((await outbox(t)).filter((r) => r.kind === "rfi_answer")).toMatchObject([{ _id: first._id, status: "uncertain" }]);
+
+    // Still locked: edited text is refused and no second idempotency key is created.
+    await expect(f.gcA.admin.as.action(api.rfiAnswers.sendRfiAnswer, { conversationId, answer: "Changed after the refusal" })).rejects.toThrow(/not confirmed/);
+    expect((await outbox(t)).filter((r) => r.kind === "rfi_answer")).toHaveLength(1);
+
+    // Budget back: the retry reuses the original key, and AgentMail's answer for it settles the attempt.
+    vi.stubEnv("EMAIL_DAILY_BUDGET", "60");
+    stubFetch();
+    expect(await f.gcA.admin.as.action(api.rfiAnswers.sendRfiAnswer, { conversationId, answer: EDITED })).toEqual({ status: "sent" });
+    const rows = (await outbox(t)).filter((r) => r.kind === "rfi_answer");
+    expect(rows).toMatchObject([{ _id: first._id, status: "sent", idempotencyKey: first.idempotencyKey }]);
+    convo = (await t.run(async (ctx) => await ctx.db.get(conversationId)))!;
+    expect(convo).toMatchObject({ answerEmailStatus: "sent", answerText: EDITED, answerAttempt: 1 });
+  });
 });
 
 describe("only GC members of the project can send RFI answers or RFQs", () => {

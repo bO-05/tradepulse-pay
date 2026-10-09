@@ -437,6 +437,116 @@ describe("inbound replies route to the right bidder and never leak", () => {
     expect((await contractorRow(t, f.gcA.project.contractorId))?.rfqEmailStatus).toBeUndefined();
     expect(await f.gcA.admin.as.query(api.rfqRecipients.listPackageMessages, { tradePackageId: f.gcA.project.tradePackageId })).toEqual([]);
   });
+
+  test("a reply that arrives while the RFQ send is still awaiting AgentMail stays 'replied'", async () => {
+    const { t, f } = await setup({ email: "boldlevel182@agentmail.to" });
+    const calls: Sent[] = [];
+    vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body));
+      calls.push({ url, body, key: (init.headers as any)["Idempotency-Key"] });
+      const [ref] = subjectTokens(body.subject);
+      const reply = await receive(
+        t,
+        { inbox_id: RFQ_INBOX, thread_id: "thread-early-1", message_id: "<early-1@mail>", from: "boldlevel182@agentmail.to", subject: `Re: [TP-${ref}]`, text: "We will bid." },
+        "evt-early-1",
+      );
+      expect(reply).toMatchObject({ outcome: "routed" });
+      return new Response(JSON.stringify({ message_id: "<rfq-1@ses>", thread_id: "thread-rfq-1" }), { status: 200 });
+    });
+    const res: any = await sendRfq(f, "boldlevel182@agentmail.to");
+    expect(res.deliveryResults).toMatchObject([{ status: "sent" }]);
+    expect(calls).toHaveLength(1);
+    const row = await contractorRow(t, f.gcA.project.contractorId);
+    expect(row).toMatchObject({ rfqEmailStatus: "replied", rfqStatus: "replied", rfqEmailTo: "boldlevel182@agentmail.to", rfqThreadId: "thread-rfq-1" });
+    expect(row?.rfqRepliedAt).toBeTypeOf("number");
+    expect(row?.rfqOutboxId).toBeDefined();
+
+    // A reply to an earlier address does not hide the outcome of an RFQ to a new address.
+    await t.run((ctx) => ctx.db.patch(f.gcA.project.contractorId, { contactEmail: "new-estimator@maxxspace.com" }));
+    agentmailStub(() => new Response(JSON.stringify({ name: "ValidationError", message: "Recipient is blocked" }), { status: 403 }));
+    const second: any = await sendRfq(f, "new-estimator@maxxspace.com");
+    expect(second.deliveryResults).toMatchObject([{ status: "failed" }]);
+    expect(await contractorRow(t, f.gcA.project.contractorId)).toMatchObject({ rfqEmailStatus: "failed", rfqEmailTo: "new-estimator@maxxspace.com" });
+  });
+});
+
+describe("web-discovered addresses keep their provenance through the vendor directory", () => {
+  const DISCOVERED = "estimating-desk@maxxspace.com";
+
+  async function secondPackage(t: ReturnType<typeof convexTest>, f: Fixture) {
+    return await t.run(async (ctx) => {
+      const pkg = (await ctx.db.get(f.gcA.project.tradePackageId))!;
+      const { _id, _creationTime, ...fields } = pkg;
+      return await ctx.db.insert("tradePackages", { ...fields, invitedContractorIds: [], status: "draft" });
+    });
+  }
+
+  async function discover(t: ReturnType<typeof convexTest>, f: Fixture) {
+    const [contractorId] = await t.mutation(internal.contractors.batchInsertContractors, {
+      tradePackageId: f.gcA.project.tradePackageId,
+      contractors: [
+        { companyName: "Lakeside Electrical", contactEmail: DISCOVERED, licenseNumber: "1000001", licenseStatus: "Unverified — from web search result", sourceUrl: "https://lakeside.example/contact" },
+      ],
+    });
+    const discovered = (await contractorRow(t, contractorId))!;
+    expect(discovered.vendorId).toBeDefined();
+    return { contractorId, vendorId: discovered.vendorId as Id<"vendors"> };
+  }
+
+  test("discovery -> directory -> another package is still 'email not confirmed' and sends nothing until confirmed", async () => {
+    const { t, f } = await setup();
+    const calls = agentmailStub();
+    const { vendorId } = await discover(t, f);
+    const pkg2 = await secondPackage(t, f);
+    const { contractorIds } = await f.gcA.admin.as.mutation(api.contractors.addBiddersFromDirectory, { tradePackageId: pkg2, vendorIds: [vendorId] });
+    const reused = contractorIds[0];
+
+    const preview = await f.gcA.admin.as.query(api.rfqRecipients.previewRfqRecipients, { tradePackageId: pkg2 });
+    expect(preview.recipients).toMatchObject([{ contractorId: reused, email: DISCOVERED, state: "email_unconfirmed" }]);
+    const res: any = await f.gcA.admin.as.action(api.rfqActions.dispatchRfqsWithNotification, {
+      tradePackageId: pkg2,
+      recipients: [{ contractorId: reused, email: DISCOVERED }],
+    });
+    expect(res.deliveryResults).toMatchObject([{ status: "email_unconfirmed" }]);
+    expect(calls).toHaveLength(0);
+    expect(await outboxRows(t)).toHaveLength(0);
+
+    // Confirming the address on any bidder confirms it for the directory entry, so later reuse is ready.
+    await f.gcA.admin.as.mutation(api.rfqRecipients.confirmBidderEmail, { contractorId: reused, email: DISCOVERED });
+    expect((await f.gcA.admin.as.query(api.rfqRecipients.previewRfqRecipients, { tradePackageId: pkg2 })).recipients[0].state).toBe("ready");
+    const pkg3 = await secondPackage(t, f);
+    await f.gcA.admin.as.mutation(api.contractors.addBiddersFromDirectory, { tradePackageId: pkg3, vendorIds: [vendorId] });
+    expect((await f.gcA.admin.as.query(api.rfqRecipients.previewRfqRecipients, { tradePackageId: pkg3 })).recipients[0].state).toBe("ready");
+  });
+
+  test("a directory vendor built from a discovered bidder before provenance was stored is still unconfirmed", async () => {
+    const { t, f } = await setup();
+    const { vendorId } = await discover(t, f);
+    await t.run((ctx) => ctx.db.patch(vendorId, { discoveredEmail: undefined }));
+    const pkg2 = await secondPackage(t, f);
+    await f.gcA.admin.as.mutation(api.contractors.addBiddersFromDirectory, { tradePackageId: pkg2, vendorIds: [vendorId] });
+    expect((await f.gcA.admin.as.query(api.rfqRecipients.previewRfqRecipients, { tradePackageId: pkg2 })).recipients[0].state).toBe("email_unconfirmed");
+  });
+
+  test("a GC edit of the directory email replaces the discovered address and counts as confirming it", async () => {
+    const { t, f } = await setup();
+    const { vendorId } = await discover(t, f);
+    const vendor = (await t.run(async (ctx) => await ctx.db.get(vendorId)))!;
+    const fields = { name: vendor.name, trades: vendor.trades, contactName: vendor.contactName, email: vendor.email };
+    // Saving the form without changing the address keeps it unconfirmed.
+    await f.gcA.admin.as.mutation(api.vendors.updateVendor, { vendorId, ...fields, contactName: "Front desk" });
+    const pkg2 = await secondPackage(t, f);
+    await f.gcA.admin.as.mutation(api.contractors.addBiddersFromDirectory, { tradePackageId: pkg2, vendorIds: [vendorId] });
+    expect((await f.gcA.admin.as.query(api.rfqRecipients.previewRfqRecipients, { tradePackageId: pkg2 })).recipients[0].state).toBe("email_unconfirmed");
+
+    await f.gcA.admin.as.mutation(api.vendors.updateVendor, { vendorId, ...fields, email: "bids@maxxspace.com" });
+    const pkg3 = await secondPackage(t, f);
+    await f.gcA.admin.as.mutation(api.contractors.addBiddersFromDirectory, { tradePackageId: pkg3, vendorIds: [vendorId] });
+    expect((await f.gcA.admin.as.query(api.rfqRecipients.previewRfqRecipients, { tradePackageId: pkg3 })).recipients[0]).toMatchObject({
+      email: "bids@maxxspace.com",
+      state: "ready",
+    });
+  });
 });
 
 describe("bid due date formatting", () => {

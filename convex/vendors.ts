@@ -208,6 +208,13 @@ export const updateVendor = mutation({
       createdAt: vendor.createdAt,
       ...(vendor.linkedCompanyId !== undefined ? { linkedCompanyId: vendor.linkedCompanyId } : {}),
       ...(vendor.payoutEmailConfirmed !== undefined ? { payoutEmailConfirmed: vendor.payoutEmailConfirmed } : {}),
+      // Saving the form unchanged keeps a discovered address unconfirmed; typing a new one confirms it.
+      ...(input.email === vendor.email
+        ? {
+            ...(vendor.discoveredEmail !== undefined ? { discoveredEmail: vendor.discoveredEmail } : {}),
+            ...(vendor.emailConfirmedAt !== undefined ? { emailConfirmedAt: vendor.emailConfirmedAt } : {}),
+          }
+        : { emailConfirmedAt: Date.now() }),
     });
     return { vendorId: vendor._id };
   },

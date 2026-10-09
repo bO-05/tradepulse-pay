@@ -181,12 +181,16 @@ export const recordRfiAnswerOutcome = internalMutation({
     if (convo === null || convo.answerAttempt !== args.attempt || convo.answerEmailStatus === "sent") return null;
     const now = Date.now();
     if (args.status !== "sent") {
+      // A budget or recipient refusal of a retry leaves an earlier possibly-delivered attempt unresolved;
+      // the text and idempotency key stay locked until a same-key send settles it.
+      const outbox = args.outboxId ? await ctx.db.get(args.outboxId) : null;
+      const status = args.status !== "sending" && outbox?.status === "uncertain" ? ("uncertain" as const) : args.status;
       await ctx.db.patch(convo._id, {
-        answerEmailStatus: args.status,
+        answerEmailStatus: status,
         answerEmailError: args.error?.slice(0, 400),
         ...(args.outboxId ? { answerOutboxId: args.outboxId } : {}),
       });
-      return null;
+      return { status };
     }
     const answer = convo.answerText ?? "";
     await ctx.db.patch(convo._id, {
@@ -219,7 +223,7 @@ export const recordRfiAnswerOutcome = internalMutation({
         timestamp: now,
       });
     }
-    return null;
+    return { status: "sent" as const };
   },
 });
 
@@ -271,7 +275,7 @@ export const sendRfiAnswer = action({
               ? ("sending" as const)
               : ("failed" as const);
     const error = result.status === "sent" ? undefined : result.status === "skipped_budget" ? result.message : result.error;
-    await ctx.runMutation(internal.rfiAnswers.recordRfiAnswerOutcome, {
+    const recorded: { status: typeof status } | null = await ctx.runMutation(internal.rfiAnswers.recordRfiAnswerOutcome, {
       conversationId,
       attempt: claim.attempt,
       status,
@@ -281,7 +285,8 @@ export const sendRfiAnswer = action({
       userId: scope.userId,
       actor: scope.actor,
     });
-    const reported = status === "sending" ? ("in_flight" as const) : status;
+    const final = recorded?.status ?? status;
+    const reported = final === "sending" ? ("in_flight" as const) : final;
     return error === undefined ? { status: reported } : { status: reported, error };
   },
 });

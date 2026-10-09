@@ -8,10 +8,12 @@ import type { MutationCtx } from "./_generated/server";
 import { liveVendorByRawId } from "./lib/vendorRead";
 import {
   alreadyBidderError,
+  confirmVendorEmail,
   existingBidderFor,
   inactiveVendorError,
   insertDirectoryVendor,
   packageBidders,
+  vendorEmailUnconfirmed,
   vendorForNewBidder,
 } from "./lib/vendorDirectory";
 
@@ -66,7 +68,7 @@ export const createContractor = mutation({
       companyName: validateProjectText(args.companyName, "Company name"),
       contactEmail: validateEmail(args.contactEmail),
     };
-    const resolved = await vendorForNewBidder(ctx, pkg, fields);
+    const resolved = await vendorForNewBidder(ctx, pkg, { ...fields, emailSource: "gc" });
     if (resolved !== null) {
       if (resolved.vendor.status !== "active") throw inactiveVendorError(resolved.vendor.name);
       if (resolved.existingBidder !== null) throw alreadyBidderError(resolved.vendor.name);
@@ -105,7 +107,7 @@ export const createContractorInternal = internalMutation({
       companyName: validateProjectText(args.companyName, "Company name"),
       contactEmail: validateEmail(args.contactEmail),
     };
-    const resolved = await vendorForNewBidder(ctx, tradePackage, fields);
+    const resolved = await vendorForNewBidder(ctx, tradePackage, { ...fields, emailSource: "document" });
     if (resolved !== null) {
       if (resolved.vendor.status !== "active") throw inactiveVendorError(resolved.vendor.name);
       // A quote from a vendor that already bids on the package belongs to that bidder.
@@ -207,6 +209,7 @@ export const updateContractor = mutation({
       ...(emailEdited ? { emailConfirmedAt: Date.now(), emailConfirmedByUserId: access.user._id } : {}),
       updatedAt: Date.now(),
     });
+    if (emailEdited) await confirmVendorEmail(ctx, contractor.vendorId, contactEmail);
     return { success: true };
   },
 });
@@ -331,7 +334,7 @@ export const batchInsertContractors = internalMutation({
         .first();
 
       if (!existing) {
-        const resolved = await vendorForNewBidder(ctx, pkg, c);
+        const resolved = await vendorForNewBidder(ctx, pkg, { ...c, emailSource: "web_discovery" });
         // Discovery results never re-add an inactive vendor or a vendor already bidding here.
         if (resolved !== null && (resolved.vendor.status !== "active" || resolved.existingBidder !== null)) continue;
         const id = await ctx.db.insert("contractors", {
@@ -376,7 +379,8 @@ async function insertVendorBidder(
       : "No license on file",
     sourceUrl: "",
     rfqStatus: "discovered",
-    emailSource: "directory",
+    // A directory entry built from web discovery still carries an address nobody confirmed.
+    emailSource: (await vendorEmailUnconfirmed(ctx, vendor)) ? "web_discovery" : "directory",
     vendorId: vendor._id,
     ...(linkedCompanyId !== undefined ? { linkedCompanyId } : {}),
     updatedAt: Date.now(),

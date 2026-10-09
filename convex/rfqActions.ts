@@ -70,6 +70,7 @@ async function sendOneRfq(
       status: "not_sent",
       error: "Demo company: no external email is sent.",
       ref: prepared.ref,
+      attemptKeyTs: prepared.keyTs,
     });
     return { ...base, status: "not_sent", reason: "Demo company: no external email is sent" };
   }
@@ -107,6 +108,7 @@ async function sendOneRfq(
     error,
     outboxId: result.outboxId,
     ref: prepared.ref,
+    attemptKeyTs: prepared.keyTs,
     threadId: result.status === "sent" ? result.threadId || undefined : undefined,
   });
   const finalStatus = (recorded?.status ?? status) as DeliveryStatus;

@@ -77,6 +77,11 @@ export const reserveSend = internalMutation({
 
     if (!recipientAllowed(args.to)) {
       const fields = { status: "blocked_recipient" as const, day, error: BLOCKED_RECIPIENT_MESSAGE, updatedAt: now };
+      if (existing && (existing.status === "uncertain" || existing.status === "pending")) {
+        // Refusing the retry says nothing about whether the earlier attempt was delivered.
+        await ctx.db.patch(existing._id, { status: "uncertain", updatedAt: now });
+        return { action: "blocked_recipient" as const, outboxId: existing._id };
+      }
       if (existing && existing.status !== "sent" && existing.status !== "delivery_failed") {
         await ctx.db.patch(existing._id, fields);
         return { action: "blocked_recipient" as const, outboxId: existing._id };
@@ -120,10 +125,18 @@ export const reserveSend = internalMutation({
       return { action: "send" as const, outboxId: existing._id, reconcile: true };
     }
 
+    // From an earlier day: the provider may already have accepted it, so a retry with this key is still a reconcile.
+    const unresolved = existing !== null && (existing.status === "uncertain" || existing.status === "pending");
+
     const limit = sendLimitFor(args.kind, readDailyBudget(process.env.EMAIL_DAILY_BUDGET));
     const used = await chargedCount(ctx, day, limit, existing?._id);
 
     if (used >= limit) {
+      if (existing && unresolved) {
+        // A refusal proves nothing about the earlier attempt; the row stays unresolved for a later reconcile.
+        await ctx.db.patch(existing._id, { status: "uncertain", updatedAt: now });
+        return { action: "skipped_budget" as const, outboxId: existing._id };
+      }
       const fields = { status: "skipped_budget" as const, day, updatedAt: now, error: undefined };
       if (existing) {
         await ctx.db.patch(existing._id, fields);
@@ -152,7 +165,7 @@ export const reserveSend = internalMutation({
         error: undefined,
         updatedAt: now,
       });
-      return { action: "send" as const, outboxId: existing._id, reconcile: false };
+      return { action: "send" as const, outboxId: existing._id, reconcile: unresolved };
     }
     const outboxId = await ctx.db.insert("emailOutbox", {
       kind: args.kind,

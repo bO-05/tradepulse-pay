@@ -13,6 +13,7 @@ import { generalContractorNameFor } from "./lib/gcCompanyName";
 import { RFQ_PRE_REPLY_STATUSES, rfqRecipientState, rfqSubject, type RfqRecipientState } from "./lib/rfqEmail";
 import { ensureRfqThreadRow } from "./inboundEmail";
 import { validateEmail } from "./validation";
+import { confirmVendorEmail } from "./lib/vendorDirectory";
 
 const RECIPIENT_NOTES: Record<RfqRecipientState, string> = {
   ready: "Will be emailed.",
@@ -69,6 +70,7 @@ export const confirmBidderEmail = mutation({
       emailConfirmedByUserId: access.user._id,
       updatedAt: now,
     });
+    await confirmVendorEmail(ctx, contractor.vendorId, email);
     const pkg = await ctx.db.get(contractor.tradePackageId);
     if (pkg) {
       await ctx.db.insert("auditLogs", {
@@ -122,6 +124,7 @@ type Prepared =
       ref: string;
       threadRowId: Id<"emailThreads">;
       idempotencyKey: string;
+      keyTs: number;
       content: {
         gcName: string;
         projectTitle: string;
@@ -171,6 +174,7 @@ export const prepareRfqSend = internalMutation({
       ref: thread.ref,
       threadRowId: thread.threadRowId,
       idempotencyKey: `rfq.${contractor._id}.${keyTs}`,
+      keyTs,
       content: {
         gcName: await generalContractorNameFor(ctx, project),
         projectTitle: project.title,
@@ -205,6 +209,8 @@ export const recordRfqOutcome = internalMutation({
     outboxId: v.optional(v.id("emailOutbox")),
     ref: v.optional(v.string()),
     threadId: v.optional(v.string()),
+    /** rfqKeyTs of the send this outcome belongs to. */
+    attemptKeyTs: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const contractor = await ctx.db.get(args.contractorId);
@@ -220,6 +226,24 @@ export const recordRfqOutcome = internalMutation({
     }
     const demo = status === "not_sent";
     const now = Date.now();
+    // The bidder can reply (by token) while this send is still awaiting AgentMail. A reply to the same
+    // address recorded after this attempt began proves receipt, so its late outcome must not downgrade it.
+    const repliedToThisAttempt =
+      contractor.rfqEmailStatus === "replied" &&
+      contractor.rfqEmailTo === args.to &&
+      contractor.rfqRepliedAt !== undefined &&
+      (args.attemptKeyTs === undefined || contractor.rfqRepliedAt >= args.attemptKeyTs);
+    if (repliedToThisAttempt) {
+      await ctx.db.patch(contractor._id, {
+        ...(args.outboxId ? { rfqOutboxId: args.outboxId } : {}),
+        ...(args.ref ? { rfqRef: args.ref } : {}),
+        ...(args.threadId ? { rfqThreadId: args.threadId } : {}),
+        ...(status === "sent" ? { rfqSentAt: now, dispatchedAt: now } : {}),
+      });
+      const pkg = await ctx.db.get(contractor.tradePackageId);
+      if (pkg && pkg.status === "draft") await ctx.db.patch(pkg._id, { status: "rfqs_dispatched" });
+      return { status };
+    }
     await ctx.db.patch(contractor._id, {
       rfqEmailStatus: status,
       rfqEmailError: status === "sent" ? undefined : error,

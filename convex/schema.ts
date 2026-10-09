@@ -306,6 +306,11 @@ export default defineSchema({
     trades: v.array(v.string()), // CSI divisions, e.g. "26 00 00"
     contactName: v.string(),
     email: v.string(), // lowercased
+    // Set while `email` is a web-discovered address no GC member has confirmed or edited; bidders made from
+    // this vendor are then emailed only after confirmation (lib/vendorDirectory.ts vendorEmailUnconfirmed).
+    discoveredEmail: v.optional(v.string()),
+    // When a GC member last confirmed or entered `email` for RFQ use.
+    emailConfirmedAt: v.optional(v.number()),
     phone: v.optional(v.string()),
     licenseNumber: v.optional(v.string()),
     licenseState: v.optional(v.string()),
