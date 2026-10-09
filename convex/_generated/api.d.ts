@@ -68,6 +68,7 @@ import type * as lib_bidMoney from "../lib/bidMoney.js";
 import type * as lib_bidRevisions from "../lib/bidRevisions.js";
 import type * as lib_bidTerms from "../lib/bidTerms.js";
 import type * as lib_bidValidators from "../lib/bidValidators.js";
+import type * as lib_biddingClosed from "../lib/biddingClosed.js";
 import type * as lib_companyProfile from "../lib/companyProfile.js";
 import type * as lib_demoPayees from "../lib/demoPayees.js";
 import type * as lib_demoPlugs from "../lib/demoPlugs.js";
@@ -251,6 +252,7 @@ declare const fullApi: ApiFromModules<{
   "lib/bidRevisions": typeof lib_bidRevisions;
   "lib/bidTerms": typeof lib_bidTerms;
   "lib/bidValidators": typeof lib_bidValidators;
+  "lib/biddingClosed": typeof lib_biddingClosed;
   "lib/companyProfile": typeof lib_companyProfile;
   "lib/demoPayees": typeof lib_demoPayees;
   "lib/demoPlugs": typeof lib_demoPlugs;

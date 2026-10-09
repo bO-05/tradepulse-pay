@@ -35,10 +35,13 @@ import { extractTextFromPdfStream } from "../lib/documentText.ts";
 import { getDeceptiveBidIds, getSuspiciouslyLowBidIds, leadPenaltyArithmetic, leadTargetWeeksFor } from "../leveling.ts";
 import { ConfirmDialog } from "./ConfirmDialog.tsx";
 import { ConfirmDialog as UiConfirmDialog } from "../ui/ConfirmDialog.tsx";
-import { LevelingAwardPanel, PLUGS_NOT_INCLUDED } from "../bids/LevelingAwardPanel.tsx";
+import { AWARD_SUM_RULE, LevelingAwardPanel, PLUGS_NOT_INCLUDED } from "../bids/LevelingAwardPanel.tsx";
+import { awardConfirmation } from "../bids/awardConfirm.ts";
 import { centsToDollarsForDisplay, formatCents, fromDollars, toDollarString } from "../../convex/lib/money.ts";
 
 // The adjustment modal edits dollars in number inputs; blank or invalid input counts as $0.
+const LEGACY_ACCEPTED_ALTERNATES: readonly number[] = [];
+
 const inputDollarsToCents = (dollars: number): number =>
   Number.isFinite(dollars) ? fromDollars(dollars) : 0;
 import { AgreementTermsPanel } from "../contracts/AgreementTermsPanel.tsx";
@@ -302,12 +305,17 @@ const [scannedPdfWarning, setScannedPdfWarning] = useState<string | null>(null);
     setBidToAward(bids.find((bid) => bid._id === bidId) || null);
   };
 
+  // This dialog awards with no bid alternates; accepting alternates happens in the Leveling and award panel.
+  const legacyAwardConfirm = bidToAward
+    ? awardConfirmation(bidToAward, LEGACY_ACCEPTED_ALTERNATES, { noAlternatesNote: "None (accept alternates in Leveling and award above)" })
+    : null;
+
   const confirmAward = async () => {
     if (!bidToAward) return;
     const bidId = bidToAward._id;
     setAwardingId(bidId);
     try {
-      await onAwardContract(bidId, currentPackage._id, []);
+      await onAwardContract(bidId, currentPackage._id, [...LEGACY_ACCEPTED_ALTERNATES]);
       setBidToAward(null);
       setViewingAgreementBidId(bidId);
     } finally {
@@ -2338,21 +2346,18 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
         title={bidToAward ? `Award to ${bidToAward.subcontractorName}?` : "Award"}
         payee={bidToAward?.subcontractorName}
         payeeLabel="Bidder"
-        amountCents={bidToAward ? bidToAward.baseAmountCents : undefined}
+        amountCents={legacyAwardConfirm?.contractSumCents}
         amountLabel="Contract sum"
-        details={
-          bidToAward
-            ? [
-                { label: "Base bid", value: formatCents(bidToAward.baseAmountCents) },
-                { label: "Accepted alternates", value: "None (accept alternates in Leveling and award above)" },
-                { label: "Leveling plugs", value: "Not included" },
-              ]
-            : undefined
-        }
+        details={legacyAwardConfirm?.details}
         effect={
           <>
-            {PLUGS_NOT_INCLUDED} The contract sum is the base bid plus the accepted alternates. Awarding generates the
-            subcontract draft and marks the other bidders as not awarded.
+            {PLUGS_NOT_INCLUDED} {AWARD_SUM_RULE} Awarding generates the subcontract draft and marks the other bidders as
+            not awarded.
+            {legacyAwardConfirm?.error && (
+              <span role="alert" className="mt-2 block text-rose-300">
+                {legacyAwardConfirm.error}
+              </span>
+            )}
           </>
         }
         confirmLabel="Award and generate subcontract"

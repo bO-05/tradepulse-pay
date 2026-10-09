@@ -1,5 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { LevelingRow } from "../../convex/lib/levelingSummary";
+import { computeAwardSum } from "../../convex/lib/awardMath";
+import { awardConfirmation, levelingRowAwardInput } from "./awardConfirm";
 import { awardPreviewCents, levelingCsv } from "./LevelingAwardPanel";
 
 function row(name: string, base: number, plug: number, extra: Partial<LevelingRow> = {}): LevelingRow {
@@ -13,6 +15,7 @@ function row(name: string, base: number, plug: number, extra: Partial<LevelingRo
     leadTimePenaltyCents: 0,
     coiPenaltyCents: 0,
     veDeductCents: 0,
+    veDeducts: [],
     leveledTotalCents: base + plug,
     alternates: [
       { description: "Alt 1 – LED troffer upgrade", amountCents: 625_000 },
@@ -32,7 +35,40 @@ describe("award preview", () => {
     const eastbay = row("Eastbay Electric", 17_240_000, 1_500_000);
     expect(awardPreviewCents(eastbay, [])).toBe(17_240_000);
     expect(awardPreviewCents(eastbay, [0])).toBe(17_865_000);
-    expect(awardPreviewCents({ ...eastbay, veDeductCents: 150_000 }, [0])).toBe(17_715_000);
+    expect(awardPreviewCents({ ...eastbay, veDeducts: [{ description: "Aluminum feeders", amountCents: 150_000 }] }, [0])).toBe(17_715_000);
+  });
+
+  test("every award dialog lists accepted VE deducts and shows the shared award sum (PROC-SCRUTINY-006)", () => {
+    const legacyBid = {
+      baseAmountCents: 17_240_000,
+      alternates: [{ description: "Alt 1 – LED troffer upgrade", amountCents: 625_000 }],
+      valueEngineeringAlternates: [
+        { description: "Aluminum feeders", costDeductCents: 150_000, isAccepted: true },
+        { description: "PVC conduit", costDeductCents: 90_000, isAccepted: false },
+      ],
+    };
+    const legacy = awardConfirmation(legacyBid, []);
+    expect(legacy.contractSumCents).toBe(17_090_000);
+    expect(legacy.contractSumCents).toBe(computeAwardSum(legacyBid, []).contractSumCents);
+    expect(legacy.details).toContainEqual({ label: "Accepted VE deducts", value: "Aluminum feeders (−$1,500.00)" });
+    expect(legacy.details.map((d) => d.value).join(" ")).not.toContain("PVC conduit");
+    expect(legacy.error).toBeNull();
+
+    const panel = row("Eastbay Electric", 17_240_000, 1_500_000, { veDeducts: [{ description: "Aluminum feeders", amountCents: 150_000 }], veDeductCents: 150_000 });
+    const confirm = awardConfirmation(levelingRowAwardInput(panel), [0]);
+    expect(confirm.contractSumCents).toBe(17_715_000);
+    expect(confirm.details).toEqual([
+      { label: "Base bid", value: "$172,400.00" },
+      { label: "Accepted alternates", value: "Alt 1 – LED troffer upgrade ($6,250.00)" },
+      { label: "Accepted VE deducts", value: "Aluminum feeders (−$1,500.00)" },
+      { label: "Leveling plugs", value: "Not included" },
+    ]);
+  });
+
+  test("a deduct that takes the sum to $0.00 is explained before the server refuses it", () => {
+    const r = awardConfirmation({ baseAmountCents: 100_000, valueEngineeringAlternates: [{ description: "Delete scope", costDeductCents: 100_000, isAccepted: true }] }, []);
+    expect(r.contractSumCents).toBe(0);
+    expect(r.error).toMatch(/zero or below/);
   });
 });
 

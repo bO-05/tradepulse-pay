@@ -24,16 +24,38 @@ export const INVITATION_STATUS: Record<string, { label: string; tone: "neutral" 
   closed: { label: "Closed", tone: "muted" },
 };
 
+export type AlternateRow = { rowId: string; description: string; amountCents: number | null };
+export type UnitPriceRow = { rowId: string; item: string; unit: string; unitPriceCents: number | null };
+
 export type BidFormState = {
   baseAmountCents: number | null;
-  alternates: { description: string; amountCents: number | null }[];
+  alternates: AlternateRow[];
   exclusions: string;
   inclusions: string;
-  unitPrices: { item: string; unit: string; unitPriceCents: number | null }[];
+  unitPrices: UnitPriceRow[];
   qualifications: string;
   validUntil: string;
   note: string;
 };
+
+export type BidFormList = "alternates" | "unitPrices";
+
+let rowSeq = 0;
+/** Row ids only need to be unique within one form; they keep a row's input state and errors attached to it. */
+export function newRowId(): string {
+  rowSeq += 1;
+  return `row-${rowSeq}`;
+}
+
+export const blankAlternate = (): AlternateRow => ({ rowId: newRowId(), description: "", amountCents: null });
+export const blankUnitPrice = (): UnitPriceRow => ({ rowId: newRowId(), item: "", unit: "", unitPriceCents: null });
+
+/** Mask-error key for a money input in a row, tied to the row id rather than its position. */
+export function rowMaskKey(list: BidFormList, rowId: string): string {
+  return `${list}#${rowId}`;
+}
+
+const MASK_FIELD: Record<BidFormList, string> = { alternates: "amount", unitPrices: "price" };
 
 export type BidTermsValue = {
   baseAmountCents: number;
@@ -47,10 +69,10 @@ export type BidTermsValue = {
 
 export const EMPTY_BID_FORM: BidFormState = {
   baseAmountCents: null,
-  alternates: [{ description: "", amountCents: null }],
+  alternates: [{ rowId: "alt-initial", description: "", amountCents: null }],
   exclusions: "",
   inclusions: "",
-  unitPrices: [{ item: "", unit: "", unitPriceCents: null }],
+  unitPrices: [{ rowId: "unit-initial", item: "", unit: "", unitPriceCents: null }],
   qualifications: "",
   validUntil: "",
   note: "",
@@ -61,10 +83,16 @@ export function bidFormFrom(terms: BidTermsValue | null | undefined): BidFormSta
   if (!terms) return EMPTY_BID_FORM;
   return {
     baseAmountCents: terms.baseAmountCents,
-    alternates: terms.alternates.length > 0 ? terms.alternates.map((a) => ({ ...a })) : [{ description: "", amountCents: null }],
+    alternates:
+      terms.alternates.length > 0
+        ? terms.alternates.map((a) => ({ rowId: newRowId(), description: a.description, amountCents: a.amountCents }))
+        : [blankAlternate()],
     exclusions: terms.exclusions.join("\n"),
     inclusions: terms.inclusions.join("\n"),
-    unitPrices: terms.unitPrices.length > 0 ? terms.unitPrices.map((u) => ({ ...u })) : [{ item: "", unit: "", unitPriceCents: null }],
+    unitPrices:
+      terms.unitPrices.length > 0
+        ? terms.unitPrices.map((u) => ({ rowId: newRowId(), item: u.item, unit: u.unit, unitPriceCents: u.unitPriceCents }))
+        : [blankUnitPrice()],
     qualifications: terms.qualifications ?? "",
     validUntil: terms.validUntil ?? "",
     note: "",
@@ -101,7 +129,59 @@ export function checkBidForm(
     },
     { today },
   );
-  const masks = Object.fromEntries(Object.entries(maskErrors).filter((e): e is [string, string] => typeof e[1] === "string" && e[1] !== ""));
+  const masks = positionalMaskErrors(form, maskErrors);
   if (Object.keys(masks).length === 0) return result;
   return { ok: false, errors: { ...(result.ok ? {} : result.errors), ...masks } };
+}
+
+/**
+ * Turns row-keyed mask errors into the positional keys the validator uses. Errors of rows that are
+ * no longer in the form are dropped, so a removed row can never block a submit.
+ */
+function positionalMaskErrors(form: BidFormState, maskErrors: Record<string, string | null>): Record<string, string> {
+  const rowIndex = new Map<string, string>();
+  for (const list of ["alternates", "unitPrices"] as const) {
+    form[list].forEach((row, i) => rowIndex.set(rowMaskKey(list, row.rowId), `${list}.${i}.${MASK_FIELD[list]}`));
+  }
+  const out: Record<string, string> = {};
+  for (const [key, message] of Object.entries(maskErrors)) {
+    if (typeof message !== "string" || message === "") continue;
+    if (key.includes("#")) {
+      const positional = rowIndex.get(key);
+      if (positional) out[positional] = message;
+    } else {
+      out[key] = message;
+    }
+  }
+  return out;
+}
+
+/**
+ * Removes one alternate or unit-price row with its errors. Shown errors for later rows in the same
+ * list move up one position so they stay next to their row.
+ */
+export function removeBidFormRow(
+  state: { form: BidFormState; maskErrors: Record<string, string | null>; errors: Record<string, string> },
+  list: BidFormList,
+  rowId: string,
+): { form: BidFormState; maskErrors: Record<string, string | null>; errors: Record<string, string> } {
+  const index = state.form[list].findIndex((r) => r.rowId === rowId);
+  if (index < 0) return state;
+  const form = { ...state.form, [list]: state.form[list].filter((r) => r.rowId !== rowId) } as BidFormState;
+  const maskErrors = { ...state.maskErrors };
+  delete maskErrors[rowMaskKey(list, rowId)];
+  const errors: Record<string, string> = {};
+  const prefix = `${list}.`;
+  for (const [key, message] of Object.entries(state.errors)) {
+    if (!key.startsWith(prefix)) {
+      errors[key] = message;
+      continue;
+    }
+    const [, pos, ...field] = key.split(".");
+    const i = Number(pos);
+    if (!Number.isInteger(i) || field.length === 0) continue;
+    if (i < index) errors[key] = message;
+    else if (i > index) errors[`${list}.${i - 1}.${field.join(".")}`] = message;
+  }
+  return { form, maskErrors, errors };
 }

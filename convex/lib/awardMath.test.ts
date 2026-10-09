@@ -81,6 +81,18 @@ describe("computeAwardSum", () => {
       }),
     ).toEqual(["Fire alarm rough-in"]);
   });
+
+  test("GC-added leveling exclusions are kept beside a non-empty bidder exclusions list", () => {
+    expect(
+      excludedScopeNotesFor({
+        exclusions: ["Permit fees"],
+        identifiedExclusions: [
+          { description: "Permit fees", costImpactCents: 0, severity: "minor", isWaived: false },
+          { description: "Fire alarm rough-in", costImpactCents: 3_000_000, severity: "major", isWaived: true },
+        ],
+      }),
+    ).toEqual(["Permit fees", "Fire alarm rough-in"]);
+  });
 });
 
 function bid(id: string, name: string, baseAmountCents: number, plugs: { description: string; costImpactCents: number }[], receivedAt: number) {

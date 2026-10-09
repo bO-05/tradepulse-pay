@@ -113,6 +113,7 @@ export const listPackageMessages = query({
         subject: r.subject,
         excerpt: r.text.slice(0, 1200),
         receivedAt: r.receivedAt,
+        lateReason: r.lateReason ?? null,
       }));
   },
 });

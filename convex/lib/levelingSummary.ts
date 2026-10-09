@@ -1,4 +1,5 @@
 import type { Doc } from "../_generated/dataModel";
+import { acceptedVeDeducts } from "./awardMath";
 import { acceptedVeDeductCents, bidCents, computeLeveledTotalCents, exclusionPlugCents } from "./bidMoney";
 
 /**
@@ -28,6 +29,8 @@ export type LevelingRow = {
   leadTimePenaltyCents: number;
   coiPenaltyCents: number;
   veDeductCents: number;
+  /** Accepted VE deducts, listed the way the award and the agreement list them. */
+  veDeducts: { description: string; amountCents: number }[];
   leveledTotalCents: number;
   alternates: { description: string; amountCents: number }[];
   isApparentLow: boolean;
@@ -62,6 +65,7 @@ export function buildLevelingRows(pkg: Pick<Doc<"tradePackages">, "status">, bid
       leadTimePenaltyCents: c.leadTimePenaltyCents,
       coiPenaltyCents: c.coiPenaltyCents,
       veDeductCents: acceptedVeDeductCents(veAlternates),
+      veDeducts: acceptedVeDeducts(bid),
       // Recomputed rather than read so the view always matches its own components.
       leveledTotalCents: computeLeveledTotalCents({
         baseAmountCents: c.baseAmountCents,

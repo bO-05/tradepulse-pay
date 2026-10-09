@@ -8,6 +8,7 @@ import { CLEAR_LEGACY_BID_DOLLARS, bidCents, computeLeveledTotalCents, type BidL
 import { describeTermChanges, recordBidRevision, termsOfBid, type BidTerms, type RevisionSource } from "./lib/bidRevisions";
 import { firstBidTermError, validateBidTerms, type CleanBidTerms } from "./lib/bidTerms";
 import { formatCents } from "./lib/money";
+import { biddingClosedReason } from "./lib/biddingClosed";
 import { isBidDocumentForPackage } from "./lib/bidDocuments";
 import { keptPlugFields } from "./lib/levelingPlugs";
 import { contractorCanBidOnPackage } from "./lib/packageContractors";
@@ -53,13 +54,7 @@ function cleanTermsOrThrow(args: TermsArgs): CleanBidTerms {
   return result.terms;
 }
 
-function closedReason(pkg: Doc<"tradePackages">, project: Doc<"projects">): string | null {
-  if (pkg.status === "awarded") return "Bidding on this package is closed: it has been awarded.";
-  if (project.status === "closed" || project.status === "archived" || project.archived === true) {
-    return "Bidding on this package is closed: the project is closed.";
-  }
-  return null;
-}
+const closedReason = biddingClosedReason;
 
 /** The caller's bidder record on the package, for human sub company members only. */
 export async function invitedBidderOf(

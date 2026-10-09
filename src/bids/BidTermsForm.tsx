@@ -3,7 +3,7 @@ import { Plus, Trash2 } from "lucide-react";
 import type { CleanBidTerms } from "../../convex/lib/bidTerms";
 import { Button, DateInput, Field, MoneyInput, StatusPill, TextInput, focusFirstInvalid } from "../ui";
 import { inputClass } from "../ui/Field";
-import { checkBidForm, type BidFormState } from "./bidForm";
+import { blankAlternate, blankUnitPrice, checkBidForm, removeBidFormRow, rowMaskKey, type BidFormList, type BidFormState } from "./bidForm";
 
 /**
  * The structured bid form: base bid, alternates (negative = deduct), exclusions, inclusions, unit
@@ -54,6 +54,13 @@ export function BidTermsForm({
     }
   };
 
+  const removeRow = (list: BidFormList, rowId: string) => {
+    const next = removeBidFormRow({ form, maskErrors, errors }, list, rowId);
+    setForm(next.form);
+    setMaskErrors(next.maskErrors);
+    setErrors(next.errors);
+  };
+
   const updateAlt = (i: number, patch: Partial<BidFormState["alternates"][number]>) =>
     set("alternates", form.alternates.map((a, j) => (j === i ? { ...a, ...patch } : a)));
   const updateUnit = (i: number, patch: Partial<BidFormState["unitPrices"][number]>) =>
@@ -77,7 +84,7 @@ export function BidTermsForm({
         <legend className="text-sm font-semibold text-ink">Alternates</legend>
         <p className="text-xs text-ink-subtle">Add-on prices the GC may accept. Use a minus sign for a deduct (for example -1,500.00).</p>
         {form.alternates.map((alt, i) => (
-          <div key={i} className="grid gap-2 sm:grid-cols-[1fr_12rem_auto] sm:items-start">
+          <div key={alt.rowId} className="grid gap-2 sm:grid-cols-[1fr_12rem_auto] sm:items-start">
             <TextInput
               label={`Alternate ${i + 1} description`}
               value={alt.description}
@@ -93,13 +100,13 @@ export function BidTermsForm({
               allowNegative
               value={alt.amountCents}
               onChange={(v) => updateAlt(i, { amountCents: v })}
-              onInvalidChange={maskError(`alternates.${i}.amount`)}
+              onInvalidChange={maskError(rowMaskKey("alternates", alt.rowId))}
               error={err(`alternates.${i}.amount`)}
             />
-            <RemoveRow label={`Remove alternate ${i + 1}`} onClick={() => set("alternates", form.alternates.filter((_, j) => j !== i))} />
+            <RemoveRow label={`Remove alternate ${i + 1}`} onClick={() => removeRow("alternates", alt.rowId)} />
           </div>
         ))}
-        <Button size="sm" variant="secondary" leadingIcon={<Plus className="h-4 w-4" aria-hidden="true" />} onClick={() => set("alternates", [...form.alternates, { description: "", amountCents: null }])}>
+        <Button size="sm" variant="secondary" leadingIcon={<Plus className="h-4 w-4" aria-hidden="true" />} onClick={() => set("alternates", [...form.alternates, blankAlternate()])}>
           Add alternate
         </Button>
       </fieldset>
@@ -112,20 +119,20 @@ export function BidTermsForm({
       <fieldset className="space-y-3">
         <legend className="text-sm font-semibold text-ink">Unit prices</legend>
         {form.unitPrices.map((up, i) => (
-          <div key={i} className="grid gap-2 sm:grid-cols-[1fr_8rem_10rem_auto] sm:items-start">
+          <div key={up.rowId} className="grid gap-2 sm:grid-cols-[1fr_8rem_10rem_auto] sm:items-start">
             <TextInput label={`Unit price ${i + 1} item`} value={up.item} onChange={(v) => updateUnit(i, { item: v })} error={err(`unitPrices.${i}.item`)} />
             <TextInput label="Unit" placeholder="each" value={up.unit} onChange={(v) => updateUnit(i, { unit: v })} error={err(`unitPrices.${i}.unit`)} />
             <MoneyInput
               label="Price per unit"
               value={up.unitPriceCents}
               onChange={(v) => updateUnit(i, { unitPriceCents: v })}
-              onInvalidChange={maskError(`unitPrices.${i}.price`)}
+              onInvalidChange={maskError(rowMaskKey("unitPrices", up.rowId))}
               error={err(`unitPrices.${i}.price`)}
             />
-            <RemoveRow label={`Remove unit price ${i + 1}`} onClick={() => set("unitPrices", form.unitPrices.filter((_, j) => j !== i))} />
+            <RemoveRow label={`Remove unit price ${i + 1}`} onClick={() => removeRow("unitPrices", up.rowId)} />
           </div>
         ))}
-        <Button size="sm" variant="secondary" leadingIcon={<Plus className="h-4 w-4" aria-hidden="true" />} onClick={() => set("unitPrices", [...form.unitPrices, { item: "", unit: "", unitPriceCents: null }])}>
+        <Button size="sm" variant="secondary" leadingIcon={<Plus className="h-4 w-4" aria-hidden="true" />} onClick={() => set("unitPrices", [...form.unitPrices, blankUnitPrice()])}>
           Add unit price
         </Button>
       </fieldset>

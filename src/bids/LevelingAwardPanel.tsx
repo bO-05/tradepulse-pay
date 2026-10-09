@@ -5,16 +5,18 @@ import type { Id } from "../../convex/_generated/dataModel";
 import type { LevelingRow } from "../../convex/lib/levelingSummary";
 import { getErrorMessage } from "../lib/errors";
 import { buildCsv } from "../lib/csv";
+import { awardConfirmation, levelingRowAwardInput } from "./awardConfirm";
 import { Button, ConfirmDialog, DateText, Dialog, Money, MoneyInput, StatusPill, TextInput, formatCents, useToast } from "../ui";
 
 export const PLUGS_NOT_INCLUDED = "Leveling plugs are not included in the contract sum.";
+export const AWARD_SUM_RULE = "The contract sum is the base bid plus the accepted alternates, minus accepted VE deducts.";
 
 type PlugTarget = { row: LevelingRow; index: number };
 type AwardTarget = { row: LevelingRow; accepted: number[] };
 
-/** Contract sum preview; the server recomputes it from the stored bid (convex/lib/awardMath.ts). */
-export function awardPreviewCents(row: Pick<LevelingRow, "baseAmountCents" | "alternates" | "veDeductCents">, accepted: readonly number[]): number {
-  return row.baseAmountCents + accepted.reduce((s, i) => s + (row.alternates[i]?.amountCents ?? 0), 0) - row.veDeductCents;
+/** Contract sum preview from the shared award math; the server recomputes it from the stored bid. */
+export function awardPreviewCents(row: Pick<LevelingRow, "baseAmountCents" | "alternates" | "veDeducts">, accepted: readonly number[]): number {
+  return awardConfirmation(levelingRowAwardInput(row), accepted).contractSumCents;
 }
 
 /** Leveling CSV rows; amounts are the same formatted strings the screen shows. */
@@ -124,6 +126,7 @@ export function LevelingAwardPanel({ tradePackageId, readOnly = false }: { trade
 
   const awardRow = awardTarget?.row ?? null;
   const awardAccepted = awardTarget?.accepted ?? [];
+  const awardConfirm = awardRow ? awardConfirmation(levelingRowAwardInput(awardRow), awardAccepted) : null;
 
   return (
     <section aria-label="Leveling and award" className="space-y-3 rounded-2xl border border-line bg-surface p-4">
@@ -325,28 +328,18 @@ export function LevelingAwardPanel({ tradePackageId, readOnly = false }: { trade
         title={awardRow ? `Award to ${awardRow.subcontractorName}?` : "Award"}
         payee={awardRow?.subcontractorName}
         payeeLabel="Bidder"
-        amountCents={awardRow ? awardPreviewCents(awardRow, awardAccepted) : undefined}
+        amountCents={awardConfirm?.contractSumCents}
         amountLabel="Contract sum"
-        details={
-          awardRow
-            ? [
-                { label: "Base bid", value: formatCents(awardRow.baseAmountCents) },
-                {
-                  label: "Accepted alternates",
-                  value:
-                    awardAccepted.length === 0
-                      ? "None"
-                      : awardAccepted.map((i) => `${awardRow.alternates[i].description} (${formatCents(awardRow.alternates[i].amountCents)})`).join("; "),
-                },
-                ...(awardRow.veDeductCents > 0 ? [{ label: "Accepted VE deducts", value: `−${formatCents(awardRow.veDeductCents)}` }] : []),
-                { label: "Leveling plugs", value: "Not included" },
-              ]
-            : undefined
-        }
+        details={awardConfirm?.details}
         effect={
           <>
-            {PLUGS_NOT_INCLUDED} The contract sum is the base bid plus the accepted alternates. Awarding generates the
-            subcontract draft and marks the other bidders as not awarded.
+            {PLUGS_NOT_INCLUDED} {AWARD_SUM_RULE} Awarding generates the subcontract draft and marks the other bidders as
+            not awarded.
+            {awardConfirm?.error && (
+              <span role="alert" className="mt-2 block text-rose-300">
+                {awardConfirm.error}
+              </span>
+            )}
           </>
         }
         confirmLabel="Award and generate subcontract"

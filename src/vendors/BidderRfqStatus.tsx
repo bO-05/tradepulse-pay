@@ -88,6 +88,7 @@ export function PackageBidderMessages({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="font-semibold">{nameOf(m.contractorId)}</span>
                 <span className="flex flex-wrap items-center gap-2 text-xs text-ink-subtle">
+                  {m.lateReason && <StatusPill status="late" label="Late: received after bidding closed" tone="warning" />}
                   {m.matchMethod && <StatusPill status={m.matchMethod} label={MATCH_LABEL[m.matchMethod]} tone="info" />}
                   <DateText value={m.receivedAt} withTime />
                 </span>
@@ -96,6 +97,7 @@ export function PackageBidderMessages({
                 From {m.fromName ? `${m.fromName} <${m.from}>` : m.from}
               </p>
               <p className="break-words text-xs font-medium">{m.subject}</p>
+              {m.lateReason && <p className="text-xs text-amber-200">{m.lateReason} This message was not applied to any bid.</p>}
               <p className="whitespace-pre-wrap break-words text-xs text-ink-subtle">{m.excerpt}</p>
             </li>
           ))}

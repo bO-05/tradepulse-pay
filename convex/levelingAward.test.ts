@@ -5,6 +5,9 @@ import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import schema from "./schema";
 import { buildTenancyFixture } from "./lib/tenancyFixtures";
+import { buildReviewContext } from "./payApps/reviewContext";
+import { buildReviewPrompt } from "./payApps/reviewModel";
+import { awardConfirmation, levelingRowAwardInput } from "../src/bids/awardConfirm";
 
 /**
  * Leveling and award (§15) as Bayview's GC on a fresh Electrical package with three bids:
@@ -224,6 +227,124 @@ describe("AI-parsed bids for real companies carry no invented plugs", () => {
   });
 });
 
+describe("priced email after bidding closes (PROC-SCRUTINY-003)", () => {
+  async function lateEmail(s: Awaited<ReturnType<typeof setup>>, bidId: Id<"bids">, from: string) {
+    const bid = (await s.t.run((ctx) => ctx.db.get(bidId)))!;
+    const inboundId = await s.t.run(async (ctx) => {
+      const project = await ctx.db.get(s.fx.gcA.project.projectId);
+      return await ctx.db.insert("inboundEmails", {
+        eventId: `evt-${Math.random()}`,
+        messageId: `<late-${Math.random()}@mail>`,
+        inboxId: "rfq",
+        threadId: "thread-late",
+        from,
+        subject: "Revised proposal: $149,000.00",
+        text: "Revised base bid $149,000.00. Excludes permit fees.",
+        routing: "routed",
+        matchMethod: "thread",
+        projectId: project!._id,
+        companyId: project!.gcCompanyId,
+        tradePackageId: s.tradePackageId,
+        contractorId: bid.contractorId,
+        receivedAt: Date.now(),
+      });
+    });
+    const result = await s.t.mutation(internal.bids.insertParsedBid, {
+      tradePackageId: s.tradePackageId,
+      contractorId: bid.contractorId,
+      subcontractorName: bid.subcontractorName,
+      baseAmountCents: 14_900_000,
+      lineItems: [],
+      identifiedExclusions: [{ description: "Permit fees", costImpactCents: 0, severity: "minor", isWaived: false }],
+      longLeadEquipmentWeeks: 4,
+      coiComplianceStatus: "compliant",
+      coiPenaltyCents: 0,
+      sourceInboundEmailId: inboundId,
+    });
+    return { inboundId, result, before: bid };
+  }
+
+  test("a losing bidder's priced email after award leaves the package awarded and the bid unchanged; the GC sees it as late", async () => {
+    const s = await setup();
+    const dana = s.fx.gcA.admin.as;
+    await dana.mutation(api.agreements.generateAgreement, { bidId: s.eastbay, tradePackageId: s.tradePackageId, acceptedAlternateIndexes: [] });
+    const contractorBefore = await s.t.run(async (ctx) => (await ctx.db.get((await ctx.db.get(s.oakland))!.contractorId))!);
+
+    const { inboundId, result, before } = await lateEmail(s, s.oakland, "bids@oakland.invalid");
+    expect(result).toBeNull();
+
+    const pkg = (await s.t.run((ctx) => ctx.db.get(s.tradePackageId)))!;
+    expect(pkg.status).toBe("awarded");
+    const after = (await s.t.run((ctx) => ctx.db.get(s.oakland)))!;
+    expect(after.baseAmountCents).toBe(before.baseAmountCents);
+    expect(after.revisionNumber).toBe(before.revisionNumber);
+    expect(after.isAwarded).toBe(false);
+    const contractorAfter = await s.t.run(async (ctx) => (await ctx.db.get(after.contractorId))!);
+    expect(contractorAfter.rfqStatus).toBe(contractorBefore.rfqStatus);
+    const revisions = await s.t.run((ctx) => ctx.db.query("bidRevisions").withIndex("by_bid_and_revision", (q) => q.eq("bidId", s.oakland)).collect());
+    expect(revisions).toEqual([]);
+
+    const winner = (await s.t.run((ctx) => ctx.db.get(s.eastbay)))!;
+    expect(winner.isAwarded).toBe(true);
+
+    const messages = await dana.query(api.rfqRecipients.listPackageMessages, { tradePackageId: s.tradePackageId });
+    const late = messages.find((m) => m.id === inboundId)!;
+    expect(late.lateReason).toMatch(/closed: it has been awarded/);
+
+    const summary = await dana.query(api.bids.getLevelingSummary, { tradePackageId: s.tradePackageId });
+    expect(summary.awardedTo).toBe("Eastbay Electric");
+
+    // The winning sub's portal stays closed.
+    const invitations = await s.fx.sub.admin.as.query(api.bidPortal.listMyBidInvitations, {});
+    expect(invitations.find((i) => i.tradePackageId === s.tradePackageId)?.status).toBe("awarded");
+  });
+
+  test("a priced email after the project closes is kept as late and changes no bid or package", async () => {
+    const s = await setup();
+    await s.t.run((ctx) => ctx.db.patch(s.fx.gcA.project.projectId, { status: "closed" } as never));
+    const { inboundId, result, before } = await lateEmail(s, s.oakland, "bids@oakland.invalid");
+    expect(result).toBeNull();
+    expect((await s.t.run((ctx) => ctx.db.get(s.tradePackageId)))!.status).toBe("leveling");
+    expect((await s.t.run((ctx) => ctx.db.get(s.oakland)))!.baseAmountCents).toBe(before.baseAmountCents);
+    expect((await s.t.run((ctx) => ctx.db.get(inboundId)))!.lateReason).toMatch(/project is closed/);
+  });
+
+  test("a quote file parsed after award is refused instead of reopening leveling", async () => {
+    const s = await setup();
+    await s.fx.gcA.admin.as.mutation(api.agreements.generateAgreement, { bidId: s.eastbay, tradePackageId: s.tradePackageId, acceptedAlternateIndexes: [] });
+    const oakland = (await s.t.run((ctx) => ctx.db.get(s.oakland)))!;
+    const fileId = await s.t.run((ctx) =>
+      ctx.db.insert("projectFiles", {
+        projectId: s.fx.gcA.project.projectId,
+        tradePackageId: s.tradePackageId,
+        storageId: "quote_late",
+        fileName: "oakland-revised.pdf",
+        fileType: "quote_pdf",
+        fileSize: 10,
+        uploadedBy: "Dana",
+        uploadedAt: Date.now(),
+      } as never),
+    );
+    expect(
+      await outcome(
+        s.t.mutation(internal.bids.insertParsedBid, {
+          tradePackageId: s.tradePackageId,
+          contractorId: oakland.contractorId,
+          subcontractorName: oakland.subcontractorName,
+          baseAmountCents: 14_900_000,
+          lineItems: [],
+          identifiedExclusions: [],
+          longLeadEquipmentWeeks: 4,
+          coiComplianceStatus: "compliant",
+          coiPenaltyCents: 0,
+          sourceFileId: fileId,
+        }),
+      ),
+    ).toMatch(/closed: it has been awarded/);
+    expect((await s.t.run((ctx) => ctx.db.get(s.tradePackageId)))!.status).toBe("awarded");
+  });
+});
+
 describe("award", () => {
   test("contract sum is the base bid; plugs are excluded; losing bidders read Not awarded; SOV has no plug or exclusion line", async () => {
     const s = await setup();
@@ -279,6 +400,63 @@ describe("award", () => {
     );
     expect(sov.reduce((a, r) => a + r.scheduledValueCents, 0)).toBe(17_865_000);
     expect(sov.some((r) => /Alt 1/.test(r.description) && r.scheduledValueCents === 625_000)).toBe(true);
+  });
+
+  test("a GC-added leveling exclusion beside the bidder's own exclusions reaches the agreement notes, subcontract text and review context (PROC-SCRUTINY-005)", async () => {
+    const s = await setup();
+    const dana = s.fx.gcA.admin.as;
+    const oakland = (await s.t.run((ctx) => ctx.db.get(s.oakland)))!;
+    expect(oakland.exclusions).toEqual(["Fire alarm rough-in", "Permit fees"]);
+    await dana.mutation(api.bids.updateBidAdjustments, {
+      bidId: s.oakland,
+      identifiedExclusions: [
+        ...oakland.identifiedExclusions,
+        { description: "Seismic bracing of conduit", costImpactCents: 800_000, severity: "moderate", isWaived: false },
+      ],
+      valueEngineeringAlternates: [],
+    });
+    await dana.mutation(api.agreements.generateAgreement, { bidId: s.oakland, tradePackageId: s.tradePackageId, acceptedAlternateIndexes: [] });
+    const agreement = (await dana.query(api.agreements.getAgreementByBid, { bidId: s.oakland }))!;
+    expect(agreement.excludedScopeNotes).toEqual(["Fire alarm rough-in", "Permit fees", "Seismic bracing of conduit"]);
+    expect(agreement.contractSumCents).toBe(15_890_000);
+    expect(agreement.contractText).toContain("  - Seismic bracing of conduit");
+    expect(agreement.contractText).toContain("  - Permit fees");
+
+    const stored = (await s.t.run((ctx) => ctx.db.get(agreement._id)))!;
+    const context = buildReviewContext({
+      payApp: { _id: "p1", _creationTime: 1, createdAt: 1, periodLabel: "Oct 2026", notes: "", lines: [], requestedTotalCents: 0 } as never,
+      agreement: stored,
+      sov: [],
+      milestones: [],
+      agreementPayApps: [],
+      license: null,
+    });
+    expect(context.agreement.excludedScopeNotes).toContain("Seismic bracing of conduit");
+    expect(buildReviewPrompt(context)).toContain("Seismic bracing of conduit");
+  });
+
+  test("the legacy award dialog confirms the same sum the agreement stores, VE deduct included (PROC-SCRUTINY-006)", async () => {
+    const s = await setup();
+    const dana = s.fx.gcA.admin.as;
+    const eastbay = (await s.t.run((ctx) => ctx.db.get(s.eastbay)))!;
+    await dana.mutation(api.bids.updateBidAdjustments, {
+      bidId: s.eastbay,
+      identifiedExclusions: eastbay.identifiedExclusions,
+      valueEngineeringAlternates: [{ description: "Aluminum feeders", costDeductCents: 150_000, isAccepted: true }],
+    });
+    const leveled = (await s.t.run((ctx) => ctx.db.get(s.eastbay)))!;
+    const confirmed = awardConfirmation(leveled, []);
+    expect(confirmed.contractSumCents).toBe(17_090_000);
+    expect(confirmed.details).toContainEqual({ label: "Accepted VE deducts", value: "Aluminum feeders (−$1,500.00)" });
+
+    await dana.mutation(api.agreements.generateAgreement, { bidId: s.eastbay, tradePackageId: s.tradePackageId, acceptedAlternateIndexes: [] });
+    const agreement = (await dana.query(api.agreements.getAgreementByBid, { bidId: s.eastbay }))!;
+    expect(agreement.contractSumCents).toBe(confirmed.contractSumCents);
+    expect(agreement.veDeducts).toEqual([{ description: "Aluminum feeders", amountCents: 150_000 }]);
+
+    const summary = await dana.query(api.bids.getLevelingSummary, { tradePackageId: s.tradePackageId });
+    const row = summary.rows.find((r) => r.bidId === s.eastbay)!;
+    expect(awardConfirmation(levelingRowAwardInput(row), []).contractSumCents).toBe(agreement.contractSumCents);
   });
 
   test("an alternate index from outside the bid is rejected", async () => {

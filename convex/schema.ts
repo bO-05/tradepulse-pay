@@ -442,6 +442,8 @@ export default defineSchema({
     contractorId: v.optional(v.id("contractors")),
     attachments: v.optional(v.array(v.any())),
     receivedAt: v.number(),
+    // Set when a priced reply arrived after bidding closed: kept for the GC, never applied to a bid.
+    lateReason: v.optional(v.string()),
   })
     .index("by_eventId", ["eventId"])
     .index("by_messageId", ["messageId"])

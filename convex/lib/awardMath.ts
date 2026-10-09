@@ -19,10 +19,58 @@ export type AwardSum = {
   contractSumCents: number;
 };
 
-type BidForAward = Pick<Doc<"bids">, "baseAmountCents" | "alternates" | "valueEngineeringAlternates">;
+/** The bid fields the award reads; the stored bid doc and the client `Bid` both satisfy it. */
+export type BidForAward = {
+  baseAmountCents?: number;
+  alternates?: readonly { description: string; amountCents: number }[];
+  valueEngineeringAlternates?: readonly { description: string; costDeductCents?: number; isAccepted?: boolean }[];
+};
 
 function cents(value: number | undefined): number {
   return typeof value === "number" && Number.isSafeInteger(value) ? value : 0;
+}
+
+/** Accepted value-engineering deducts as listed on the agreement (positive cents, subtracted). */
+export function acceptedVeDeducts(bid: Pick<BidForAward, "valueEngineeringAlternates">): AwardAlternate[] {
+  return (bid.valueEngineeringAlternates ?? [])
+    .filter((a) => a.isAccepted && cents(a.costDeductCents) > 0)
+    .map((a) => ({ description: a.description, amountCents: cents(a.costDeductCents) }));
+}
+
+/**
+ * The award as a confirmation dialog shows it, without throwing for a non-positive sum, so the
+ * dialog can explain why the award would be refused. Same math as `computeAwardSum`.
+ */
+export function previewAwardSum(
+  bid: BidForAward,
+  acceptedAlternateIndexes: readonly number[],
+): { sum: AwardSum; error: string | null } {
+  try {
+    return { sum: computeAwardSum(bid, acceptedAlternateIndexes), error: null };
+  } catch (err) {
+    const data = (err as { data?: { message?: string } }).data;
+    return {
+      sum: awardSumParts(bid, acceptedAlternateIndexes.filter((i) => Number.isInteger(i) && i >= 0 && i < (bid.alternates ?? []).length)),
+      error: data?.message ?? (err as Error).message,
+    };
+  }
+}
+
+function awardSumParts(bid: BidForAward, accepted: readonly number[]): AwardSum {
+  const acceptedSet = new Set(accepted);
+  const baseBidCents = cents(bid.baseAmountCents);
+  const acceptedAlternates: AwardAlternate[] = [];
+  const declinedAlternates: AwardAlternate[] = [];
+  (bid.alternates ?? []).forEach((a, i) => {
+    const row = { description: a.description, amountCents: cents(a.amountCents) };
+    (acceptedSet.has(i) ? acceptedAlternates : declinedAlternates).push(row);
+  });
+  const veDeducts = acceptedVeDeducts(bid);
+  const contractSumCents =
+    baseBidCents +
+    acceptedAlternates.reduce((s, a) => s + a.amountCents, 0) -
+    veDeducts.reduce((s, a) => s + a.amountCents, 0);
+  return { baseBidCents, acceptedAlternates, declinedAlternates, veDeducts, contractSumCents };
 }
 
 export function computeAwardSum(bid: BidForAward, acceptedAlternateIndexes: readonly number[]): AwardSum {
@@ -34,27 +82,15 @@ export function computeAwardSum(bid: BidForAward, acceptedAlternateIndexes: read
     }
     accepted.add(i);
   }
-  const baseBidCents = cents(bid.baseAmountCents);
-  const acceptedAlternates: AwardAlternate[] = [];
-  const declinedAlternates: AwardAlternate[] = [];
-  alternates.forEach((a, i) => {
-    const row = { description: a.description, amountCents: cents(a.amountCents) };
-    (accepted.has(i) ? acceptedAlternates : declinedAlternates).push(row);
-  });
-  const veDeducts = (bid.valueEngineeringAlternates ?? [])
-    .filter((a) => a.isAccepted && cents(a.costDeductCents) > 0)
-    .map((a) => ({ description: a.description, amountCents: cents(a.costDeductCents) }));
-  const contractSumCents =
-    baseBidCents +
-    acceptedAlternates.reduce((s, a) => s + a.amountCents, 0) -
-    veDeducts.reduce((s, a) => s + a.amountCents, 0);
+  const sum = awardSumParts(bid, [...accepted]);
+  const { contractSumCents } = sum;
   if (contractSumCents <= 0) {
     throw new ConvexError({
       code: "INVALID",
       message: `The contract sum would be ${formatCents(contractSumCents)}. Accepted deducts cannot reduce the sum to zero or below.`,
     });
   }
-  return { baseBidCents, acceptedAlternates, declinedAlternates, veDeducts, contractSumCents };
+  return sum;
 }
 
 /** Indexes of the bid's current alternates that match previously accepted ones (by description). */
@@ -63,9 +99,15 @@ export function acceptedIndexesFor(bid: BidForAward, previouslyAccepted: readonl
   return (bid.alternates ?? []).flatMap((a, i) => (wanted.has(a.description.trim().toLowerCase()) ? [i] : []));
 }
 
-/** Bid exclusions carried to the agreement as notes (never SOV lines), de-duplicated in order. */
+/**
+ * Bid exclusions carried to the agreement as notes (never SOV lines), de-duplicated in order. The
+ * single source for agreement notes, the subcontract text and the pay-app review context: the
+ * bidder's stated exclusions (`exclusions`) followed by every leveling exclusion
+ * (`identifiedExclusions`), which includes those the GC added while leveling. Waived exclusions stay
+ * listed because waiving only removes the plug from the comparison; the scope is still excluded.
+ */
 export function excludedScopeNotesFor(bid: Pick<Doc<"bids">, "exclusions" | "identifiedExclusions">): string[] {
-  const source = bid.exclusions && bid.exclusions.length > 0 ? bid.exclusions : bid.identifiedExclusions.map((e) => e.description);
+  const source = [...(bid.exclusions ?? []), ...(bid.identifiedExclusions ?? []).map((e) => e.description)];
   const seen = new Set<string>();
   const notes: string[] = [];
   for (const raw of source) {

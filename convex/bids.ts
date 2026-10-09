@@ -8,6 +8,7 @@ import { syncAgreementForBid } from "./agreements";
 import { validateProjectText } from "./validation";
 import { leadTimePenaltyFor, targetWeeksForDivision } from "./terms";
 import { contractorCanBidOnPackage } from "./lib/packageContractors";
+import { biddingClosedReason } from "./lib/biddingClosed";
 import { bidExclusionValidator, bidVeAlternateValidator } from "./lib/bidValidators";
 import { formatCents, fromDollars } from "./lib/money";
 import {
@@ -727,11 +728,30 @@ export const insertParsedBid = internalMutation({
         throw new Error("The source quote file does not belong to this project and trade package.");
       }
     }
+    const message = args.sourceInboundEmailId ? await ctx.db.get(args.sourceInboundEmailId) : null;
     if (args.sourceInboundEmailId) {
-      const message = await ctx.db.get(args.sourceInboundEmailId);
       if (!message || message.tradePackageId !== tradePkg._id || message.contractorId !== contractor._id) {
         throw new Error("The source email does not belong to this bidder and trade package.");
       }
+    }
+    // Checked here, in the same transaction as the write, because the award can land between the
+    // email arriving and its parse finishing. The Demo simulator (no source email or file) is exempt.
+    const hasSource = args.sourceInboundEmailId !== undefined || args.sourceFileId !== undefined;
+    const closed = hasSource ? biddingClosedReason(tradePkg, await ctx.db.get(tradePkg.projectId)) : null;
+    if (closed !== null) {
+      if (!message) throw new ConvexError({ code: "CLOSED" as const, message: closed });
+      await ctx.db.patch(message._id, { lateReason: closed });
+      await ctx.db.insert("auditLogs", {
+        projectId: tradePkg.projectId,
+        tradePackageId: tradePkg._id,
+        contractorId: contractor._id,
+        eventType: "quote_received",
+        title: `Late proposal email kept: ${contractor.companyName}`,
+        description: `${contractor.companyName} emailed a priced proposal after bidding closed. ${closed} The message is kept in Bidder messages; no bid was changed.`,
+        actor: "Forensic Leveling Engine (ADR-0003)",
+        timestamp: Date.now(),
+      });
+      return null;
     }
     const baseAmountCents = centsArg(args.baseAmountCents, "Base bid amount", { positive: true });
     assertBidAmountPlausible(tradePkg, baseAmountCents);
