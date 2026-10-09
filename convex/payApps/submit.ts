@@ -15,6 +15,7 @@ import {
 import { billingPayAppHistory } from "./billingHistory";
 import { sovIsApproved } from "../payments/sov";
 import { SOV_NOT_APPROVED_MESSAGE } from "../lib/sovRules";
+import { notifyPayAppSubmitted } from "./g703";
 
 function assertSovApproved(agreement: Doc<"agreements">): void {
   if (!sovIsApproved(agreement)) {
@@ -189,6 +190,8 @@ export async function recordPayApplication(
     ...who.auditFields,
   });
   await ctx.scheduler.runAfter(0, internal.payApps.review.reviewPayApp, { payAppId });
+  const stored = await ctx.db.get(payAppId);
+  if (stored !== null) await notifyPayAppSubmitted(ctx, agreement, stored, result.requestedTotalCents);
   return payAppId;
 }
 
@@ -198,7 +201,7 @@ export async function payAppSovContext(ctx: QueryCtx, agreementId: Id<"agreement
 }
 
 /**
- * Withdraws a submitted or under-review pay app of the caller's contractor and
+ * Withdraws a pay app of the caller's contractor that awaits a GC decision and
  * cancels its pending proposals. Moves no money.
  */
 export const withdrawPayApplication = mutation({
@@ -209,18 +212,19 @@ export const withdrawPayApplication = mutation({
     const viewer = scope.viewer;
     const agreement = await ctx.db.get(payApp.agreementId);
     if (agreement === null) throw new ConvexError({ code: "NOT_FOUND", message: "Not found." });
-    if (!WITHDRAWABLE_PAY_APP_STATUSES.has(payApp.status)) {
-      throw new ConvexError({
-        code: "INVALID_STATE",
-        message: `Only submitted or under-review pay applications can be withdrawn (this one is ${payApp.status}).`,
-      });
-    }
-    const now = Date.now();
-    await ctx.db.patch(payApp._id, { status: "withdrawn", withdrawnAt: now });
     const proposals = await ctx.db
       .query("agentProposals")
       .withIndex("by_payAppId", (q) => q.eq("payAppId", payApp._id))
       .take(200);
+    const gcDecided = proposals.some((p) => p.status === "approved" || p.status === "executed");
+    if (!WITHDRAWABLE_PAY_APP_STATUSES.has(payApp.status) || gcDecided) {
+      throw new ConvexError({
+        code: "INVALID_STATE",
+        message: `Only pay applications awaiting a GC decision can be withdrawn (this one is ${payApp.status}${gcDecided ? " with an approved payment" : ""}).`,
+      });
+    }
+    const now = Date.now();
+    await ctx.db.patch(payApp._id, { status: "withdrawn", withdrawnAt: now });
     let cancelled = 0;
     for (const p of proposals) {
       if (p.status !== "pending") continue;

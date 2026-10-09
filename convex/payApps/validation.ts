@@ -29,7 +29,8 @@ export const MAX_NOTES_LENGTH = 4000;
 
 /** Pay apps in these states count against a line's remaining scheduled value. */
 export const BILLING_PAY_APP_STATUSES = new Set(["submitted", "under_review", "reviewed", "approved", "paid"]);
-export const WITHDRAWABLE_PAY_APP_STATUSES = new Set(["submitted", "under_review"]);
+/** Before any GC decision: the AI review may have finished, but nothing was approved yet. */
+export const WITHDRAWABLE_PAY_APP_STATUSES = new Set(["submitted", "under_review", "reviewed"]);
 
 type PriorPayApp = {
   status: string;

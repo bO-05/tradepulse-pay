@@ -121,6 +121,8 @@ import type * as partyProfiles from "../partyProfiles.js";
 import type * as payApps_approvalAllocation from "../payApps/approvalAllocation.js";
 import type * as payApps_backfill from "../payApps/backfill.js";
 import type * as payApps_billingHistory from "../payApps/billingHistory.js";
+import type * as payApps_g703 from "../payApps/g703.js";
+import type * as payApps_g703Math from "../payApps/g703Math.js";
 import type * as payApps_proposalSync from "../payApps/proposalSync.js";
 import type * as payApps_proposals from "../payApps/proposals.js";
 import type * as payApps_review from "../payApps/review.js";
@@ -312,6 +314,8 @@ declare const fullApi: ApiFromModules<{
   "payApps/approvalAllocation": typeof payApps_approvalAllocation;
   "payApps/backfill": typeof payApps_backfill;
   "payApps/billingHistory": typeof payApps_billingHistory;
+  "payApps/g703": typeof payApps_g703;
+  "payApps/g703Math": typeof payApps_g703Math;
   "payApps/proposalSync": typeof payApps_proposalSync;
   "payApps/proposals": typeof payApps_proposals;
   "payApps/review": typeof payApps_review;

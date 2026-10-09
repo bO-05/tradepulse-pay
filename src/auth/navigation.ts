@@ -16,12 +16,15 @@ export type AreaId =
   | "gc-projects"
   | "company"
   | "notifications"
+  | "billing"
+  | "pay-apps"
+  | "pay-app"
   | "agreement"
   | "ledger"
   | "not-found";
 
 export type NavItem = {
-  area: Exclude<AreaId, "agreement" | "ledger" | "not-found" | "company" | "notifications">;
+  area: Exclude<AreaId, "agreement" | "ledger" | "not-found" | "company" | "notifications" | "pay-app">;
   label: string;
   hash: string;
 };
@@ -32,6 +35,7 @@ export type Route = {
   projectId?: string;
   vendorId?: string;
   tradePackageId?: string;
+  payAppId?: string;
   view?: "new" | "settings" | "sov";
 };
 
@@ -55,7 +59,14 @@ const AREA_HASH: Record<NavItem["area"], string> = {
   vendors: "#/vendors",
   "my-projects": "#/my-projects",
   "gc-projects": "#/all-projects",
+  billing: "#/billing",
+  "pay-apps": "#/pay-apps",
 };
+
+/** One pay app (G703 sheet and G702 summary): the GC and the filing sub; owners get Not found. */
+export function payAppHash(payAppId: string): string {
+  return `#/pay-apps/${encodeURIComponent(payAppId)}`;
+}
 
 /** Company settings: opened from the user menu, available to every role. */
 export const COMPANY_HASH = "#/company";
@@ -81,6 +92,7 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
   gc: [
     { area: "procurement", label: "Procurement", hash: AREA_HASH.procurement },
     { area: "gc-projects", label: "Projects", hash: AREA_HASH["gc-projects"] },
+    { area: "billing", label: "Billing", hash: AREA_HASH.billing },
     { area: "payments", label: "Payments", hash: AREA_HASH.payments },
     { area: "inbox", label: "Approval inbox", hash: AREA_HASH.inbox },
     { area: "owner-portal", label: "Projects overview", hash: AREA_HASH["owner-portal"] },
@@ -92,6 +104,7 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
   ],
   sub: [
     { area: "sub-portal", label: "My agreements & pay applications", hash: AREA_HASH["sub-portal"] },
+    { area: "pay-apps", label: "Pay apps", hash: AREA_HASH["pay-apps"] },
     { area: "bid-invitations", label: "Bid invitations", hash: AREA_HASH["bid-invitations"] },
     { area: "my-projects", label: "Projects", hash: AREA_HASH["my-projects"] },
     { area: "payments", label: "Payments", hash: AREA_HASH.payments },
@@ -156,6 +169,8 @@ export function parseHash(hash: string): Route | null {
     const agreementId = decodeURIComponent(agreementMatch[1]);
     return agreementMatch[2] ? { area: "agreement", agreementId, view: "sov" } : { area: "agreement", agreementId };
   }
+  const payAppMatch = path.match(/^\/pay-apps\/([^/?#]+)$/);
+  if (payAppMatch) return { area: "pay-app", payAppId: decodeURIComponent(payAppMatch[1]) };
   const ledgerMatch = path.match(/^\/payments\/([^/?#]+)$/);
   if (ledgerMatch) return { area: "ledger", agreementId: decodeURIComponent(ledgerMatch[1]) };
   for (const [area, h] of Object.entries(AREA_HASH)) {
@@ -196,6 +211,7 @@ export function resolveRoute(role: Role, hash: string, isDemo = false, search = 
   if (!parsed) return { area: "not-found" };
   if (DEMO_ONLY_AREAS.has(parsed.area) && !isDemo) return { area: "not-found" };
   if (parsed.area === "agreement" || parsed.area === "ledger" || parsed.area === "company" || parsed.area === "notifications") return parsed;
+  if (parsed.area === "pay-app") return role === "owner" ? { area: "not-found" } : parsed;
   if (nav.some((item) => item.area === parsed.area)) return parsed;
   return { area: "not-found" };
 }

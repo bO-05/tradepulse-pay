@@ -71,6 +71,7 @@ export const milestoneStatusValidator = v.union(
 );
 
 export const payAppStatusValidator = v.union(
+  v.literal("draft"),
   v.literal("submitted"),
   v.literal("under_review"),
   v.literal("reviewed"),
@@ -79,6 +80,20 @@ export const payAppStatusValidator = v.union(
   v.literal("withdrawn"),
   v.literal("paid"),
 );
+
+export const g702FiguresValidator = v.object({
+  originalContractSumCents: v.number(),
+  netChangeOrdersCents: v.number(),
+  contractSumToDateCents: v.number(),
+  completedAndStoredCents: v.number(),
+  retainageCents: v.number(),
+  retainageWorkCents: v.number(),
+  retainageStoredCents: v.number(),
+  earnedLessRetainageCents: v.number(),
+  previousCertificatesCents: v.number(),
+  currentPaymentDueCents: v.number(),
+  balanceToFinishInclRetainageCents: v.number(),
+});
 
 export const proposalKindValidator = v.union(
   v.literal("capture"),
@@ -478,6 +493,8 @@ export default defineSchema({
     description: v.string(),
     csiCode: v.optional(v.string()),
     scheduledValueCents: v.number(),
+    // Per-line retainage override; the agreement's rate applies when absent.
+    retainageBps: v.optional(v.number()),
     excludedScope: v.boolean(),
     sourceBidLineRef: v.optional(v.string()),
     // Canonical JSON of the award inputs the SOV and milestones were generated from.
@@ -538,6 +555,34 @@ export default defineSchema({
     subCompanyId: v.optional(v.id("companies")),
     // Set when the GC's one-click judge demo filed this pay app as a stand-in for the sub or its agent.
     judgeDemo: v.optional(v.object({ runId: v.id("judgeDemoRuns"), filedBy: v.string() })),
+    // G702/G703 applications (§16). Phase-1 rows have none of these and keep billing by `lines` only.
+    applicationNo: v.optional(v.number()),
+    periodStart: v.optional(v.string()), // YYYY-MM-DD
+    periodEnd: v.optional(v.string()),
+    dueDate: v.optional(v.string()),
+    g703: v.optional(
+      v.object({
+        // Every SOV line, including zero ones. previous* are frozen at submission; drafts recompute them.
+        lines: v.array(
+          v.object({
+            sovLineId: v.id("scheduleOfValues"),
+            previousWorkCents: v.number(),
+            previousStoredCents: v.number(),
+            workThisPeriodCents: v.number(),
+            storedCents: v.number(),
+            note: v.optional(v.string()),
+          }),
+        ),
+        originalContractSumCents: v.number(),
+        retainageBps: v.number(),
+        previousCertificatesCents: v.number(),
+        savedAt: v.number(),
+        // G702 figures as submitted, and from the GC-approved amounts once approved.
+        requested: v.optional(g702FiguresValidator),
+        approved: v.optional(g702FiguresValidator),
+      }),
+    ),
+    submittedAt: v.optional(v.number()),
     createdAt: v.number(),
   })
     .index("by_agreementId", ["agreementId"])

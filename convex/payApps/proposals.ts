@@ -13,6 +13,7 @@ import { startRelease } from "../payments/release";
 import { computePayoutSplit, isValidRequestKey, remainingAuthorizedCents, retainagePercentFor } from "../payments/payoutMath";
 import { finishProposal, syncProposalForPayment } from "./proposalSync";
 import { allocateFinalApproval } from "./billingHistory";
+import { approvedG702Figures } from "./g703";
 import { payAppView, sovMapFor } from "./review";
 
 /**
@@ -306,9 +307,11 @@ export const approveProposal = mutation({
     };
     await ctx.db.patch(payout._id, decision);
     if (capture) await ctx.db.patch(capture._id, decision);
+    const approvedFigures = await approvedG702Figures(ctx, payApp, finalLines);
     await ctx.db.patch(payApp._id, {
       status: "approved",
       finalApproval: { totalCents: amountCents, lines: finalLines, approvedBy: viewer.userId, approvedAt: now },
+      ...(payApp.g703 && approvedFigures ? { g703: { ...payApp.g703, approved: approvedFigures } } : {}),
     });
     await audit(
       ctx,

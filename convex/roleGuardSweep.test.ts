@@ -309,6 +309,10 @@ describe("agreement ledger and payment reads", () => {
     { name: "agreementTerms:getAgreementTerms", fn: api.agreementTerms.getAgreementTerms, args: (i) => ({ agreementId: i.agreementId }) },
     { name: "portal:mySubPortal", fn: api.portal.mySubPortal, args: () => ({}) },
     { name: "portal:mySubPayApps", fn: api.portal.mySubPayApps, args: () => ({ paginationOpts: { numItems: 50, cursor: null } }) },
+    { name: "payApps/g703:getPayApp", fn: api.payApps.g703.getPayApp, args: (i) => ({ payAppId: i.payAppId }) },
+    { name: "payApps/g703:payAppLines", fn: api.payApps.g703.payAppLines, args: (i) => ({ payAppId: i.payAppId }) },
+    { name: "payApps/g703:mySubPayAppAgreements", fn: api.payApps.g703.mySubPayAppAgreements, args: () => ({}) },
+    { name: "payApps/g703:gcBillingWorklist", fn: api.payApps.g703.gcBillingWorklist, args: () => ({}) },
     { name: "kernel/licenseChecks:getContractorLicense", fn: api.kernel.licenseChecks.getContractorLicense, args: (i) => ({ contractorId: i.contractorId }) },
   ];
 
@@ -473,6 +477,7 @@ describe("static guard sweep over convex/**", () => {
       "payments/changeOrderDb",
       "payments/sandboxTopUp",
       "payApps/submit",
+      "payApps/g703",
       "billing/sov",
       "payApps/review",
       "payApps/proposals",

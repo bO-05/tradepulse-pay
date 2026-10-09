@@ -1,8 +1,7 @@
 import { usePaginatedQuery, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { agreementHash, sovHash } from "../auth/navigation";
+import { agreementHash, payAppHash, sovHash } from "../auth/navigation";
 import { formatCents, formatDate, formatDollars } from "./format";
-import { PayAppForm } from "./PayAppForm";
 import { subPayoutStatusLabel } from "./payoutStatusLabel";
 import { WithdrawPayAppButton } from "./WithdrawPayAppButton";
 import { JudgeDemoBadge } from "./JudgeDemoBadge";
@@ -115,7 +114,13 @@ export function SubPortal() {
         <h2 id="sub-payapp-form" className="text-base font-semibold mb-3">
           Submit pay application
         </h2>
-        <PayAppForm agreements={portal.agreements} />
+        <p className="text-sm text-slate-300">
+          Pay applications are filed per billing period on the G702/G703 continuation sheet.{" "}
+          <a href="#/pay-apps" className="text-emerald-400 hover:text-emerald-300">
+            Open Pay apps
+          </a>{" "}
+          to start or continue one.
+        </p>
       </section>
 
       <section aria-labelledby="sub-payapps" className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
@@ -125,7 +130,7 @@ export function SubPortal() {
         {payApps.status === "LoadingFirstPage" ? (
           <p className="text-sm text-slate-400" role="status">Loading pay applications…</p>
         ) : payApps.results.length === 0 ? (
-          <p className="text-sm text-slate-400">No pay applications submitted yet.</p>
+          <p className="text-sm text-slate-400">No pay applications yet.</p>
         ) : (
           <table className="w-full text-sm">
             <thead className="text-xs text-slate-400 text-left">
@@ -145,7 +150,11 @@ export function SubPortal() {
             <tbody>
               {payApps.results.map((p) => (
                 <tr key={p._id} className="border-t border-slate-800" data-testid="sub-payapp-row">
-                  <td className="py-2 pr-3">{p.periodLabel}</td>
+                  <td className="py-2 pr-3">
+                    <a href={payAppHash(p._id)} className="text-emerald-400 hover:text-emerald-300">
+                      {p.periodLabel}
+                    </a>
+                  </td>
                   <td className="py-2 pr-3">{p.agreementNumber}</td>
                   <td className="py-2 pr-3 text-right">{formatCents(p.requestedTotalCents)}</td>
                   <td className="py-2 pr-3" data-testid="sub-payapp-status">

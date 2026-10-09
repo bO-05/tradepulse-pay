@@ -1,11 +1,12 @@
 import { describe, expect, test } from "vitest";
-import { agreementHash, ledgerHash, NAV_BY_ROLE, navFor, parseHash, resolveRoute } from "./navigation";
+import { agreementHash, ledgerHash, NAV_BY_ROLE, navFor, parseHash, payAppHash, resolveRoute } from "./navigation";
 
 describe("role navigation", () => {
   test("GC gets procurement, payments and the read-only overview; sub and owner never get procurement", () => {
     expect(NAV_BY_ROLE.gc.map((i) => i.area)).toEqual([
       "procurement",
       "gc-projects",
+      "billing",
       "payments",
       "inbox",
       "owner-portal",
@@ -15,7 +16,7 @@ describe("role navigation", () => {
       "dashboard",
       "judge-demo",
     ]);
-    expect(NAV_BY_ROLE.sub.map((i) => i.area)).toEqual(["sub-portal", "bid-invitations", "my-projects", "payments"]);
+    expect(NAV_BY_ROLE.sub.map((i) => i.area)).toEqual(["sub-portal", "pay-apps", "bid-invitations", "my-projects", "payments"]);
     expect(NAV_BY_ROLE.owner.map((i) => i.area)).toEqual(["owner-portal", "my-projects", "dashboard"]);
   });
 
@@ -123,6 +124,22 @@ describe("role navigation", () => {
     const hash = ledgerHash("k97abc");
     expect(hash).toBe("#/payments/k97abc");
     expect(resolveRoute("sub", hash)).toEqual({ area: "ledger", agreementId: "k97abc" });
+  });
+});
+
+describe("billing routes", () => {
+  test("GC Billing worklist, sub Pay apps list and the pay app page; owners get Not found", () => {
+    expect(resolveRoute("gc", "#/billing")).toEqual({ area: "billing" });
+    expect(resolveRoute("sub", "#/billing")).toEqual({ area: "not-found" });
+    expect(resolveRoute("sub", "#/pay-apps")).toEqual({ area: "pay-apps" });
+    expect(resolveRoute("gc", "#/pay-apps")).toEqual({ area: "not-found" });
+    expect(resolveRoute("owner", "#/pay-apps")).toEqual({ area: "not-found" });
+    const hash = payAppHash("k97app");
+    expect(hash).toBe("#/pay-apps/k97app");
+    expect(resolveRoute("gc", hash)).toEqual({ area: "pay-app", payAppId: "k97app" });
+    expect(resolveRoute("sub", hash)).toEqual({ area: "pay-app", payAppId: "k97app" });
+    expect(resolveRoute("sub", hash, false, "", "agent")).toEqual({ area: "pay-app", payAppId: "k97app" });
+    expect(resolveRoute("owner", hash)).toEqual({ area: "not-found" });
   });
 });
 

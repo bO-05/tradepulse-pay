@@ -260,7 +260,7 @@ describe("withdrawPayApplication", () => {
     });
   });
 
-  test("only submitted or under_review apps can be withdrawn; GC and owner cannot withdraw", async () => {
+  test("only apps awaiting a GC decision can be withdrawn; GC and owner cannot withdraw", async () => {
     const { t, gc, owner, sub1, agreement, sov } = await setup();
     const payAppId = await sub1.as.mutation(api.payApps.submit.submitPayApplication, validArgs(agreement._id, sov));
     await expect(gc.as.mutation(api.payApps.submit.withdrawPayApplication, { payAppId })).rejects.toThrow(/Not found/);
@@ -268,12 +268,12 @@ describe("withdrawPayApplication", () => {
     await t.run(async (ctx) => ctx.db.patch(payAppId, { status: "under_review" }));
     await sub1.as.mutation(api.payApps.submit.withdrawPayApplication, { payAppId });
     await expect(sub1.as.mutation(api.payApps.submit.withdrawPayApplication, { payAppId })).rejects.toThrow(
-      /Only submitted or under-review/,
+      /Only pay applications awaiting a GC decision/,
     );
-    for (const status of ["reviewed", "approved", "rejected", "paid"] as const) {
+    for (const status of ["approved", "rejected", "paid"] as const) {
       await t.run(async (ctx) => ctx.db.patch(payAppId, { status }));
       await expect(sub1.as.mutation(api.payApps.submit.withdrawPayApplication, { payAppId })).rejects.toThrow(
-        /Only submitted or under-review/,
+        /Only pay applications awaiting a GC decision/,
       );
     }
   });

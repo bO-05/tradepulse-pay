@@ -2,6 +2,9 @@ import { lazy, Suspense, useEffect, type ReactNode } from "react";
 import { AgreementLedgerView } from "../payments/AgreementLedgerView";
 import { AgreementSummaryView } from "../payments/AgreementSummaryView";
 import { SovPage } from "../billing/SovEditor";
+import { BillingWorklist } from "../billing/BillingWorklist";
+import { PayAppPage } from "../billing/PayAppPage";
+import { PayAppsPage } from "../billing/PayAppsPage";
 import { ApprovalInbox } from "../payments/inbox/ApprovalInbox";
 import { PaymentsWorkspace } from "../payments/PaymentsWorkspace";
 import { OwnerPortal } from "../payments/OwnerPortal";
@@ -72,6 +75,12 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
   else if (route.area === "owner-portal") content = <OwnerPortal role={me.role} />;
   else if (route.area === "payments") content = <PaymentsWorkspace />;
   else if (route.area === "billing-agents") content = <BillingAgentsView />;
+  else if (route.area === "billing") content = <BillingWorklist />;
+  else if (route.area === "pay-apps") content = <PayAppsPage />;
+  else if (route.area === "pay-app") {
+    const back = me.role === "gc" ? { hash: "#/billing", label: "Billing" } : { hash: "#/pay-apps", label: "Pay apps" };
+    content = <PayAppPage payAppId={route.payAppId ?? ""} backHash={back.hash} backLabel={back.label} />;
+  }
   else if (route.area === "inbox") content = <ApprovalInbox />;
   else if (route.area === "judge-demo") content = <JudgeDemoPage />;
   else if (route.area === "people") content = <PeoplePage projectId={route.projectId} />;
@@ -126,7 +135,10 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
         ) : null}
         <ul className="flex flex-wrap items-center gap-1">
           {nav.map((item) => {
-            const active = route.area === item.area || (route.area === "ledger" && item.area === "payments");
+            const active =
+              route.area === item.area ||
+              (route.area === "ledger" && item.area === "payments") ||
+              (route.area === "pay-app" && (item.area === "billing" || item.area === "pay-apps"));
             return (
               <li key={item.area}>
                 <a

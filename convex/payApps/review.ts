@@ -307,6 +307,6 @@ export const listAgreementPayApps = query({
       .withIndex("by_agreementId", (q) => q.eq("agreementId", agreementId))
       .order("desc")
       .take(100);
-    return await Promise.all(payApps.map((p) => payAppView(ctx, p, sovById)));
+    return await Promise.all(payApps.filter((p) => p.status !== "draft").map((p) => payAppView(ctx, p, sovById)));
   },
 });
