@@ -5,7 +5,7 @@ import { internalAction, internalMutation, internalQuery, mutation, query, type 
 import { formatCents } from "../lib/money";
 import { requireRole } from "../lib/roles";
 import { scopedAgreements } from "../lib/agreementScope";
-import { auditActor, findDocScope, requireDocScope } from "../lib/projectScope";
+import { auditActor, findSubcontractDocScope, requireDocScope } from "../lib/projectScope";
 import { latestCompletedCheck } from "../kernel/licenseChecks";
 import { milestonePlanRows } from "../agent/proposalDb";
 import { checkEditedAmount, chooseCaptureMilestone, effectiveAmount } from "../agent/proposalMath";
@@ -211,7 +211,7 @@ export const listInbox = query({
 export const getAgentTrace = query({
   args: { payAppId: v.string() },
   handler: async (ctx, args) => {
-    const scope = await findDocScope(ctx, "payApplications", args.payAppId, { roles: ["gc"] });
+    const scope = await findSubcontractDocScope(ctx, "payApplications", args.payAppId, { roles: ["gc"] });
     if (scope === null) return null;
     const rows = await ctx.db
       .query("agentTraces")

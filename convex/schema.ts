@@ -242,6 +242,7 @@ export default defineSchema({
   })
     .index("by_tokenHash", ["tokenHash"])
     .index("by_inviterCompanyId", ["inviterCompanyId"])
+    .index("by_inviterCompanyId_and_kind_and_status", ["inviterCompanyId", "kind", "status"])
     .index("by_email", ["email"])
     .index("by_projectId", ["projectId"]),
 
@@ -311,6 +312,13 @@ export default defineSchema({
     .index("by_day_and_status", ["day", "status"])
     .index("by_threadId", ["threadId"])
     .index("by_agentmailMessageId", ["agentmailMessageId"]),
+
+  // Bounces/rejections that arrived before any outbox row carried their message id; finishSend applies them.
+  emailEarlyDeliveryEvents: defineTable({
+    agentmailMessageId: v.string(),
+    event: v.string(), // bounced | rejected
+    receivedAt: v.number(),
+  }).index("by_agentmailMessageId", ["agentmailMessageId"]),
 
   // Outbound RFQ conversations this deployment started; inbound mail routes by threadId, then by `[TP-<ref>]`.
   emailThreads: defineTable({
@@ -444,6 +452,9 @@ export default defineSchema({
     // The agreement's contractor, copied at submission so the sub portal can page one contractor's
     // pay apps newest first across all its agreements. Older rows: payApps/backfill.ts.
     contractorId: v.optional(v.id("contractors")),
+    // The sub company the contractor was linked to at submission, so the sub portal can page all
+    // of a company's pay apps with one index. Older rows: payApps/backfill.ts.
+    subCompanyId: v.optional(v.id("companies")),
     // Set when the GC's one-click judge demo filed this pay app as a stand-in for the sub or its agent.
     judgeDemo: v.optional(v.object({ runId: v.id("judgeDemoRuns"), filedBy: v.string() })),
     createdAt: v.number(),
@@ -451,6 +462,7 @@ export default defineSchema({
     .index("by_agreementId", ["agreementId"])
     .index("by_agreementId_and_status", ["agreementId", "status"])
     .index("by_contractorId", ["contractorId"])
+    .index("by_subCompanyId", ["subCompanyId"])
     .index("by_subUserId", ["subUserId"])
     .index("by_status", ["status"]),
 

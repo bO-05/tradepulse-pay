@@ -156,13 +156,33 @@ export const finishSend = internalMutation({
     error: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.outboxId, {
+    const row = await ctx.db.get(args.outboxId);
+    if (row === null) return null;
+    const now = Date.now();
+    if (row.status === "delivery_failed") {
+      // Terminal: a later finish (e.g. a reconcile) only fills in ids that were missing.
+      await ctx.db.patch(row._id, {
+        agentmailMessageId: row.agentmailMessageId ?? args.agentmailMessageId,
+        threadId: row.threadId ?? args.threadId,
+        updatedAt: now,
+      });
+      return null;
+    }
+    await ctx.db.patch(row._id, {
       status: args.status,
       agentmailMessageId: args.agentmailMessageId,
       threadId: args.threadId,
       error: args.error,
-      updatedAt: Date.now(),
+      updatedAt: now,
     });
+    if (args.status !== "sent" || !args.agentmailMessageId) return null;
+    const messageId = args.agentmailMessageId;
+    const early = await ctx.db
+      .query("emailEarlyDeliveryEvents")
+      .withIndex("by_agentmailMessageId", (q) => q.eq("agentmailMessageId", messageId))
+      .take(10);
+    for (const e of early) await ctx.db.delete(e._id);
+    if (early.length > 0) await markDeliveryFailed(ctx, (await ctx.db.get(row._id))!, early[0].event);
     return null;
   },
 });
@@ -178,7 +198,8 @@ export function deliveryFailureMessage(event: string): string {
 /**
  * Delivery webhooks (delivered/bounced/complained/rejected) annotate the matching sent row. A bounce or
  * rejection is terminal: the row becomes delivery_failed (still charged, since provider quota was used)
- * and the invite or RFQ it belongs to stops reading "Email sent".
+ * and the invite or RFQ it belongs to stops reading "Email sent". A bounce or rejection that arrives
+ * before the send's message id is stored is kept and applied by finishSend.
  */
 export const recordDeliveryEvent = internalMutation({
   args: { agentmailMessageId: v.string(), event: v.string() },
@@ -187,28 +208,48 @@ export const recordDeliveryEvent = internalMutation({
       .query("emailOutbox")
       .withIndex("by_agentmailMessageId", (q) => q.eq("agentmailMessageId", args.agentmailMessageId))
       .first();
-    if (!row) return { matched: false };
+    if (!row) {
+      if (FAILED_DELIVERY_EVENTS.has(args.event)) {
+        await ctx.db.insert("emailEarlyDeliveryEvents", {
+          agentmailMessageId: args.agentmailMessageId,
+          event: args.event,
+          receivedAt: Date.now(),
+        });
+      }
+      return { matched: false };
+    }
     const now = Date.now();
     if (!FAILED_DELIVERY_EVENTS.has(args.event) || row.status === "delivery_failed") {
       // A late "delivered" never overrides a recorded bounce.
       if (row.status !== "delivery_failed") await ctx.db.patch(row._id, { deliveryEvent: args.event, updatedAt: now });
       return { matched: true };
     }
-    const error = deliveryFailureMessage(args.event);
-    await ctx.db.patch(row._id, { status: "delivery_failed", deliveryEvent: args.event, error, updatedAt: now });
-    await markLogicalEventUndelivered(ctx, row, args.event, error);
+    await markDeliveryFailed(ctx, row, args.event);
     return { matched: true };
   },
 });
 
+async function markDeliveryFailed(ctx: MutationCtx, row: Doc<"emailOutbox">, event: string) {
+  const error = deliveryFailureMessage(event);
+  await ctx.db.patch(row._id, { status: "delivery_failed", deliveryEvent: event, error, updatedAt: Date.now() });
+  await markLogicalEventUndelivered(ctx, row, event, error);
+}
+
+/** The invite id and link version an invite email's idempotency key names, or null. */
+export function parseInviteKey(key: string): { inviteId: string; tokenVersion: number } | null {
+  const m = /^invite\.([^.]+)\.(\d+)$/.exec(key);
+  return m ? { inviteId: m[1], tokenVersion: Number(m[2]) } : null;
+}
+
 async function markLogicalEventUndelivered(ctx: MutationCtx, row: Doc<"emailOutbox">, event: string, error: string) {
   if (row.kind === "invite") {
-    const m = /^invite\.([^.]+)\.(\d+)$/.exec(row.idempotencyKey);
-    const inviteId = m ? ctx.db.normalizeId("invites", m[1]) : null;
-    if (!m || !inviteId) return;
+    const parsed = parseInviteKey(row.idempotencyKey);
+    const inviteId = parsed ? ctx.db.normalizeId("invites", parsed.inviteId) : null;
+    if (!parsed || !inviteId) return;
     const invite = await ctx.db.get(inviteId);
-    // Only the link this email carried; a newer resend owns the status.
-    if (!invite || (invite.tokenVersion ?? 1) !== Number(m[2]) || invite.emailStatus !== "sent") return;
+    // Only the link this email carried; a newer resend owns the status. The send result may not be
+    // stored yet; invites:recordEmailResult then reads this row's terminal state.
+    if (!invite || (invite.tokenVersion ?? 1) !== parsed.tokenVersion) return;
     await ctx.db.patch(invite._id, { emailStatus: "bounced", emailError: error });
     return;
   }

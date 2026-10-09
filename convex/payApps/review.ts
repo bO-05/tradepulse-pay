@@ -2,7 +2,7 @@ import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import { internal } from "../_generated/api";
 import { action, internalAction, internalMutation, internalQuery, query, type ActionCtx, type QueryCtx } from "../_generated/server";
-import { findDocScope } from "../lib/projectScope";
+import { findSubcontractDocScope } from "../lib/projectScope";
 import { requireProjectScopeInAction } from "../lib/tenancyAction";
 import { formatCents } from "../lib/money";
 import { payAppReviewValidator } from "../schema";
@@ -290,12 +290,12 @@ export async function sovMapFor(ctx: QueryCtx, agreementId: Id<"agreements">) {
 
 /**
  * GC view of an agreement's pay applications with line details and the stored review. Only the GC
- * of the agreement's project; everyone else (including the owner) gets an empty list.
+ * of the agreement's project; everyone else gets an empty list, and owner accounts get "Not found.".
  */
 export const listAgreementPayApps = query({
   args: { agreementId: v.string() },
   handler: async (ctx, args) => {
-    const scope = await findDocScope(ctx, "agreements", args.agreementId, { roles: ["gc"] });
+    const scope = await findSubcontractDocScope(ctx, "agreements", args.agreementId, { roles: ["gc"] });
     if (scope === null) return [];
     const agreementId = scope.doc._id;
     const sovById = await sovMapFor(ctx, agreementId);

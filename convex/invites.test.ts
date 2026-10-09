@@ -566,6 +566,36 @@ describe("people and company settings", () => {
     expect((await inviteRow(t, inv.inviteId)).status).toBe("revoked");
   });
 
+  test("a pending teammate invite stays listed after 200+ newer sub and owner invites", async () => {
+    const { t, fx } = await setup();
+    const projectId = fx.gcA.project.projectId;
+    const inv = await fx.gcA.admin.as.action(api.invites.create, { kind: "teammate", email: "pm-old@mail-test.com", sendEmail: false });
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 210; i++) {
+        await ctx.db.insert("invites", {
+          tokenHash: `bulk-${i}`,
+          email: `bulk-${i}@mail-test.com`,
+          kind: i % 2 === 0 ? "sub" : "owner",
+          inviterCompanyId: fx.gcA.companyId,
+          projectId,
+          status: i % 3 === 0 ? "pending" : "expired",
+          expiresAt: Date.now() + 86_400_000,
+          emailStatus: "not_sent",
+          tokenVersion: 1,
+          createdByUserId: fx.gcA.admin.userId,
+          createdAt: Date.now() + i + 1,
+        });
+      }
+    });
+    const admin = await fx.gcA.admin.as.query(api.people.listForProject, { projectId });
+    expect(admin.teammateInvites.map((i) => [i._id, i.status])).toEqual([[inv.inviteId, "pending"]]);
+    expect(admin.canManageTeammateInvites).toBe(true);
+    const member = await fx.gcA.member.as.query(api.people.listForProject, { projectId });
+    expect(member.teammateInvites.map((i) => i.email)).toEqual(["pm-old@mail-test.com"]);
+    const settings = await fx.gcA.admin.as.query(api.companies.myCompany, {});
+    expect(settings.teammateInvites.map((i) => i._id)).toEqual([inv.inviteId]);
+  });
+
   test("removed project-member history never hides an active membership", async () => {
     const { t, fx } = await setup();
     const projectId = fx.gcA.project.projectId;

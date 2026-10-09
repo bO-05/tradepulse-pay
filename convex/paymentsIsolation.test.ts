@@ -441,9 +441,10 @@ describe("parties on the project outside the allowed roles get the same Not foun
     for (const c of BLANK_READS) {
       expect(await outcome(call(ray.as, c, bayview)), c.name).toMatch(/^RESOLVED:(null|\[\])$|Not found/);
     }
-    expect(await fx.owner.admin.as.query(api.payApps.submit.payAppFormContext, { agreementId: bayview.agreementId })).toBeNull();
-    expect(await fx.owner.admin.as.query(api.payApps.proposals.getAgentTrace, { payAppId: bayview.payAppId })).toBeNull();
-    expect(await fx.owner.admin.as.query(api.payApps.review.listAgreementPayApps, { agreementId: bayview.agreementId })).toEqual([]);
+    const owner = fx.owner.admin.as;
+    expect(await outcome(owner.query(api.payApps.submit.payAppFormContext, { agreementId: bayview.agreementId }))).toBe(NOT_FOUND);
+    expect(await outcome(owner.query(api.payApps.proposals.getAgentTrace, { payAppId: bayview.payAppId }))).toBe(NOT_FOUND);
+    expect(await outcome(owner.query(api.payApps.review.listAgreementPayApps, { agreementId: bayview.agreementId }))).toBe(NOT_FOUND);
   });
 });
 

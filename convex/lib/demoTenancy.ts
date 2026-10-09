@@ -2,6 +2,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import type { Role } from "./roles";
 import { findActiveMembership } from "./tenancy";
+import { stampPayAppsSubCompany } from "../payApps/backfill";
 
 /**
  * The seeded Demo companies (isDemo: true). Seeds and migrations find them by `demoKey` through
@@ -171,6 +172,7 @@ export async function ensureDemoAccounts(
         const contractor = await ctx.db.get(profile.contractorId);
         if (contractor !== null && contractor.linkedCompanyId === undefined) {
           await ctx.db.patch(contractor._id, { linkedCompanyId: companyId });
+          await stampPayAppsSubCompany(ctx, contractor._id, companyId);
           counts.contractorsLinked++;
         }
       }

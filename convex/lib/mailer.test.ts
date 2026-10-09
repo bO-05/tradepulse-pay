@@ -363,4 +363,43 @@ describe("indeterminate AgentMail outcomes keep the budget slot", () => {
     expect(rows[0]).toMatchObject({ status: "sent", attempts: 3, agentmailMessageId: "<orig@ses>" });
     expect((await sendEmail(ctx, request("invite", 2), { fetchImpl: ok.fetchImpl })).status).toBe("skipped_budget");
   });
+
+  /** AgentMail answered 2xx (so it accepted the send) but the body could not be read. */
+  function lostBody(): Response {
+    const r = new Response("{", { status: 200 });
+    Object.defineProperty(r, "text", { value: async () => Promise.reject(new TypeError("terminated")) });
+    return r;
+  }
+  const accepted = (n: string) => new Response(JSON.stringify({ message_id: `<${n}@ses>`, thread_id: `thread-${n}` }), { status: 200 });
+
+  test("an accepted send whose body is lost reconciles at once with the same key and records the ids", async () => {
+    const { t, ctx } = setup();
+    const mail = fakeAgentmail((_c, n) => (n === 1 ? lostBody() : accepted("orig")));
+    const res = await sendEmail(ctx, request("rfq", 1, { idempotencyKey: "rfq.lost-body" }), { fetchImpl: mail.fetchImpl });
+    expect(res).toMatchObject({ status: "sent", messageId: "<orig@ses>", threadId: "thread-orig" });
+    expect(mail.calls.map((c) => c.headers["Idempotency-Key"])).toEqual(["rfq.lost-body", "rfq.lost-body"]);
+    expect(await outboxRows(t)).toMatchObject([{ status: "sent", agentmailMessageId: "<orig@ses>", threadId: "thread-orig" }]);
+  });
+
+  test("an accepted send without readable ids stays charged and uncertain until a same-key retry recovers them", async () => {
+    vi.stubEnv("EMAIL_DAILY_BUDGET", "11"); // invites may use 1 slot
+    const { t, ctx } = setup();
+    const req = request("invite", 1, { idempotencyKey: "invite.lost-body.1" });
+    const lost = fakeAgentmail((_c, n) => (n === 1 ? lostBody() : new Response("{}", { status: 200 })));
+    const first = await sendEmail(ctx, req, { fetchImpl: lost.fetchImpl });
+    expect(first).toMatchObject({ status: "failed", uncertain: true });
+    expect(await outboxRows(t)).toMatchObject([{ status: "uncertain" }]);
+    expect(await t.query(internal.emailOutbox.listForDay, {})).toMatchObject({ sentCount: 0, chargedCount: 1 });
+
+    const ok = fakeAgentmail(() => accepted("orig"));
+    expect((await sendEmail(ctx, request("invite", 2), { fetchImpl: ok.fetchImpl })).status).toBe("skipped_budget");
+    expect(ok.calls).toHaveLength(0);
+
+    const retry = await sendEmail(ctx, req, { fetchImpl: ok.fetchImpl });
+    expect(retry).toMatchObject({ status: "sent", messageId: "<orig@ses>", threadId: "thread-orig" });
+    expect([...lost.calls, ...ok.calls].every((c) => c.headers["Idempotency-Key"] === "invite.lost-body.1")).toBe(true);
+    expect((await outboxRows(t)).filter((r) => r.idempotencyKey === req.idempotencyKey)).toMatchObject([
+      { status: "sent", agentmailMessageId: "<orig@ses>", threadId: "thread-orig" },
+    ]);
+  });
 });

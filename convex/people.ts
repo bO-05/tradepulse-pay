@@ -3,6 +3,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type QueryCtx } from "./_generated/server";
 import { callerProjects, isNotFoundError, partyMaySeeContractor, requireProjectScope } from "./lib/projectScope";
 import { findActiveMembership, notFound } from "./lib/tenancy";
+import { listTeammateInvites } from "./lib/teammateInvites";
 import { ownerChangeOrdersOfProject } from "./lib/ownerView";
 import { changeOrderLabel } from "./payments/changeOrderMath";
 
@@ -82,13 +83,7 @@ export const listForProject = query({
     const canManageTeammateInvites = membership !== null && membership.companyId === gc?._id && membership.role === "admin";
     const teammateInvites = [];
     if (gc !== null) {
-      const rows = await ctx.db
-        .query("invites")
-        .withIndex("by_inviterCompanyId", (q) => q.eq("inviterCompanyId", gc._id))
-        .order("desc")
-        .take(200);
-      for (const i of rows) {
-        if (i.kind !== "teammate") continue;
+      for (const i of await listTeammateInvites(ctx, gc._id)) {
         teammateInvites.push({
           _id: i._id,
           email: i.email,

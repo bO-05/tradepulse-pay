@@ -3,6 +3,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx } from "./_generated/server";
 import { addressValidator } from "./schema";
 import { formatUsPhone, phoneDigits, validateCompanyProfile } from "./lib/companyProfile";
+import { listTeammateInvites } from "./lib/teammateInvites";
 import { notFound, requireCompanyMember } from "./lib/tenancy";
 
 /** Company settings (architecture §13): profile, members, roles. Only admins change anything. */
@@ -40,13 +41,7 @@ export const myCompany = query({
     const isAdmin = membership.role === "admin";
     const teammateInvites = [];
     if (isAdmin && company.kind === "gc") {
-      const rows = await ctx.db
-        .query("invites")
-        .withIndex("by_inviterCompanyId", (q) => q.eq("inviterCompanyId", company._id))
-        .order("desc")
-        .take(200);
-      for (const i of rows) {
-        if (i.kind !== "teammate") continue;
+      for (const i of await listTeammateInvites(ctx, company._id)) {
         teammateInvites.push({
           _id: i._id,
           email: i.email,

@@ -17,6 +17,8 @@ import {
 } from "./lib/inviteRules";
 import { escapeHtml, sendEmail, SYSTEM_SENDER_NAME } from "./lib/mailer";
 import { requireProjectScope } from "./lib/projectScope";
+import { stampPayAppsSubCompany } from "./payApps/backfill";
+import { deliveryFailureMessage } from "./emailOutbox";
 import { getLiveAuthUserId } from "./lib/session";
 import { requireCompanyMemberInAction } from "./lib/tenancyAction";
 import { findActiveMembership, notFound, requireCompanyMember, requireVerifiedUser } from "./lib/tenancy";
@@ -295,6 +297,19 @@ export const recordEmailResult = internalMutation({
     const invite = await ctx.db.get(args.inviteId);
     // A newer rotation owns the status; this result is about a link that no longer works.
     if (invite === null || (invite.tokenVersion ?? 1) !== args.tokenVersion) return null;
+    // A bounce for this link may already have been recorded on the invite or its outbox row.
+    if (invite.emailStatus === "bounced") return null;
+    const outbox = await ctx.db
+      .query("emailOutbox")
+      .withIndex("by_idempotencyKey", (q) => q.eq("idempotencyKey", `invite.${invite._id}.${args.tokenVersion}`))
+      .unique();
+    if (outbox?.status === "delivery_failed") {
+      await ctx.db.patch(invite._id, {
+        emailStatus: "bounced",
+        emailError: outbox.error ?? deliveryFailureMessage(outbox.deliveryEvent ?? "bounced"),
+      });
+      return null;
+    }
     await ctx.db.patch(invite._id, {
       emailStatus: args.emailStatus,
       emailError: args.error?.slice(0, 300),
@@ -549,6 +564,7 @@ async function linkVendorContractors(
       if (!matches) continue;
       if (c.linkedCompanyId !== undefined && c.linkedCompanyId !== subCompanyId) continue;
       await ctx.db.patch(c._id, { linkedCompanyId: subCompanyId, vendorId: vendor._id });
+      if (c.linkedCompanyId === undefined) await stampPayAppsSubCompany(ctx, c._id, subCompanyId);
       first ??= c._id;
     }
   }

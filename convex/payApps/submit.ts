@@ -3,7 +3,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import { internal } from "../_generated/api";
 import { mutation, query, type MutationCtx, type QueryCtx } from "../_generated/server";
 import type { Viewer } from "../lib/roles";
-import { auditActor, findDocScope, requireDocScope } from "../lib/projectScope";
+import { auditActor, findSubcontractDocScope, requireDocScope } from "../lib/projectScope";
 import { formatCents } from "../lib/money";
 import { viewerAgentAuditFields, type AgentAuditFields } from "../lib/agentAudit";
 import {
@@ -54,7 +54,7 @@ function submittedByFor(viewer: Viewer): Doc<"payApplications">["submittedBy"] {
 export const payAppFormContext = query({
   args: { agreementId: v.string() },
   handler: async (ctx, args) => {
-    const scope = await findDocScope(ctx, "agreements", args.agreementId, { roles: ["sub"] });
+    const scope = await findSubcontractDocScope(ctx, "agreements", args.agreementId, { roles: ["sub"] });
     if (scope === null) return null;
     const agreement = scope.doc;
     return {
@@ -140,9 +140,11 @@ export async function recordPayApplication(
   }
   const lines = result.lines.map((l) => ({ ...l, sovLineId: l.sovLineId as Id<"scheduleOfValues"> }));
   const now = Date.now();
+  const contractor = agreement.contractorId ? await ctx.db.get(agreement.contractorId) : null;
   const payAppId = await ctx.db.insert("payApplications", {
     agreementId: agreement._id,
     contractorId: agreement.contractorId,
+    ...(contractor?.linkedCompanyId ? { subCompanyId: contractor.linkedCompanyId } : {}),
     subUserId: who.subUserId,
     periodLabel: args.periodLabel.trim(),
     lines,

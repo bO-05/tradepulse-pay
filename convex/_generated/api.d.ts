@@ -67,6 +67,7 @@ import type * as lib_passwordPolicy from "../lib/passwordPolicy.js";
 import type * as lib_projectScope from "../lib/projectScope.js";
 import type * as lib_roles from "../lib/roles.js";
 import type * as lib_session from "../lib/session.js";
+import type * as lib_teammateInvites from "../lib/teammateInvites.js";
 import type * as lib_tenancy from "../lib/tenancy.js";
 import type * as lib_tenancyAction from "../lib/tenancyAction.js";
 import type * as lib_tenancyFixtures from "../lib/tenancyFixtures.js";
@@ -211,6 +212,7 @@ declare const fullApi: ApiFromModules<{
   "lib/projectScope": typeof lib_projectScope;
   "lib/roles": typeof lib_roles;
   "lib/session": typeof lib_session;
+  "lib/teammateInvites": typeof lib_teammateInvites;
   "lib/tenancy": typeof lib_tenancy;
   "lib/tenancyAction": typeof lib_tenancyAction;
   "lib/tenancyFixtures": typeof lib_tenancyFixtures;

@@ -3,7 +3,7 @@ import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { query, type QueryCtx } from "./_generated/server";
 import { requireRole } from "./lib/roles";
-import { callerProjects, requireDocScope, subContractorScope } from "./lib/projectScope";
+import { callerProjects, findSubcontractDocScope, requireDocScope, subContractorScope } from "./lib/projectScope";
 import { ownerChangeOrdersOfProject } from "./lib/ownerView";
 import { changeOrderView } from "./payments/changeOrderDb";
 import { loadMilestoneFunding } from "./payments/milestoneFundingState";
@@ -119,50 +119,11 @@ export const mySubPortal = query({
   },
 });
 
-/** Rows read per contractor relationship for one page, so a page stays within query limits. */
-const PAY_APP_SCAN_LIMIT = 2_000;
-
-/**
- * Newest-first pay applications on the caller's visible agreements, merged across every contractor
- * relationship of the caller's company. The cursor is the _creationTime of the last row returned.
- */
-async function subPayAppPage(
-  ctx: QueryCtx,
-  contractorIds: Id<"contractors">[],
-  agreements: Map<string, Doc<"agreements">>,
-  opts: { numItems: number; cursor: string | null },
-) {
-  const numItems = Math.max(1, Math.min(Math.floor(opts.numItems), 200));
-  const parsed = opts.cursor === null || opts.cursor === "" ? null : Number(opts.cursor);
-  const before = parsed !== null && Number.isFinite(parsed) ? parsed : null;
-  const candidates: Doc<"payApplications">[] = [];
-  for (const contractorId of contractorIds) {
-    const rows = ctx.db
-      .query("payApplications")
-      .withIndex("by_contractorId", (q) =>
-        before === null ? q.eq("contractorId", contractorId) : q.eq("contractorId", contractorId).lt("_creationTime", before),
-      )
-      .order("desc");
-    let kept = 0;
-    let scanned = 0;
-    for await (const p of rows) {
-      if (++scanned > PAY_APP_SCAN_LIMIT) break;
-      if (!agreements.has(p.agreementId)) continue;
-      candidates.push(p);
-      if (++kept > numItems) break;
-    }
-  }
-  candidates.sort((a, b) => b._creationTime - a._creationTime);
-  const page = candidates.slice(0, numItems);
-  const isDone = candidates.length <= numItems;
-  const last = page.at(-1);
-  return { page, isDone, continueCursor: last === undefined ? (opts.cursor ?? "") : String(last._creationTime) };
-}
-
 /**
  * The caller's pay applications across all its contractor relationships and agreements, newest
- * first, one cursor page at a time. Listed per contractor (not per submitter) so pay apps filed by
- * a linked billing agent show up too. Rows on superseded agreements are left out.
+ * first, one cursor page at a time. Listed per sub company (a billing agent: per contractor), not
+ * per submitter, so pay apps filed by a linked billing agent show up too. Rows on superseded
+ * agreements or removed relationships are left out.
  */
 export const mySubPayApps = query({
   args: { paginationOpts: paginationOptsValidator },
@@ -170,9 +131,23 @@ export const mySubPayApps = query({
     const scope = await subContractorScope(ctx, { includeArchived: true });
     if (scope.contractorIds.length === 0) return { page: [], isDone: true, continueCursor: "" };
     const agreements = new Map((await subAgreements(ctx, scope)).map((a) => [a._id as string, a]));
-    const result = await subPayAppPage(ctx, scope.contractorIds, agreements, args.paginationOpts);
+    const companyId = scope.subCompanyId;
+    // Native pagination keeps each loaded page's range stable as rows are added or hidden.
+    const result =
+      companyId !== null
+        ? await ctx.db
+            .query("payApplications")
+            .withIndex("by_subCompanyId", (q) => q.eq("subCompanyId", companyId))
+            .order("desc")
+            .paginate(args.paginationOpts)
+        : await ctx.db
+            .query("payApplications")
+            .withIndex("by_contractorId", (q) => q.eq("contractorId", scope.contractorIds[0]))
+            .order("desc")
+            .paginate(args.paginationOpts);
     const page = [];
-    for (const p of result.page) {
+    // Rows of removed relationships and superseded agreements stay out of the page.
+    for (const p of result.page.filter((row) => agreements.has(row.agreementId))) {
       const agreement = agreements.get(p.agreementId)!;
       const payments = await ctx.db
         .query("payments")
@@ -211,13 +186,9 @@ export const mySubPayApps = query({
 export const getAgreementSummary = query({
   args: { agreementId: v.string() },
   handler: async (ctx, args) => {
-    let agreement: Doc<"agreements">;
-    try {
-      ({ doc: agreement } = await requireDocScope(ctx, "agreements", args.agreementId));
-    } catch (error) {
-      if ((error as { data?: { code?: string } }).data?.code === "NOT_FOUND") return null;
-      throw error;
-    }
+    const scope = await findSubcontractDocScope(ctx, "agreements", args.agreementId);
+    if (scope === null) return null;
+    const agreement = scope.doc;
     return { ...agreementSummary(agreement), milestones: await loadMilestoneFunding(ctx, agreement._id) };
   },
 });

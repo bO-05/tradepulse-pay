@@ -100,9 +100,6 @@ describe("owners get owner-safe projections only", () => {
     }
 
     expect(await owner.query(api.agreements.listAgreements, { projectId: a.projectId })).toEqual([]);
-    expect(await owner.query(api.payments.ledger.getAgreementLedger, { agreementId: a.agreementId })).toBeNull();
-    expect(await owner.query(api.portal.getAgreementSummary, { agreementId: a.agreementId })).toBeNull();
-
     const overview = await owner.query(api.people.projectOverview, { projectId: a.projectId });
     expect(overview!.agreements).toEqual([]);
     expect(overview!.changeOrders.map((c) => c.amountCents)).toEqual([77_700]);
@@ -126,6 +123,43 @@ describe("owners get owner-safe projections only", () => {
     expect(await errorData(owner.query(api.bids.listByPackage, { tradePackageId: a.tradePackageId }))).toEqual(notFound);
     expect(await errorData(owner.query(api.contractors.listByPackage, { tradePackageId: a.tradePackageId }))).toEqual(notFound);
     expect(await owner.query(api.rfq.listConversations, { tradePackageId: a.tradePackageId }).catch((e) => e.data)).toEqual(notFound);
+  });
+
+  test("owner subcontract detail reads answer Not found for project and missing ids alike", async () => {
+    const { t, fx, a } = await ownerFixture();
+    const owner = fx.owner.admin.as;
+    const notFound = { code: "NOT_FOUND", message: "Not found." };
+    const payAppId = await t.run(async (ctx) =>
+      ctx.db.insert("payApplications", {
+        agreementId: a.agreementId,
+        contractorId: a.contractorId,
+        subUserId: fx.sub.admin.userId,
+        periodLabel: "Owner probe",
+        lines: [],
+        requestedTotalCents: 0,
+        notes: "",
+        lienWaiver: true,
+        status: "submitted",
+        submittedBy: { userId: fx.sub.admin.userId, actorType: "human" },
+        createdAt: Date.now(),
+      }),
+    );
+    const missingAgreement = await t.run(async (ctx) => {
+      const { _id, _creationTime, ...copy } = (await ctx.db.get(a.agreementId))!;
+      const id = await ctx.db.insert("agreements", copy);
+      await ctx.db.delete(id);
+      return id;
+    });
+    for (const agreementId of [a.agreementId as string, missingAgreement as string, "not-an-id"]) {
+      expect(await errorData(owner.query(api.payments.ledger.getAgreementLedger, { agreementId })), agreementId).toEqual(notFound);
+      expect(await errorData(owner.query(api.portal.getAgreementSummary, { agreementId })), agreementId).toEqual(notFound);
+      expect(await errorData(owner.query(api.payApps.submit.payAppFormContext, { agreementId })), agreementId).toEqual(notFound);
+      expect(await errorData(owner.query(api.payApps.review.listAgreementPayApps, { agreementId })), agreementId).toEqual(notFound);
+    }
+    expect(await errorData(owner.query(api.payApps.proposals.getAgentTrace, { payAppId }))).toEqual(notFound);
+    // Other companies' callers keep the blank answer.
+    expect(await fx.gcB.admin.as.query(api.payments.ledger.getAgreementLedger, { agreementId: a.agreementId })).toBeNull();
+    expect(await fx.gcB.admin.as.query(api.portal.getAgreementSummary, { agreementId: a.agreementId })).toBeNull();
   });
 
   test("the GC and the sub still see their subcontract data", async () => {

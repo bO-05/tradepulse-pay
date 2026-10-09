@@ -171,49 +171,80 @@ export async function sendEmail(ctx: MailerCtx, req: SendEmailRequest, opts: Mai
     : { to: [to], subject: req.subject, text: req.text, html: req.html, labels: ["transactional", req.kind] };
 
   const doFetch = opts.fetchImpl ?? ((input: RequestInfo | URL, init?: RequestInit) => fetch(input, init));
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-  let response: Response;
-  try {
-    response = await doFetch(config.baseUrl + path, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${config.apiKey}`,
-        "Content-Type": "application/json",
-        "Idempotency-Key": await agentmailIdempotencyKey(req.idempotencyKey),
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-  } catch (err: any) {
-    const detail = `AgentMail request failed: ${[err?.message, err?.cause?.code, err?.cause?.message].filter(Boolean).join(" ") || String(err)}`;
-    return DEFINITE_TRANSPORT_FAILURE.test(detail) ? await fail(detail) : await uncertain(detail);
-  } finally {
-    clearTimeout(timer);
-  }
+  const idempotencyHeader = await agentmailIdempotencyKey(req.idempotencyKey);
+  const post = () =>
+    postToAgentmail(doFetch, config.baseUrl + path, {
+      Authorization: `Bearer ${config.apiKey}`,
+      "Content-Type": "application/json",
+      "Idempotency-Key": idempotencyHeader,
+    }, JSON.stringify(body));
 
-  const raw = await response.text().catch(() => "");
-  if (INDETERMINATE_STATUSES.has(response.status)) {
-    return await uncertain(`AgentMail ${response.status}`);
+  let outcome = await post();
+  let acceptedEarlier = false;
+  if (outcome.kind === "accepted_unreadable") {
+    // AgentMail accepted the send, so the slot is spent. Record that before the same-key replay,
+    // which returns the original message's ids without sending again.
+    acceptedEarlier = true;
+    await uncertain(outcome.detail);
+    outcome = await post();
   }
-  if (!response.ok) {
-    return await fail(`AgentMail ${response.status}: ${raw.slice(0, 300)}`);
-  }
-  let parsed: any = null;
-  try {
-    parsed = raw ? JSON.parse(raw) : null;
-  } catch {
-    parsed = null;
-  }
-  const messageId = String(parsed?.message_id ?? "");
-  const threadId = String(parsed?.thread_id ?? "");
+  if (outcome.kind === "definite_failure" && !acceptedEarlier) return await fail(outcome.detail);
+  if (outcome.kind !== "accepted") return await uncertain(outcome.detail);
+  const { messageId, threadId } = outcome;
   await ctx.runMutation(internal.emailOutbox.finishSend, {
     outboxId,
     status: "sent",
-    agentmailMessageId: messageId || undefined,
+    agentmailMessageId: messageId,
     threadId: threadId || undefined,
   });
   return { status: "sent", outboxId, messageId, threadId };
+}
+
+type PostOutcome =
+  | { kind: "accepted"; messageId: string; threadId: string }
+  | { kind: "accepted_unreadable"; detail: string }
+  | { kind: "indeterminate"; detail: string }
+  | { kind: "definite_failure"; detail: string };
+
+async function postToAgentmail(
+  doFetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>,
+  url: string,
+  headers: Record<string, string>,
+  body: string,
+): Promise<PostOutcome> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    let response: Response;
+    try {
+      response = await doFetch(url, { method: "POST", headers, body, signal: controller.signal });
+    } catch (err: any) {
+      const detail = `AgentMail request failed: ${[err?.message, err?.cause?.code, err?.cause?.message].filter(Boolean).join(" ") || String(err)}`;
+      return { kind: DEFINITE_TRANSPORT_FAILURE.test(detail) ? "definite_failure" : "indeterminate", detail };
+    }
+    let raw: string | null;
+    try {
+      raw = await response.text();
+    } catch {
+      raw = null;
+    }
+    if (INDETERMINATE_STATUSES.has(response.status)) return { kind: "indeterminate", detail: `AgentMail ${response.status}` };
+    if (!response.ok) return { kind: "definite_failure", detail: `AgentMail ${response.status}: ${(raw ?? "").slice(0, 300)}` };
+    let parsed: any = null;
+    try {
+      parsed = raw ? JSON.parse(raw) : null;
+    } catch {
+      parsed = null;
+    }
+    const messageId = typeof parsed?.message_id === "string" ? parsed.message_id : "";
+    const threadId = typeof parsed?.thread_id === "string" ? parsed.thread_id : "";
+    if (!messageId) {
+      return { kind: "accepted_unreadable", detail: `AgentMail ${response.status} response without a message id` };
+    }
+    return { kind: "accepted", messageId, threadId };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export function escapeHtml(text: string): string {

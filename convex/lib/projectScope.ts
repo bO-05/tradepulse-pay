@@ -2,7 +2,7 @@ import { ConvexError } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
 import { findActiveAgentLink } from "./agentAccess";
-import { requireRole, type Role } from "./roles";
+import { getViewer, requireRole, type Role } from "./roles";
 import {
   accessibleProjectIds,
   findActiveMembership,
@@ -141,6 +141,20 @@ export async function findDocScope<T extends ProjectScopedTable>(
   }
 }
 
+/**
+ * findDocScope for subcontract detail reads. Owner accounts never see subcontract records, so they
+ * get "Not found." (for hidden and missing ids alike) instead of null; everyone else keeps null.
+ */
+export async function findSubcontractDocScope<T extends ProjectScopedTable>(
+  ctx: QueryCtx,
+  table: T,
+  id: Id<T> | string,
+  opts: ScopeOptions = {},
+): Promise<(ProjectAccess & { doc: Doc<T> }) | null> {
+  const scope = await findDocScope(ctx, table, id, opts);
+  if (scope === null && (await getViewer(ctx))?.role === "owner") throw notFound();
+  return scope;
+}
 /** A further client-supplied id that must belong to the already authorized project. */
 export async function requireDocOfProject<T extends ProjectScopedTable>(
   ctx: QueryCtx,
@@ -205,10 +219,13 @@ export async function subContractorScope(
   viewer: Awaited<ReturnType<typeof requireRole>>;
   contractorIds: Id<"contractors">[];
   projectIds: Set<Id<"projects">>;
+  /** The caller's sub company; null for billing agents, which act for one contractor only. */
+  subCompanyId: Id<"companies"> | null;
 }> {
   const viewer = await requireRole(ctx, ["sub"]);
   const projectIds = new Set(await accessibleProjectIds(ctx, opts));
   let contractorIds: Id<"contractors">[] = [];
+  let subCompanyId: Id<"companies"> | null = null;
   if (viewer.user.actorType === "agent") {
     const link = await findActiveAgentLink(ctx, viewer.user);
     if (link !== null) contractorIds = [link.contractorId];
@@ -217,6 +234,7 @@ export async function subContractorScope(
     const company = membership === null ? null : await ctx.db.get(membership.companyId);
     if (company !== null && company.kind === "sub") {
       const companyId = company._id;
+      subCompanyId = companyId;
       const linked = await ctx.db
         .query("contractors")
         .withIndex("by_linkedCompanyId", (q) => q.eq("linkedCompanyId", companyId))
@@ -224,7 +242,7 @@ export async function subContractorScope(
       contractorIds = linked.map((c) => c._id);
     }
   }
-  return { viewer, contractorIds, projectIds };
+  return { viewer, contractorIds, projectIds, subCompanyId };
 }
 
 /**
