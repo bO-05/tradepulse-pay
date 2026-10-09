@@ -2,7 +2,7 @@
  * Pure schedule-of-values and milestone math. Every amount is integer cents and
  * every split sums exactly to its total.
  */
-import { assertCents, fromDollars } from "../lib/money";
+import { assertCents } from "../lib/money";
 
 /**
  * Splits `totalCents` across `weights` in proportion, flooring each share and
@@ -24,10 +24,10 @@ export function allocateCents(totalCents: number, weights: readonly number[]): n
   return shares;
 }
 
-export type BidLineItemInput = { item: string; totalCost: number };
+export type BidLineItemInput = { item: string; totalCostCents?: number };
 export type BidExclusionInput = {
   description: string;
-  costImpact: number;
+  costImpactCents?: number;
   isWaived?: boolean;
   canonicalCode?: string;
 };
@@ -41,9 +41,8 @@ export type SovLineDraft = {
   sourceBidLineRef: string;
 };
 
-function nonNegativeCents(dollars: number): number {
-  if (!Number.isFinite(dollars) || dollars <= 0) return 0;
-  return fromDollars(dollars);
+function nonNegativeCents(cents: number | undefined): number {
+  return typeof cents === "number" && Number.isSafeInteger(cents) && cents > 0 ? cents : 0;
 }
 
 /**
@@ -68,14 +67,14 @@ export function buildSovLines(input: {
   const base = input.lineItems.length
     ? input.lineItems.map((li, i) => ({
         description: li.item.trim() || `Bid line ${i + 1}`,
-        weight: nonNegativeCents(li.totalCost),
+        weight: nonNegativeCents(li.totalCostCents),
         ref: `lineItems[${i}]`,
       }))
-    : [{ description: `${input.tradeName} — base scope`, weight: 1, ref: "baseBidAmount" }];
+    : [{ description: `${input.tradeName} — base scope`, weight: 1, ref: "baseAmountCents" }];
 
   const excluded = input.exclusions.map((ex, i) => ({
     description: `Excluded scope${ex.isWaived ? " (waived)" : ""}: ${ex.description.trim() || `exclusion ${i + 1}`}`,
-    plugCents: ex.isWaived ? 0 : nonNegativeCents(ex.costImpact),
+    plugCents: ex.isWaived ? 0 : nonNegativeCents(ex.costImpactCents),
     csiCode: ex.canonicalCode,
     ref: `identifiedExclusions[${i}]`,
   }));
@@ -129,11 +128,11 @@ export function sovSourceFingerprint(input: {
     v: 1,
     bid: input.bidId,
     sum: input.contractSumCents,
-    lines: input.lineItems.map((li) => [li.item.trim(), nonNegativeCents(li.totalCost)]),
+    lines: input.lineItems.map((li) => [li.item.trim(), nonNegativeCents(li.totalCostCents)]),
     excl: input.exclusions.map((ex) => [
       ex.canonicalCode ?? null,
       ex.description.trim(),
-      ex.isWaived ? 0 : nonNegativeCents(ex.costImpact),
+      ex.isWaived ? 0 : nonNegativeCents(ex.costImpactCents),
       ex.isWaived === true,
     ]),
     lead: Number.isFinite(input.leadWeeks) && input.leadWeeks > 0 ? input.leadWeeks : 0,

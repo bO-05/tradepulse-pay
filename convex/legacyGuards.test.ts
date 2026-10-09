@@ -105,13 +105,13 @@ const a = (name: string, fn: Case["fn"], args: Case["args"]): Case => ({ name, k
 
 const CASES: Case[] = [
   m("bids:deleteBid", api.bids.deleteBid, (i) => ({ bidId: i.bidId })),
-  m("bids:updateBidLeveling", api.bids.updateBidLeveling, (i) => ({ bidId: i.bidId, baseBidAmount: 1 })),
+  m("bids:updateBidLeveling", api.bids.updateBidLeveling, (i) => ({ bidId: i.bidId, baseAmountCents: 100 })),
   m("bids:updateBidAdjustments", api.bids.updateBidAdjustments, (i) => ({ bidId: i.bidId, identifiedExclusions: [] })),
   m("bids:submitDirectBid", api.bids.submitDirectBid, (i) => ({
     tradePackageId: i.packageId,
     contractorId: i.contractorId,
     subcontractorName: "Forged Sub",
-    baseBidAmount: 1000,
+    baseAmountCents: 100_000,
   })),
   m("bids:awardContract", api.bids.awardContract, (i) => ({ bidId: i.bidId, tradePackageId: i.bidPackageId })),
   m("bids:unawardContract", api.bids.unawardContract, (i) => ({ bidId: i.bidId, tradePackageId: i.bidPackageId })),
@@ -282,7 +282,8 @@ describe("legacy public mutations and actions are GC-only", () => {
     // settings, archive/restore and company defaults have theirs in projectSetup.test.ts. Agreement
     // terms edits have their party, lock and cross-company tests in agreementTerms.test.ts. Vendor
     // directory writes and directory bidders have theirs in vendors.test.ts. Payee control, billing
-    // email and notifications have theirs in payee.test.ts and notifications.test.ts.
+    // email and notifications have theirs in payee.test.ts and notifications.test.ts. Bid portal
+    // submissions, GC bid entry/confirmation and Q&A publishing have theirs in bidPortal.test.ts.
     const covered = new Set([
       ...CASES.map((c) => c.name),
       "agentLinks:addAgentLink",
@@ -313,6 +314,11 @@ describe("legacy public mutations and actions are GC-only", () => {
       "payee:confirmPayee",
       "notifications:markRead",
       "notifications:markAllRead",
+      "bidPortal:submitPortalBid",
+      "bidPortal:askBidQuestion",
+      "bidPortal:enterBidOnBehalf",
+      "bidPortal:confirmParsedBid",
+      "bidPortal:publishQuestion",
     ]);
     expect(exported.filter((name) => !covered.has(name))).toEqual([]);
   });

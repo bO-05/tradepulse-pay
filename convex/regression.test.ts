@@ -142,7 +142,7 @@ test("F9: implausible bid amounts are rejected; revisions increment", async () =
       tradePackageId: packageId,
       contractorId,
       subcontractorName: "Regression Electric LLC",
-      baseBidAmount: 1,
+      baseAmountCents: 100,
     })
   ).rejects.toThrow();
 
@@ -151,7 +151,7 @@ test("F9: implausible bid amounts are rejected; revisions increment", async () =
       tradePackageId: packageId,
       contractorId,
       subcontractorName: "Regression Electric LLC",
-      baseBidAmount: 999_999_999,
+      baseAmountCents: 99_999_999_900,
     })
   ).rejects.toThrow();
 
@@ -159,13 +159,13 @@ test("F9: implausible bid amounts are rejected; revisions increment", async () =
     tradePackageId: packageId,
     contractorId,
     subcontractorName: "Regression Electric LLC",
-    baseBidAmount: 1_100_000,
+    baseAmountCents: 110_000_000,
   });
   await t.mutation(api.bids.submitDirectBid, {
     tradePackageId: packageId,
     contractorId,
     subcontractorName: "Regression Electric LLC",
-    baseBidAmount: 1_150_000,
+    baseAmountCents: 115_000_000,
   });
 
   const bids = await t.query(api.bids.listByPackage, { tradePackageId: packageId });
@@ -183,7 +183,7 @@ test("F5: executed agreements block bid changes", async () => {
     tradePackageId: packageId,
     contractorId,
     subcontractorName: "Regression Electric LLC",
-    baseBidAmount: 1_200_000,
+    baseAmountCents: 120_000_000,
   });
   const bids = await t.query(api.bids.listByPackage, { tradePackageId: packageId });
   const bid = bids.find((b) => b.contractorId === contractorId);
@@ -220,7 +220,7 @@ test("F5: executed agreements block bid changes", async () => {
       tradePackageId: packageId,
       contractorId,
       subcontractorName: "Regression Electric LLC",
-      baseBidAmount: 1_250_000,
+      baseAmountCents: 125_000_000,
     })
   ).rejects.toThrow(/immutable/i);
 });
@@ -282,13 +282,13 @@ test("B1/A24-01: clash credit is persisted as a resolution once both trades are 
     tradePackageId: packageId,
     contractorId: elecContractor,
     subcontractorName: "Regression Electric LLC",
-    baseBidAmount: 1_100_000,
+    baseAmountCents: 110_000_000,
   });
   await t.mutation(api.bids.submitDirectBid, {
     tradePackageId: hvacId,
     contractorId: hvacContractor,
     subcontractorName: "Regression Mechanical LLC",
-    baseBidAmount: 1_150_000,
+    baseAmountCents: 115_000_000,
   });
   const result = await t.mutation(api.coordination.deductDoubleBuyCredit, {
     projectId,
@@ -543,7 +543,7 @@ async function seedAwardedExecuted(t: GcTest, title: string) {
     tradePackageId: packageId,
     contractorId,
     subcontractorName: "Regression Electric LLC",
-    baseBidAmount: 1_100_000,
+    baseAmountCents: 110_000_000,
   });
   const bidId = bidResult.bidId;
   const agreement: any = await t.mutation(api.agreements.generateAgreement, { bidId, tradePackageId: packageId });
@@ -568,7 +568,7 @@ test("A1-02: awarding a different bid cannot silently supersede an executed subc
     tradePackageId: packageId,
     contractorId: secondContractor,
     subcontractorName: "Second Bidder LLC",
-    baseBidAmount: 950_000,
+    baseAmountCents: 95_000_000,
   });
   const secondBid = secondBidResult.bidId;
 
@@ -635,7 +635,7 @@ test("A10-05/A10-06: long-lead and line-item bounds are enforced on every writer
     tradePackageId: packageId,
     contractorId,
     subcontractorName: "Regression Electric LLC",
-    baseBidAmount: 1_100_000,
+    baseAmountCents: 110_000_000,
   });
   const bidId = created.bidId;
 
@@ -644,8 +644,8 @@ test("A10-05/A10-06: long-lead and line-item bounds are enforced on every writer
       tradePackageId: packageId,
       contractorId,
       subcontractorName: "Regression Electric LLC",
-      baseBidAmount: 1_100_000,
-      lineItems: [{ item: "Bad", unit: "LS", quantity: -5, unitCost: 100, totalCost: -500 }],
+      baseAmountCents: 110_000_000,
+      lineItems: [{ item: "Bad", unit: "LS", quantity: -5, unitCostCents: 10_000, totalCostCents: -50_000 }],
     })
   ).rejects.toThrow(/non-negative/i);
 
@@ -666,7 +666,7 @@ test("A8-03/A10-04: a clash can only be credited once", async () => {
     tradePackageId: packageId,
     contractorId,
     subcontractorName: "Regression Electric LLC",
-    baseBidAmount: 1_100_000,
+    baseAmountCents: 110_000_000,
   });
   // A21-01: a cross-trade credit needs priced proposals on BOTH sides.
   const hvacId = await t.mutation(api.tradePackages.createTradePackage, {
@@ -691,7 +691,7 @@ test("A8-03/A10-04: a clash can only be credited once", async () => {
     tradePackageId: hvacId,
     contractorId: hvacContractor,
     subcontractorName: "Regression Mechanical LLC",
-    baseBidAmount: 1_150_000,
+    baseAmountCents: 115_000_000,
   });
   await t.mutation(api.coordination.deductDoubleBuyCredit, {
     projectId,
@@ -738,7 +738,7 @@ test("A12-01: awarding cannot ride on a superseded agreement", async () => {
     tradePackageId: packageId,
     contractorId,
     subcontractorName: "Regression Electric LLC",
-    baseBidAmount: 1_100_000,
+    baseAmountCents: 110_000_000,
   });
   await t.mutation(api.agreements.generateAgreement, { bidId: created.bidId, tradePackageId: packageId });
   await t.mutation(api.bids.unawardContract, { bidId: created.bidId, tradePackageId: packageId });
@@ -762,7 +762,7 @@ test("A12-02: a revision to an awarded bid keeps the active agreement in sync", 
     tradePackageId: packageId,
     contractorId,
     subcontractorName: "Regression Electric LLC",
-    baseBidAmount: 1_000_000,
+    baseAmountCents: 100_000_000,
   });
   const agreement: any = await t.mutation(api.agreements.generateAgreement, {
     bidId: created.bidId,
@@ -774,7 +774,7 @@ test("A12-02: a revision to an awarded bid keeps the active agreement in sync", 
     tradePackageId: packageId,
     contractorId,
     subcontractorName: "Someone Else Entirely",
-    baseBidAmount: 1_222_222,
+    baseAmountCents: 122_222_200,
   });
   const agreements: any[] = await t.run(async (ctx) =>
     await ctx.db.query("agreements").withIndex("by_bid" as any, (q: any) => q.eq("bidId", created.bidId)).collect()
@@ -796,7 +796,7 @@ test("A12-03: a package cannot be marked awarded without award evidence", async 
     tradePackageId: packageId,
     contractorId,
     subcontractorName: "Regression Electric LLC",
-    baseBidAmount: 1_100_000,
+    baseAmountCents: 110_000_000,
   });
   await t.mutation(api.agreements.generateAgreement, { bidId: created.bidId, tradePackageId: packageId });
   await t.mutation(api.tradePackages.updateStatus, { tradePackageId: packageId, status: "awarded" });
@@ -911,7 +911,7 @@ test("A21-01: cross-trade clashes and credits require priced evidence on both si
     tradePackageId: elecId,
     contractorId,
     subcontractorName: "Regression Electric LLC",
-    baseBidAmount: 1_100_000,
+    baseAmountCents: 110_000_000,
   });
 
   // Electrical priced, HVAC not: no clash evidence may be asserted.
@@ -943,7 +943,7 @@ test("A21-01: cross-trade clashes and credits require priced evidence on both si
     tradePackageId: hvacId,
     contractorId: hvacContractor,
     subcontractorName: "Regression Mechanical LLC",
-    baseBidAmount: 1_150_000,
+    baseAmountCents: 115_000_000,
   });
   const clashesAfter: any = await t.query(api.coordination.detectCrossTradeClashes, { projectId });
   expect(clashesAfter.doubleBuys.length).toBeGreaterThan(0);
@@ -967,7 +967,7 @@ test("A28-01/02/03/04: clash truth, manual-VE coverage, and credit bounds", asyn
     tradePackageId: elecId,
     contractorId: elecContractor,
     subcontractorName: "Regression Electric LLC",
-    baseBidAmount: 1_100_000,
+    baseAmountCents: 110_000_000,
   });
   const hvacContractor = await t.mutation(api.contractors.createContractor, {
     tradePackageId: hvacId,
@@ -982,7 +982,7 @@ test("A28-01/02/03/04: clash truth, manual-VE coverage, and credit bounds", asyn
     tradePackageId: hvacId,
     contractorId: hvacContractor,
     subcontractorName: "Regression Mechanical LLC",
-    baseBidAmount: 1_150_000,
+    baseAmountCents: 115_000_000,
   });
 
   // A28-01: a "base building ..." inclusion must not count as BAS coverage.
@@ -999,7 +999,7 @@ test("A28-01/02/03/04: clash truth, manual-VE coverage, and credit bounds", asyn
   await t.mutation(api.bids.updateBidAdjustments, {
     bidId: hvacBid.bidId,
     identifiedExclusions: [],
-    valueEngineeringAlternates: [{ description: "Manual VFD starter credit", costDeduct: 1_000, isAccepted: true }],
+    valueEngineeringAlternates: [{ description: "Manual VFD starter credit", costDeductCents: 100_000, isAccepted: true }],
   });
   const after: any = await t.query(api.coordination.detectCrossTradeClashes, { projectId });
   const vfd = after.doubleBuys.find((d: any) => d.id === "clash-vfd-01");
@@ -1137,7 +1137,7 @@ test("A36-01: reversal finds the carrier even when a sibling package id is passe
     tradePackageId: elecId,
     contractorId: elecContractor,
     subcontractorName: "Regression Electric LLC",
-    baseBidAmount: 1_100_000,
+    baseAmountCents: 110_000_000,
   });
   const hvacContractor = await t.mutation(api.contractors.createContractor, {
     tradePackageId: hvacId,
@@ -1152,7 +1152,7 @@ test("A36-01: reversal finds the carrier even when a sibling package id is passe
     tradePackageId: hvacId,
     contractorId: hvacContractor,
     subcontractorName: "Regression Mechanical LLC",
-    baseBidAmount: 1_150_000,
+    baseAmountCents: 115_000_000,
   });
   await t.mutation(api.coordination.deductDoubleBuyCredit, {
     projectId,
@@ -1186,7 +1186,7 @@ test("A3-06: invalid COI status and negative exclusion impacts are rejected", as
     tradePackageId: packageId,
     contractorId,
     subcontractorName: "Regression Electric LLC",
-    baseBidAmount: 1_100_000,
+    baseAmountCents: 110_000_000,
   });
   const bidId = bidCreated.bidId;
   await expect(
@@ -1199,7 +1199,7 @@ test("A3-06: invalid COI status and negative exclusion impacts are rejected", as
   await expect(
     t.mutation(api.bids.updateBidAdjustments, {
       bidId,
-      identifiedExclusions: [{ description: "Negative credit", costImpact: -50_000, severity: "critical" }],
+      identifiedExclusions: [{ description: "Negative credit", costImpactCents: -5_000_000, severity: "critical" }],
     })
   ).rejects.toThrow(/zero or positive/i);
 });

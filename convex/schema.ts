@@ -1,6 +1,15 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { authTables } from "@convex-dev/auth/server";
+import {
+  bidAlternateValidator,
+  bidExclusionValidator,
+  bidLineItemValidator,
+  bidSourceValidator,
+  bidTermsFields,
+  bidUnitPriceValidator,
+  bidVeAlternateValidator,
+} from "./lib/bidValidators";
 
 export const roleValidator = v.union(v.literal("gc"), v.literal("sub"), v.literal("owner"));
 export const actorTypeValidator = v.union(v.literal("human"), v.literal("agent"));
@@ -818,6 +827,15 @@ export default defineSchema({
     // the bidder can retry instead of losing the RFI.
     analysisError: v.optional(v.string()),
     timestamp: v.number(),
+    // "portal": asked in the bid portal by a signed-in sub member (no email involved).
+    origin: v.optional(v.union(v.literal("email"), v.literal("portal"))),
+    askedByUserId: v.optional(v.id("users")),
+    askedByCompanyId: v.optional(v.id("companies")),
+    // Set when the GC publishes the Q&A to every invited bidder. Published entries never name the asker.
+    publishedAt: v.optional(v.number()),
+    publishedQuestion: v.optional(v.string()),
+    publishedAnswer: v.optional(v.string()),
+    publishedByUserId: v.optional(v.id("users")),
   })
     .index("by_contractor", ["contractorId"])
     .index("by_thread", ["threadId"])
@@ -828,50 +846,67 @@ export default defineSchema({
     tradePackageId: v.id("tradePackages"),
     contractorId: v.id("contractors"),
     subcontractorName: v.string(),
-    baseBidAmount: v.number(),
-    lineItems: v.array(
-      v.object({
-        item: v.string(),
-        unit: v.string(),
-        quantity: v.number(),
-        unitCost: v.number(),
-        totalCost: v.number(),
-      })
-    ),
-    identifiedExclusions: v.array(
-      v.object({
-        canonicalCode: v.optional(v.string()),
-        description: v.string(),
-        costImpact: v.number(),
-        severity: v.string(), // "critical" | "moderate" | "minor"
-        isWaived: v.optional(v.boolean()),
-      })
-    ),
-    valueEngineeringAlternates: v.optional(
-      v.array(
-        v.object({
-          description: v.string(),
-          costDeduct: v.number(),
-          isAccepted: v.boolean(),
-        })
-      )
-    ),
+    // Money is integer cents. The cents fields are optional only so a deployment holding rows from
+    // before the cents migration still validates; every writer sets them and
+    // `bidCentsMigration:backfillBidCents` fills old rows. The dollar fields are legacy, never read.
+    baseAmountCents: v.optional(v.number()),
+    baseBidAmount: v.optional(v.number()),
+    lineItems: v.array(bidLineItemValidator),
+    identifiedExclusions: v.array(bidExclusionValidator),
+    valueEngineeringAlternates: v.optional(v.array(bidVeAlternateValidator)),
     longLeadEquipmentWeeks: v.number(),
-    leadTimePenalty: v.number(),
+    leadTimePenaltyCents: v.optional(v.number()),
+    leadTimePenalty: v.optional(v.number()),
     /** GC-owned schedule baseline the penalty was computed against (12 Div 26 / 16 Div 22-23). */
     leadTimeTargetWeeks: v.optional(v.number()),
     coiComplianceStatus: v.string(), // "compliant" | "deficiency_detected"
-    coiPenalty: v.number(),
-    leveledTotalCost: v.number(), // True normalized cost = base + un-waived scope gaps + penalties - accepted alternates
+    coiPenaltyCents: v.optional(v.number()),
+    coiPenalty: v.optional(v.number()),
+    // Comparison only: base + un-waived scope gaps + penalties - accepted VE alternates.
+    leveledTotalCents: v.optional(v.number()),
+    leveledTotalCost: v.optional(v.number()),
     isAwarded: v.boolean(),
     sourceFileId: v.optional(v.id("projectFiles")),
-    revisionNumber: v.optional(v.number()), // 1 = first submission; increments on re-ingest
+    revisionNumber: v.optional(v.number()), // 1 = first submission; increments on every revision
     lastRevisedAt: v.optional(v.number()),
     receivedAt: v.number(),
+    // Structured bid terms (bid portal, GC entry, AI parsing); history in bidRevisions.
+    alternates: v.optional(v.array(bidAlternateValidator)),
+    exclusions: v.optional(v.array(v.string())),
+    inclusions: v.optional(v.array(v.string())),
+    unitPrices: v.optional(v.array(bidUnitPriceValidator)),
+    qualifications: v.optional(v.string()),
+    validUntil: v.optional(v.string()),
+    source: v.optional(bidSourceValidator),
+    sourceInboundEmailId: v.optional(v.id("inboundEmails")),
+    submittedByUserId: v.optional(v.id("users")),
+    submittedByName: v.optional(v.string()),
+    submittedByCompanyId: v.optional(v.id("companies")),
+    // An AI-parsed bid stays "needs review" until a GC member edits or confirms it.
+    confirmedByUserId: v.optional(v.id("users")),
+    confirmedByName: v.optional(v.string()),
+    confirmedAt: v.optional(v.number()),
   })
     .index("by_package", ["tradePackageId"])
     .index("by_contractor", ["contractorId"])
-    .index("by_source_file", ["sourceFileId"]),
+    .index("by_source_file", ["sourceFileId"])
+    .index("by_package_and_contractor", ["tradePackageId", "contractorId"]),
+
+  // Every submitted version of a bid, oldest first; the bid row holds the latest.
+  bidRevisions: defineTable({
+    bidId: v.id("bids"),
+    tradePackageId: v.id("tradePackages"),
+    contractorId: v.id("contractors"),
+    revisionNumber: v.number(),
+    source: v.union(bidSourceValidator, v.literal("gc_edit")),
+    ...bidTermsFields,
+    note: v.optional(v.string()),
+    sourceInboundEmailId: v.optional(v.id("inboundEmails")),
+    submittedByUserId: v.optional(v.id("users")),
+    submittedByName: v.string(),
+    submittedByCompanyId: v.optional(v.id("companies")),
+    createdAt: v.number(),
+  }).index("by_bid_and_revision", ["bidId", "revisionNumber"]),
 
   // Persisted cross-trade clash resolution state (deduct credits / assigned voids)
   clashResolutions: defineTable({

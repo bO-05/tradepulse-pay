@@ -107,7 +107,7 @@ describe("SOV and milestone generation on execution", () => {
     await t.run(async (ctx) => {
       await ctx.db.patch(demo.agreement.bidId, {
         identifiedExclusions: [
-          { description: "Crane hoisting excluded", costImpact: 45000, severity: "critical", isWaived: false },
+          { description: "Crane hoisting excluded", costImpactCents: 4500000, severity: "critical", isWaived: false },
         ],
       });
       await ctx.db.patch(demo.agreement._id, { contractSum: demo.agreement.contractSum + 45000.37 });
@@ -125,7 +125,7 @@ describe("SOV and milestone generation on execution", () => {
 });
 
 const VOID_REASON = "Executed against the wrong bid revision";
-const CRANE = { description: "Crane hoisting excluded", costImpact: 45000, severity: "critical", isWaived: false };
+const CRANE = { description: "Crane hoisting excluded", costImpactCents: 4500000, severity: "critical", isWaived: false };
 
 async function auditTitles(t: ReturnType<typeof newTest>, agreementId: string) {
   return await t.run(async (ctx) => {

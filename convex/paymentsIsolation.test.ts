@@ -5,6 +5,7 @@ import type { FunctionReference } from "convex/server";
 import { api } from "./_generated/api";
 import type { Doc, Id, TableNames } from "./_generated/dataModel";
 import schema from "./schema";
+import { bidRowFromDollars } from "./lib/bidMoney";
 import { buildTenancyFixture, type FixtureUser, type TenancyFixture } from "./lib/tenancyFixtures";
 import { NO_PROJECT_OWNER_REASON, noOwnerEmailReason } from "./payments/changeOrderRecipient";
 import { withSession } from "./lib/testIdentity";
@@ -222,7 +223,7 @@ async function setup() {
       rfqStatus: "bid_received",
       linkedCompanyId: lakeshore,
     });
-    const rayBid = await ctx.db.insert("bids", {
+    const rayBid = await ctx.db.insert("bids", bidRowFromDollars({
       tradePackageId: a.tradePackageId,
       contractorId: rayContractor,
       subcontractorName: "Lakeshore Mechanical",
@@ -236,7 +237,7 @@ async function setup() {
       leveledTotalCost: 45_000,
       isAwarded: true,
       receivedAt: now,
-    });
+    }));
     const eastbay = (await ctx.db.get(a.agreementId))!;
     const { _id, _creationTime, ...agreementFields } = eastbay;
     void _id;

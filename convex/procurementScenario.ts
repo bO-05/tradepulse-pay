@@ -3,6 +3,7 @@ import { internalMutation } from "./_generated/server";
 import { sub1Account } from "./judgeDemo/runs";
 import { attachProjectToDemo } from "./lib/demoTenancy";
 import { attachBidderVendor } from "./lib/vendorDirectory";
+import { bidRowFromDollars } from "./lib/bidMoney";
 
 /**
  * Internal fixture: a fresh project with one Div 26 trade package in bid leveling, where sub1's
@@ -141,7 +142,7 @@ export const seedProcurementScenario = internalMutation({
       revisionNumber: 1,
       receivedAt: now,
     };
-    const sub1BidId = await ctx.db.insert("bids", {
+    const sub1BidId = await ctx.db.insert("bids", bidRowFromDollars({
       ...bidBase,
       contractorId: sub1.contractorId,
       subcontractorName: contractor.companyName,
@@ -150,8 +151,8 @@ export const seedProcurementScenario = internalMutation({
       identifiedExclusions: [{ ...SCENARIO_SUB1_EXCLUSION }],
       longLeadEquipmentWeeks: 8,
       leveledTotalCost: SCENARIO_SUB1_LEVELED,
-    });
-    const competingBidId = await ctx.db.insert("bids", {
+    }));
+    const competingBidId = await ctx.db.insert("bids", bidRowFromDollars({
       ...bidBase,
       contractorId: competingContractorId,
       subcontractorName: SCENARIO_COMPETING_NAME,
@@ -160,7 +161,7 @@ export const seedProcurementScenario = internalMutation({
       identifiedExclusions: [{ ...SCENARIO_COMPETING_EXCLUSION }],
       longLeadEquipmentWeeks: 10,
       leveledTotalCost: SCENARIO_COMPETING_LEVELED,
-    });
+    }));
     await ctx.db.insert("auditLogs", {
       projectId,
       tradePackageId,

@@ -23,6 +23,14 @@ import {
   targetWeeksForDivision,
 } from "./terms";
 import { formatRetainagePercent } from "./lib/retainageRules";
+import { bidderMayDownloadFile } from "./lib/bidDocuments";
+import {
+  computeLeveledTotalCents,
+  exclusionsToCents,
+  lineItemsToCents,
+  nonNegativeCentsFromDollars,
+  veAlternatesToCents,
+} from "./lib/bidMoney";
 
 export { extractTextFromPdfStream };
 
@@ -130,8 +138,10 @@ export async function authorizeProjectFileDownload(
   fileId: string,
 ): Promise<{ storageId: string; fileName: string } | null> {
   try {
-    const access = await requireDocScope(ctx, "projectFiles", fileId, { roles: ["gc", "owner"] });
-    if (visibleFiles(access, [access.doc]).length === 0) return null;
+    const access = await requireDocScope(ctx, "projectFiles", fileId, { roles: ["gc", "owner", "sub"] });
+    if (access.partyRole === "sub") {
+      if (!(await bidderMayDownloadFile(ctx, access, access.doc))) return null;
+    } else if (visibleFiles(access, [access.doc]).length === 0) return null;
     if (isPublicDocumentPath(access.doc.storageId)) return null;
     return { storageId: access.doc.storageId, fileName: access.doc.fileName };
   } catch {
@@ -694,36 +704,32 @@ async function doExtractBid(
     proposalText
   );
   const leadTargetWeeks = parsed?.leadTimeTargetWeeks ?? targetWeeksForDivision(tradePackage.csiDivision);
-  const leadPenalty = leadTimePenaltyFor(leadWeeks, leadTargetWeeks);
   const coiStatus = parsed?.coiComplianceStatus ?? "compliant";
-  const coiPenalty = parsed?.coiPenalty ?? 0;
-  const activeExclusionsTotal = exclusions.reduce(
-    (s: number, x: any) => (x.isWaived ? s : s + (x.costImpact || 0)),
-    0
-  );
-  const acceptedVeTotal = veAlternates.reduce(
-    (s: number, x: any) => (x.isAccepted ? s + (x.costDeduct || 0) : s),
-    0
-  );
-  const leveledTotal =
-    parsed?.leveledTotalCost ??
-    baseBid + activeExclusionsTotal + leadPenalty + coiPenalty - acceptedVeTotal;
+  const baseAmountCents = nonNegativeCentsFromDollars(baseBid);
+  const exclusionsCents = exclusionsToCents(exclusions);
+  const veAlternatesCents = veAlternatesToCents(veAlternates);
+  const coiPenaltyCents = nonNegativeCentsFromDollars(parsed?.coiPenalty ?? 0);
+  const leveledTotalCents = computeLeveledTotalCents({
+    baseAmountCents,
+    exclusions: exclusionsCents,
+    veAlternates: veAlternatesCents,
+    leadTimePenaltyCents: nonNegativeCentsFromDollars(leadTimePenaltyFor(leadWeeks, leadTargetWeeks)),
+    coiPenaltyCents,
+  });
 
-  // 2. Insert into bids table
+  // 2. Insert into bids table (the parser speaks dollars; storage is integer cents)
   const bidId: any = await ctx.runMutation(internal.bids.insertParsedBid, {
     tradePackageId: args.tradePackageId,
     contractorId: effectiveContractorId,
     subcontractorName: subName,
-    baseBidAmount: baseBid,
-    lineItems,
-    identifiedExclusions: exclusions,
-    valueEngineeringAlternates: veAlternates,
+    baseAmountCents,
+    lineItems: lineItemsToCents(lineItems),
+    identifiedExclusions: exclusionsCents,
+    valueEngineeringAlternates: veAlternatesCents,
     longLeadEquipmentWeeks: leadWeeks,
-    leadTimePenalty: leadPenalty,
     leadTimeTargetWeeks: leadTargetWeeks,
     coiComplianceStatus: coiStatus,
-    coiPenalty,
-    leveledTotalCost: leveledTotal,
+    coiPenaltyCents,
     sourceFileId: args.fileId,
     levelingProvider:
       reasoningResult.provider === OFFLINE_RULES_ENGINE
@@ -762,8 +768,8 @@ async function doExtractBid(
     bidId,
     fileId: linkedFileId,
     subcontractorName: subName,
-    baseBidAmount: baseBid,
-    leveledTotalCost: leveledTotal,
+    baseAmountCents,
+    leveledTotalCents,
     exclusionsCount: exclusions.length,
     veAlternatesCount: veAlternates.length,
   };

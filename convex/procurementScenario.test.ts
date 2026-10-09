@@ -50,11 +50,11 @@ describe("procurement scenario fixture", () => {
     expect(bids.every((b) => !b.isAwarded)).toBe(true);
     const mine = bids.find((b) => b._id === res.sub1BidId)!;
     expect(mine.contractorId).toBe(contractorId);
-    expect(mine.leveledTotalCost).toBe(SCENARIO_SUB1_LEVELED);
+    expect(mine.leveledTotalCents).toBe(SCENARIO_SUB1_LEVELED * 100);
     expect(mine.identifiedExclusions.map((e) => e.description)).toEqual([SCENARIO_SUB1_EXCLUSION.description]);
     const competing = bids.find((b) => b._id === res.competingBidId)!;
     expect(competing.contractorId).not.toBe(contractorId);
-    expect(competing.leveledTotalCost).toBe(SCENARIO_COMPETING_LEVELED);
+    expect(competing.leveledTotalCents).toBe(SCENARIO_COMPETING_LEVELED * 100);
 
     const after = await snapshot(t);
     // Existing contractors are untouched; only the competing bidder is new.

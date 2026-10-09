@@ -8,6 +8,7 @@ import { defaultTermsForProject, legacyTermFields, refreshAgreementDocument } fr
 import { persistPendingRfi } from "./rfq";
 import { fromDollars } from "./lib/money";
 import { attachBidderVendor } from "./lib/vendorDirectory";
+import { bidRowFromDollars } from "./lib/bidMoney";
 
 /**
  * Demo simulation (Demo company only; everyone else gets "Not found."): inserts simulated
@@ -754,8 +755,8 @@ export const runFullProcurementCycle = mutation({
       hiddenExclusionsCost = 88500;
     }
 
-    const bid1Id = await ctx.db.insert("bids", bid1Data);
-    await ctx.db.insert("bids", bid2Data);
+    const bid1Id = await ctx.db.insert("bids", bidRowFromDollars(bid1Data) as any);
+    await ctx.db.insert("bids", bidRowFromDollars(bid2Data) as any);
 
     await ctx.db.patch(packageId, { status: "awarded" });
 

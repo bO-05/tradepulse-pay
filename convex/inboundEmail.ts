@@ -226,6 +226,7 @@ export const ingestReceived = internalMutation({
       tradePackageId: route.thread.tradePackageId,
       contractorId: route.contractorId,
       attachments: msg.attachments,
+      inboundEmailId: inboundId,
     });
     return { outcome: "routed" as const, inboundId, matchMethod: route.matchMethod };
   },

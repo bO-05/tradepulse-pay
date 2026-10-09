@@ -4,6 +4,7 @@ import { describe, expect, test } from "vitest";
 import { api, internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import schema from "./schema";
+import { bidRowFromDollars } from "./lib/bidMoney";
 import { buildTenancyFixture, type FixtureUser } from "./lib/tenancyFixtures";
 import { projectSetupArgs } from "./lib/projectSetupFixture";
 import type { AgreementTerms } from "./lib/agreementTerms";
@@ -55,7 +56,7 @@ async function awardedAgreement(
         createdAt: Date.now(),
       });
     }
-    const bidId = await ctx.db.insert("bids", {
+    const bidId = await ctx.db.insert("bids", bidRowFromDollars({
       tradePackageId,
       contractorId,
       subcontractorName: opts.bidder ?? "Eastbay Electric",
@@ -69,7 +70,7 @@ async function awardedAgreement(
       leveledTotalCost: amount,
       isAwarded: false,
       receivedAt: Date.now(),
-    });
+    }));
     return { tradePackageId, bidId };
   });
   const result = (await gc.as.mutation(api.agreements.generateAgreement, ids)) as Doc<"agreements">;

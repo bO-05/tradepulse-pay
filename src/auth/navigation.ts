@@ -5,6 +5,7 @@ export type AreaId =
   | "payments"
   | "inbox"
   | "sub-portal"
+  | "bid-invitations"
   | "owner-portal"
   | "billing-agents"
   | "dashboard"
@@ -25,16 +26,27 @@ export type NavItem = {
   hash: string;
 };
 
-export type Route = { area: AreaId; agreementId?: string; projectId?: string; vendorId?: string; view?: "new" | "settings" };
+export type Route = {
+  area: AreaId;
+  agreementId?: string;
+  projectId?: string;
+  vendorId?: string;
+  tradePackageId?: string;
+  view?: "new" | "settings";
+};
 
 /** Areas that exist only for Demo companies; everyone else gets "Not found" on the direct route. */
 export const DEMO_ONLY_AREAS = new Set<AreaId>(["judge-demo"]);
+
+/** Areas for company members only; billing agents act on executed agreements and never bid. */
+export const HUMAN_ONLY_AREAS = new Set<AreaId>(["bid-invitations"]);
 
 const AREA_HASH: Record<NavItem["area"], string> = {
   procurement: "#/procurement",
   payments: "#/payments",
   inbox: "#/inbox",
   "sub-portal": "#/portal",
+  "bid-invitations": "#/bids",
   "owner-portal": "#/projects",
   "billing-agents": "#/billing-agents",
   dashboard: "#/dashboard",
@@ -50,6 +62,12 @@ export const COMPANY_HASH = "#/company";
 
 /** All notifications ("See all" from the bell), available to every role. */
 export const NOTIFICATIONS_HASH = "#/notifications";
+
+export const BID_INVITATIONS_HASH = "#/bids";
+
+export function bidPackageHash(tradePackageId: string): string {
+  return `${BID_INVITATIONS_HASH}/${encodeURIComponent(tradePackageId)}`;
+}
 
 export function vendorHash(vendorId: string): string {
   return `#/vendors/${encodeURIComponent(vendorId)}`;
@@ -74,6 +92,7 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
   ],
   sub: [
     { area: "sub-portal", label: "My agreements & pay applications", hash: AREA_HASH["sub-portal"] },
+    { area: "bid-invitations", label: "Bid invitations", hash: AREA_HASH["bid-invitations"] },
     { area: "my-projects", label: "Projects", hash: AREA_HASH["my-projects"] },
     { area: "payments", label: "Payments", hash: AREA_HASH.payments },
   ],
@@ -116,6 +135,8 @@ export function parseHash(hash: string): Route | null {
   const path = hash.replace(/^#/, "");
   if (`#${path}` === COMPANY_HASH) return { area: "company" };
   if (`#${path}` === NOTIFICATIONS_HASH) return { area: "notifications" };
+  const bidMatch = path.match(/^\/bids\/([^/?#]+)$/);
+  if (bidMatch) return { area: "bid-invitations", tradePackageId: decodeURIComponent(bidMatch[1]) };
   const vendorMatch = path.match(/^\/vendors\/([^/?#]+)$/);
   if (vendorMatch) return { area: "vendors", vendorId: decodeURIComponent(vendorMatch[1]) };
   if (`#${path}` === NEW_PROJECT_HASH) return { area: "gc-projects", view: "new" };
@@ -136,9 +157,13 @@ export function parseHash(hash: string): Route | null {
   return null;
 }
 
-/** The role's nav items; Demo-only items appear only for Demo companies. */
-export function navFor(role: Role, isDemo = false): NavItem[] {
-  return NAV_BY_ROLE[role].filter((item) => isDemo || !DEMO_ONLY_AREAS.has(item.area));
+export type ActorType = "human" | "agent";
+
+/** The role's nav items; Demo-only items appear only for Demo companies, human-only items never for agents. */
+export function navFor(role: Role, isDemo = false, actorType: ActorType = "human"): NavItem[] {
+  return NAV_BY_ROLE[role].filter(
+    (item) => (isDemo || !DEMO_ONLY_AREAS.has(item.area)) && (actorType === "human" || !HUMAN_ONLY_AREAS.has(item.area)),
+  );
 }
 
 /** `?project=` / `?tab=` only mean something to the GC procurement workspace. */
@@ -152,8 +177,8 @@ function hasProcurementQuery(search: string): boolean {
  * company cannot open, and every unknown route, is the single "Not found" page (never a silent
  * fallback to another screen).
  */
-export function resolveRoute(role: Role, hash: string, isDemo = false, search = ""): Route {
-  const nav = navFor(role, isDemo);
+export function resolveRoute(role: Role, hash: string, isDemo = false, search = "", actorType: ActorType = "human"): Route {
+  const nav = navFor(role, isDemo, actorType);
   const isHome = hash === "" || hash === "#" || hash === "#/";
   if (isHome) {
     const ownsProcurementQuery = nav.some((item) => item.area === "procurement");

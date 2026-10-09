@@ -38,12 +38,12 @@ describe("allocateCents", () => {
 
 describe("buildSovLines", () => {
   const rosendinItems = [
-    { item: "1600A Main Switchboard & Transformers", totalCost: 450000 },
-    { item: "Emergency Lighting & Inverters", totalCost: 185000 },
-    { item: "Branch Conduit & Wire Feeder Runs", totalCost: 432000 },
-    { item: "Crane Hoisting", totalCost: 38000 },
-    { item: "Firestopping", totalCost: 20000 },
-    { item: "Seismic Bracing", totalCost: 100000 },
+    { item: "1600A Main Switchboard & Transformers", totalCostCents: 45000000 },
+    { item: "Emergency Lighting & Inverters", totalCostCents: 18500000 },
+    { item: "Branch Conduit & Wire Feeder Runs", totalCostCents: 43200000 },
+    { item: "Crane Hoisting", totalCostCents: 3800000 },
+    { item: "Firestopping", totalCostCents: 2000000 },
+    { item: "Seismic Bracing", totalCostCents: 10000000 },
   ];
 
   test("bid line items become SOV lines that sum to the contract sum", () => {
@@ -66,15 +66,15 @@ describe("buildSovLines", () => {
     const lines = buildSovLines({
       contractSumCents: fromDollars(1_100_000 + 45_000 + 22_000 + 15_000),
       lineItems: [
-        { item: "Switchboard", totalCost: 420000 },
-        { item: "Lighting", totalCost: 170000 },
-        { item: "Feeders", totalCost: 408000 },
-        { item: "Site", totalCost: 102000 },
+        { item: "Switchboard", totalCostCents: 42000000 },
+        { item: "Lighting", totalCostCents: 17000000 },
+        { item: "Feeders", totalCostCents: 40800000 },
+        { item: "Site", totalCostCents: 10200000 },
       ],
       exclusions: [
-        { description: "Crane hoisting excluded", costImpact: 45000, isWaived: false },
-        { description: "Firestop excluded", costImpact: 22000 },
-        { description: "Temp power excluded", costImpact: 9000, isWaived: true },
+        { description: "Crane hoisting excluded", costImpactCents: 4500000, isWaived: false },
+        { description: "Firestop excluded", costImpactCents: 2200000 },
+        { description: "Temp power excluded", costImpactCents: 900000, isWaived: true },
       ],
       tradeName: "Electrical",
     });
@@ -89,11 +89,11 @@ describe("buildSovLines", () => {
     const lines = buildSovLines({
       contractSumCents: 100_001,
       lineItems: [
-        { item: "A", totalCost: 1 },
-        { item: "B", totalCost: 1 },
-        { item: "C", totalCost: 1 },
+        { item: "A", totalCostCents: 100 },
+        { item: "B", totalCostCents: 100 },
+        { item: "C", totalCostCents: 100 },
       ],
-      exclusions: [{ description: "X", costImpact: 10 }],
+      exclusions: [{ description: "X", costImpactCents: 1000 }],
       tradeName: "T",
     });
     expect(lines.map((l) => l.scheduledValueCents)).toEqual([33_000, 33_000, 33_001, 1_000]);
@@ -104,13 +104,13 @@ describe("buildSovLines", () => {
     const lines = buildSovLines({
       contractSumCents: 1_000_000_07,
       lineItems: [
-        { item: "A", totalCost: 300 },
-        { item: "B", totalCost: 300 },
-        { item: "C", totalCost: 300 },
+        { item: "A", totalCostCents: 30000 },
+        { item: "B", totalCostCents: 30000 },
+        { item: "C", totalCostCents: 30000 },
       ],
       exclusions: [
-        { description: "X", costImpact: 1234.57 },
-        { description: "Y", costImpact: 99.99 },
+        { description: "X", costImpactCents: 123457 },
+        { description: "Y", costImpactCents: 9999 },
       ],
       tradeName: "T",
     });
@@ -128,8 +128,8 @@ describe("buildSovLines", () => {
   test("plugs larger than the contract sum are scaled so the total still matches", () => {
     const lines = buildSovLines({
       contractSumCents: 5_000,
-      lineItems: [{ item: "A", totalCost: 100 }],
-      exclusions: [{ description: "X", costImpact: 100 }],
+      lineItems: [{ item: "A", totalCostCents: 10000 }],
+      exclusions: [{ description: "X", costImpactCents: 10000 }],
       tradeName: "T",
     });
     expect(sum(lines.map((l) => l.scheduledValueCents))).toBe(5_000);
@@ -147,8 +147,8 @@ describe("sovSourceFingerprint", () => {
   const base = {
     bidId: "bid1",
     contractSumCents: 100_000,
-    lineItems: [{ item: "A", totalCost: 1000 }],
-    exclusions: [{ description: "Crane", costImpact: 450 }],
+    lineItems: [{ item: "A", totalCostCents: 100000 }],
+    exclusions: [{ description: "Crane", costImpactCents: 45000 }],
     leadWeeks: 8,
   };
 
@@ -156,7 +156,7 @@ describe("sovSourceFingerprint", () => {
     expect(sovSourceFingerprint(base)).toBe(sovSourceFingerprint({ ...base }));
     expect(sovSourceFingerprint({ ...base, exclusions: [] })).not.toBe(sovSourceFingerprint(base));
     expect(
-      sovSourceFingerprint({ ...base, exclusions: [{ description: "Crane", costImpact: 450, isWaived: true }] }),
+      sovSourceFingerprint({ ...base, exclusions: [{ description: "Crane", costImpactCents: 45000, isWaived: true }] }),
     ).not.toBe(sovSourceFingerprint(base));
     expect(sovSourceFingerprint({ ...base, leadWeeks: 12 })).not.toBe(sovSourceFingerprint(base));
     expect(sovSourceFingerprint({ ...base, bidId: "bid2" })).not.toBe(sovSourceFingerprint(base));

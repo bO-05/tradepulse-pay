@@ -241,7 +241,7 @@ describe("RFQ status reflects the real send outcome", () => {
     expect(body.subject).toContain("26 00 00 Electrical");
     expect(body.text).toContain("Bayview Builders Inc. invites you");
     expect(body.text).toContain("Oct 30, 2026, 2:00 PM Pacific Time (PT)");
-    expect(body.text).toContain("https://app.tradepulse.test/#/portal");
+    expect(body.text).toContain("https://app.tradepulse.test/#/bids");
     expect(body.text).not.toMatch(/TradePulse Pro/);
     expect(body.html).toContain("Bayview Builders Inc.");
 

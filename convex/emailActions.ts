@@ -4,6 +4,7 @@ import { internal } from "./_generated/api";
 import { OFFLINE_RULES_ENGINE } from "./lib/aiLabels";
 import { cleanNumber, sanitizeBidLevelingOutput, augmentExclusionsWithDeterministicGaps, applyExplicitExclusionAmounts, applyUnpricedExclusionBenchmarks, normalizeExclusionSeverity, normalizeLeadWeeksFromText, detectCoiDeficiency, detectCoiAffirmativeCompliance } from "./llmRouter";
 import { COI_DEFICIENCY_PENALTY, leadTimePenaltyFor, targetWeeksForDivision } from "./terms";
+import { exclusionsToCents, lineItemsToCents, nonNegativeCentsFromDollars, veAlternatesToCents } from "./lib/bidMoney";
 
 export const processInboundEmail = internalAction({
   args: {
@@ -17,6 +18,7 @@ export const processInboundEmail = internalAction({
     tradePackageId: v.id("tradePackages"),
     contractorId: v.id("contractors"),
     attachments: v.optional(v.array(v.any())),
+    inboundEmailId: v.optional(v.id("inboundEmails")),
   },
   handler: async (ctx, args) => {
     const contractorId = args.contractorId;
@@ -88,6 +90,7 @@ export const processInboundEmail = internalAction({
         fromEmail: args.from,
         subject: args.subject,
         text: fullContent,
+        inboundEmailId: args.inboundEmailId,
       });
     } else {
       // F1 durability: persist the inbound question before the LLM step so a
@@ -286,6 +289,7 @@ export const handleBidProcessing = internalAction({
     fromEmail: v.string(),
     subject: v.string(),
     text: v.string(),
+    inboundEmailId: v.optional(v.id("inboundEmails")),
   },
   handler: async (ctx, args) => {
     try {
@@ -455,47 +459,24 @@ export const handleBidProcessing = internalAction({
       bidData.coiPenalty = 0;
     }
 
-    const effectiveBaseBid = bidData.baseBidAmount ?? 0;
+    // The parser works in dollars; amounts become integer cents here, before storage.
     const effectiveLeadTargetWeeks = bidData.leadTimeTargetWeeks ?? targetWeeksForDivision(tradePkg?.csiDivision);
     const effectiveLeadWeeks = normalizeLeadWeeksFromText(bidData.longLeadEquipmentWeeks ?? 12, args.text);
-    const effectiveLeadPenalty = leadTimePenaltyFor(effectiveLeadWeeks, effectiveLeadTargetWeeks);
     const effectiveCoiStatus = bidData.coiComplianceStatus ?? "compliant";
-    const effectiveCoiPenalty = bidData.coiPenalty ?? 0;
 
-    // ADR-0003 Deterministic Formula:
-    // Leveled Cost = Base Bid + Sum(Scope Gaps) + Lead Time Penalty + COI Penalty - Accepted Alternates
-    const scopeGapsSum = (bidData.identifiedExclusions || []).reduce(
-      (sum: number, exc: any) => (exc.isWaived ? sum : sum + (exc.costImpact || 0)),
-      0
-    );
-    const acceptedVeDeduct = (bidData.valueEngineeringAlternates || []).reduce(
-      (sum: number, ve: any) => (ve.isAccepted ? sum + (ve.costDeduct || 0) : sum),
-      0
-    );
-    const calculatedLeveledCost = Math.max(
-      0,
-      effectiveBaseBid +
-      scopeGapsSum +
-      effectiveLeadPenalty +
-      effectiveCoiPenalty -
-      acceptedVeDeduct
-    );
-
-    // Insert Leveled Bid
     await ctx.runMutation(internal.bids.insertParsedBid, {
       tradePackageId: args.tradePackageId,
       contractorId,
       subcontractorName: bidData.subcontractorName || subName,
-      baseBidAmount: effectiveBaseBid,
-      lineItems: bidData.lineItems || [],
-      identifiedExclusions: bidData.identifiedExclusions || [],
-      valueEngineeringAlternates: bidData.valueEngineeringAlternates || [],
+      baseAmountCents: nonNegativeCentsFromDollars(bidData.baseBidAmount),
+      lineItems: lineItemsToCents(bidData.lineItems || []),
+      identifiedExclusions: exclusionsToCents(bidData.identifiedExclusions || []),
+      valueEngineeringAlternates: veAlternatesToCents(bidData.valueEngineeringAlternates || []),
       longLeadEquipmentWeeks: effectiveLeadWeeks,
-      leadTimePenalty: effectiveLeadPenalty,
       leadTimeTargetWeeks: effectiveLeadTargetWeeks,
       coiComplianceStatus: effectiveCoiStatus,
-      coiPenalty: effectiveCoiPenalty,
-      leveledTotalCost: calculatedLeveledCost,
+      coiPenaltyCents: nonNegativeCentsFromDollars(bidData.coiPenalty ?? 0),
+      sourceInboundEmailId: args.inboundEmailId,
       levelingProvider:
         llmResult.provider === OFFLINE_RULES_ENGINE
           ? `${OFFLINE_RULES_ENGINE} (no model call)`

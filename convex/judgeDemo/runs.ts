@@ -17,6 +17,7 @@ import {
   demoAgreementNumber,
   demoPayAppLines,
 } from "./scenario";
+import { bidRowFromDollars } from "../lib/bidMoney";
 
 /**
  * One-click TradePulse Pay judge demo, Demo company GC only (everyone else gets "Not found."). Each run creates a fresh, clearly labeled demo award for
@@ -129,7 +130,7 @@ export const startRun = mutation({
       bidDeadline: new Date(now).toISOString().slice(0, 10),
       status: "awarded",
     });
-    const bidId = await ctx.db.insert("bids", {
+    const bidId = await ctx.db.insert("bids", bidRowFromDollars({
       tradePackageId,
       contractorId: sub1.contractorId,
       subcontractorName: contractor.companyName,
@@ -144,7 +145,7 @@ export const startRun = mutation({
       leveledTotalCost: DEMO_CONTRACT_SUM,
       isAwarded: true,
       receivedAt: now,
-    });
+    }));
     const agreementId = await ctx.db.insert("agreements", {
       projectId,
       tradePackageId,

@@ -5,6 +5,7 @@ import type schema from "../schema";
 import { ensureDemoCompanies, type DemoCompanyIds } from "./demoTenancy";
 import type { Role } from "./roles";
 import { insertTestSession } from "./testIdentity";
+import { bidRowFromDollars } from "./bidMoney";
 
 /**
  * Test-only fixture for cross-company isolation suites: two GC companies, a sub, an owner and the
@@ -115,7 +116,7 @@ export async function insertProjectFor(
     rfqStatus: "bid_received",
     linkedCompanyId: opts.subCompanyId,
   });
-  const bidId = await ctx.db.insert("bids", {
+  const bidId = await ctx.db.insert("bids", bidRowFromDollars({
     tradePackageId,
     contractorId,
     subcontractorName: bidderName,
@@ -129,7 +130,7 @@ export async function insertProjectFor(
     leveledTotalCost: 40_000,
     isAwarded: true,
     receivedAt: now,
-  });
+  }));
   const agreementId = await ctx.db.insert("agreements", {
     projectId,
     tradePackageId,

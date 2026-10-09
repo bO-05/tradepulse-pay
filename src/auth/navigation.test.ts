@@ -15,7 +15,7 @@ describe("role navigation", () => {
       "dashboard",
       "judge-demo",
     ]);
-    expect(NAV_BY_ROLE.sub.map((i) => i.area)).toEqual(["sub-portal", "my-projects", "payments"]);
+    expect(NAV_BY_ROLE.sub.map((i) => i.area)).toEqual(["sub-portal", "bid-invitations", "my-projects", "payments"]);
     expect(NAV_BY_ROLE.owner.map((i) => i.area)).toEqual(["owner-portal", "my-projects", "dashboard"]);
   });
 
@@ -137,5 +137,16 @@ describe("notifications and vendor detail routes", () => {
     expect(resolveRoute("gc", "#/vendors/abc123")).toEqual({ area: "vendors", vendorId: "abc123" });
     expect(resolveRoute("sub", "#/vendors/abc123")).toEqual({ area: "not-found" });
     expect(resolveRoute("owner", "#/vendors/abc123")).toEqual({ area: "not-found" });
+  });
+});
+
+describe("bid invitations", () => {
+  test("sub company members reach the invitations list and a package; GC, owner and billing agents don't", () => {
+    expect(resolveRoute("sub", "#/bids")).toEqual({ area: "bid-invitations" });
+    expect(resolveRoute("sub", "#/bids/kd7pkg")).toEqual({ area: "bid-invitations", tradePackageId: "kd7pkg" });
+    for (const role of ["gc", "owner"] as const) expect(resolveRoute(role, "#/bids")).toEqual({ area: "not-found" });
+    expect(resolveRoute("sub", "#/bids/kd7pkg", false, "", "agent")).toEqual({ area: "not-found" });
+    expect(navFor("sub", false, "agent").some((i) => i.area === "bid-invitations")).toBe(false);
+    expect(navFor("sub").find((i) => i.area === "bid-invitations")?.label).toBe("Bid invitations");
   });
 });

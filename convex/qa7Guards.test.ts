@@ -62,7 +62,7 @@ async function makeBid(t: T, packageId: any, contractorId: any, name: string, ba
     tradePackageId: packageId,
     contractorId,
     subcontractorName: name,
-    baseBidAmount: base,
+    baseAmountCents: base * 100,
   });
   return res.bidId;
 }
@@ -359,38 +359,38 @@ test("QA7-8: updateBidAdjustments validates inputs, rejects negatives, and recom
   await expect(
     t.mutation(api.bids.updateBidAdjustments, {
       bidId,
-      identifiedExclusions: [{ description: "Negative credit", costImpact: -50_000, severity: "critical" }],
+      identifiedExclusions: [{ description: "Negative credit", costImpactCents: -5_000_000, severity: "critical" }],
     })
   ).rejects.toThrow(/zero or positive/i);
   await expect(
     t.mutation(api.bids.updateBidAdjustments, {
       bidId,
       identifiedExclusions: [],
-      valueEngineeringAlternates: [{ description: "Negative deduct", costDeduct: -1, isAccepted: true }],
+      valueEngineeringAlternates: [{ description: "Negative deduct", costDeductCents: -100, isAccepted: true }],
     })
   ).rejects.toThrow(/zero or positive/i);
 
   const result: any = await t.mutation(api.bids.updateBidAdjustments, {
     bidId,
     identifiedExclusions: [
-      { description: "Crane hoisting", costImpact: 12_000, severity: "moderate" },
-      { description: "Waived cleanup", costImpact: 5_000, severity: "minor", isWaived: true },
+      { description: "Crane hoisting", costImpactCents: 1_200_000, severity: "moderate" },
+      { description: "Waived cleanup", costImpactCents: 500_000, severity: "minor", isWaived: true },
     ],
     valueEngineeringAlternates: [
-      { description: "LED alternate", costDeduct: 3_000, isAccepted: true },
-      { description: "Not taken", costDeduct: 1_000, isAccepted: false },
+      { description: "LED alternate", costDeductCents: 300_000, isAccepted: true },
+      { description: "Not taken", costDeductCents: 100_000, isAccepted: false },
     ],
-    leadTimePenalty: 2_500,
-    coiPenalty: 1_500,
+    leadTimePenaltyCents: 250_000,
+    coiPenaltyCents: 150_000,
     coiComplianceStatus: "deficiency_detected",
     longLeadEquipmentWeeks: 14,
   });
-  const expected = 1_000_000 + 12_000 + 2_500 + 1_500 - 3_000;
-  expect(result.leveledTotalCost).toBe(expected);
+  const expected = (1_000_000 + 12_000 + 2_500 + 1_500 - 3_000) * 100;
+  expect(result.leveledTotalCents).toBe(expected);
   const stored: any = await t.run(async (ctx) => await ctx.db.get(bidId));
-  expect(stored.leveledTotalCost).toBe(expected);
+  expect(stored.leveledTotalCents).toBe(expected);
   expect(stored.coiComplianceStatus).toBe("deficiency_detected");
-  expect(stored.baseBidAmount).toBe(1_000_000);
+  expect(stored.baseAmountCents).toBe(100_000_000);
   expect(stored.revisionNumber).toBe(1);
 });
 
@@ -406,42 +406,38 @@ test("A6-05r: insertParsedBid derives the schedule penalty from weeks + division
     tradePackageId: packageId,
     contractorId,
     subcontractorName: "A6 Plumbing Bidder",
-    baseBidAmount: 837_450,
+    baseAmountCents: 83_745_000,
     lineItems: [],
     identifiedExclusions: [],
     valueEngineeringAlternates: [],
     longLeadEquipmentWeeks: 17,
-    leadTimePenalty: 0,
     coiComplianceStatus: "compliant",
-    coiPenalty: 0,
-    leveledTotalCost: 0,
+    coiPenaltyCents: 0,
   });
   const bids: any = await rawByPackage(t, "bids", packageId);
   expect(bids.length).toBe(1);
   expect(bids[0].leadTimeTargetWeeks).toBe(16);
-  expect(bids[0].leadTimePenalty).toBe(6_000);
-  expect(bids[0].leveledTotalCost).toBe(837_450 + 6_000);
+  expect(bids[0].leadTimePenaltyCents).toBe(600_000);
+  expect(bids[0].leveledTotalCents).toBe(83_745_000 + 600_000);
 
   // An explicit GC target wins (17 wks vs a 12-wk target is 5 × $6,000).
   await t.mutation(internal.bids.insertParsedBid, {
     tradePackageId: packageId,
     contractorId,
     subcontractorName: "A6 Plumbing Bidder",
-    baseBidAmount: 837_450,
+    baseAmountCents: 83_745_000,
     lineItems: [],
     identifiedExclusions: [],
     valueEngineeringAlternates: [],
     longLeadEquipmentWeeks: 17,
-    leadTimePenalty: 123,
     leadTimeTargetWeeks: 12,
     coiComplianceStatus: "compliant",
-    coiPenalty: 0,
-    leveledTotalCost: 0,
+    coiPenaltyCents: 0,
   });
   const bids2: any = await rawByPackage(t, "bids", packageId);
   expect(bids2[0].leadTimeTargetWeeks).toBe(12);
-  expect(bids2[0].leadTimePenalty).toBe(30_000);
-  expect(bids2[0].leveledTotalCost).toBe(837_450 + 30_000);
+  expect(bids2[0].leadTimePenaltyCents).toBe(3_000_000);
+  expect(bids2[0].leveledTotalCents).toBe(83_745_000 + 3_000_000);
 });
 
 test("A6-05r: the extraction sanitizer recomputes penalties deterministically per division and drops model arithmetic", async () => {
@@ -695,16 +691,16 @@ test("A7CONV-R19B: updateBidAdjustments accepts and preserves canonicalCode on e
       {
         canonicalCode: "CSI_26_CRANE",
         description: "Crane hoisting and rigging excluded",
-        costImpact: 45_000,
+        costImpactCents: 4_500_000,
         severity: "critical",
       },
     ],
     coiComplianceStatus: "compliant",
   });
-  expect(result.leveledTotalCost).toBe(1_045_000);
+  expect(result.leveledTotalCents).toBe(104_500_000);
   const stored: any = await t.run(async (ctx) => await ctx.db.get(bidId));
   expect(stored.identifiedExclusions[0].canonicalCode).toBe("CSI_26_CRANE");
-  expect(stored.leveledTotalCost).toBe(1_045_000);
+  expect(stored.leveledTotalCents).toBe(104_500_000);
 });
 
 test("A7CONV-R3C-6: inferred canonical codes never cross the package division", async () => {

@@ -5,6 +5,8 @@ import { ApprovalInbox } from "../payments/inbox/ApprovalInbox";
 import { PaymentsWorkspace } from "../payments/PaymentsWorkspace";
 import { OwnerPortal } from "../payments/OwnerPortal";
 import { SubPortal } from "../payments/SubPortal";
+import { BidInvitationsPage } from "../bids/BidInvitationsPage";
+import { BidPackagePage } from "../bids/BidPackagePage";
 import { BillingAgentsView } from "./BillingAgentsView";
 import { JudgeDemoPage } from "../payments/judgeDemo/JudgeDemoPage";
 import { CompanySettingsPage } from "../company/CompanySettingsPage";
@@ -44,8 +46,8 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
   const signOutAndReset = useSignOutAndReset();
   const hash = useHash();
   const isDemo = me.isDemo === true;
-  const route = resolveRoute(me.role, hash, isDemo, window.location.search);
-  const nav = navFor(me.role, isDemo);
+  const route = resolveRoute(me.role, hash, isDemo, window.location.search, me.actorType);
+  const nav = navFor(me.role, isDemo, me.actorType);
   const homeHash = nav[0].hash;
   const leftProcurement = route.area !== "procurement" && hash !== "" && hash !== "#" && hash !== "#/";
 
@@ -64,6 +66,8 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
   let content: ReactNode;
   if (route.area === "procurement") content = procurementApp;
   else if (route.area === "sub-portal") content = <SubPortal />;
+  else if (route.area === "bid-invitations")
+    content = route.tradePackageId ? <BidPackagePage tradePackageId={route.tradePackageId} /> : <BidInvitationsPage />;
   else if (route.area === "owner-portal") content = <OwnerPortal role={me.role} />;
   else if (route.area === "payments") content = <PaymentsWorkspace />;
   else if (route.area === "billing-agents") content = <BillingAgentsView />;
@@ -140,8 +144,8 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
             );
           })}
         </ul>
-        <div className="ml-auto flex items-center gap-3">
-          <span className="text-xs text-slate-300" data-testid="signed-in-identity">
+        <div className="ml-auto flex min-w-0 flex-wrap items-center gap-3">
+          <span className="min-w-0 break-all text-xs text-slate-300" data-testid="signed-in-identity">
             <span className="font-semibold">{me.displayName}</span>
             {me.email ? <span className="text-slate-400"> · {me.email}</span> : null}
             <span className="ml-2 rounded-full border border-slate-700 px-2 py-0.5 text-[10px] uppercase tracking-wide">

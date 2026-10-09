@@ -11,7 +11,8 @@ import {
   termsContextFor,
 } from "./lib/agreementDocument";
 import { draftFromTerms, firstTermsError, validateAgreementTerms } from "./lib/agreementTerms";
-import { fromDollars } from "./lib/money";
+import { centsToDollarsForDisplay, fromDollars } from "./lib/money";
+import { bidCents } from "./lib/bidMoney";
 import { ensureSovAndMilestones, removeSovAndMilestonesIfUnbilled } from "./payments/sov";
 import { contractorCanBidOnPackage } from "./lib/packageContractors";
 
@@ -51,7 +52,7 @@ export const generateAgreement = mutation({
       );
     }
 
-    const contractSum = Math.max(0, bid.leveledTotalCost);
+    const contractSum = centsToDollarsForDisplay(bidCents(bid).leveledTotalCents);
     const contractor = await ctx.db.get(bid.contractorId);
     if (!contractor || !contractorCanBidOnPackage(contractor, tradePkg)) {
       throw new Error("The selected bid is not linked to a valid contractor in this trade package.");
@@ -473,7 +474,7 @@ export async function syncAgreementForBid(ctx: any, bidId: any): Promise<any> {
   const subcontractorName = contractor.companyName.trim();
   const generalContractorName = await generalContractorNameFor(ctx, project);
 
-  const contractSum = Math.max(0, bid.leveledTotalCost);
+  const contractSum = centsToDollarsForDisplay(bidCents(bid).leveledTotalCents);
   await ctx.db.patch(existingAgreement._id, {
     contractorId: bid.contractorId,
     subcontractorName,

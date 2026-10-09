@@ -4,6 +4,7 @@ import rateLimiterTest from "@convex-dev/rate-limiter/test";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { api } from "./_generated/api";
 import schema from "./schema";
+import { bidRowFromDollars } from "./lib/bidMoney";
 import { buildTenancyFixture } from "./lib/tenancyFixtures";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -59,7 +60,7 @@ test("both coordination reasoning paths name TradePulse Pay and the project's GC
       sourceUrl: "https://example.invalid",
       rfqStatus: "bid_received",
     });
-    await ctx.db.insert("bids", {
+    await ctx.db.insert("bids", bidRowFromDollars({
       tradePackageId: hvac,
       contractorId,
       subcontractorName: "Lakeshore Mechanical",
@@ -73,7 +74,7 @@ test("both coordination reasoning paths name TradePulse Pay and the project's GC
       leveledTotalCost: 50_000,
       isAwarded: false,
       receivedAt: Date.now(),
-    });
+    }));
   });
 
   const systems = stubAnthropic();

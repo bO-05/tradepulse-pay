@@ -84,7 +84,7 @@ export function PackageBidderMessages({
       ) : (
         <ul className="divide-y divide-line text-sm" data-testid="bidder-messages">
           {messages.map((m) => (
-            <li key={m.id} className="space-y-1 py-2">
+            <li key={m.id} id={`bidder-message-${m.id}`} tabIndex={-1} className="space-y-1 py-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="font-semibold">{nameOf(m.contractorId)}</span>
                 <span className="flex flex-wrap items-center gap-2 text-xs text-ink-subtle">

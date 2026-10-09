@@ -43,7 +43,7 @@ export function formatBidDue(bidDeadline: string, state: string | undefined): st
 
 /** Where a bidder with a TradePulse Pay account views the invitation and submits a bid. */
 export function rfqPortalLink(siteUrl: string | undefined): string {
-  return `${(siteUrl?.trim() || "http://localhost:3150").replace(/\/$/, "")}/#/portal`;
+  return `${(siteUrl?.trim() || "http://localhost:3150").replace(/\/$/, "")}/#/bids`;
 }
 
 export interface RfqEmailInput {

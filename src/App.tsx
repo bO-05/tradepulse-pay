@@ -35,6 +35,7 @@ import {
   ValueEngineeringAlternate,
 } from "./types.ts";
 import { computeProcurementMetrics, getEffectiveBid } from "./leveling.ts";
+import { centsToDollarsForDisplay, formatCents } from "../convex/lib/money";
 import { useActiveCompany } from "./auth/companyContext.ts";
 
 /**
@@ -261,7 +262,7 @@ export const App: React.FC = () => {
 
   // Live context for the demo tour so scene narration always matches the screen.
   const tourLiveContext = useMemo(() => {
-    const sortedBids = [...bids].sort((a, b) => a.leveledTotalCost - b.leveledTotalCost);
+    const sortedBids = [...bids].sort((a, b) => a.leveledTotalCents - b.leveledTotalCents);
     const effective = getEffectiveBid(sortedBids);
     const runnerUp = sortedBids.find((bid) => bid._id !== effective?._id);
     const activeAgreement = agreements.find((a) => a.status !== "superseded");
@@ -281,10 +282,10 @@ export const App: React.FC = () => {
       deceptiveBidsCount: procurementMetrics.deceptiveBidsCount,
       openClashes: activeClashesCount,
       effectiveBidName: effective?.subcontractorName,
-      effectiveBidCost: effective?.leveledTotalCost,
+      effectiveBidCost: effective ? centsToDollarsForDisplay(effective.leveledTotalCents) : undefined,
       runnerUpName: runnerUp?.subcontractorName,
-      runnerUpCost: runnerUp?.leveledTotalCost,
-      runnerUpBaseCost: runnerUp?.baseBidAmount,
+      runnerUpCost: runnerUp ? centsToDollarsForDisplay(runnerUp.leveledTotalCents) : undefined,
+      runnerUpBaseCost: runnerUp ? centsToDollarsForDisplay(runnerUp.baseAmountCents) : undefined,
       contractSum: activeAgreement?.contractSum,
       contractExecuted: activeAgreement?.status === "executed",
       hasBids: bids.length > 0,
@@ -773,8 +774,8 @@ export const App: React.FC = () => {
     bidId: string,
     exclusions: ScopeExclusion[],
     alternates: ValueEngineeringAlternate[],
-    leadPenalty: number,
-    coiPenalty: number
+    leadPenaltyCents: number,
+    coiPenaltyCents: number
   ) => {
     try {
       const isRealBid = isRealConvexProject && Boolean(bidId) && !bidId.startsWith("bid_");
@@ -783,8 +784,8 @@ export const App: React.FC = () => {
           bidId: bidId as any,
           identifiedExclusions: exclusions,
           valueEngineeringAlternates: alternates,
-          leadTimePenalty: leadPenalty,
-          coiPenalty,
+          leadTimePenaltyCents: leadPenaltyCents,
+          coiPenaltyCents,
         });
       } else {
         throw new Error(NO_PROJECT_MESSAGE);
@@ -1046,11 +1047,11 @@ export const App: React.FC = () => {
       showToast("Pre-Bid RFIs clarified into Addendum No. 01. Advanced to Forensic Bid Leveling.");
     } else if (sceneId === "leveling") {
       const winner = bids.find(
-        (b) => b.subcontractorName.includes("Rosendin") || b.leveledTotalCost <= (bids[0]?.leveledTotalCost || 0)
+        (b) => b.subcontractorName.includes("Rosendin") || b.leveledTotalCents <= (bids[0]?.leveledTotalCents || 0)
       ) || bids[0];
       if (winner && activePackage) {
         await handleAwardContract(winner._id, activePackage._id);
-        showToast(`Awarded ${winner.subcontractorName} ($${winner.leveledTotalCost.toLocaleString()})! Advanced to Scope Clash Engine.`);
+        showToast(`Awarded ${winner.subcontractorName} (${formatCents(winner.leveledTotalCents)})! Advanced to Scope Clash Engine.`);
       } else {
         showToast("Awarded compliant proposal! Advanced to Scope Clash Engine.");
       }

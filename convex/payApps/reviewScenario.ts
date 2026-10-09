@@ -19,6 +19,7 @@ import { findDemoContractorId } from "../demoAccounts";
 import { attachProjectToDemo } from "../lib/demoTenancy";
 import { ensureSovAndMilestones } from "../payments/sov";
 import { RETAINAGE_PERCENT } from "../terms";
+import { bidRowFromDollars } from "../lib/bidMoney";
 
 export const REVIEW_SCENARIO_AGREEMENT_NUMBER = "A401-DEMO-PAYREVIEW-01";
 const AGREEMENT_PREFIX = "A401-DEMO-PAYREVIEW-";
@@ -85,7 +86,7 @@ export const seedReviewScenario = internalMutation({
       bidDeadline: "2026-09-30",
       status: "awarded",
     });
-    const bidId = await ctx.db.insert("bids", {
+    const bidId = await ctx.db.insert("bids", bidRowFromDollars({
       tradePackageId,
       contractorId,
       subcontractorName: contractorName,
@@ -100,7 +101,7 @@ export const seedReviewScenario = internalMutation({
       leveledTotalCost: contractSum,
       isAwarded: true,
       receivedAt: now,
-    });
+    }));
     const agreementId = await ctx.db.insert("agreements", {
       projectId,
       tradePackageId,

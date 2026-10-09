@@ -29,7 +29,7 @@ export const RETRYABLE_RFQ_STATUSES = new Set(["failed", "bounced", "skipped_bud
 export const RFQ_BUDGET_MESSAGE = "Email limit reached for today — copy the RFQ link instead.";
 
 export function rfqPortalLink(): string {
-  return `${window.location.origin}/#/portal`;
+  return `${window.location.origin}/#/bids`;
 }
 
 export async function copyRfqLink(): Promise<string> {

@@ -4,6 +4,7 @@ import { describe, expect, test } from "vitest";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import schema from "./schema";
+import { bidRowFromDollars } from "./lib/bidMoney";
 import { buildTenancyFixture } from "./lib/tenancyFixtures";
 import { projectSetupArgs } from "./lib/projectSetupFixture";
 import { generalContractorNameFor, projectGcCompanyName, workingOnBehalfOf } from "./lib/gcCompanyName";
@@ -96,7 +97,7 @@ describe("GC company name in generated documents", () => {
         sourceUrl: "https://example.invalid",
         rfqStatus: "bid_received",
       });
-      const bidId = await ctx.db.insert("bids", {
+      const bidId = await ctx.db.insert("bids", bidRowFromDollars({
         tradePackageId,
         contractorId,
         subcontractorName: "Desert Drywall",
@@ -110,7 +111,7 @@ describe("GC company name in generated documents", () => {
         leveledTotalCost: 25_000,
         isAwarded: false,
         receivedAt: Date.now(),
-      });
+      }));
       return { tradePackageId, bidId };
     });
     const result = await f.gcB.admin.as.mutation(api.agreements.generateAgreement, ids);

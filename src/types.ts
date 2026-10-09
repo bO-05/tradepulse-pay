@@ -76,20 +76,20 @@ export interface BidLineItem {
   item: string;
   unit: string;
   quantity: number;
-  unitCost: number;
-  totalCost: number;
+  unitCostCents: number;
+  totalCostCents: number;
 }
 
 export interface ScopeExclusion {
   description: string;
-  costImpact: number;
+  costImpactCents: number;
   severity: "critical" | "moderate" | "minor";
   isWaived?: boolean;
 }
 
 export interface ValueEngineeringAlternate {
   description: string;
-  costDeduct: number;
+  costDeductCents: number;
   isAccepted: boolean;
 }
 
@@ -98,23 +98,48 @@ export interface Bid {
   tradePackageId: string;
   contractorId: string;
   subcontractorName: string;
-  baseBidAmount: number;
+  baseAmountCents: number;
   lineItems: BidLineItem[];
   identifiedExclusions: ScopeExclusion[];
   valueEngineeringAlternates?: ValueEngineeringAlternate[];
   longLeadEquipmentWeeks: number;
-  leadTimePenalty: number;
+  leadTimePenaltyCents: number;
   /** GC-owned baseline the penalty was computed against (12 Div 26 / 16 Div 22-23). */
   leadTimeTargetWeeks?: number;
   coiComplianceStatus: "compliant" | "deficiency_detected";
-  coiPenalty: number;
-  leveledTotalCost: number;
+  coiPenaltyCents: number;
+  leveledTotalCents: number;
   isAwarded: boolean;
   sourceFileId?: string;
   revisionNumber?: number;
   lastRevisedAt?: number;
   receivedAt: number;
+  alternates?: BidAlternate[];
+  exclusions?: string[];
+  inclusions?: string[];
+  unitPrices?: BidUnitPrice[];
+  qualifications?: string;
+  validUntil?: string;
+  source?: BidSource;
+  sourceInboundEmailId?: string;
+  submittedByName?: string;
+  confirmedByName?: string;
+  confirmedAt?: number;
 }
+
+/** A bidder's priced alternate; a negative amount is a deduct. */
+export interface BidAlternate {
+  description: string;
+  amountCents: number;
+}
+
+export interface BidUnitPrice {
+  item: string;
+  unit: string;
+  unitPriceCents: number;
+}
+
+export type BidSource = "portal" | "gc_entered" | "email_ai" | "document_ai" | "seed" | "legacy";
 
 export interface Agreement {
   _id: string;

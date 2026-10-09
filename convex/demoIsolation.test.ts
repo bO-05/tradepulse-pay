@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import schema from "./schema";
+import { bidRowFromDollars } from "./lib/bidMoney";
 import { buildTenancyFixture, type TenancyFixture } from "./lib/tenancyFixtures";
 import { DEMO_NO_EMAIL_MESSAGE, sendEmail, type MailerCtx } from "./lib/mailer";
 
@@ -50,7 +51,7 @@ async function plantLookalikes(t: ReturnType<typeof newTest>, f: TenancyFixture)
         sourceUrl: "",
         rfqStatus: "bid_received",
       });
-      const bidId = await ctx.db.insert("bids", {
+      const bidId = await ctx.db.insert("bids", bidRowFromDollars({
         tradePackageId,
         contractorId,
         subcontractorName: c.companyName,
@@ -64,7 +65,7 @@ async function plantLookalikes(t: ReturnType<typeof newTest>, f: TenancyFixture)
         leveledTotalCost: 48_750,
         isAwarded: false,
         receivedAt: Date.now(),
-      });
+      }));
       rows.push({ contractorId, bidId });
     }
     return rows;
@@ -88,7 +89,7 @@ async function nonDemoSnapshot(t: ReturnType<typeof newTest>, f: TenancyFixture)
         for (const c of await ctx.db.query("contractors").withIndex("by_package", (q) => q.eq("tradePackageId", pkg._id)).collect())
           out.contractors.push(`${c._id}:${c.companyName}:${c.contactEmail}`);
         for (const b of await ctx.db.query("bids").withIndex("by_package", (q) => q.eq("tradePackageId", pkg._id)).collect())
-          out.bids.push(`${b._id}:${b.baseBidAmount}`);
+          out.bids.push(`${b._id}:${b.baseAmountCents}`);
       }
       for (const a of await ctx.db.query("agreements").withIndex("by_project", (q) => q.eq("projectId", projectId)).collect())
         out.agreements.push(a._id);
@@ -113,7 +114,7 @@ describe("demo seed and reset touch only the Demo company", () => {
     for (const row of planted) {
       const state = await t.run(async (ctx) => ({ c: await ctx.db.get(row.contractorId), b: await ctx.db.get(row.bidId) }));
       expect(state.c).not.toBeNull();
-      expect(state.b?.baseBidAmount).toBe(48_750);
+      expect(state.b?.baseAmountCents).toBe(4_875_000);
     }
   });
 

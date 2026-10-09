@@ -5,6 +5,7 @@ import type { FunctionReference } from "convex/server";
 import { api } from "./_generated/api";
 import type { Id, TableNames } from "./_generated/dataModel";
 import schema from "./schema";
+import { bidRowFromDollars } from "./lib/bidMoney";
 import { buildTenancyFixture, type FixtureUser, type TenancyFixture } from "./lib/tenancyFixtures";
 import { withSession } from "./lib/testIdentity";
 import { projectSetupArgs } from "./lib/projectSetupFixture";
@@ -101,7 +102,7 @@ async function setup() {
       rfqStatus: "bid_received",
       linkedCompanyId: lakeshore,
     });
-    await ctx.db.insert("bids", {
+    await ctx.db.insert("bids", bidRowFromDollars({
       tradePackageId: a.tradePackageId,
       contractorId: rayContractor,
       subcontractorName: "Lakeshore Mechanical",
@@ -115,7 +116,7 @@ async function setup() {
       leveledTotalCost: 45_000,
       isAwarded: false,
       receivedAt: now,
-    });
+    }));
     await ctx.db.insert("projectMembers", {
       projectId: a.projectId,
       companyId: lakeshore,
@@ -243,7 +244,7 @@ async function setup() {
       }),
     ),
     bidId: await freshId(t, (ctx) =>
-      ctx.db.insert("bids", {
+      ctx.db.insert("bids", bidRowFromDollars({
         tradePackageId: a.tradePackageId,
         contractorId: a.contractorId,
         subcontractorName: "gone",
@@ -257,7 +258,7 @@ async function setup() {
         leveledTotalCost: 1,
         isAwarded: false,
         receivedAt: 0,
-      }),
+      })),
     ),
     agreementId: await t.run(async (ctx) => {
       const src = (await ctx.db.get(a.agreementId))!;
@@ -351,13 +352,13 @@ const GC_ONLY: Case[] = [
   m("bids:awardContract", api.bids.awardContract, (i) => ({ bidId: i.bidId, tradePackageId: i.tradePackageId })),
   m("bids:unawardContract", api.bids.unawardContract, (i) => ({ bidId: i.bidId, tradePackageId: i.tradePackageId })),
   m("bids:deleteBid", api.bids.deleteBid, (i) => ({ bidId: i.bidId })),
-  m("bids:updateBidLeveling", api.bids.updateBidLeveling, (i) => ({ bidId: i.bidId, baseBidAmount: 1 })),
+  m("bids:updateBidLeveling", api.bids.updateBidLeveling, (i) => ({ bidId: i.bidId, baseAmountCents: 100 })),
   m("bids:updateBidAdjustments", api.bids.updateBidAdjustments, (i) => ({ bidId: i.bidId, identifiedExclusions: [] })),
   m("bids:submitDirectBid", api.bids.submitDirectBid, (i) => ({
     tradePackageId: i.tradePackageId,
     contractorId: i.contractorId,
     subcontractorName: "Forged Sub",
-    baseBidAmount: 1000,
+    baseAmountCents: 100_000,
   })),
   m("agreements:generateAgreement", api.agreements.generateAgreement, (i) => ({ bidId: i.bidId, tradePackageId: i.tradePackageId })),
   m("agreements:executeAgreement", api.agreements.executeAgreement, (i) => ({ agreementId: i.agreementId })),
@@ -715,7 +716,7 @@ describe("activity feeds never mix companies or vendors", () => {
 describe("authenticated project file download", () => {
   const path = (id: string) => `/api/project-files/${id}`;
 
-  test("Dana gets the bytes; Priya, Ray and missing ids get the same 404; no token gets 401", async () => {
+  test("Dana gets the bytes; Priya, Ray (for a competitor's quote) and missing ids get the same 404; no token gets 401", async () => {
     const { t, fx, ray, bayview, missing, extra } = await setup();
     const ok = await fx.gcA.admin.as.fetch(path(bayview.fileId), { method: "GET" });
     expect(ok.status).toBe(200);
@@ -729,7 +730,10 @@ describe("authenticated project file download", () => {
       expect(r.status).toBe(404);
       expect(await r.text()).toBe("Not found.");
     }
-    expect((await ray.as.fetch(path(bayview.fileId), { method: "GET" })).status).toBe(404);
+    // Ray bids on the package, so its spec is a bid document for him; Eastbay's quote never is.
+    expect((await ray.as.fetch(path(bayview.fileId), { method: "GET" })).status).toBe(200);
+    expect((await ray.as.fetch(path(extra.quoteFileId), { method: "GET" })).status).toBe(404);
+    expect((await fx.sub.admin.as.fetch(path(extra.quoteFileId), { method: "GET" })).status).toBe(404);
     expect((await fx.owner.admin.as.fetch(path(extra.quoteFileId), { method: "GET" })).status).toBe(404);
     expect((await fx.owner.admin.as.fetch(path(bayview.fileId), { method: "GET" })).status).toBe(200);
     expect((await t.fetch(path(bayview.fileId), { method: "GET" })).status).toBe(401);

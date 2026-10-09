@@ -5,6 +5,7 @@ import type { Id } from "../../convex/_generated/dataModel";
 import { getErrorMessage } from "../lib/errors";
 import { Button, Dialog, EmptyState, StatusPill, Tabs, focusFirstInvalid, useToast } from "../ui";
 import { inputClass } from "../ui/Field";
+import { PackageBidsPanel, PackageQuestionsPanel } from "../bids/PackageBidsPanel";
 import { BidderRfqStatus, PackageBidderMessages } from "./BidderRfqStatus";
 import { RfqSendDialog } from "./RfqSendDialog";
 import { RFQ_EMAIL_LABELS } from "./rfqLabels";
@@ -64,6 +65,8 @@ export function PackageBidders({ pkg, readOnly }: { pkg: Pkg; readOnly?: boolean
           })}
         </ul>
       )}
+      {bidders.length > 0 && <PackageBidsPanel tradePackageId={pkg._id} bidders={bidders} readOnly={readOnly} />}
+      {bidders.length > 0 && <PackageQuestionsPanel tradePackageId={pkg._id} readOnly={readOnly} />}
       {bidders.length > 0 && <PackageBidderMessages tradePackageId={pkg._id} bidders={bidders} />}
       {rfqReview && (
         <RfqSendDialog
