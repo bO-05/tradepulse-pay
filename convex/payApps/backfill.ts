@@ -5,14 +5,41 @@ import { internalMutation, type MutationCtx } from "../_generated/server";
 
 const BATCH = 200;
 
-/** Stamps a newly linked contractor's existing pay apps with its sub company (bounded). */
-export async function stampPayAppsSubCompany(ctx: MutationCtx, contractorId: Id<"contractors">, subCompanyId: Id<"companies">) {
+/**
+ * Stamps a newly linked contractor's existing pay apps with its sub company: one bounded batch now,
+ * then scheduled batches until every row is done. The cursor is the last row's _creationTime (the
+ * index's implicit tail), so callers may run this several times in one mutation, unlike paginate().
+ */
+export async function stampPayAppsSubCompany(
+  ctx: MutationCtx,
+  contractorId: Id<"contractors">,
+  subCompanyId: Id<"companies">,
+  after?: number,
+) {
   const rows = await ctx.db
     .query("payApplications")
-    .withIndex("by_contractorId", (q) => q.eq("contractorId", contractorId))
-    .take(500);
+    .withIndex("by_contractorId", (q) =>
+      after === undefined ? q.eq("contractorId", contractorId) : q.eq("contractorId", contractorId).gt("_creationTime", after),
+    )
+    .take(BATCH);
   for (const p of rows) if (p.subCompanyId === undefined) await ctx.db.patch(p._id, { subCompanyId });
+  if (rows.length === BATCH) {
+    await ctx.scheduler.runAfter(0, internal.payApps.backfill.stampPayAppsSubCompanyBatch, {
+      contractorId,
+      subCompanyId,
+      after: rows[rows.length - 1]._creationTime,
+    });
+  }
 }
+
+export const stampPayAppsSubCompanyBatch = internalMutation({
+  args: { contractorId: v.id("contractors"), subCompanyId: v.id("companies"), after: v.number() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await stampPayAppsSubCompany(ctx, args.contractorId, args.subCompanyId, args.after);
+    return null;
+  },
+});
 
 /**
  * Copies each pay app's agreement contractor, and that contractor's linked sub company, onto rows

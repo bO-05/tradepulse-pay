@@ -191,12 +191,14 @@ export async function sendEmail(ctx: MailerCtx, req: SendEmailRequest, opts: Mai
   if (outcome.kind === "definite_failure" && !acceptedEarlier) return await fail(outcome.detail);
   if (outcome.kind !== "accepted") return await uncertain(outcome.detail);
   const { messageId, threadId } = outcome;
-  await ctx.runMutation(internal.emailOutbox.finishSend, {
+  const finished = await ctx.runMutation(internal.emailOutbox.finishSend, {
     outboxId,
     status: "sent",
     agentmailMessageId: messageId,
     threadId: threadId || undefined,
   });
+  // A bounce or rejection that arrived before the ids were stored has already made the row terminal.
+  if (finished?.status === "delivery_failed") return { status: "failed", outboxId, error: finished.error };
   return { status: "sent", outboxId, messageId, threadId };
 }
 

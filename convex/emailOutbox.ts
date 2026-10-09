@@ -155,6 +155,7 @@ export const finishSend = internalMutation({
     threadId: v.optional(v.string()),
     error: v.optional(v.string()),
   },
+  returns: v.union(v.null(), v.object({ status: v.literal("delivery_failed"), error: v.string() })),
   handler: async (ctx, args) => {
     const row = await ctx.db.get(args.outboxId);
     if (row === null) return null;
@@ -166,7 +167,7 @@ export const finishSend = internalMutation({
         threadId: row.threadId ?? args.threadId,
         updatedAt: now,
       });
-      return null;
+      return { status: "delivery_failed" as const, error: row.error ?? "The email was not delivered." };
     }
     await ctx.db.patch(row._id, {
       status: args.status,
@@ -182,8 +183,9 @@ export const finishSend = internalMutation({
       .withIndex("by_agentmailMessageId", (q) => q.eq("agentmailMessageId", messageId))
       .take(10);
     for (const e of early) await ctx.db.delete(e._id);
-    if (early.length > 0) await markDeliveryFailed(ctx, (await ctx.db.get(row._id))!, early[0].event);
-    return null;
+    if (early.length === 0) return null;
+    await markDeliveryFailed(ctx, (await ctx.db.get(row._id))!, early[0].event);
+    return { status: "delivery_failed" as const, error: deliveryFailureMessage(early[0].event) };
   },
 });
 
