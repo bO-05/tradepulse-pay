@@ -5,7 +5,7 @@ function calls a role guard before it reads or writes data, and a company-tenanc
 (`convex/lib/tenancy.ts`, `convex/lib/projectScope.ts`) unless it reads no project data.
 Internal functions (180 `internal*` exports) are not callable from clients and are not listed.
 
-Public functions: 200. Problems: 0. Without a tenancy guard: 0.
+Public functions: 202. Problems: 0. Without a tenancy guard: 0.
 
 | Function | Kind | Location | Guard | Tenancy |
 |---|---|---|---|---|
@@ -113,19 +113,21 @@ Public functions: 200. Problems: 0. Without a tenancy guard: 0.
 | `onboarding:createCompany` | mutation | `convex/onboarding.ts:11` | requireVerifiedUser() at line 25 | none needed: creates the caller's own GC company and membership; no client-chosen company or project |
 | `partyProfiles:getVendor` | query | `convex/partyProfiles.ts:28` | requireCompanyMember() at line 31 | requireCompanyMember() |
 | `partyProfiles:getProjectOwner` | query | `convex/partyProfiles.ts:60` | requireProjectScope() at line 63 | requireProjectScope() |
-| `payApps/g703:getPayApp` | query | `convex/payApps/g703.ts:427` | requireDocScope() at line 430 | requireDocScope() |
-| `payApps/g703:payAppLines` | query | `convex/payApps/g703.ts:436` | requireDocScope() at line 439 | requireDocScope() |
-| `payApps/g703:mySubPayAppAgreements` | query | `convex/payApps/g703.ts:464` | requireRole() at line 467 | scopedAgreements() |
-| `payApps/g703:startPayApp` | mutation | `convex/payApps/g703.ts:509` | requireDocScope() at line 512 | requireDocScope() |
-| `payApps/g703:saveDraft` | mutation | `convex/payApps/g703.ts:641` | requireDocScope() at line 646 | requireDocScope() |
-| `payApps/g703:submitPayApp` | mutation | `convex/payApps/g703.ts:675` | requireDocScope() at line 680 | requireDocScope() |
-| `payApps/g703:gcBillingWorklist` | query | `convex/payApps/g703.ts:789` | requireRole() at line 792 | scopedAgreements() |
-| `payApps/proposals:listInbox` | query | `convex/payApps/proposals.ts:116` | requireRole() at line 119 | scopedAgreements() |
-| `payApps/proposals:getAgentTrace` | query | `convex/payApps/proposals.ts:212` | findSubcontractDocScope() at line 215 | findSubcontractDocScope() |
-| `payApps/proposals:approveProposal` | mutation | `convex/payApps/proposals.ts:246` | requireDocScope() at line 249 | requireDocScope() |
-| `payApps/proposals:editProposal` | mutation | `convex/payApps/proposals.ts:337` | requireDocScope() at line 340 | requireDocScope() |
-| `payApps/proposals:rejectProposal` | mutation | `convex/payApps/proposals.ts:374` | requireDocScope() at line 377 | requireDocScope() |
-| `payApps/proposals:rejectPayApp` | mutation | `convex/payApps/proposals.ts:394` | requireDocScope() at line 397 | requireDocScope() |
+| `payApps/decisions:decidePayApp` | mutation | `convex/payApps/decisions.ts:299` | requireDocScope() at line 307 | requireDocScope() |
+| `payApps/decisions:revisePayApp` | mutation | `convex/payApps/decisions.ts:321` | requireDocScope() at line 324 | requireDocScope() |
+| `payApps/g703:getPayApp` | query | `convex/payApps/g703.ts:559` | requireDocScope() at line 562 | requireDocScope() |
+| `payApps/g703:payAppLines` | query | `convex/payApps/g703.ts:568` | requireDocScope() at line 571 | requireDocScope() |
+| `payApps/g703:mySubPayAppAgreements` | query | `convex/payApps/g703.ts:596` | requireRole() at line 599 | scopedAgreements() |
+| `payApps/g703:startPayApp` | mutation | `convex/payApps/g703.ts:641` | requireDocScope() at line 644 | requireDocScope() |
+| `payApps/g703:saveDraft` | mutation | `convex/payApps/g703.ts:773` | requireDocScope() at line 778 | requireDocScope() |
+| `payApps/g703:submitPayApp` | mutation | `convex/payApps/g703.ts:807` | requireDocScope() at line 812 | requireDocScope() |
+| `payApps/g703:gcBillingWorklist` | query | `convex/payApps/g703.ts:921` | requireRole() at line 924 | scopedAgreements() |
+| `payApps/proposals:listInbox` | query | `convex/payApps/proposals.ts:117` | requireRole() at line 120 | scopedAgreements() |
+| `payApps/proposals:getAgentTrace` | query | `convex/payApps/proposals.ts:213` | findSubcontractDocScope() at line 216 | findSubcontractDocScope() |
+| `payApps/proposals:approveProposal` | mutation | `convex/payApps/proposals.ts:247` | requireDocScope() at line 250 | requireDocScope() |
+| `payApps/proposals:editProposal` | mutation | `convex/payApps/proposals.ts:342` | requireDocScope() at line 345 | requireDocScope() |
+| `payApps/proposals:rejectProposal` | mutation | `convex/payApps/proposals.ts:385` | requireDocScope() at line 388 | requireDocScope() |
+| `payApps/proposals:rejectPayApp` | mutation | `convex/payApps/proposals.ts:405` | requireDocScope() at line 408 | requireDocScope() |
 | `payApps/review:rerunPayAppReview` | action | `convex/payApps/review.ts:212` | requireProjectScopeInAction() at line 215 | requireProjectScopeInAction() |
 | `payApps/review:listAgreementPayApps` | query | `convex/payApps/review.ts:298` | findSubcontractDocScope() at line 301 | findSubcontractDocScope() |
 | `payApps/reviewEvals:executePayAppReviewEvalSuite` | action | `convex/payApps/reviewEvals.ts:179` | requireRoleInAction() at line 182 | requireDemoCompanyInAction() |

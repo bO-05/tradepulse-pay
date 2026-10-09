@@ -24,7 +24,8 @@ import { payAppView, sovMapFor } from "./review";
  */
 
 const MONEY_KINDS = new Set(["capture", "payout"]);
-const INBOX_STATUSES = ["submitted", "under_review", "reviewed", "approved", "paid", "rejected"] as const;
+const DECIDED_STATUSES = new Set(["approved", "approved_as_noted"]);
+const INBOX_STATUSES = ["submitted", "under_review", "reviewed", "approved", "approved_as_noted", "revision_requested", "paid", "rejected"] as const;
 
 function notPending(p: Doc<"agentProposals">): ConvexError<{ code: string; message: string }> {
   const why =
@@ -252,7 +253,9 @@ export const approveProposal = mutation({
     if (p.status !== "pending") throw notPending(p);
     const payApp = p.payAppId ? await ctx.db.get(p.payAppId) : null;
     if (payApp === null) throw new ConvexError({ code: "NOT_FOUND", message: "Pay application not found." });
-    if (payApp.status !== "reviewed") {
+    // After the GC's per-line decision the approved total is fixed; the pair then pays exactly that.
+    const decided = DECIDED_STATUSES.has(payApp.status) && payApp.gcDecision !== undefined && payApp.finalApproval !== undefined;
+    if (payApp.status !== "reviewed" && !decided) {
       throw new ConvexError({ code: "INVALID_STATE", message: `The pay application is ${payApp.status}; only reviewed pay applications can be approved.` });
     }
     const actor = auditActor(scope).actor;
@@ -277,9 +280,9 @@ export const approveProposal = mutation({
         message: `The payout is held because the contractor's license is ${payout.licenseStatus ?? "not verified as active"}. Run a new license check, or approve with the license-hold override.`,
       });
     }
-    const amountCents = effectiveAmount(payout) ?? 0;
+    const amountCents = decided ? payApp.finalApproval!.totalCents : (effectiveAmount(payout) ?? 0);
     if (amountCents <= 0) throw new ConvexError({ code: "INVALID_AMOUNT", message: "The proposal has no amount to pay." });
-    const finalLines = await finalAllocation(ctx, payApp, amountCents);
+    const finalLines = decided ? payApp.finalApproval!.lines : await finalAllocation(ctx, payApp, amountCents);
 
     const rows = await milestonePlanRows(ctx, payApp.agreementId);
     const preferred = rows.find(
@@ -307,12 +310,14 @@ export const approveProposal = mutation({
     };
     await ctx.db.patch(payout._id, decision);
     if (capture) await ctx.db.patch(capture._id, decision);
-    const approvedFigures = await approvedG702Figures(ctx, payApp, finalLines);
-    await ctx.db.patch(payApp._id, {
-      status: "approved",
-      finalApproval: { totalCents: amountCents, lines: finalLines, approvedBy: viewer.userId, approvedAt: now },
-      ...(payApp.g703 && approvedFigures ? { g703: { ...payApp.g703, approved: approvedFigures } } : {}),
-    });
+    if (!decided) {
+      const approvedFigures = await approvedG702Figures(ctx, payApp, finalLines);
+      await ctx.db.patch(payApp._id, {
+        status: "approved",
+        finalApproval: { totalCents: amountCents, lines: finalLines, approvedBy: viewer.userId, approvedAt: now },
+        ...(payApp.g703 && approvedFigures ? { g703: { ...payApp.g703, approved: approvedFigures } } : {}),
+      });
+    }
     await audit(
       ctx,
       payApp.agreementId,
@@ -343,6 +348,12 @@ export const editProposal = mutation({
     if (!MONEY_KINDS.has(p.kind)) throw new ConvexError({ code: "INVALID_STATE", message: "Only capture and payout amounts can be edited." });
     const payApp = p.payAppId ? await ctx.db.get(p.payAppId) : null;
     if (payApp === null) throw new ConvexError({ code: "NOT_FOUND", message: "Pay application not found." });
+    if (payApp.status !== "reviewed") {
+      throw new ConvexError({
+        code: "INVALID_STATE",
+        message: `The pay application is ${payApp.status.replace(/_/g, " ")}; amounts can only be edited before the GC decides it.`,
+      });
+    }
     const check = checkEditedAmount(args.amountCents, payApp.requestedTotalCents);
     if (!check.ok) throw new ConvexError({ code: "INVALID_AMOUNT", message: check.message });
     await finalAllocation(ctx, payApp, check.amountCents);
@@ -402,10 +413,12 @@ export const rejectPayApp = mutation({
     }
     const pending = (await payAppProposals(ctx, payApp._id)).filter((r) => r.status === "pending");
     await rejectRows(ctx, pending, viewer.userId);
+    const nothingApproved = await approvedG702Figures(ctx, payApp, []);
     await ctx.db.patch(payApp._id, {
       status: "rejected",
       rejectedAt: Date.now(),
       rejectionReason: rejectionReason(args.reason, "The GC rejected the pay application."),
+      ...(payApp.g703 && nothingApproved ? { g703: { ...payApp.g703, approved: nothingApproved } } : {}),
     });
     await audit(
       ctx,

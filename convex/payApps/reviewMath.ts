@@ -5,6 +5,8 @@
  * authors dollar amounts; every cent here is computed by code.
  */
 
+import { excludedScopeClaims, type ExcludedScopeClaims } from "./excludedScope";
+
 export { OFFLINE_RULES_ENGINE } from "../lib/aiLabels";
 
 export const LINE_VERDICTS = ["ok", "overbilled", "excluded_scope", "front_loaded", "out_of_sequence"] as const;
@@ -53,7 +55,12 @@ export type ReviewLine = {
   otherLinesProgressPct: number;
   /** True when this is closeout-phase work and the milestones before Closeout are not all complete. */
   closeoutWorkBeforeEarlierMilestones: boolean;
+  /** The sub's note on this line (work this period or stored material), if any. */
+  note?: string | null;
 };
+
+/** An SOV line with nothing billed on this pay app; code records it as "ok" at its previous percent. */
+export type UnbilledReviewLine = { sovLineId: string; lineNo: number; previousPctToDate: number };
 
 export type ReviewContext = {
   /** Company the reviewer works for; prompts fall back to "the general contractor" when absent. */
@@ -81,6 +88,8 @@ export type ReviewContext = {
   license: { licenseNumber: string; status: string; checkedAt: number; summary: string } | null;
   payApp: { periodLabel: string; notes: string; lienWaiver: boolean; requestedTotalCents: number };
   lines: readonly ReviewLine[];
+  /** G703 lines with no billing this period. They get no model verdict; see finalizeReview. */
+  unbilledLines?: readonly UnbilledReviewLine[];
 };
 
 /** What the model (or the rules engine standing in for it) returns. No dollar fields. */
@@ -195,7 +204,13 @@ export function buildReviewLines(input: {
   sov: readonly SovRowInput[];
   milestones: readonly ReviewMilestone[];
   prior: ReadonlyMap<string, ReviewPrior>;
-  lines: readonly { sovLineId: string; pctCompleteThisPeriod: number; pctCompleteToDate: number; requestedCents: number }[];
+  lines: readonly {
+    sovLineId: string;
+    pctCompleteThisPeriod: number;
+    pctCompleteToDate: number;
+    requestedCents: number;
+    note?: string | null;
+  }[];
 }): ReviewLine[] {
   const byId = new Map(input.sov.map((s) => [s._id, s]));
   const submitted = new Map(input.lines.map((l) => [l.sovLineId, l]));
@@ -229,6 +244,7 @@ export function buildReviewLines(input: {
       milestoneCeilingPctToDate: sov.excludedScope ? 0 : milestoneCeilingFor(sov._id, input.milestones),
       otherLinesProgressPct: normalizePct(otherProgress),
       closeoutWorkBeforeEarlierMilestones: !sov.excludedScope && closeoutBlocked && isCloseoutWork(sov.description),
+      ...(line.note ? { note: line.note } : {}),
     });
   }
   return out.sort((a, b) => a.lineNo - b.lineNo);
@@ -263,8 +279,24 @@ export function licenseStatusText(status: ReviewLicenseStatus): string {
   return LICENSE_STATUS_TEXT[status];
 }
 
+/** Lines whose description, note or the pay-app notes claim work in the agreement's excluded-scope notes. */
+export function contextExcludedScopeClaims(context: ReviewContext): ExcludedScopeClaims {
+  return excludedScopeClaims({
+    lines: context.lines.map((l) => ({
+      sovLineId: l.sovLineId,
+      lineNo: l.lineNo,
+      description: l.description,
+      note: l.note ?? null,
+      requestedCents: l.requestedCents,
+    })),
+    payAppNotes: context.payApp.notes,
+    excludedScopeNotes: context.agreement.excludedScopeNotes ?? [],
+  });
+}
+
 /** Deterministic verdicts used when no AI provider responds. Mirrors the rules the model is given. */
 export function rulesEngineJudgement(context: ReviewContext): ReviewJudgement {
+  const claims = contextExcludedScopeClaims(context);
   const lines = context.lines.map((line) => {
     if (line.excludedScope) {
       return {
@@ -272,6 +304,15 @@ export function rulesEngineJudgement(context: ReviewContext): ReviewJudgement {
         verdict: "excluded_scope" as const,
         recommendedPctToDate: 0,
         reason: `Line ${line.lineNo} is excluded scope (from the leveled bid exclusions) and is not billable under this agreement.`,
+      };
+    }
+    const claim = claims.byLine.get(line.sovLineId);
+    if (claim !== undefined) {
+      return {
+        sovLineId: line.sovLineId,
+        verdict: "excluded_scope" as const,
+        recommendedPctToDate: line.previousPctToDate,
+        reason: `Line ${line.lineNo} bills work the agreement lists as excluded scope (not in contract): "${claim}". That work is not billable under this agreement.`,
       };
     }
     if (line.closeoutWorkBeforeEarlierMilestones && line.claimedPctThisPeriod > 0) {
@@ -310,6 +351,9 @@ export function rulesEngineJudgement(context: ReviewContext): ReviewJudgement {
   const flagged = lines.filter((l) => l.verdict !== "ok").length;
   const notes = [
     `${flagged} of ${lines.length} line(s) flagged by deterministic rules.`,
+    ...claims.unattributed.map(
+      (u) => `The pay-app notes mention excluded scope ("${u.note}") without naming a line; confirm before approving.`,
+    ),
     context.payApp.lienWaiver ? "" : "Lien waiver missing.",
     licenseIssue ? `License: ${licenseStatusText(reviewLicenseStatus(context.license))}.` : "",
   ]
@@ -348,9 +392,13 @@ export function finalizeReview(context: ReviewContext, judgement: ReviewJudgemen
       reason = `Excluded scope per the leveled bid. ${reason}`;
     }
     let recommended = normalizePct(j.recommendedPctToDate);
-    if (verdict === "excluded_scope") recommended = 0;
+    // Excluded work earns nothing: an excluded SOV line stays at 0%, any other line at its previous percent.
+    if (verdict === "excluded_scope") recommended = line.excludedScope ? 0 : line.previousPctToDate;
     if (verdict === "overbilled") recommended = Math.min(recommended, line.milestoneCeilingPctToDate);
-    recommended = normalizePct(Math.min(recommended, line.claimedPctToDate));
+    recommended = Math.min(recommended, line.claimedPctToDate);
+    // Work certified on earlier applications stays earned, so the percent to date never drops below it.
+    if (!line.excludedScope) recommended = Math.max(recommended, line.previousPctToDate);
+    recommended = normalizePct(recommended);
     const approvedCents =
       verdict === "excluded_scope"
         ? 0
@@ -363,6 +411,19 @@ export function finalizeReview(context: ReviewContext, judgement: ReviewJudgemen
           });
     return { sovLineId: line.sovLineId, verdict, recommendedPctToDate: recommended, approvedCents, reason };
   });
+  const lineNo = new Map<string, number>(context.lines.map((l) => [l.sovLineId, l.lineNo]));
+  for (const u of context.unbilledLines ?? []) {
+    if (lineNo.has(u.sovLineId)) continue;
+    lineNo.set(u.sovLineId, u.lineNo);
+    lines.push({
+      sovLineId: u.sovLineId,
+      verdict: "ok",
+      recommendedPctToDate: normalizePct(u.previousPctToDate),
+      approvedCents: 0,
+      reason: `Nothing billed on line ${u.lineNo} this period.`,
+    });
+  }
+  lines.sort((a, b) => (lineNo.get(a.sovLineId) ?? 0) - (lineNo.get(b.sovLineId) ?? 0));
   return {
     lines,
     flags: {

@@ -148,26 +148,42 @@ async function agreementSov(ctx: QueryCtx, agreementId: Id<"agreements">) {
 }
 
 /**
+ * Per billed line of a pay app, the most the GC may approve: the line's request, capped by the
+ * scheduled value left after every other billing pay app on the agreement.
+ */
+export async function finalApprovalCaps(ctx: QueryCtx, payApp: Doc<"payApplications">) {
+  const sov = new Map((await agreementSov(ctx, payApp.agreementId)).map((s) => [s._id as string, s]));
+  const others = (await billingPayAppHistory(ctx, payApp.agreementId)).filter((p) => p._id !== payApp._id);
+  const prior = priorBillingByLine(others);
+  return payApp.lines.map((l) => {
+    const s = sov.get(l.sovLineId);
+    const remaining = s ? Math.max(0, s.scheduledValueCents - committedCents(prior.get(l.sovLineId))) : 0;
+    return {
+      sovLineId: l.sovLineId,
+      lineNo: s?.lineNo ?? 0,
+      description: s?.description ?? "Unknown line",
+      excludedScope: s?.excludedScope ?? true,
+      requestedCents: l.requestedCents,
+      capCents: Math.min(l.requestedCents, remaining),
+    };
+  });
+}
+
+/**
  * The final per-line split of `totalCents` for a pay app, capped by each line's request and by
  * the scheduled value left after every other billing pay app on the agreement.
  */
 export async function allocateFinalApproval(ctx: QueryCtx, payApp: Doc<"payApplications">, totalCents: number): Promise<AllocationResult> {
-  const sov = new Map((await agreementSov(ctx, payApp.agreementId)).map((s) => [s._id as string, s]));
-  const others = (await billingPayAppHistory(ctx, payApp.agreementId)).filter((p) => p._id !== payApp._id);
-  const prior = priorBillingByLine(others);
   const recommended = new Map((payApp.review?.lines ?? []).map((l) => [l.sovLineId as string, l.approvedCents]));
+  const caps = await finalApprovalCaps(ctx, payApp);
   return allocateApprovedTotal(
-    payApp.lines.map((l) => {
-      const s = sov.get(l.sovLineId);
-      const remaining = s ? Math.max(0, s.scheduledValueCents - committedCents(prior.get(l.sovLineId))) : 0;
-      return {
-        sovLineId: l.sovLineId,
-        lineNo: s?.lineNo ?? 0,
-        excludedScope: s?.excludedScope ?? true,
-        recommendedCents: recommended.get(l.sovLineId) ?? 0,
-        capCents: Math.min(l.requestedCents, remaining),
-      };
-    }),
+    caps.map((c) => ({
+      sovLineId: c.sovLineId,
+      lineNo: c.lineNo,
+      excludedScope: c.excludedScope,
+      recommendedCents: recommended.get(c.sovLineId) ?? 0,
+      capCents: c.capCents,
+    })),
     totalCents,
   );
 }

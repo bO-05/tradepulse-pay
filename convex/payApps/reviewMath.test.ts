@@ -131,9 +131,30 @@ describe("finalizeReview applies code policy to model output", () => {
   });
 
   test("an excluded-scope SOV line is always excluded_scope with 0 approved, whatever the model said", () => {
-    const review = finalizeReview(f.context, base());
-    const line = review.lines.find((l) => l.sovLineId === "fx-sov-5")!;
+    const context = {
+      ...f.context,
+      lines: f.context.lines.map((l) => (l.sovLineId === "fx-sov-2" ? { ...l, excludedScope: true } : l)),
+    };
+    const review = finalizeReview(context, base());
+    const line = review.lines.find((l) => l.sovLineId === "fx-sov-2")!;
     expect(line).toMatchObject({ verdict: "excluded_scope", approvedCents: 0, recommendedPctToDate: 0 });
+  });
+
+  test("a model verdict of excluded_scope on a base line approves 0 and keeps the previous percent", () => {
+    const review = finalizeReview(f.context, base({ "fx-sov-1": { verdict: "excluded_scope", recommendedPctToDate: 0.25 } }));
+    expect(review.lines.find((l) => l.sovLineId === "fx-sov-1")).toMatchObject({
+      verdict: "excluded_scope",
+      approvedCents: 0,
+      recommendedPctToDate: 0.1,
+    });
+  });
+
+  test("lines with nothing billed get a code-recorded OK verdict at their previous percent and $0", () => {
+    const context = { ...f.context, unbilledLines: [{ sovLineId: "fx-sov-4", lineNo: 4, previousPctToDate: 0.125 }] };
+    const review = finalizeReview(context, base());
+    expect(review.lines.map((l) => l.sovLineId)).toEqual(["fx-sov-1", "fx-sov-2", "fx-sov-3", "fx-sov-4"]);
+    expect(review.lines[3]).toMatchObject({ verdict: "ok", recommendedPctToDate: 0.125, approvedCents: 0 });
+    expect(review.approvedTotalCents).toBe(review.lines.slice(0, 3).reduce((a, l) => a + l.approvedCents, 0));
   });
 
   test("overbilled recommendations never exceed the milestone ceiling; no line exceeds its claim", () => {
@@ -143,6 +164,17 @@ describe("finalizeReview applies code policy to model output", () => {
     );
     expect(review.lines.find((l) => l.sovLineId === "fx-sov-1")!.recommendedPctToDate).toBe(0.25);
     expect(review.lines.find((l) => l.sovLineId === "fx-sov-2")!.recommendedPctToDate).toBe(0.22);
+  });
+
+  test("a recommendation below the previously certified percent is held at that percent and approves 0", () => {
+    const context = {
+      ...f.context,
+      lines: f.context.lines.map((l) => (l.sovLineId === "fx-sov-1" ? { ...l, milestoneCeilingPctToDate: 0 } : l)),
+    };
+    const line = finalizeReview(context, base({ "fx-sov-1": { verdict: "overbilled", recommendedPctToDate: 0 } })).lines.find(
+      (l) => l.sovLineId === "fx-sov-1",
+    )!;
+    expect(line).toMatchObject({ verdict: "overbilled", recommendedPctToDate: 0.1, approvedCents: 0 });
   });
 
   test("the lien waiver flag is the submitted fact, not the model's guess", () => {

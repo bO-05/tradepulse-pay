@@ -13,12 +13,20 @@ import {
 } from "../../convex/payApps/g703Math";
 import { getErrorMessage } from "../lib/errors";
 import { Button, Card, ConfirmDialog, MoneyInput, PageHeader, StatusPill, TextInput, formatCents, formatDate, formatDateTime } from "../ui";
+import { DecisionCard, GcReviewPanel, VersionHistory } from "./PayAppDecision";
 
 type PayAppView = FunctionReturnType<typeof api.payApps.g703.getPayApp>;
 type SheetLine = PayAppView["lines"][number];
 type Entry = { workThisPeriodCents: number; storedCents: number; note: string };
 
 const AUTOSAVE_DELAY_MS = 700;
+/** "Saving…" stays up at least this long so a fast save is still visible. */
+const MIN_SAVING_MS = 400;
+
+function savedTime(at: number | undefined): string {
+  if (at === undefined) return "";
+  return new Date(at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" });
+}
 
 export function payAppTitle(p: { applicationNo: number | null; periodLabel: string }): string {
   return p.applicationNo !== null ? `Pay app #${p.applicationNo}` : p.periodLabel;
@@ -47,12 +55,13 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
   const saveDraft = useMutation(api.payApps.g703.saveDraft);
   const submit = useMutation(api.payApps.g703.submitPayApp);
   const withdraw = useMutation(api.payApps.submit.withdrawPayApplication);
+  const revise = useMutation(api.payApps.decisions.revisePayApp);
   const editable = view.editable;
   const [entries, setEntries] = useState<Record<string, Entry>>(() => entriesFrom(view.lines));
   const [saveState, setSaveState] = useState<{ kind: "idle" | "saving" | "saved" | "error"; at?: number; message?: string }>(
     view.savedAt !== null && editable ? { kind: "saved", at: view.savedAt } : { kind: "idle" },
   );
-  const [confirm, setConfirm] = useState<"submit" | "withdraw" | null>(null);
+  const [confirm, setConfirm] = useState<"submit" | "withdraw" | "revise" | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pending = useRef<Record<string, Entry> | null>(null);
 
@@ -71,9 +80,13 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
     if (e === null) return;
     pending.current = null;
     setSaveState({ kind: "saving" });
+    const started = Date.now();
     try {
       const res = await saveDraft({ payAppId: view._id, lines: linesPayload(e) });
-      setSaveState({ kind: "saved", at: res.savedAt });
+      const wait = MIN_SAVING_MS - (Date.now() - started);
+      if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+      // A newer edit queued while saving keeps the "Unsaved changes" state for its own save.
+      if (pending.current === null) setSaveState({ kind: "saved", at: res.savedAt });
     } catch (err) {
       setSaveState({ kind: "error", message: getErrorMessage(err, "The draft could not be saved.") });
     }
@@ -157,6 +170,10 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
             <Button onClick={() => setConfirm("submit")} disabled={!canSubmit} data-testid="payapp-submit">
               Submit pay app
             </Button>
+          ) : view.canRevise ? (
+            <Button onClick={() => setConfirm("revise")} data-testid="payapp-revise">
+              Revise
+            </Button>
           ) : view.canWithdraw ? (
             <Button variant="secondary" onClick={() => setConfirm("withdraw")} data-testid="payapp-withdraw">
               Withdraw
@@ -186,14 +203,17 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
             </dd>
           </div>
           <div>
-            <dt className="text-xs text-ink-subtle">{view.status === "draft" ? "Draft" : "Submitted"}</dt>
+            <dt className="text-xs text-ink-subtle">
+              {view.status === "draft" ? "Draft" : "Submitted"}
+              {view.version > 1 ? ` · version ${view.version}` : ""}
+            </dt>
             <dd className="font-semibold" aria-live="polite" data-testid="payapp-save-state">
               {view.status !== "draft" ? (
                 formatDateTime(view.submittedAt)
               ) : saveState.kind === "saving" ? (
                 "Saving…"
               ) : saveState.kind === "saved" ? (
-                `Draft saved ${formatDateTime(saveState.at)}`
+                `Saved ${savedTime(saveState.at)}`
               ) : saveState.kind === "error" ? (
                 <span className="text-rose-300">{saveState.message}</span>
               ) : (
@@ -217,8 +237,26 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
         ) : null}
       </Card>
 
-      <ContinuationSheet lines={lines} editable={editable} errors={errors} onChange={update} summary={summary} />
+      {view.revisionRequest ? (
+        <DecisionCard
+          decision={view.revisionRequest}
+          title={view.status === "draft" ? `Revising for version ${view.version}: what the GC asked for` : "Revision requested"}
+        />
+      ) : view.decision ? (
+        <DecisionCard decision={view.decision} />
+      ) : null}
+      {view.viewerRole === "gc" ? <GcReviewPanel key={view.review?.reviewedAt ?? 0} view={view} /> : null}
+
+      <ContinuationSheet
+        lines={lines}
+        editable={editable}
+        errors={errors}
+        onChange={update}
+        summary={summary}
+        gcReasons={gcReasons(view)}
+      />
       <G702Card summary={summary} retainageBps={view.retainageBps} />
+      <VersionHistory versions={view.versions} />
 
       <ConfirmDialog
         open={confirm === "submit"}
@@ -242,6 +280,17 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
         }}
       />
       <ConfirmDialog
+        open={confirm === "revise"}
+        title={`Revise ${title}?`}
+        effect={`Opens version ${view.version + 1} as a draft with your current entries. Version ${view.version} and the GC's reasons stay in the version history.`}
+        confirmLabel="Revise pay app"
+        onCancel={() => setConfirm(null)}
+        onConfirm={async () => {
+          await revise({ payAppId: view._id });
+          setConfirm(null);
+        }}
+      />
+      <ConfirmDialog
         open={confirm === "withdraw"}
         title={`Withdraw ${title}?`}
         tone="danger"
@@ -257,18 +306,28 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
   );
 }
 
+/** The GC's per-line reasons to show on the sheet: overrides and revision requests. */
+function gcReasons(view: PayAppView): Map<string, string> {
+  const d = view.revisionRequest ?? view.decision;
+  const out = new Map<string, string>();
+  for (const l of d?.lines ?? []) if (l.reason) out.set(l.sovLineId, l.reason);
+  return out;
+}
+
 function ContinuationSheet({
   lines,
   editable,
   errors,
   onChange,
   summary,
+  gcReasons,
 }: {
   lines: SheetLine[];
   editable: boolean;
   errors: Map<string, string>;
   onChange: (sovLineId: string, patch: Partial<Entry>) => void;
   summary: G702Summary;
+  gcReasons: Map<string, string>;
 }) {
   const th = "px-2 py-2 font-medium align-bottom";
   const num = "px-2 py-2 text-right tabular-nums align-top whitespace-nowrap";
@@ -301,16 +360,21 @@ function ContinuationSheet({
                   <td className="px-2 py-2 align-top">
                     <span className="block">{l.description}</span>
                     {l.csiCode ? <span className="block text-xs text-ink-subtle">{l.csiCode}</span> : null}
-                    {editable && l.storedCents > 0 ? (
+                    {editable && (l.workThisPeriodCents > 0 || l.storedCents > 0) ? (
                       <TextInput
                         className="mt-2"
-                        label={<span className="text-xs">Stored material note (line {l.lineNo})</span>}
+                        label={<span className="text-xs">Note: work this period or stored material (line {l.lineNo})</span>}
                         value={l.note ?? ""}
                         maxLength={500}
                         onChange={(note) => onChange(l.sovLineId, { note })}
                       />
                     ) : l.note ? (
-                      <span className="mt-1 block text-xs text-ink-muted">Stored: {l.note}</span>
+                      <span className="mt-1 block text-xs text-ink-muted">Note: {l.note}</span>
+                    ) : null}
+                    {gcReasons.get(l.sovLineId) ? (
+                      <span className="mt-1 block text-xs text-amber-200" data-testid="g703-line-gc-reason">
+                        GC: {gcReasons.get(l.sovLineId)}
+                      </span>
                     ) : null}
                     {error ? (
                       <p className="mt-1 text-xs text-rose-300" role="alert" data-testid="g703-line-error">

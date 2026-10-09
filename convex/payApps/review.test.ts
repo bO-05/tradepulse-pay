@@ -319,4 +319,31 @@ describe("review scenario seed", () => {
     const row = (await t.run(async (ctx) => ctx.db.get(payAppId)))!;
     expect(row.review!.lines[0]).toMatchObject({ verdict: "overbilled", recommendedPctToDate: 0.3 });
   });
+
+  test("offline, a pay-app note billing the excluded seismic bracing zeroes that line next to the overbilled one", async () => {
+    const t = convexTest(schema, modules);
+    await t.mutation(internal.projects.seedInitialDataInternal, { force: false });
+    const { agreementId } = await t.mutation(internal.payApps.reviewScenario.seedReviewScenario, { suffix: "EX1" });
+    const d = await t.query(internal.payApps.reviewScenario.describeReviewScenario, { agreementId });
+    const conduit = d.sov.find((s) => /conduit/i.test(s.description))!;
+    const grounding = d.sov.find((s) => /grounding/i.test(s.description))!;
+    const sub1 = await signInAs(t, "sub", { contractorId: (await t.run(async (ctx) => ctx.db.get(agreementId)))!.contractorId });
+    const payAppId = await sub1.as.mutation(api.payApps.submit.submitPayApplication, {
+      agreementId,
+      periodLabel: "Scenario with excluded work",
+      lines: [
+        { sovLineId: conduit.id, pctCompleteThisPeriod: 60, pctCompleteToDate: 60, requestedCents: Math.round(conduit.scheduledValueCents * 0.6) },
+        { sovLineId: grounding.id, pctCompleteThisPeriod: 20, pctCompleteToDate: 20, requestedCents: Math.round(grounding.scheduledValueCents * 0.2) },
+      ],
+      notes: "Conduit runs pulled. Seismic bracing hung on the grounding & bonding system.",
+      lienWaiver: true,
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const row = (await t.run(async (ctx) => ctx.db.get(payAppId)))!;
+    expect(row.review!.provider).toBe("Offline rules engine");
+    const byId = new Map(row.review!.lines.map((l) => [l.sovLineId as string, l]));
+    expect(byId.get(conduit.id)).toMatchObject({ verdict: "overbilled", recommendedPctToDate: 0.3 });
+    expect(byId.get(grounding.id)).toMatchObject({ verdict: "excluded_scope", approvedCents: 0 });
+    expect(byId.get(grounding.id)!.reason).toMatch(/seismic bracing/i);
+  });
 });

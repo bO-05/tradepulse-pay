@@ -28,7 +28,7 @@ export const MAX_PERIOD_LABEL_LENGTH = 100;
 export const MAX_NOTES_LENGTH = 4000;
 
 /** Pay apps in these states count against a line's remaining scheduled value. */
-export const BILLING_PAY_APP_STATUSES = new Set(["submitted", "under_review", "reviewed", "approved", "paid"]);
+export const BILLING_PAY_APP_STATUSES = new Set(["submitted", "under_review", "reviewed", "approved", "approved_as_noted", "paid"]);
 /** Before any GC decision: the AI review may have finished, but nothing was approved yet. */
 export const WITHDRAWABLE_PAY_APP_STATUSES = new Set(["submitted", "under_review", "reviewed"]);
 
@@ -38,7 +38,7 @@ type PriorPayApp = {
   finalApproval?: { lines: readonly { sovLineId: string; approvedCents: number }[] } | null;
 };
 
-export const APPROVED_PAY_APP_STATUSES = new Set(["approved", "paid"]);
+export const APPROVED_PAY_APP_STATUSES = new Set(["approved", "approved_as_noted", "paid"]);
 
 export const MISSING_FINAL_APPROVAL =
   "An approved pay application has no recorded final GC-approved amount, so billed-to-date cannot be computed.";

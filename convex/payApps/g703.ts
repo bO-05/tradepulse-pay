@@ -45,7 +45,7 @@ import {
 
 const DEFAULT_BILLING_DAY = 25;
 /** A G703 application in one of these states blocks opening another one on the same agreement. */
-const OPEN_G703_STATUSES = new Set(["draft", "submitted", "under_review", "reviewed"]);
+const OPEN_G703_STATUSES = new Set(["draft", "submitted", "under_review", "reviewed", "revision_requested"]);
 const MAX_LINE_CENTS = 100_000_000_000_000;
 
 type G702Figures = Infer<typeof g702FiguresValidator>;
@@ -227,7 +227,9 @@ export async function notifyPayAppSubmitted(
   const project = await ctx.db.get(agreement.projectId);
   if (project === null || project.gcCompanyId === undefined) return 0;
   const subName = await subNameOf(ctx, agreement, payApp);
-  const which = payApp.applicationNo !== undefined ? `#${payApp.applicationNo}` : `"${payApp.periodLabel}"`;
+  const which = `${payApp.applicationNo !== undefined ? `#${payApp.applicationNo}` : `"${payApp.periodLabel}"`}${
+    (payApp.version ?? 1) > 1 ? ` (version ${payApp.version})` : ""
+  }`;
   const period = payApp.periodEnd ? `, period ending ${formatIsoDate(payApp.periodEnd)}` : "";
   return await notify(
     ctx,
@@ -367,6 +369,56 @@ async function buildSheet(ctx: QueryCtx, agreement: Doc<"agreements">, payApp: D
   return { lines, summary: sheetSummary(lines, originalSum, previousCerts), requestedSummary, basis: "approved", errors };
 }
 
+type VersionLines = readonly { sovLineId: string; workThisPeriodCents: number; storedCents: number; note?: string }[];
+
+/** Field-level changes from one submitted version's entries to the next. */
+export function versionChanges(
+  before: VersionLines,
+  after: VersionLines,
+  lineNoOf: (sovLineId: string) => number,
+): { sovLineId: string; lineNo: number; field: "E" | "F" | "note"; from: number | string; to: number | string }[] {
+  const prev = new Map(before.map((l) => [l.sovLineId, l]));
+  const out: ReturnType<typeof versionChanges> = [];
+  for (const l of after) {
+    const b = prev.get(l.sovLineId);
+    const lineNo = lineNoOf(l.sovLineId);
+    const fromE = b?.workThisPeriodCents ?? 0;
+    const fromF = b?.storedCents ?? 0;
+    if (fromE !== l.workThisPeriodCents) out.push({ sovLineId: l.sovLineId, lineNo, field: "E", from: fromE, to: l.workThisPeriodCents });
+    if (fromF !== l.storedCents) out.push({ sovLineId: l.sovLineId, lineNo, field: "F", from: fromF, to: l.storedCents });
+    if ((b?.note ?? "") !== (l.note ?? "")) out.push({ sovLineId: l.sovLineId, lineNo, field: "note", from: b?.note ?? "", to: l.note ?? "" });
+  }
+  return out.sort((a, b) => a.lineNo - b.lineNo);
+}
+
+async function decisionView(
+  ctx: QueryCtx,
+  d: NonNullable<Doc<"payApplications">["gcDecision"]>,
+  lineInfo: (sovLineId: string) => { lineNo: number; description: string },
+  isSub: boolean,
+) {
+  const by = await ctx.db.get(d.decidedBy);
+  return {
+    outcome: d.outcome,
+    reason: d.reason ?? null,
+    decidedAt: d.decidedAt,
+    decidedByName: by?.name ?? by?.email ?? "GC",
+    lines: d.lines
+      .map((l) => ({
+        sovLineId: l.sovLineId,
+        ...lineInfo(l.sovLineId),
+        action: l.action,
+        // The review's figure is GC-side detail; the sub sees only what the GC decided.
+        recommendedCents: isSub ? null : l.recommendedCents,
+        approvedCents: l.approvedCents,
+        reason: l.reason ?? null,
+      }))
+      .sort((a, b) => a.lineNo - b.lineNo),
+  };
+}
+
+const DECIDABLE = new Set(["submitted", "under_review", "reviewed"]);
+
 async function payAppView(ctx: QueryCtx, scope: ProjectAccess & { doc: Doc<"payApplications"> }) {
   const payApp = scope.doc;
   const agreement = await ctx.db.get(payApp.agreementId);
@@ -378,6 +430,76 @@ async function payAppView(ctx: QueryCtx, scope: ProjectAccess & { doc: Doc<"payA
     .withIndex("by_payAppId", (q) => q.eq("payAppId", payApp._id))
     .take(200);
   const decided = proposals.some((p) => p.status === "approved" || p.status === "executed");
+  const sovById = new Map((await sovRows(ctx, agreement._id)).map((s) => [s._id as string, s]));
+  const lineInfo = (id: string) => {
+    const s = sovById.get(id);
+    return { lineNo: s?.lineNo ?? 0, description: s?.description ?? "Unknown line" };
+  };
+  const decision = payApp.gcDecision ? await decisionView(ctx, payApp.gcDecision, lineInfo, isSub) : null;
+  const past = payApp.versions ?? [];
+  const lastPast = past.length > 0 ? past[past.length - 1] : null;
+  // While the sub revises, the GC's reasons from the version it sent back stay visible.
+  const revisionRequest =
+    payApp.status === "revision_requested"
+      ? decision
+      : payApp.status === "draft" && lastPast?.decision?.outcome === "revision_requested"
+        ? await decisionView(ctx, lastPast.decision, lineInfo, isSub)
+        : null;
+  const currentVersion = payApp.version ?? 1;
+  const versionRows = [
+    ...past.map((ver, i) => ({
+      version: ver.version,
+      current: false,
+      submittedAt: ver.submittedAt as number | null,
+      requestedTotalCents: ver.requestedTotalCents,
+      currentPaymentDueCents: ver.requested?.currentPaymentDueCents ?? null,
+      outcome: ver.decision?.outcome ?? null,
+      reason: ver.decision?.reason ?? ver.decision?.lines.find((l) => l.reason)?.reason ?? null,
+      lines: ver.lines
+        .map((l) => ({ sovLineId: l.sovLineId, ...lineInfo(l.sovLineId), workThisPeriodCents: l.workThisPeriodCents, storedCents: l.storedCents, note: l.note ?? null }))
+        .sort((a, b) => a.lineNo - b.lineNo),
+      changes: i === 0 ? [] : versionChanges(past[i - 1].lines, ver.lines, (id) => lineInfo(id).lineNo),
+    })),
+  ];
+  if (past.length > 0 && payApp.g703) {
+    versionRows.push({
+      version: currentVersion,
+      current: true,
+      submittedAt: payApp.status === "draft" ? null : (payApp.submittedAt ?? payApp.createdAt),
+      requestedTotalCents: payApp.status === "draft" ? 0 : payApp.requestedTotalCents,
+      currentPaymentDueCents: payApp.status === "draft" ? null : (payApp.g703.requested?.currentPaymentDueCents ?? null),
+      outcome: payApp.gcDecision?.outcome ?? null,
+      reason: payApp.gcDecision?.reason ?? null,
+      lines: payApp.g703.lines
+        .map((l) => ({ sovLineId: l.sovLineId, ...lineInfo(l.sovLineId), workThisPeriodCents: l.workThisPeriodCents, storedCents: l.storedCents, note: l.note ?? null }))
+        .sort((a, b) => a.lineNo - b.lineNo),
+      changes: versionChanges(lastPast!.lines, payApp.g703.lines, (id) => lineInfo(id).lineNo),
+    });
+  }
+  const requested = new Map(payApp.lines.map((l) => [l.sovLineId as string, l.requestedCents]));
+  const review =
+    !isSub && payApp.review
+      ? {
+          engine: payApp.review.engine,
+          provider: payApp.review.provider,
+          model: payApp.review.model,
+          fallbackReason: payApp.review.fallbackReason ?? null,
+          reviewedAt: payApp.review.reviewedAt,
+          approvedTotalCents: payApp.review.approvedTotalCents,
+          flags: payApp.review.flags,
+          lines: payApp.review.lines
+            .map((l) => ({
+              sovLineId: l.sovLineId,
+              ...lineInfo(l.sovLineId),
+              verdict: l.verdict,
+              recommendedPctToDate: l.recommendedPctToDate,
+              approvedCents: l.approvedCents,
+              requestedCents: requested.get(l.sovLineId) ?? 0,
+              reason: l.reason,
+            }))
+            .sort((a, b) => a.lineNo - b.lineNo),
+        }
+      : null;
   const lineErrors = sheet.errors.map((e) => ({ sovLineId: e.sovLineId, message: e.message }));
   const claimedCents = sheet.lines.reduce((acc, l) => acc + lineIncrementCents(l), 0);
   return {
@@ -410,7 +532,17 @@ async function payAppView(ctx: QueryCtx, scope: ProjectAccess & { doc: Doc<"payA
     lineErrors,
     editable: isSub && payApp.status === "draft",
     canSubmit: isSub && payApp.status === "draft" && lineErrors.length === 0 && claimedCents > 0,
-    canWithdraw: isSub && WITHDRAWABLE_PAY_APP_STATUSES.has(payApp.status) && !decided,
+    canWithdraw: isSub && WITHDRAWABLE_PAY_APP_STATUSES.has(payApp.status) && !decided && payApp.gcDecision === undefined,
+    canRevise: isSub && payApp.status === "revision_requested" && payApp.g703 !== undefined,
+    canApprove: !isSub && payApp.status === "reviewed" && payApp.review !== undefined,
+    canRequestRevision: !isSub && DECIDABLE.has(payApp.status) && payApp.g703 !== undefined,
+    canReject: !isSub && DECIDABLE.has(payApp.status),
+    version: currentVersion,
+    versions: versionRows,
+    decision,
+    revisionRequest,
+    review,
+    excludedScopeNotes: isSub ? [] : (agreement.excludedScopeNotes ?? []),
   };
 }
 

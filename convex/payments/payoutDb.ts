@@ -331,7 +331,7 @@ export async function applyPayoutStatusTo(
   if (to === "success") {
     if (p.payAppId) {
       const app = await ctx.db.get(p.payAppId);
-      if (app !== null && app.status === "approved") await ctx.db.patch(app._id, { status: "paid" });
+      if (app !== null && (app.status === "approved" || app.status === "approved_as_noted")) await ctx.db.patch(app._id, { status: "paid" });
     }
     if (p.milestoneId) {
       const milestone = await ctx.db.get(p.milestoneId);

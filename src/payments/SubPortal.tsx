@@ -242,6 +242,7 @@ function PayAppOutcome({ status, outcome, rejectionReason }: { status: string; o
       </div>
     );
   }
-  if (status === "approved") return <span>Approved; payment is being sent.</span>;
+  if (status === "approved" || status === "approved_as_noted") return <span>Approved; payment is being sent.</span>;
+  if (status === "revision_requested") return <span className="text-amber-300">The GC requested a revision. Open the pay app to revise it.</span>;
   return <span className="text-slate-400">—</span>;
 }

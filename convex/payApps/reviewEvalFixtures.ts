@@ -2,6 +2,8 @@
  * Pay-app review eval fixtures: one Div 26 agreement whose Mobilization is
  * complete and Rough-in is under way (milestones support 30% on base lines),
  * billed four ways. Each fixture lists the verdict expected on every line.
+ * As in Phase 2, the sub's bid exclusion (seismic bracing) is an
+ * "Excluded scope (not in contract)" note on the agreement, never an SOV line.
  */
 import { buildReviewLines, type LineVerdict, type ReviewContext, type ReviewMilestone, type ReviewPrior } from "./reviewMath";
 import { percentageOfCents } from "../lib/money";
@@ -11,14 +13,8 @@ const SOV = [
   { _id: "fx-sov-2", lineNo: 2, description: "Branch conduit & wire feeder runs", excludedScope: false, scheduledValueCents: 30_000_000 },
   { _id: "fx-sov-3", lineNo: 3, description: "Grounding & bonding system", excludedScope: false, scheduledValueCents: 16_000_000 },
   { _id: "fx-sov-4", lineNo: 4, description: "Closeout: testing, commissioning & O&M manuals", excludedScope: false, scheduledValueCents: 5_000_000 },
-  {
-    _id: "fx-sov-5",
-    lineNo: 5,
-    description: "Excluded scope: IBC Section 1613 engineered seismic bracing (by others)",
-    excludedScope: true,
-    scheduledValueCents: 5_500_000,
-  },
 ];
+const EXCLUDED_SCOPE_NOTES = ["IBC Section 1613 engineered seismic bracing (excluded by the sub; by others)"];
 const BASE_IDS = SOV.filter((s) => !s.excludedScope).map((s) => s._id);
 const CONTRACT_SUM_CENTS = SOV.reduce((a, s) => a + s.scheduledValueCents, 0);
 const MILESTONES: ReviewMilestone[] = [
@@ -33,7 +29,7 @@ const PRIOR = new Map<string, ReviewPrior>([
   ["fx-sov-2", { previouslyBilledCents: 3_000_000, previousPctToDate: 10, pendingRequestedCents: 0 }],
 ]);
 
-type FixtureLine = { sovLineId: string; pctToDate: number; requestedCents?: number };
+type FixtureLine = { sovLineId: string; pctToDate: number; requestedCents?: number; note?: string };
 
 function fixtureContext(lines: FixtureLine[], opts: { lienWaiver: boolean; notes: string }): ReviewContext {
   const submitted = lines.map((l) => {
@@ -46,6 +42,7 @@ function fixtureContext(lines: FixtureLine[], opts: { lienWaiver: boolean; notes
       pctCompleteThisPeriod: Math.max(0, l.pctToDate - prior.previousPctToDate),
       pctCompleteToDate: l.pctToDate,
       requestedCents,
+      ...(l.note ? { note: l.note } : {}),
     };
   });
   return {
@@ -59,6 +56,7 @@ function fixtureContext(lines: FixtureLine[], opts: { lienWaiver: boolean; notes
       retainagePercent: 10,
       scopeSummary: "Furnish and install complete Div 26 electrical distribution; seismic bracing excluded by the sub.",
       mandatoryInclusions: ["Temporary power", "Crane hoisting"],
+      excludedScopeNotes: EXCLUDED_SCOPE_NOTES,
     },
     milestones: MILESTONES.map(({ name, order, status, amountCents }) => ({ name, order, status, amountCents })),
     priorPayApps: [
@@ -115,18 +113,17 @@ export const PAY_APP_REVIEW_FIXTURES: PayAppReviewFixture[] = [
   },
   {
     fixtureId: "payapp_excluded_scope",
-    description: "Bills the seismic bracing line, which the sub excluded in its leveled bid.",
+    description: "The grounding line's note bills seismic bracing, which the sub excluded in its bid (an excluded-scope note).",
     context: fixtureContext(
       [
         { sovLineId: "fx-sov-1", pctToDate: 25 },
         { sovLineId: "fx-sov-2", pctToDate: 22 },
-        { sovLineId: "fx-sov-3", pctToDate: 20 },
-        { sovLineId: "fx-sov-5", pctToDate: 40, requestedCents: 2_000_000 },
+        { sovLineId: "fx-sov-3", pctToDate: 20, note: "Grounding grid plus seismic bracing installed at level 2 this period" },
       ],
-      { lienWaiver: true, notes: "Seismic bracing installed at level 2." },
+      { lienWaiver: true, notes: "Switchgear set and feeders pulled on levels 1-2." },
     ),
-    expected: { "fx-sov-1": "ok", "fx-sov-2": "ok", "fx-sov-3": "ok", "fx-sov-5": "excluded_scope" },
-    expectZeroApproved: ["fx-sov-5"],
+    expected: { "fx-sov-1": "ok", "fx-sov-2": "ok", "fx-sov-3": "excluded_scope" },
+    expectZeroApproved: ["fx-sov-3"],
   },
   {
     fixtureId: "payapp_front_loaded",

@@ -9,6 +9,7 @@ import { z } from "zod";
 import { formatCents } from "../lib/money";
 import { workingOnBehalfOf } from "../lib/gcCompanyName";
 import {
+  contextExcludedScopeClaims,
   finalizeReview,
   LINE_VERDICTS,
   OFFLINE_RULES_ENGINE,
@@ -45,9 +46,10 @@ ${REVIEW_INSTRUCTIONS}`;
 const REVIEW_INSTRUCTIONS = `You review construction subcontractor pay applications (AIA G702/G703 style) for the general contractor.
 For every submitted line return exactly one entry with the line's sovLineId, a verdict, a recommended cumulative percent complete to date as a FRACTION between 0 and 1, and a short reason that cites the numbers.
 Never output dollar amounts; code computes all money from your fractions.
+linesNotBilledThisPeriod are context only: return no entry for them.
 
 Verdicts, checked in this order:
-- "excluded_scope": the line has excludedScope true, or its description or the pay-app notes claim work listed in agreement.excludedScopeNotes ("Excluded scope (not in contract)": scope the subcontractor excluded in its bid). Recommend 0.
+- "excluded_scope": the line has excludedScope true, or its description, its note (the sub's work-this-period or stored-material note) or the pay-app notes claim work listed in agreement.excludedScopeNotes ("Excluded scope (not in contract)": scope the subcontractor excluded in its bid). matchesExcludedScopeNote is a keyword hint from code, not a verdict. Recommend the previous percent to date (0 for an excludedScope line): excluded work earns nothing.
 - "out_of_sequence": closeout-phase work (closeout, testing, commissioning, O&M manuals, as-builts, punch list, training, start-up) billed this period while the milestones before Closeout are not complete (closeoutWorkBeforeEarlierMilestones true), or other work that clearly belongs to a later milestone than the ones under way. Recommend the previous percent to date (no new progress).
 - "overbilled": claimed percent to date exceeds milestoneCeilingPctToDate, the most progress the milestone statuses support. Recommend at most milestoneCeilingPctToDate.
 - "front_loaded": within the ceiling, but the claim is at least double otherLinesProgressPct (the progress of the rest of the job) and at least 15 percentage points above it, with otherLinesProgressPct above 0. Recommend about otherLinesProgressPct (never below the previous percent to date).
@@ -60,6 +62,7 @@ Also set lienWaiverMissing (true when no lien waiver was provided) and licenseIs
 const pctLabel = (f: number) => `${Math.round(f * 1000) / 10}%`;
 
 export function buildReviewPrompt(context: ReviewContext): string {
+  const claims = contextExcludedScopeClaims(context);
   const payload = {
     agreement: {
       ...context.agreement,
@@ -88,7 +91,9 @@ export function buildReviewPrompt(context: ReviewContext): string {
       sovLineId: l.sovLineId,
       lineNo: l.lineNo,
       description: l.description,
+      note: l.note ?? null,
       excludedScope: l.excludedScope,
+      matchesExcludedScopeNote: claims.byLine.get(l.sovLineId) ?? null,
       scheduledValue: formatCents(l.scheduledValueCents),
       previouslyBilled: formatCents(l.previouslyBilledCents),
       previousPctToDate: l.previousPctToDate,
@@ -101,6 +106,7 @@ export function buildReviewPrompt(context: ReviewContext): string {
       closeoutWorkBeforeEarlierMilestones: l.closeoutWorkBeforeEarlierMilestones,
       summary: `claims ${pctLabel(l.claimedPctToDate)} to date; milestones support ${pctLabel(l.milestoneCeilingPctToDate)}; rest of job at ${pctLabel(l.otherLinesProgressPct)}`,
     })),
+    linesNotBilledThisPeriod: (context.unbilledLines ?? []).map((l) => ({ lineNo: l.lineNo, previousPctToDate: l.previousPctToDate })),
   };
   return `Review this pay application. Percent fields are fractions (0.35 = 35%).\n\n${JSON.stringify(payload, null, 2)}`;
 }

@@ -32,6 +32,7 @@ export const notificationKindValidator = v.union(
   v.literal("pay_app_reviewed"),
   v.literal("pay_app_approved"),
   v.literal("pay_app_revision_requested"),
+  v.literal("pay_app_rejected"),
   v.literal("payout_sent"),
   v.literal("payout_failed"),
   v.literal("waiver_requested"),
@@ -76,6 +77,8 @@ export const payAppStatusValidator = v.union(
   v.literal("under_review"),
   v.literal("reviewed"),
   v.literal("approved"),
+  v.literal("approved_as_noted"),
+  v.literal("revision_requested"),
   v.literal("rejected"),
   v.literal("withdrawn"),
   v.literal("paid"),
@@ -93,6 +96,44 @@ export const g702FiguresValidator = v.object({
   previousCertificatesCents: v.number(),
   currentPaymentDueCents: v.number(),
   balanceToFinishInclRetainageCents: v.number(),
+});
+
+/** The GC's decision on one submitted version of a pay app, line by line (§16, §22). */
+export const payAppDecisionValidator = v.object({
+  outcome: v.union(v.literal("approved"), v.literal("approved_as_noted"), v.literal("revision_requested"), v.literal("rejected")),
+  reason: v.optional(v.string()),
+  lines: v.array(
+    v.object({
+      sovLineId: v.id("scheduleOfValues"),
+      action: v.union(v.literal("accept"), v.literal("override"), v.literal("revise")),
+      // The review's code-computed amount and what the GC approved (0 unless approved).
+      recommendedCents: v.number(),
+      approvedCents: v.number(),
+      reason: v.optional(v.string()),
+    }),
+  ),
+  decidedBy: v.id("users"),
+  decidedAt: v.number(),
+});
+
+/** A submitted version of a G703 pay app kept when the sub revises it. */
+export const payAppVersionValidator = v.object({
+  version: v.number(),
+  submittedAt: v.number(),
+  requestedTotalCents: v.number(),
+  notes: v.string(),
+  lines: v.array(
+    v.object({
+      sovLineId: v.id("scheduleOfValues"),
+      previousWorkCents: v.number(),
+      previousStoredCents: v.number(),
+      workThisPeriodCents: v.number(),
+      storedCents: v.number(),
+      note: v.optional(v.string()),
+    }),
+  ),
+  requested: v.optional(g702FiguresValidator),
+  decision: v.optional(payAppDecisionValidator),
 });
 
 export const proposalKindValidator = v.union(
@@ -544,6 +585,11 @@ export default defineSchema({
         approvedAt: v.number(),
       }),
     ),
+    // The GC's per-line decision on the current version.
+    gcDecision: v.optional(payAppDecisionValidator),
+    // Current version number (1 when absent) and earlier submitted versions, oldest first.
+    version: v.optional(v.number()),
+    versions: v.optional(v.array(payAppVersionValidator)),
     rejectedAt: v.optional(v.number()),
     rejectionReason: v.optional(v.string()),
     withdrawnAt: v.optional(v.number()),
