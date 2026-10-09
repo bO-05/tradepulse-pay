@@ -1,6 +1,6 @@
-import { useMutation, useQuery } from "convex/react";
+import { useConvex, useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { api } from "../../convex/_generated/api";
 import { Button, ConfirmDialog, EmptyState, PageHeader, StatusPill, Table, useToast, type TableColumn } from "../ui";
 import { inputClass } from "../ui/Field";
@@ -9,12 +9,16 @@ import { ImportVendorsDialog } from "./ImportVendorsDialog";
 import { downloadCsv, vendorsToCsv } from "./vendorCsv";
 import { VendorFormDialog, type EditableVendor } from "./VendorFormDialog";
 
-type Vendor = FunctionReturnType<typeof api.vendors.listVendors>[number];
+type Vendor = FunctionReturnType<typeof api.vendors.listVendorsPage>["page"][number];
 type Filter = "active" | "inactive" | "all";
+
+const PAGE_SIZE = 100;
+const EXPORT_PAGE_SIZE = 500;
 
 /** GC company vendor directory: list, filter, add, edit, deactivate, CSV import and export. */
 export function VendorsPage() {
-  const vendors = useQuery(api.vendors.listVendors, { includeInactive: true });
+  const convex = useConvex();
+  const summary = useQuery(api.vendors.directorySummary, {});
   const setStatus = useMutation(api.vendors.setVendorStatus);
   const toast = useToast();
   const [filter, setFilter] = useState<Filter>("active");
@@ -25,24 +29,31 @@ export function VendorsPage() {
   const [deactivating, setDeactivating] = useState<Vendor | null>(null);
   const [exporting, setExporting] = useState(false);
 
-  const shown = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return (vendors ?? []).filter(
-      (v) =>
-        (filter === "all" || v.status === filter) &&
-        (q === "" || v.name.toLowerCase().includes(q) || v.email.includes(q) || v.trades.some((t) => t.includes(q))),
-    );
-  }, [vendors, filter, search]);
+  const query = search.trim();
+  const list = usePaginatedQuery(
+    api.vendors.listVendorsPage,
+    { status: filter, ...(query ? { search: query } : {}) },
+    { initialNumItems: PAGE_SIZE },
+  );
 
-  if (vendors === undefined) return <p role="status" className="text-sm text-ink-subtle">Loading vendors…</p>;
-
-  const activeCount = vendors.filter((v) => v.status === "active").length;
-  const inactiveCount = vendors.length - activeCount;
+  if (summary === undefined) return <p role="status" className="text-sm text-ink-subtle">Loading vendors…</p>;
 
   const exportCsv = async () => {
     setExporting(true);
     try {
-      const csv = await vendorsToCsv(vendors.filter((v) => v.status === "active"));
+      // Every page of active vendors, so the file is complete however large the directory is.
+      const active: Vendor[] = [];
+      let cursor: string | null = null;
+      for (;;) {
+        const page: FunctionReturnType<typeof api.vendors.listVendorsPage> = await convex.query(api.vendors.listVendorsPage, {
+          status: "active",
+          paginationOpts: { numItems: EXPORT_PAGE_SIZE, cursor },
+        });
+        active.push(...page.page);
+        if (page.isDone) break;
+        cursor = page.continueCursor;
+      }
+      const csv = await vendorsToCsv(active);
       downloadCsv("vendors.csv", csv);
     } catch (err) {
       toast.error(err, "We couldn't export the vendors.");
@@ -133,18 +144,18 @@ export function VendorsPage() {
         title="Vendors"
         description="Your company's subcontractor directory. Add bidders to trade packages from here."
         actions={
-          vendors.length > 0 ? (
+          summary.hasVendors ? (
             <>
               {addButton}
               {importButton}
-              <Button variant="secondary" onClick={() => void exportCsv()} loading={exporting} loadingLabel="Exporting…" disabled={activeCount === 0}>
+              <Button variant="secondary" onClick={() => void exportCsv()} loading={exporting} loadingLabel="Exporting…" disabled={!summary.hasActive}>
                 Export CSV
               </Button>
             </>
           ) : undefined
         }
       />
-      {vendors.length === 0 ? (
+      {!summary.hasVendors ? (
         <EmptyState
           title="No vendors yet"
           description="Add the subcontractors you work with, or import them from a CSV file."
@@ -157,9 +168,9 @@ export function VendorsPage() {
             <div role="group" aria-label="Vendor status filter" className="flex gap-1 rounded-lg border border-line p-1">
               {(
                 [
-                  ["active", `Active (${activeCount})`],
-                  ["inactive", `Inactive (${inactiveCount})`],
-                  ["all", `All (${vendors.length})`],
+                  ["active", "Active"],
+                  ["inactive", "Inactive"],
+                  ["all", "All"],
                 ] as [Filter, string][]
               ).map(([id, label]) => (
                 <button
@@ -187,17 +198,32 @@ export function VendorsPage() {
               />
             </div>
           </div>
-          <Table
-            caption="Vendors"
-            columns={columns}
-            rows={shown}
-            rowKey={(v) => v._id}
-            empty={<p className="py-6 text-center text-sm text-ink-subtle">{filter === "inactive" ? "No inactive vendors." : "No vendors match."}</p>}
-          />
+          {list.status === "LoadingFirstPage" ? (
+            <p role="status" className="text-sm text-ink-subtle">Loading vendors…</p>
+          ) : (
+            <Table
+              caption="Vendors"
+              columns={columns}
+              rows={list.results}
+              rowKey={(v) => v._id}
+              empty={
+                <p className="py-6 text-center text-sm text-ink-subtle">
+                  {filter === "inactive" && query === "" ? "No inactive vendors." : "No vendors match."}
+                </p>
+              }
+            />
+          )}
+          {(list.status === "CanLoadMore" || list.status === "LoadingMore") && (
+            <div className="flex justify-center">
+              <Button variant="secondary" onClick={() => list.loadMore(PAGE_SIZE)} loading={list.status === "LoadingMore"} loadingLabel="Loading…">
+                Show more vendors
+              </Button>
+            </div>
+          )}
         </>
       )}
       <VendorFormDialog open={adding || editing !== null} vendor={editing} onClose={() => (setAdding(false), setEditing(null))} />
-      <ImportVendorsDialog open={importing} existingEmails={vendors.map((v) => v.email)} onClose={() => setImporting(false)} />
+      <ImportVendorsDialog open={importing} onClose={() => setImporting(false)} />
       <ConfirmDialog
         open={deactivating !== null}
         title={`Deactivate ${deactivating?.name ?? "vendor"}?`}

@@ -3,7 +3,14 @@ import { auditActor, partyMaySeeContractor, requireDocOfProject, requireDocScope
 import { v, ConvexError } from "convex/values";
 import { validateProjectText } from "./validation";
 import { generalContractorNameFor } from "./lib/gcCompanyName";
-import { defaultTermsForProject, legacyTermFields, refreshAgreementDocument } from "./lib/agreementDocument";
+import {
+  defaultTermsForProject,
+  legacyTermFields,
+  refreshAgreementDocument,
+  resolveAgreementTerms,
+  termsContextFor,
+} from "./lib/agreementDocument";
+import { draftFromTerms, firstTermsError, validateAgreementTerms } from "./lib/agreementTerms";
 import { fromDollars } from "./lib/money";
 import { ensureSovAndMilestones, removeSovAndMilestonesIfUnbilled } from "./payments/sov";
 import { contractorCanBidOnPackage } from "./lib/packageContractors";
@@ -271,6 +278,18 @@ export const executeAgreement = mutation({
       return { success: true, agreementNumber: agreement.agreementNumber };
     }
 
+    // Project settings may have changed since the draft was generated (state, prime retainage,
+    // address, owner), so the terms are checked and the text re-rendered against the project now.
+    const terms = resolveAgreementTerms(agreement, access.project);
+    const invalid = firstTermsError(validateAgreementTerms(draftFromTerms(terms), termsContextFor(agreement, access.project)));
+    if (invalid) {
+      throw new ConvexError({
+        code: "INVALID",
+        field: invalid.field,
+        message: `${invalid.message} Edit the agreement terms before executing.`,
+      });
+    }
+    await refreshAgreementDocument(ctx, args.agreementId, terms);
     await ctx.db.patch(args.agreementId, {
       status: "executed",
       executedAt: Date.now(),

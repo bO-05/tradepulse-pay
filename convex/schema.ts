@@ -306,11 +306,16 @@ export default defineSchema({
     ),
     status: v.union(v.literal("active"), v.literal("inactive")),
     createdAt: v.number(),
+    // Name, email and trades for the directory search index; written by lib/vendorSearch.ts.
+    searchText: v.optional(v.string()),
   })
     .index("by_companyId", ["companyId"])
+    .index("by_companyId_and_name", ["companyId", "name"])
+    .index("by_companyId_and_status_and_name", ["companyId", "status", "name"])
     .index("by_companyId_and_email", ["companyId", "email"])
     .index("by_companyId_and_linkedCompanyId", ["companyId", "linkedCompanyId"])
-    .index("by_linkedCompanyId", ["linkedCompanyId"]),
+    .index("by_linkedCompanyId", ["linkedCompanyId"])
+    .searchIndex("search_text", { searchField: "searchText", filterFields: ["companyId", "status"] }),
 
   // One row per recipient user, written only by convex/lib/notify.ts. companyId is the recipient's company
   // at creation time; a user only sees rows of their current company.

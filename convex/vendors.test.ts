@@ -244,6 +244,124 @@ describe("bidders from the directory", () => {
   });
 });
 
+describe("every live bidder path enforces the vendor rules", () => {
+  const manual = (pkg: Id<"tradePackages">, email: string) => ({
+    tradePackageId: pkg,
+    companyName: "Eastbay Electric",
+    contactEmail: email,
+    licenseNumber: "1098765",
+    licenseStatus: "Unverified",
+    sourceUrl: "",
+    rfqStatus: "discovered" as const,
+  });
+  const bidderCount = (t: T, pkg: Id<"tradePackages">) =>
+    t.run(async (ctx) => (await ctx.db.query("contractors").withIndex("by_package", (q) => q.eq("tradePackageId", pkg)).collect()).length);
+
+  test("Add Contractor Manually refuses an inactive vendor and a vendor already bidding on the package", async () => {
+    const { t, fx } = await setup();
+    const pkg = fx.gcA.project.tradePackageId;
+    const { vendorId } = await fx.gcA.admin.as.mutation(api.vendors.createVendor, EASTBAY);
+    await fx.gcA.admin.as.mutation(api.vendors.setVendorStatus, { vendorId, status: "inactive" });
+    const before = await bidderCount(t, pkg);
+    await expect(fx.gcA.admin.as.mutation(api.contractors.createContractor, manual(pkg, "KIM.TRAN@eastbay-mail.com"))).rejects.toThrow(
+      /Eastbay Electric is inactive in the vendor directory/,
+    );
+    expect(await bidderCount(t, pkg)).toBe(before);
+
+    await fx.gcA.admin.as.mutation(api.vendors.setVendorStatus, { vendorId, status: "active" });
+    const id = await fx.gcA.admin.as.mutation(api.contractors.createContractor, manual(pkg, EASTBAY.email));
+    expect((await t.run((ctx) => ctx.db.get(id)))?.vendorId).toBe(vendorId);
+    await expect(fx.gcA.admin.as.mutation(api.contractors.createContractor, manual(pkg, EASTBAY.email))).rejects.toThrow(
+      /already a bidder on this package/,
+    );
+    await expect(fx.gcA.admin.as.mutation(api.contractors.addBiddersFromDirectory, { tradePackageId: pkg, vendorIds: [vendorId] })).rejects.toThrow(
+      /already a bidder on this package/,
+    );
+    expect(await bidderCount(t, pkg)).toBe(before + 1);
+  });
+
+  test("discovery imports skip inactive vendors and vendors already bidding; quote intake reuses the existing bidder", async () => {
+    const { t, fx } = await setup();
+    const pkg = fx.gcA.project.tradePackageId;
+    const { vendorId: inactive } = await fx.gcA.admin.as.mutation(api.vendors.createVendor, { ...EASTBAY, name: "Dormant Electric", email: "dormant@example.com" });
+    await fx.gcA.admin.as.mutation(api.vendors.setVendorStatus, { vendorId: inactive, status: "inactive" });
+    const existing = await fx.gcA.admin.as.mutation(api.contractors.createContractor, manual(pkg, EASTBAY.email));
+    const discovered = (c: { companyName: string; contactEmail: string; sourceUrl: string }) => ({ ...c, licenseNumber: "", licenseStatus: "Unverified" });
+    const ids = await t.mutation(internal.contractors.batchInsertContractors, {
+      tradePackageId: pkg,
+      contractors: [
+        discovered({ companyName: "Dormant Electric", contactEmail: "dormant@example.com", sourceUrl: "https://a.example" }),
+        discovered({ companyName: "Eastbay Electric", contactEmail: EASTBAY.email, sourceUrl: "https://b.example" }),
+        discovered({ companyName: "Fresh Electric", contactEmail: "fresh@example.com", sourceUrl: "https://c.example" }),
+      ],
+    });
+    expect(ids).toHaveLength(1);
+    expect((await t.run((ctx) => ctx.db.get(ids[0])))?.companyName).toBe("Fresh Electric");
+
+    const quote = { tradePackageId: pkg, companyName: "Eastbay Electric", contactEmail: EASTBAY.email, licenseNumber: "", licenseStatus: "x", sourceUrl: "", rfqStatus: "bid_received" as const };
+    expect(await t.mutation(internal.contractors.createContractorInternal, quote)).toBe(existing);
+    await expect(
+      t.mutation(internal.contractors.createContractorInternal, { ...quote, companyName: "Dormant Electric", contactEmail: "dormant@example.com" }),
+    ).rejects.toThrow(/inactive/);
+  });
+});
+
+describe("directories larger than 2000 vendors", () => {
+  test("paged list, search and the active export include vendors beyond the first 2000 rows", async () => {
+    const { t, fx } = await setup();
+    const batch = (from: number, n: number) =>
+      Array.from({ length: n }, (_, i) => ({ row: i + 1, name: `Vendor ${String(from + i).padStart(5, "0")}`, trades: ["26 00 00"], email: `v${from + i}@bulk.example.com` }));
+    await fx.gcA.admin.as.mutation(api.vendors.importVendors, { rows: batch(0, 1000) });
+    await fx.gcA.admin.as.mutation(api.vendors.importVendors, { rows: batch(1000, 1000) });
+    await fx.gcA.admin.as.mutation(api.vendors.importVendors, {
+      rows: [
+        ...batch(2000, 20),
+        { row: 21, name: "Zephyr Late Electric", trades: ["26 00 00"], email: "late@zephyr.example.com" },
+        { row: 22, name: "Bayside Plumbing", trades: ["22 00 00"], email: "office@bayside.example.com" },
+      ],
+    });
+    const lastId = (await t.run((ctx) => ctx.db.query("vendors").withIndex("by_companyId_and_email", (q) => q.eq("companyId", fx.gcA.companyId).eq("email", "late@zephyr.example.com")).first()))!._id;
+    await fx.gcA.admin.as.mutation(api.vendors.setVendorStatus, { vendorId: lastId, status: "inactive" });
+
+    async function all(status: "active" | "inactive" | "all", search?: string) {
+      const out: { _id: string; name: string; status: string }[] = [];
+      let cursor: string | null = null;
+      for (;;) {
+        const page: { page: { _id: string; name: string; status: string }[]; isDone: boolean; continueCursor: string } = await fx.gcA.admin.as.query(
+          api.vendors.listVendorsPage,
+          { paginationOpts: { numItems: 400, cursor }, status, ...(search ? { search } : {}) },
+        );
+        out.push(...page.page);
+        if (page.isDone) return out;
+        cursor = page.continueCursor;
+      }
+    }
+    const active = await all("active");
+    expect(active).toHaveLength(2021);
+    expect(active.some((v) => v.name === "Vendor 02019")).toBe(true);
+    expect(active.map((v) => v.name)).toEqual([...active.map((v) => v.name)].sort((a, b) => a.localeCompare(b)));
+    expect(await all("all")).toHaveLength(2022);
+    // A CSI division is one search term, so "22 00 00" does not match every "xx 00 00" vendor.
+    expect((await all("active", "22 00 00")).map((v) => v.name)).toEqual(["Bayside Plumbing"]);
+    expect((await all("inactive")).map((v) => v._id)).toEqual([lastId]);
+    expect((await all("inactive", "zephyr")).map((v) => v._id)).toEqual([lastId]);
+    expect(await all("active", "zephyr")).toEqual([]);
+    expect((await all("all", "late@zephyr.example.com")).map((v) => v._id)).toEqual([lastId]);
+
+    expect(await fx.gcA.admin.as.query(api.vendors.directorySummary, {})).toEqual({ hasVendors: true, hasActive: true });
+    expect(await fx.gcB.admin.as.query(api.vendors.directorySummary, {})).toEqual({ hasVendors: false, hasActive: false });
+    const exists = await fx.gcA.admin.as.query(api.vendors.existingVendorEmails, { emails: ["V2019@bulk.example.com", "nobody@example.com"] });
+    expect(exists).toEqual(["v2019@bulk.example.com"]);
+    // Another company sees none of it.
+    expect((await fx.gcB.admin.as.query(api.vendors.listVendorsPage, { paginationOpts: { numItems: 50, cursor: null }, status: "all" })).page).toEqual([]);
+    expect(await fx.gcB.admin.as.query(api.vendors.existingVendorEmails, { emails: ["v1@bulk.example.com"] })).toEqual([]);
+    await expect(fx.sub.admin.as.query(api.vendors.listVendorsPage, { paginationOpts: { numItems: 50, cursor: null }, status: "all" })).rejects.toThrow(/Forbidden/);
+    const summaries = await fx.gcA.admin.as.query(api.vendors.vendorSummaries, { vendorIds: [lastId] });
+    expect(summaries).toEqual([expect.objectContaining({ _id: lastId, name: "Zephyr Late Electric", status: "inactive" })]);
+    expect(await fx.gcB.admin.as.query(api.vendors.vendorSummaries, { vendorIds: [lastId] })).toEqual([]);
+  }, 120_000);
+});
+
 describe("sub view of GC relationships", () => {
   test("a linked sub sees only its own vendor rows and its projects per GC", async () => {
     const { t, fx } = await setup();

@@ -7,6 +7,7 @@ import {
   centsToEditableText,
   maskMoneyInput,
   maskPercentInput,
+  maskedNumberChange,
   parseMoneyToCents,
   parsePercentToBps,
 } from "./masks";
@@ -58,8 +59,9 @@ function useMaskedNumber(options: {
   mask: (raw: string) => { text: string; rejected: boolean };
   parse: (text: string) => { ok: true; value: number | null } | { ok: false; error: string };
   rejectMessage: string;
+  onInvalidChange?: (error: string | null) => void;
 }) {
-  const { value, onChange, toEditable, toDisplay, mask, parse, rejectMessage } = options;
+  const { value, onChange, toEditable, toDisplay, mask, parse, rejectMessage, onInvalidChange } = options;
   const [focused, setFocused] = useState(false);
   const [text, setText] = useState(() => toDisplay(value));
   const [localError, setLocalError] = useState<string | null>(null);
@@ -67,6 +69,12 @@ function useMaskedNumber(options: {
   // text must not silently become a valid amount, so the value stays null until the user edits again.
   const [rejected, setRejected] = useState(false);
   const lastEmitted = useRef<number | null>(value);
+  const lastInvalid = useRef<string | null>(null);
+  const reportInvalid = (error: string | null) => {
+    if (lastInvalid.current === error) return;
+    lastInvalid.current = error;
+    onInvalidChange?.(error);
+  };
 
   useEffect(() => {
     if (!focused && value !== lastEmitted.current) {
@@ -74,6 +82,7 @@ function useMaskedNumber(options: {
       setText(toDisplay(value));
       setRejected(false);
       setLocalError(null);
+      reportInvalid(null);
     }
   }, [focused, value, toDisplay]);
 
@@ -87,7 +96,8 @@ function useMaskedNumber(options: {
     localError,
     onFocus: () => {
       setFocused(true);
-      setText(toEditable(value));
+      // Invalid text stays visible next to its error instead of being replaced by the empty value.
+      if (lastInvalid.current === null) setText(toEditable(value));
     },
     onBlur: () => {
       setFocused(false);
@@ -101,19 +111,12 @@ function useMaskedNumber(options: {
       }
     },
     onChange: (raw: string) => {
-      const masked = mask(raw);
-      setText(masked.text);
-      setRejected(masked.rejected);
-      if (masked.rejected) {
-        setLocalError(rejectMessage);
-        emit(null);
-        return;
-      }
-      const parsed = parse(masked.text);
-      if (!parsed.ok && masked.text !== "-" && masked.text !== ".") setLocalError(parsed.error);
-      else setLocalError(null);
-      if (parsed.ok) emit(parsed.value);
-      else emit(null);
+      const change = maskedNumberChange(raw, mask, parse, rejectMessage);
+      setText(change.text);
+      setRejected(mask(raw).rejected);
+      setLocalError(change.showWhileTyping ? change.invalid : null);
+      reportInvalid(change.invalid);
+      emit(change.value);
     },
   };
 }
@@ -124,13 +127,15 @@ export interface MoneyInputProps extends BaseFieldProps, Omit<NativeInputProps, 
   onChange: (cents: number | null) => void;
   /** Only change-order amounts may be negative. */
   allowNegative?: boolean;
+  /** Called with the reason the typed text is invalid, or null once it is valid or empty. */
+  onInvalidChange?: (error: string | null) => void;
 }
 
 const toEditableCents = (v: number | null) => centsToEditableText(v);
 const toDisplayCents = (v: number | null) => (v === null ? "" : formatCents(v));
 
 export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(function MoneyInput(
-  { label, required, hint, error, id, className, value, onChange, allowNegative = false, placeholder, ...rest },
+  { label, required, hint, error, id, className, value, onChange, allowNegative = false, placeholder, onInvalidChange, ...rest },
   ref,
 ) {
   const masked = useMaskedNumber({
@@ -143,6 +148,7 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(function
     rejectMessage: allowNegative
       ? "Use numbers only, with up to two decimals."
       : "Use numbers only, with up to two decimals. Negative amounts aren't allowed.",
+    onInvalidChange,
   });
   const shownError = masked.localError ?? error ?? undefined;
   return (
@@ -173,10 +179,12 @@ export interface PercentInputProps extends BaseFieldProps, Omit<NativeInputProps
   onChange: (bps: number | null) => void;
   /** Maximum percent (not bps); defaults to 100. */
   max?: number;
+  /** Called with the reason the typed text is invalid, or null once it is valid or empty. */
+  onInvalidChange?: (error: string | null) => void;
 }
 
 export const PercentInput = forwardRef<HTMLInputElement, PercentInputProps>(function PercentInput(
-  { label, required, hint, error, id, className, value, onChange, max = 100, placeholder, ...rest },
+  { label, required, hint, error, id, className, value, onChange, max = 100, placeholder, onInvalidChange, ...rest },
   ref,
 ) {
   const masked = useMaskedNumber({
@@ -187,6 +195,7 @@ export const PercentInput = forwardRef<HTMLInputElement, PercentInputProps>(func
     mask: maskPercentInput,
     parse: (text) => parsePercentToBps(text, { max }),
     rejectMessage: "Use numbers only, with up to two decimals.",
+    onInvalidChange,
   });
   const shownError = masked.localError ?? error ?? undefined;
   return (

@@ -1,4 +1,4 @@
-import { useMutation } from "convex/react";
+import { useConvex, useMutation } from "convex/react";
 import { useState, type ChangeEvent } from "react";
 import { api } from "../../convex/_generated/api";
 import type { VendorCsvPreview } from "../../convex/lib/vendorRules";
@@ -9,12 +9,13 @@ import { VENDOR_CSV_TEMPLATE_HEADER, parseVendorCsv } from "./vendorCsv";
 type ImportResult = { created: number; duplicates: { row: number; name: string }[]; errors: { row: number; message: string }[] };
 
 /** Choose a CSV → preview valid rows, row errors and already-existing vendors → confirm import. */
-export function ImportVendorsDialog({ open, existingEmails, onClose }: { open: boolean; existingEmails: string[]; onClose: () => void }) {
+export function ImportVendorsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   if (!open) return null;
-  return <ImportBody existingEmails={existingEmails} onClose={onClose} />;
+  return <ImportBody onClose={onClose} />;
 }
 
-function ImportBody({ existingEmails, onClose }: { existingEmails: string[]; onClose: () => void }) {
+function ImportBody({ onClose }: { onClose: () => void }) {
+  const convex = useConvex();
   const importVendors = useMutation(api.vendors.importVendors);
   const toast = useToast();
   const [fileName, setFileName] = useState<string | null>(null);
@@ -33,7 +34,15 @@ function ImportBody({ existingEmails, onClose }: { existingEmails: string[]; onC
     setFileName(file.name);
     setReading(true);
     try {
-      const parsed = await parseVendorCsv(file, existingEmails);
+      // First pass finds the file's valid emails; the directory is asked which of them already exist.
+      const first = await parseVendorCsv(file, []);
+      if (!first.ok) {
+        setFileError(first.message);
+        return;
+      }
+      const emails = first.preview.valid.map((r) => r.vendor.email);
+      const existing = emails.length > 0 ? await convex.query(api.vendors.existingVendorEmails, { emails }) : [];
+      const parsed = existing.length > 0 ? await parseVendorCsv(file, existing) : first;
       if (parsed.ok) setPreview(parsed.preview);
       else setFileError(parsed.message);
     } catch (err) {

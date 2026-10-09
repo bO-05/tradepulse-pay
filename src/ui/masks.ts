@@ -90,6 +90,30 @@ export function parsePercentToBps(text: string, options: { max?: number } = {}):
   return { ok: true, value: bps };
 }
 
+export interface MaskedChange {
+  text: string;
+  /** The parsed value; null when the field is empty or the text is invalid. */
+  value: number | null;
+  /** Why the text is not a valid value, or null when it is valid (including empty). */
+  invalid: string | null;
+  /** Whether to show `invalid` while the user is still typing ("-" and "." are partial input). */
+  showWhileTyping: boolean;
+}
+
+/** One keystroke in a masked numeric input: keeps "empty" (valid) apart from "invalid text". */
+export function maskedNumberChange(
+  raw: string,
+  mask: (raw: string) => MaskResult,
+  parse: (text: string) => ParseResult,
+  rejectMessage: string,
+): MaskedChange {
+  const masked = mask(raw);
+  if (masked.rejected) return { text: masked.text, value: null, invalid: rejectMessage, showWhileTyping: true };
+  const parsed = parse(masked.text);
+  if (parsed.ok) return { text: masked.text, value: parsed.value, invalid: null, showWhileTyping: false };
+  return { text: masked.text, value: null, invalid: parsed.error, showWhileTyping: masked.text !== "-" && masked.text !== "." };
+}
+
 /** Plain editable text for a cents value, e.g. 123456 -> "1234.56". */
 export function centsToEditableText(cents: number | null | undefined): string {
   if (cents === null || cents === undefined || !Number.isFinite(cents)) return "";

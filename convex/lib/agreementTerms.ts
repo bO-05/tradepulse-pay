@@ -197,6 +197,19 @@ export function validateAgreementTerms(draft: TermsDraft, ctx: TermsContext): Te
   return errors;
 }
 
+/**
+ * Editor validation: invalid typed text in a masked field leaves its draft value null, which would
+ * read as an empty optional term, so the input's own error wins over the draft check.
+ */
+export function termsErrorsWithInput(draft: TermsDraft, ctx: TermsContext, inputErrors: TermsErrors): TermsErrors {
+  const errors = validateAgreementTerms(draft, ctx);
+  for (const field of TERMS_FIELDS) {
+    const message = inputErrors[field];
+    if (message) errors[field] = message;
+  }
+  return errors;
+}
+
 export function firstTermsError(errors: TermsErrors): { field: TermsField; message: string } | null {
   for (const field of TERMS_FIELDS) {
     const message = errors[field];

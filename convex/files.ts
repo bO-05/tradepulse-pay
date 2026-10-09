@@ -630,7 +630,9 @@ async function doExtractBid(
         sourceUrl: contactInfo.url,
         rfqStatus: "bid_received",
       });
-    } catch {
+    } catch (err) {
+      // An inactive directory vendor is refused on purpose; never attribute its quote to another bidder.
+      if (err instanceof ConvexError) throw err;
       // Fallback: use first available contractor in package if insert fails
       try {
         const packageContractors: any = await ctx.runQuery(internal.contractors.listByPackageInternal, {

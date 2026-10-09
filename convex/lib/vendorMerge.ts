@@ -1,6 +1,7 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { isPlaceholderEmail } from "./vendorRules";
+import { searchTextPatch } from "./vendorSearch";
 
 /**
  * A GC company keeps one vendor row per sub: per normalized email and per linked company. These
@@ -75,6 +76,7 @@ export async function mergeVendorInto(
   if (keep.phone === undefined && dup.phone !== undefined) patch.phone = dup.phone;
   if (keep.licenseNumber === undefined && dup.licenseNumber !== undefined) patch.licenseNumber = dup.licenseNumber;
   if (keep.licenseState === undefined && dup.licenseState !== undefined) patch.licenseState = dup.licenseState;
+  if (patch.trades !== undefined || patch.contactName !== undefined) Object.assign(patch, searchTextPatch(keep, patch));
   if (Object.keys(patch).length > 0) await ctx.db.patch(keep._id, patch);
 
   const contractors = await ctx.db

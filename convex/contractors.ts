@@ -5,7 +5,14 @@ import { deleteContractorCascade } from "./payments/cascade";
 import { validateEmail, validateProjectText } from "./validation";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
-import { attachBidderVendor, insertDirectoryVendor, packageBidders } from "./lib/vendorDirectory";
+import {
+  alreadyBidderError,
+  existingBidderFor,
+  inactiveVendorError,
+  insertDirectoryVendor,
+  packageBidders,
+  vendorForNewBidder,
+} from "./lib/vendorDirectory";
 
 export const listByPackage = query({
   args: { tradePackageId: v.id("tradePackages") },
@@ -52,16 +59,23 @@ export const createContractor = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"], write: true });
-    const contractorId = await ctx.db.insert("contractors", {
+    const { doc: pkg } = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"], write: true });
+    const fields = {
       ...args,
       companyName: validateProjectText(args.companyName, "Company name"),
       contactEmail: validateEmail(args.contactEmail),
+    };
+    const resolved = await vendorForNewBidder(ctx, pkg, fields);
+    if (resolved !== null) {
+      if (resolved.vendor.status !== "active") throw inactiveVendorError(resolved.vendor.name);
+      if (resolved.existingBidder !== null) throw alreadyBidderError(resolved.vendor.name);
+    }
+    return await ctx.db.insert("contractors", {
+      ...fields,
+      ...(resolved !== null ? { vendorId: resolved.vendor._id } : {}),
       dispatchedAt: args.rfqStatus === "invited" ? Date.now() : undefined,
       updatedAt: Date.now(),
     });
-    await attachBidderVendor(ctx, contractorId);
-    return contractorId;
   },
 });
 
@@ -84,15 +98,23 @@ export const createContractorInternal = internalMutation({
   handler: async (ctx, args) => {
     const tradePackage = await ctx.db.get(args.tradePackageId);
     if (!tradePackage) throw new Error("Trade package not found");
-    const contractorId = await ctx.db.insert("contractors", {
+    const fields = {
       ...args,
       companyName: validateProjectText(args.companyName, "Company name"),
       contactEmail: validateEmail(args.contactEmail),
+    };
+    const resolved = await vendorForNewBidder(ctx, tradePackage, fields);
+    if (resolved !== null) {
+      if (resolved.vendor.status !== "active") throw inactiveVendorError(resolved.vendor.name);
+      // A quote from a vendor that already bids on the package belongs to that bidder.
+      if (resolved.existingBidder !== null) return resolved.existingBidder._id;
+    }
+    return await ctx.db.insert("contractors", {
+      ...fields,
+      ...(resolved !== null ? { vendorId: resolved.vendor._id } : {}),
       dispatchedAt: args.rfqStatus === "invited" ? Date.now() : undefined,
       updatedAt: Date.now(),
     });
-    await attachBidderVendor(ctx, contractorId);
-    return contractorId;
   },
 });
 
@@ -288,6 +310,8 @@ export const batchInsertContractors = internalMutation({
     ),
   },
   handler: async (ctx, args) => {
+    const pkg = await ctx.db.get(args.tradePackageId);
+    if (!pkg) throw new Error("Trade package not found");
     const ids = [];
     for (const c of args.contractors) {
       // Dedupe by source page: two discovered records can legitimately share the
@@ -299,12 +323,15 @@ export const batchInsertContractors = internalMutation({
         .first();
 
       if (!existing) {
+        const resolved = await vendorForNewBidder(ctx, pkg, c);
+        // Discovery results never re-add an inactive vendor or a vendor already bidding here.
+        if (resolved !== null && (resolved.vendor.status !== "active" || resolved.existingBidder !== null)) continue;
         const id = await ctx.db.insert("contractors", {
           ...c,
           tradePackageId: args.tradePackageId,
           rfqStatus: "discovered",
+          ...(resolved !== null ? { vendorId: resolved.vendor._id } : {}),
         });
-        await attachBidderVendor(ctx, id);
         ids.push(id);
       }
     }
@@ -346,10 +373,6 @@ async function insertVendorBidder(
   });
 }
 
-function alreadyBidder(name: string) {
-  return new ConvexError({ code: "INVALID" as const, message: `${name} is already a bidder on this package.`, field: "vendor" });
-}
-
 /** "Add bidders from directory": active vendors of the project's GC company become bidders with vendorId. */
 export const addBiddersFromDirectory = mutation({
   args: { tradePackageId: v.id("tradePackages"), vendorIds: v.array(v.string()) },
@@ -363,10 +386,8 @@ export const addBiddersFromDirectory = mutation({
       const id = ctx.db.normalizeId("vendors", raw);
       const vendor = id === null ? null : await ctx.db.get(id);
       if (vendor === null || vendor.companyId !== project.gcCompanyId) throw new ConvexError({ code: "NOT_FOUND" as const, message: "Not found." });
-      if (vendor.status !== "active") {
-        throw new ConvexError({ code: "INVALID" as const, message: `${vendor.name} is inactive in the vendor directory. Reactivate it first.`, field: "vendor" });
-      }
-      if (existing.some((c) => c.vendorId === vendor._id) || vendors.some((x) => x._id === vendor._id)) throw alreadyBidder(vendor.name);
+      if (vendor.status !== "active") throw inactiveVendorError(vendor.name);
+      if (existingBidderFor(existing, vendor) !== null || vendors.some((x) => x._id === vendor._id)) throw alreadyBidderError(vendor.name);
       vendors.push(vendor);
     }
     const contractorIds = [];

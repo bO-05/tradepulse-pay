@@ -1,4 +1,4 @@
-import { useAction, useQuery } from "convex/react";
+import { useAction, usePaginatedQuery, useQuery } from "convex/react";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import {
@@ -70,7 +70,20 @@ export function InviteDialog({ mode, onClose }: { mode: InviteDialogMode; onClos
   const toast = useToast();
   const formRef = useRef<HTMLFormElement>(null);
   const isSub = mode.type === "create" && mode.kind === "sub";
-  const vendors = useQuery(api.vendors.listVendors, isSub ? {} : "skip");
+  const [vendorSearch, setVendorSearch] = useState("");
+  const directory = useQuery(api.vendors.directorySummary, isSub ? {} : "skip");
+  const vendorPages = usePaginatedQuery(
+    api.vendors.listVendorsPage,
+    isSub ? { status: "active", ...(vendorSearch.trim() ? { search: vendorSearch.trim() } : {}) } : "skip",
+    { initialNumItems: 100 },
+  );
+  const [chosenVendor, setChosenVendor] = useState<(typeof vendorPages.results)[number] | null>(null);
+  const vendors =
+    directory === undefined || vendorPages.status === "LoadingFirstPage"
+      ? undefined
+      : chosenVendor && !vendorPages.results.some((v) => v._id === chosenVendor._id)
+        ? [chosenVendor, ...vendorPages.results]
+        : vendorPages.results;
   const [email, setEmail] = useState("");
   const [sendEmail, setSendEmail] = useState(mode.type === "create" ? true : mode.sendEmail);
   const [vendorChoice, setVendorChoice] = useState("");
@@ -84,13 +97,14 @@ export function InviteDialog({ mode, onClose }: { mode: InviteDialogMode; onClos
   const [result, setResult] = useState<Result | null>(null);
 
   useEffect(() => {
-    if (!isSub || vendors === undefined || vendorChoice !== "") return;
-    setVendorChoice(vendors.length === 0 ? NEW_VENDOR : "");
-  }, [isSub, vendors, vendorChoice]);
+    if (!isSub || directory === undefined || vendorChoice !== "") return;
+    setVendorChoice(directory.hasActive ? "" : NEW_VENDOR);
+  }, [isSub, directory, vendorChoice]);
 
   const pickVendor = (id: string) => {
     setVendorChoice(id);
-    const vendor = vendors?.find((v) => v._id === id);
+    const vendor = vendors?.find((v) => v._id === id) ?? null;
+    setChosenVendor(vendor);
     if (vendor && email.trim() === "") setEmail(vendor.email);
   };
 
@@ -194,6 +208,23 @@ export function InviteDialog({ mode, onClose }: { mode: InviteDialogMode; onClos
         <InviteResult result={result} />
       ) : (
         <form id="invite-form" ref={formRef} onSubmit={onSubmit} noValidate className="space-y-4" aria-label={title}>
+          {mode.type === "create" && isSub && directory?.hasActive && (
+            <div className="space-y-1">
+              <TextInput
+                id="invite-vendor-search"
+                type="search"
+                label="Find a vendor"
+                hint="Search your directory by name, email or trade."
+                value={vendorSearch}
+                onChange={setVendorSearch}
+              />
+              {vendorPages.status === "CanLoadMore" && (
+                <Button size="sm" variant="ghost" onClick={() => vendorPages.loadMore(100)}>
+                  Show more vendors
+                </Button>
+              )}
+            </div>
+          )}
           {mode.type === "create" && isSub && (
             <Field id="invite-vendor" label="Vendor" required error={errors.vendor}>
               {(control) => (

@@ -268,6 +268,60 @@ describe("terms lock and party rules", () => {
   });
 });
 
+describe("execution revalidates against the current project", () => {
+  async function editProject(gc: FixtureUser, projectId: Id<"projects">, setup: Record<string, unknown>) {
+    await gc.as.mutation(api.projects.updateProject, { projectId, ...projectSetupArgs(setup) });
+  }
+
+  test("an AZ draft whose project is corrected to CA cannot be executed with its 10% terms", async () => {
+    const t = convexTest(schema, modules);
+    const f = await buildTenancyFixture(t);
+    const { projectId, agreementId } = await awardedAgreement(t, f.gcA.admin, AZ_PROJECT);
+    await editProject(f.gcA.admin, projectId, { ...AZ_PROJECT, address: { line1: "455 Embarcadero W", city: "Oakland", zip: "94607" }, state: "CA", retainageBps: 500 });
+    await expect(f.gcA.admin.as.mutation(api.agreements.executeAgreement, { agreementId })).rejects.toThrow(
+      /California caps retainage at 5%.*Edit the agreement terms before executing/,
+    );
+    const a = await load(t, agreementId);
+    expect(a.status).toBe("generated");
+    expect(a.terms!.retainageBps).toBe(1000);
+  });
+
+  test("lowering a CA project's prime retainage below the draft's rate blocks execution until the terms are edited", async () => {
+    const t = convexTest(schema, modules);
+    const f = await buildTenancyFixture(t);
+    const { projectId, agreementId } = await awardedAgreement(t, f.gcA.admin, CA_PROJECT);
+    await editProject(f.gcA.admin, projectId, { ...CA_PROJECT, retainageBps: 300 });
+    await expect(f.gcA.admin.as.mutation(api.agreements.executeAgreement, { agreementId })).rejects.toThrow(/exceed the prime contract's 3%/);
+    expect((await load(t, agreementId)).status).toBe("generated");
+    const before = await load(t, agreementId);
+    await f.gcA.admin.as.mutation(api.agreementTerms.updateAgreementTerms, { agreementId, terms: { ...before.terms!, retainageBps: 300 } });
+    await f.gcA.admin.as.mutation(api.agreements.executeAgreement, { agreementId });
+    expect((await load(t, agreementId)).status).toBe("executed");
+  });
+
+  test("execution records the current project address, owner and venue; executed text stays fixed afterwards", async () => {
+    const t = convexTest(schema, modules);
+    const f = await buildTenancyFixture(t);
+    const { projectId, agreementId } = await awardedAgreement(t, f.gcA.admin, CA_PROJECT);
+    await editProject(f.gcA.admin, projectId, {
+      ...CA_PROJECT,
+      ownerName: "Harbor Point Dental Group Inc.",
+      address: { line1: "1 Main St", city: "San Jose", zip: "95113" },
+    });
+    await f.gcA.admin.as.mutation(api.agreements.executeAgreement, { agreementId });
+    const executed = await load(t, agreementId);
+    expect(executed.status).toBe("executed");
+    expect(executed.contractText).toContain("1 Main St, San Jose, CA 95113");
+    expect(executed.contractText).toContain("Owner: Harbor Point Dental Group Inc.");
+    expect(executed.contractText).toContain("San Jose, Santa Clara County, California");
+    expect(executed.contractText).not.toContain("Embarcadero");
+
+    await editProject(f.gcA.admin, projectId, { ...CA_PROJECT, ownerName: "Someone Else LLC" });
+    await f.gcA.admin.as.mutation(api.agreements.executeAgreement, { agreementId });
+    expect((await load(t, agreementId)).contractText).toBe(executed.contractText);
+  });
+});
+
 describe("backfill", () => {
   test("legacy agreements get terms from their stored fields; executed text is kept", async () => {
     const t = convexTest(schema, modules);

@@ -10,6 +10,7 @@ import {
   type VendorField,
   type VendorInput,
 } from "./vendorRules";
+import { searchTextPatch, vendorSearchText } from "./vendorSearch";
 
 /**
  * Vendor directory helpers for the bidder (contractors) write paths. Every bidder row carries the
@@ -69,18 +70,24 @@ export async function vendorForBidder(
       : await findVendorByEmail(ctx, gcCompanyId, email));
   if (existing !== null) {
     const patch: Partial<Doc<"vendors">> = {};
-    if (trade !== null && !existing.trades.includes(trade)) patch.trades = [...existing.trades, trade];
+    if (trade !== null && !existing.trades.includes(trade)) {
+      patch.trades = [...existing.trades, trade];
+      Object.assign(patch, searchTextPatch(existing, { trades: patch.trades }));
+    }
     if (existing.linkedCompanyId === undefined && bidder.linkedCompanyId !== undefined) patch.linkedCompanyId = bidder.linkedCompanyId;
     if (Object.keys(patch).length > 0) await ctx.db.patch(existing._id, patch);
     return { vendorId: existing._id, created: false };
   }
   const license = (bidder.licenseNumber ?? "").trim();
+  const name = bidder.companyName.trim().slice(0, 120);
+  const trades = trade !== null ? [trade] : [];
   const vendorId = await ctx.db.insert("vendors", {
     companyId: gcCompanyId,
-    name: bidder.companyName.trim().slice(0, 120),
-    trades: trade !== null ? [trade] : [],
+    name,
+    trades,
     contactName: "",
     email,
+    searchText: vendorSearchText({ name, trades, contactName: "", email }),
     ...(bidder.phone?.trim() ? { phone: bidder.phone.trim().slice(0, 30) } : {}),
     ...(license && !UNINFORMATIVE_LICENSE.test(license) ? { licenseNumber: license.slice(0, 40) } : {}),
     ...(bidder.linkedCompanyId !== undefined ? { linkedCompanyId: bidder.linkedCompanyId } : {}),
@@ -101,6 +108,42 @@ export async function attachBidderVendor(ctx: MutationCtx, contractorId: Id<"con
   const { vendorId } = await vendorForBidder(ctx, project.gcCompanyId, contractor, pkg.csiDivision);
   await ctx.db.patch(contractorId, { vendorId });
   return vendorId;
+}
+
+export function inactiveVendorError(name: string) {
+  return new ConvexError({ code: "INVALID" as const, message: `${name} is inactive in the vendor directory. Reactivate it first.`, field: "vendor" });
+}
+
+export function alreadyBidderError(name: string) {
+  return new ConvexError({ code: "INVALID" as const, message: `${name} is already a bidder on this package.`, field: "vendor" });
+}
+
+export function existingBidderFor(bidders: Doc<"contractors">[], vendor: Doc<"vendors">): Doc<"contractors"> | null {
+  const email = vendor.email.trim().toLowerCase();
+  return (
+    bidders.find(
+      (c) =>
+        c.vendorId === vendor._id ||
+        (c.vendorId === undefined && !isPlaceholderEmail(email) && c.contactEmail.trim().toLowerCase() === email),
+    ) ?? null
+  );
+}
+
+/**
+ * Resolves the directory vendor for a bidder about to be added on a live path (manual add,
+ * discovery, quote intake). Backfills of existing rows use attachBidderVendor instead, so history
+ * keeps its links even when the vendor is inactive now.
+ */
+export async function vendorForNewBidder(
+  ctx: MutationCtx,
+  pkg: Doc<"tradePackages">,
+  bidder: BidderFields,
+): Promise<{ vendor: Doc<"vendors">; existingBidder: Doc<"contractors"> | null } | null> {
+  const project = await ctx.db.get(pkg.projectId);
+  if (project?.gcCompanyId === undefined) return null;
+  const { vendorId } = await vendorForBidder(ctx, project.gcCompanyId, bidder, pkg.csiDivision);
+  const vendor = (await ctx.db.get(vendorId))!;
+  return { vendor, existingBidder: existingBidderFor(await packageBidders(ctx, pkg), vendor) };
 }
 
 export type VendorBackfillCounts = { contractorsLinked: number; vendorsCreated: number };
@@ -171,6 +214,12 @@ export async function assertVendorEmailFree(ctx: QueryCtx, companyId: Id<"compan
 export async function insertDirectoryVendor(ctx: MutationCtx, companyId: Id<"companies">, raw: Parameters<typeof validateVendorInput>[0]) {
   const input = validatedVendor(raw);
   await assertVendorEmailFree(ctx, companyId, input.email);
-  const vendorId = await ctx.db.insert("vendors", { companyId, ...input, status: "active", createdAt: Date.now() });
+  const vendorId = await ctx.db.insert("vendors", {
+    companyId,
+    ...input,
+    status: "active",
+    createdAt: Date.now(),
+    searchText: vendorSearchText(input),
+  });
   return (await ctx.db.get(vendorId))!;
 }

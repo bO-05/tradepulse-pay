@@ -24,6 +24,7 @@ import { requireCompanyMemberInAction } from "./lib/tenancyAction";
 import { findActiveMembership, notFound, requireCompanyMember, requireVerifiedUser } from "./lib/tenancy";
 import { findVendorByEmail, findVendorByLinkedCompany } from "./lib/vendorDirectory";
 import { mergeVendorPair } from "./lib/vendorMerge";
+import { vendorSearchText } from "./lib/vendorSearch";
 import { notify } from "./lib/notify";
 
 /**
@@ -186,6 +187,7 @@ export const prepareCreate = internalMutation({
           email,
           status: "active",
           createdAt: now,
+          searchText: vendorSearchText({ name, trades: [trade], contactName, email }),
         });
         vendor = await ctx.db.get(vendorId);
       } else {

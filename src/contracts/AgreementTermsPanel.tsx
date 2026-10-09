@@ -12,8 +12,8 @@ import {
   paymentTermsText,
   retainageText,
   stateName,
+  termsErrorsWithInput,
   termsFromDraft,
-  validateAgreementTerms,
   warrantyText,
   type AgreementTerms,
   type TermsDraft,
@@ -107,6 +107,8 @@ function TermsEditor({ data }: { data: TermsData }) {
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [serverError, setServerError] = useState<{ field?: TermsField; message: string } | null>(null);
+  const [inputErrors, setInputErrors] = useState<TermsErrors>({});
+  const [formKey, setFormKey] = useState(0);
 
   useEffect(() => {
     if (dirty) return;
@@ -115,7 +117,7 @@ function TermsEditor({ data }: { data: TermsData }) {
     setWarrantyTextValue(String(data.terms.warrantyMonths));
   }, [data.terms, dirty]);
 
-  const errors = validateAgreementTerms(draft, data.context);
+  const errors = termsErrorsWithInput(draft, data.context, inputErrors);
   const shown: TermsErrors = submitted ? { ...errors } : {};
   if (serverError?.field && !shown[serverError.field]) shown[serverError.field] = serverError.message;
 
@@ -124,6 +126,14 @@ function TermsEditor({ data }: { data: TermsData }) {
     setDirty(true);
     setDraft((d) => patch(d));
   };
+
+  const inputError = (field: TermsField) => (message: string | null) =>
+    setInputErrors((prev) => {
+      const next = { ...prev };
+      if (message) next[field] = message;
+      else delete next[field];
+      return next;
+    });
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -155,6 +165,8 @@ function TermsEditor({ data }: { data: TermsData }) {
     setDirty(false);
     setSubmitted(false);
     setServerError(null);
+    setInputErrors({});
+    setFormKey((k) => k + 1);
   };
 
   const ins = draft.insurance;
@@ -165,11 +177,12 @@ function TermsEditor({ data }: { data: TermsData }) {
       headingLevel={3}
       description={`Editable until execution. Defaults come from the project${data.projectStateName ? ` (${data.projectStateName})` : ""} and your company.`}
     >
-      <form ref={formRef} onSubmit={onSubmit} noValidate aria-label="Agreement terms" className="space-y-5">
+      <form key={formKey} ref={formRef} onSubmit={onSubmit} noValidate aria-label="Agreement terms" className="space-y-5">
         <fieldset className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <legend className="mb-2 text-sm font-semibold text-ink">Retainage and payment</legend>
           <PercentInput
             id={id("retainage")}
+            onInvalidChange={inputError("retainageBps")}
             label="Retainage"
             required
             value={draft.retainageBps}
@@ -178,6 +191,7 @@ function TermsEditor({ data }: { data: TermsData }) {
           />
           <PercentInput
             id={id("retainage-reduction")}
+            onInvalidChange={inputError("retainageReductionBpsAt50")}
             label="Reduced retainage at 50% complete"
             hint="Optional. Leave empty for no reduction."
             value={draft.retainageReductionBpsAt50}
@@ -211,6 +225,7 @@ function TermsEditor({ data }: { data: TermsData }) {
           />
           <MoneyInput
             id={id("ld")}
+            onInvalidChange={inputError("liquidatedDamagesCentsPerDay")}
             label="Liquidated damages per day"
             hint="Optional. Leave empty for none."
             value={draft.liquidatedDamagesCentsPerDay}
@@ -223,6 +238,7 @@ function TermsEditor({ data }: { data: TermsData }) {
           <legend className="mb-2 text-sm font-semibold text-ink">Insurance</legend>
           <MoneyInput
             id={id("gl-each")}
+            onInvalidChange={inputError("glEachOccurrenceCents")}
             label="General liability, each occurrence"
             required
             value={ins.glEachOccurrenceCents}
@@ -231,6 +247,7 @@ function TermsEditor({ data }: { data: TermsData }) {
           />
           <MoneyInput
             id={id("gl-aggregate")}
+            onInvalidChange={inputError("glAggregateCents")}
             label="General liability, aggregate"
             required
             value={ins.glAggregateCents}
@@ -239,6 +256,7 @@ function TermsEditor({ data }: { data: TermsData }) {
           />
           <MoneyInput
             id={id("auto")}
+            onInvalidChange={inputError("autoCents")}
             label="Auto liability"
             required
             value={ins.autoCents}
@@ -247,6 +265,7 @@ function TermsEditor({ data }: { data: TermsData }) {
           />
           <MoneyInput
             id={id("umbrella")}
+            onInvalidChange={inputError("umbrellaCents")}
             label="Umbrella"
             required
             value={ins.umbrellaCents}

@@ -86,6 +86,7 @@ import type * as lib_testIdentity from "../lib/testIdentity.js";
 import type * as lib_vendorDirectory from "../lib/vendorDirectory.js";
 import type * as lib_vendorMerge from "../lib/vendorMerge.js";
 import type * as lib_vendorRules from "../lib/vendorRules.js";
+import type * as lib_vendorSearch from "../lib/vendorSearch.js";
 import type * as lib_venue from "../lib/venue.js";
 import type * as llmRouter from "../llmRouter.js";
 import type * as mailerDiagnostics from "../mailerDiagnostics.js";
@@ -249,6 +250,7 @@ declare const fullApi: ApiFromModules<{
   "lib/vendorDirectory": typeof lib_vendorDirectory;
   "lib/vendorMerge": typeof lib_vendorMerge;
   "lib/vendorRules": typeof lib_vendorRules;
+  "lib/vendorSearch": typeof lib_vendorSearch;
   "lib/venue": typeof lib_venue;
   llmRouter: typeof llmRouter;
   mailerDiagnostics: typeof mailerDiagnostics;

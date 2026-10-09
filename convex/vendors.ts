@@ -1,6 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, mutation, query, type QueryCtx } from "./_generated/server";
+import { paginationOptsValidator } from "convex/server";
 import { notFound, requireCompanyMember, requireVerifiedUser, type CompanyMember } from "./lib/tenancy";
 import {
   assertVendorEmailFree,
@@ -12,6 +13,7 @@ import {
   type VendorBackfillCounts,
 } from "./lib/vendorDirectory";
 import { payeeState } from "./lib/payee";
+import { vendorSearchQuery, vendorSearchText } from "./lib/vendorSearch";
 import { addMergeCounts, emptyMergeCounts, mergeDuplicateVendorsForCompany } from "./lib/vendorMerge";
 import { VENDOR_IMPORT_MAX_ROWS, firstVendorError, isPlaceholderEmail, validateVendorInput } from "./lib/vendorRules";
 
@@ -44,44 +46,131 @@ async function ownVendor(ctx: QueryCtx, companyId: Id<"companies">, vendorId: st
   return vendor;
 }
 
-/** The caller's GC company vendor directory, sorted by name. Inactive vendors only when asked. */
+async function vendorViews(ctx: QueryCtx, rows: Doc<"vendors">[]) {
+  const linkedCompanies = new Map<Id<"companies">, Doc<"companies"> | null>();
+  for (const r of rows) {
+    if (r.linkedCompanyId !== undefined && !linkedCompanies.has(r.linkedCompanyId)) {
+      linkedCompanies.set(r.linkedCompanyId, await ctx.db.get(r.linkedCompanyId));
+    }
+  }
+  return rows.map((r) => {
+    const linkedCompany = r.linkedCompanyId !== undefined ? (linkedCompanies.get(r.linkedCompanyId) ?? null) : null;
+    const payee = payeeState(r, linkedCompany);
+    return {
+      _id: r._id,
+      name: r.name,
+      trades: r.trades,
+      contactName: r.contactName,
+      email: r.email,
+      phone: r.phone ?? "",
+      licenseNumber: r.licenseNumber ?? "",
+      licenseState: r.licenseState ?? "",
+      linked: r.linkedCompanyId !== undefined,
+      linkedCompanyName: linkedCompany?.name || null,
+      payeeStatus: payee.status,
+      payeeEmail: payee.currentEmail,
+      status: r.status,
+      createdAt: r.createdAt,
+    };
+  });
+}
+
+/**
+ * At most the first 2000 vendors of the caller's directory by name; inactive only when asked. Not a
+ * complete listing: every screen and the CSV export page through listVendorsPage instead.
+ */
 export const listVendors = query({
   args: { includeInactive: v.optional(v.boolean()) },
   handler: async (ctx, args) => {
     const { company } = gcDirectoryMember(await requireCompanyMember(ctx));
-    const rows = await ctx.db
+    const rows = args.includeInactive === true
+      ? await ctx.db.query("vendors").withIndex("by_companyId_and_name", (q) => q.eq("companyId", company._id)).take(2000)
+      : await ctx.db
+          .query("vendors")
+          .withIndex("by_companyId_and_status_and_name", (q) => q.eq("companyId", company._id).eq("status", "active"))
+          .take(2000);
+    return (await vendorViews(ctx, rows)).sort((a, b) => a.name.localeCompare(b.name));
+  },
+});
+
+const directoryStatusValidator = v.union(v.literal("active"), v.literal("inactive"), v.literal("all"));
+
+/**
+ * One page of the caller's directory: by name, or by search relevance when `search` is given
+ * (name, contact, email and trades).
+ */
+export const listVendorsPage = query({
+  args: { paginationOpts: paginationOptsValidator, status: directoryStatusValidator, search: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const { company } = gcDirectoryMember(await requireCompanyMember(ctx));
+    const search = vendorSearchQuery(args.search ?? "");
+    const status = args.status;
+    const result =
+      search !== ""
+        ? await ctx.db
+            .query("vendors")
+            .withSearchIndex("search_text", (q) => {
+              const base = q.search("searchText", search).eq("companyId", company._id);
+              return status === "all" ? base : base.eq("status", status);
+            })
+            .paginate(args.paginationOpts)
+        : status === "all"
+          ? await ctx.db
+              .query("vendors")
+              .withIndex("by_companyId_and_name", (q) => q.eq("companyId", company._id))
+              .paginate(args.paginationOpts)
+          : await ctx.db
+              .query("vendors")
+              .withIndex("by_companyId_and_status_and_name", (q) => q.eq("companyId", company._id).eq("status", status))
+              .paginate(args.paginationOpts);
+    return { ...result, page: await vendorViews(ctx, result.page) };
+  },
+});
+
+/** Whether the caller's directory has any vendor, and any active one (empty states). */
+export const directorySummary = query({
+  args: {},
+  handler: async (ctx) => {
+    const { company } = gcDirectoryMember(await requireCompanyMember(ctx));
+    const any = await ctx.db.query("vendors").withIndex("by_companyId", (q) => q.eq("companyId", company._id)).first();
+    const active = await ctx.db
       .query("vendors")
-      .withIndex("by_companyId", (q) => q.eq("companyId", company._id))
-      .take(2000);
-    const linkedCompanies = new Map<Id<"companies">, Doc<"companies"> | null>();
-    for (const r of rows) {
-      if (r.linkedCompanyId !== undefined && !linkedCompanies.has(r.linkedCompanyId)) {
-        linkedCompanies.set(r.linkedCompanyId, await ctx.db.get(r.linkedCompanyId));
-      }
+      .withIndex("by_companyId_and_status_and_name", (q) => q.eq("companyId", company._id).eq("status", "active"))
+      .first();
+    return { hasVendors: any !== null, hasActive: active !== null };
+  },
+});
+
+/** Directory entries of the given ids that belong to the caller's company (bidder lists). */
+export const vendorSummaries = query({
+  args: { vendorIds: v.array(v.string()) },
+  handler: async (ctx, args) => {
+    const { company } = gcDirectoryMember(await requireCompanyMember(ctx));
+    if (args.vendorIds.length > 500) throw invalidVendor("Ask for at most 500 vendors at a time.", "vendor");
+    const rows: Doc<"vendors">[] = [];
+    for (const raw of new Set(args.vendorIds)) {
+      const id = ctx.db.normalizeId("vendors", raw);
+      const row = id === null ? null : await ctx.db.get(id);
+      if (row !== null && row.companyId === company._id) rows.push(row);
     }
-    return rows
-      .filter((r) => args.includeInactive === true || r.status === "active")
-      .map((r) => {
-        const linkedCompany = r.linkedCompanyId !== undefined ? (linkedCompanies.get(r.linkedCompanyId) ?? null) : null;
-        const payee = payeeState(r, linkedCompany);
-        return {
-        _id: r._id,
-        name: r.name,
-        trades: r.trades,
-        contactName: r.contactName,
-        email: r.email,
-        phone: r.phone ?? "",
-        licenseNumber: r.licenseNumber ?? "",
-        licenseState: r.licenseState ?? "",
-        linked: r.linkedCompanyId !== undefined,
-        linkedCompanyName: linkedCompany?.name || null,
-        payeeStatus: payee.status,
-        payeeEmail: payee.currentEmail,
-        status: r.status,
-        createdAt: r.createdAt,
-        };
-      })
-      .sort((a, b) => a.name.localeCompare(b.name));
+    return await vendorViews(ctx, rows);
+  },
+});
+
+/** Which of these emails (lowercased) already exist in the caller's directory (CSV import preview). */
+export const existingVendorEmails = query({
+  args: { emails: v.array(v.string()) },
+  handler: async (ctx, args) => {
+    const { company } = gcDirectoryMember(await requireCompanyMember(ctx));
+    if (args.emails.length > VENDOR_IMPORT_MAX_ROWS) {
+      throw invalidVendor(`A CSV import can hold at most ${VENDOR_IMPORT_MAX_ROWS} rows.`, "vendor");
+    }
+    const found: string[] = [];
+    for (const email of new Set(args.emails.map((e) => e.trim().toLowerCase()))) {
+      if (email === "" || isPlaceholderEmail(email)) continue;
+      if ((await findVendorByEmail(ctx, company._id, email)) !== null) found.push(email);
+    }
+    return found;
   },
 });
 
@@ -106,6 +195,7 @@ export const updateVendor = mutation({
     await assertVendorEmailFree(ctx, company._id, input.email, vendor._id);
     await ctx.db.replace(vendor._id, {
       ...input,
+      searchText: vendorSearchText(input),
       companyId: vendor.companyId,
       status: vendor.status,
       createdAt: vendor.createdAt,
@@ -174,6 +264,7 @@ export const importVendors = mutation({
         ...result.value,
         status: "active",
         createdAt: Date.now(),
+        searchText: vendorSearchText(result.value),
       });
       created.push({ row, vendorId });
     }
@@ -265,5 +356,21 @@ export const backfillBidderVendors = internalMutation({
       total.companies++;
     }
     return total;
+  },
+});
+
+/** Fills `searchText` on vendors written before the directory search index. Idempotent; page through. */
+export const backfillVendorSearchText = internalMutation({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    const page = await ctx.db.query("vendors").paginate(args.paginationOpts);
+    let updated = 0;
+    for (const vendor of page.page) {
+      const searchText = vendorSearchText(vendor);
+      if (vendor.searchText === searchText) continue;
+      await ctx.db.patch(vendor._id, { searchText });
+      updated++;
+    }
+    return { updated, isDone: page.isDone, continueCursor: page.continueCursor };
   },
 });

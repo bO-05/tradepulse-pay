@@ -1,5 +1,5 @@
-import { useMutation, useQuery } from "convex/react";
-import { FormEvent, useMemo, useState } from "react";
+import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
+import { FormEvent, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { getErrorMessage } from "../lib/errors";
@@ -12,7 +12,8 @@ type Pkg = { _id: Id<"tradePackages">; csiDivision: string; tradeName: string };
 /** A trade package's bidders, each tied to a vendor directory entry. */
 export function PackageBidders({ pkg, readOnly }: { pkg: Pkg; readOnly?: boolean }) {
   const bidders = useQuery(api.contractors.listByPackage, { tradePackageId: pkg._id });
-  const vendors = useQuery(api.vendors.listVendors, { includeInactive: true });
+  const bidderVendorIds = [...new Set((bidders ?? []).map((b) => b.vendorId).filter((id): id is Id<"vendors"> => id !== undefined))];
+  const vendors = useQuery(api.vendors.vendorSummaries, bidders === undefined ? "skip" : { vendorIds: bidderVendorIds.slice(0, 500) });
   const [open, setOpen] = useState(false);
   if (bidders === undefined || vendors === undefined) return <p role="status" className="text-sm text-ink-subtle">Loading bidders…</p>;
   const vendorById = new Map(vendors.map((v) => [v._id as string, v]));
@@ -52,8 +53,7 @@ export function PackageBidders({ pkg, readOnly }: { pkg: Pkg; readOnly?: boolean
       {open && (
         <AddBiddersDialog
           pkg={pkg}
-          vendors={vendors}
-          bidderVendorIds={new Set(bidders.map((b) => b.vendorId).filter((id): id is Id<"vendors"> => id !== undefined))}
+          bidderVendorIds={new Set(bidderVendorIds)}
           onClose={() => setOpen(false)}
         />
       )}
@@ -61,16 +61,14 @@ export function PackageBidders({ pkg, readOnly }: { pkg: Pkg; readOnly?: boolean
   );
 }
 
-type DirectoryVendor = { _id: Id<"vendors">; name: string; trades: string[]; email: string; status: "active" | "inactive"; linked: boolean };
+const PICKER_PAGE_SIZE = 50;
 
 function AddBiddersDialog({
   pkg,
-  vendors,
   bidderVendorIds,
   onClose,
 }: {
   pkg: Pkg;
-  vendors: DirectoryVendor[];
   bidderVendorIds: Set<Id<"vendors">>;
   onClose: () => void;
 }) {
@@ -82,7 +80,7 @@ function AddBiddersDialog({
         value={tab}
         onChange={setTab}
         tabs={[
-          { id: "directory", label: "From directory", content: <DirectoryPicker pkg={pkg} vendors={vendors} bidderVendorIds={bidderVendorIds} onDone={onClose} /> },
+          { id: "directory", label: "From directory", content: <DirectoryPicker pkg={pkg} bidderVendorIds={bidderVendorIds} onDone={onClose} /> },
           { id: "new", label: "New vendor", content: <NewVendorBidder pkg={pkg} onDone={onClose} /> },
         ]}
       />
@@ -92,12 +90,10 @@ function AddBiddersDialog({
 
 function DirectoryPicker({
   pkg,
-  vendors,
   bidderVendorIds,
   onDone,
 }: {
   pkg: Pkg;
-  vendors: DirectoryVendor[];
   bidderVendorIds: Set<Id<"vendors">>;
   onDone: () => void;
 }) {
@@ -107,14 +103,14 @@ function DirectoryPicker({
   const [picked, setPicked] = useState<Set<Id<"vendors">>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const active = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const trade = pkg.csiDivision.slice(0, 2);
-    return vendors
-      .filter((v) => v.status === "active")
-      .filter((v) => q === "" || v.name.toLowerCase().includes(q) || v.email.includes(q))
-      .sort((a, b) => Number(b.trades.some((t) => t.startsWith(trade))) - Number(a.trades.some((t) => t.startsWith(trade))) || a.name.localeCompare(b.name));
-  }, [vendors, search, pkg.csiDivision]);
+  const summary = useQuery(api.vendors.directorySummary, {});
+  const query = search.trim();
+  const list = usePaginatedQuery(
+    api.vendors.listVendorsPage,
+    { status: "active", ...(query ? { search: query } : {}) },
+    { initialNumItems: PICKER_PAGE_SIZE },
+  );
+  const active = list.results;
 
   const toggle = (id: Id<"vendors">) => {
     const next = new Set(picked);
@@ -141,7 +137,8 @@ function DirectoryPicker({
     }
   };
 
-  if (vendors.filter((v) => v.status === "active").length === 0) {
+  if (summary === undefined) return <p role="status" className="text-sm text-ink-subtle">Loading vendors…</p>;
+  if (!summary.hasActive) {
     return (
       <EmptyState
         headingLevel={3}
@@ -161,7 +158,8 @@ function DirectoryPicker({
         <label htmlFor="bidder-picker-search" className="text-sm font-medium">
           Search vendors
         </label>
-        <input id="bidder-picker-search" type="search" value={search} onChange={(e) => setSearch(e.target.value)} className={inputClass(false)} />
+        <span id="bidder-picker-hint" className="text-xs text-ink-subtle">Name, email or trade, for example {pkg.csiDivision}.</span>
+        <input id="bidder-picker-search" aria-describedby="bidder-picker-hint" type="search" value={search} onChange={(e) => setSearch(e.target.value)} className={inputClass(false)} />
       </div>
       <fieldset>
         <legend className="sr-only">Vendors</legend>
@@ -182,7 +180,15 @@ function DirectoryPicker({
               </li>
             );
           })}
-          {active.length === 0 && <li className="px-3 py-4 text-center text-ink-subtle">No vendors match.</li>}
+          {list.status === "LoadingFirstPage" && <li className="px-3 py-4 text-center text-ink-subtle">Loading vendors…</li>}
+          {list.status !== "LoadingFirstPage" && active.length === 0 && <li className="px-3 py-4 text-center text-ink-subtle">No vendors match.</li>}
+          {(list.status === "CanLoadMore" || list.status === "LoadingMore") && (
+            <li className="px-3 py-2 text-center">
+              <Button size="sm" variant="ghost" onClick={() => list.loadMore(PICKER_PAGE_SIZE)} loading={list.status === "LoadingMore"} loadingLabel="Loading…">
+                Show more vendors
+              </Button>
+            </li>
+          )}
         </ul>
       </fieldset>
       {error && (
