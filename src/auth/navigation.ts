@@ -11,6 +11,7 @@ export type AreaId =
   | "judge-demo"
   | "people"
   | "my-projects"
+  | "gc-projects"
   | "company"
   | "agreement"
   | "ledger"
@@ -22,7 +23,7 @@ export type NavItem = {
   hash: string;
 };
 
-export type Route = { area: AreaId; agreementId?: string; projectId?: string };
+export type Route = { area: AreaId; agreementId?: string; projectId?: string; view?: "new" | "settings" };
 
 /** Areas that exist only for Demo companies; everyone else gets "Not found" on the direct route. */
 export const DEMO_ONLY_AREAS = new Set<AreaId>(["judge-demo"]);
@@ -38,6 +39,7 @@ const AREA_HASH: Record<NavItem["area"], string> = {
   "judge-demo": "#/judge-demo",
   people: "#/people",
   "my-projects": "#/my-projects",
+  "gc-projects": "#/all-projects",
 };
 
 /** Company settings: opened from the user menu, available to every role. */
@@ -50,6 +52,7 @@ export const COMPANY_HASH = "#/company";
 export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
   gc: [
     { area: "procurement", label: "Procurement", hash: AREA_HASH.procurement },
+    { area: "gc-projects", label: "Projects", hash: AREA_HASH["gc-projects"] },
     { area: "payments", label: "Payments", hash: AREA_HASH.payments },
     { area: "inbox", label: "Approval inbox", hash: AREA_HASH.inbox },
     { area: "owner-portal", label: "Projects overview", hash: AREA_HASH["owner-portal"] },
@@ -86,9 +89,27 @@ export function myProjectHash(projectId: string): string {
   return `#/my-projects/${encodeURIComponent(projectId)}`;
 }
 
+/** GC project setup: list, New project wizard, project page and Project settings. */
+export const GC_PROJECTS_HASH = "#/all-projects";
+export const NEW_PROJECT_HASH = "#/all-projects/new";
+
+export function gcProjectHash(projectId: string): string {
+  return `${GC_PROJECTS_HASH}/${encodeURIComponent(projectId)}`;
+}
+
+export function gcProjectSettingsHash(projectId: string): string {
+  return `${gcProjectHash(projectId)}/settings`;
+}
+
 export function parseHash(hash: string): Route | null {
   const path = hash.replace(/^#/, "");
   if (`#${path}` === COMPANY_HASH) return { area: "company" };
+  if (`#${path}` === NEW_PROJECT_HASH) return { area: "gc-projects", view: "new" };
+  const gcProject = path.match(/^\/all-projects\/([^/?#]+)(\/settings)?$/);
+  if (gcProject) {
+    const projectId = decodeURIComponent(gcProject[1]);
+    return gcProject[2] ? { area: "gc-projects", projectId, view: "settings" } : { area: "gc-projects", projectId };
+  }
   const projectMatch = path.match(/^\/(people|my-projects)\/([^/?#]+)$/);
   if (projectMatch) return { area: projectMatch[1] as "people" | "my-projects", projectId: decodeURIComponent(projectMatch[2]) };
   const agreementMatch = path.match(/^\/agreements\/([^/?#]+)$/);

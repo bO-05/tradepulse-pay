@@ -653,6 +653,15 @@ export default defineSchema({
     ownerCompanyId: v.optional(v.id("companies")),
     // Archived projects stay readable by id but are hidden from project lists by default.
     archived: v.optional(v.boolean()),
+    // §14 setup fields. Optional only because pre-wizard rows lack them; createProject requires them.
+    address: v.optional(addressValidator),
+    state: v.optional(v.string()),
+    contractValueCents: v.optional(v.number()),
+    retainageBps: v.optional(v.number()),
+    billingDay: v.optional(v.number()),
+    startDate: v.optional(v.string()),
+    substantialCompletionDate: v.optional(v.string()),
+    status: v.optional(v.union(v.literal("active"), v.literal("archived"), v.literal("closed"))),
     createdAt: v.number(),
   })
     .index("by_demo", ["isDemoProject"])

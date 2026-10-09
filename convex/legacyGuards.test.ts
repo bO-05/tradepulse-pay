@@ -7,6 +7,7 @@ import type { Id } from "./_generated/dataModel";
 import schema from "./schema";
 import { agentIdProfile, syncAgentProfile } from "./lib/agentAccess";
 import { withSession, signInAs } from "./lib/testIdentity";
+import { projectSetupArgs } from "./lib/projectSetupFixture";
 
 const modules = import.meta.glob("./**/*.ts");
 type T = TestConvex<typeof schema>;
@@ -201,15 +202,7 @@ const CASES: Case[] = [
   })),
   a("files:generatePreBidAddendum", api.files.generatePreBidAddendum, (i) => ({ projectId: i.projectId })),
   a("llmRouter:runModelDiagnostic", api.llmRouter.runModelDiagnostic, () => ({ model: "claude", promptType: "spec_div26" })),
-  m("projects:createProject", api.projects.createProject, () => ({
-    title: "Forged",
-    location: "Austin, TX",
-    projectType: "x",
-    estBudget: 1,
-    targetCompletionWeeks: 1,
-    specDocumentText: "x",
-    isDemoProject: false,
-  })),
+  m("projects:createProject", api.projects.createProject, () => projectSetupArgs({ title: "Forged" })),
   m("projects:seedInitialData", api.projects.seedInitialData, () => ({ force: true })),
   m("projects:deleteProject", api.projects.deleteProject, (i) => ({ projectId: i.projectId })),
   m("rfq:dispatchRfqs", api.rfq.dispatchRfqs, (i) => ({ tradePackageId: i.packageId })),
@@ -280,7 +273,8 @@ describe("legacy public mutations and actions are GC-only", () => {
     }
     // agentLinks is GC-guarded and has its own denial tests in agentLinks.test.ts; onboarding is
     // for verified users without a company, covered in onboarding.test.ts. Invites, People and
-    // Company settings have their permission and cross-company tests in invites.test.ts.
+    // Company settings have their permission and cross-company tests in invites.test.ts. Project
+    // settings, archive/restore and company defaults have theirs in projectSetup.test.ts.
     const covered = new Set([
       ...CASES.map((c) => c.name),
       "agentLinks:addAgentLink",
@@ -295,6 +289,10 @@ describe("legacy public mutations and actions are GC-only", () => {
       "invites:accept",
       "invites:acceptMine",
       "people:removeProjectMember",
+      "projects:updateProject",
+      "projects:archiveProject",
+      "projects:restoreProject",
+      "companies:updateDefaults",
     ]);
     expect(exported.filter((name) => !covered.has(name))).toEqual([]);
   });

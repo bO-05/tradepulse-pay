@@ -7,6 +7,7 @@ import type { Id, TableNames } from "./_generated/dataModel";
 import schema from "./schema";
 import { buildTenancyFixture, type FixtureUser, type TenancyFixture } from "./lib/tenancyFixtures";
 import { withSession } from "./lib/testIdentity";
+import { projectSetupArgs } from "./lib/projectSetupFixture";
 
 /**
  * Cross-company isolation for the procurement surface (architecture §12): another GC company, a
@@ -623,15 +624,7 @@ describe("project lists and switchers", () => {
 describe("createProject takes the company from the session", () => {
   test("a client-supplied gcCompanyId is rejected and the new project belongs to the caller's company", async () => {
     const { t, fx } = await setup();
-    const base = {
-      title: "Bayview new build",
-      location: "Oakland, CA",
-      projectType: "Office",
-      estBudget: 500_000,
-      targetCompletionWeeks: 30,
-      specDocumentText: "Spec",
-      isDemoProject: true,
-    };
+    const base = { ...projectSetupArgs({ title: "Bayview new build" }), isDemoProject: true };
     await expect(
       fx.gcA.admin.as.mutation(api.projects.createProject, { ...base, gcCompanyId: fx.gcB.companyId } as typeof base),
     ).rejects.toThrow();
@@ -644,15 +637,7 @@ describe("createProject takes the company from the session", () => {
 
   test("users without a GC company cannot create projects", async () => {
     const { fx } = await setup();
-    const args = {
-      title: "x",
-      location: "Oakland, CA",
-      projectType: "x",
-      estBudget: 1,
-      targetCompletionWeeks: 1,
-      specDocumentText: "x",
-      isDemoProject: false,
-    };
+    const args = projectSetupArgs({ title: "x" });
     await expect(fx.noCompany.as.mutation(api.projects.createProject, args)).rejects.toThrow(/company/i);
     await expect(fx.sub.admin.as.mutation(api.projects.createProject, args)).rejects.toThrow();
     await expect(fx.owner.admin.as.mutation(api.projects.createProject, args)).rejects.toThrow();

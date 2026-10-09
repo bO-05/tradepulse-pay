@@ -32,7 +32,7 @@ describe("one shared Not found page", () => {
     const portal = src("../payments/OwnerPortal.tsx");
     expect(portal).toContain("Create your first project");
     expect(portal).toContain("requestNewProject()");
-    expect(src("../components/Header.tsx")).toContain("consumeNewProjectRequest()");
+    expect(src("../projects/newProjectRequest.ts")).toContain("window.location.hash = NEW_PROJECT_HASH");
     expect(src("../auth/RoleShell.tsx")).toContain("<OwnerPortal role={me.role} />");
   });
 });

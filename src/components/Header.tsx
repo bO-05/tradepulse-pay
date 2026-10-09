@@ -1,8 +1,4 @@
-import { getErrorMessage } from "../lib/errors.ts";
-import { validateNewProjectFields } from "../lib/newProjectValidation.ts";
-import React, { useState, useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
-import { useDialogFocus } from "../lib/useDialogFocus.ts";
+import React, { useState, useEffect } from "react";
 import {
   Building2,
   Layers,
@@ -14,7 +10,6 @@ import {
   Plus,
   ChevronDown,
   Clock,
-  ShieldCheck,
   FileCheck,
   Split,
   Trash2,
@@ -22,24 +17,12 @@ import {
 } from "lucide-react";
 import { Project } from "../types.ts";
 import { ConfirmDialog } from "./ConfirmDialog.tsx";
-import { consumeNewProjectRequest } from "../projects/newProjectRequest";
-
-export const OPEN_NEW_PROJECT_EVENT = "tradepulse:open-new-project";
+import { NEW_PROJECT_HASH } from "../auth/navigation";
 
 interface HeaderProps {
   projects?: Project[];
   currentProject: Project | null;
   onSelectProject?: (projectId: string) => void;
-  onCreateProject?: (proj: {
-    title: string;
-    location: string;
-    projectType: string;
-    estBudget: number;
-    targetCompletionWeeks: number;
-    specDocumentText: string;
-    isDemoProject: boolean;
-    generalContractorName?: string;
-  }) => Promise<void>;
   onDeleteProject?: (projectId: string) => Promise<void>;
   activeTab: string;
   setActiveTab: (tab: string) => void;
@@ -61,7 +44,6 @@ export const Header: React.FC<HeaderProps> = ({
   projects = [],
   currentProject,
   onSelectProject,
-  onCreateProject,
   onDeleteProject,
   activeTab,
   setActiveTab,
@@ -77,21 +59,7 @@ export const Header: React.FC<HeaderProps> = ({
   bidsCount = 0,
   awardedCount = 0,
 }) => {
-  const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
-  const [newTitle, setNewTitle] = useState("");
-  const [newLocation, setNewLocation] = useState("");
-  const [newType, setNewType] = useState("");
-  const [newBudget, setNewBudget] = useState("");
-  const [newWeeks, setNewWeeks] = useState("");
-  const [newSpec, setNewSpec] = useState("");
-  const [newGeneralContractor, setNewGeneralContractor] = useState("");
-  const [createError, setCreateError] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
-  // Synchronous guard: React's `disabled` prop only applies on the next render,
-  // so a rapid double-click can fire the submit twice before that render lands.
-  const createInFlightRef = useRef(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
-  const newProjectDialogRef = useDialogFocus<HTMLDivElement>(isNewProjectModalOpen);
 
   // Keyboard shortcut listener for 1-6 keys
   useEffect(() => {
@@ -120,32 +88,6 @@ export const Header: React.FC<HeaderProps> = ({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [setActiveTab, isDemo]);
-
-  // The empty-state "Create your first project" button outside the header opens the same dialog.
-  useEffect(() => {
-    const open = () => {
-      setNewGeneralContractor((prev) => prev || companyName || "");
-      setIsNewProjectModalOpen(true);
-    };
-    window.addEventListener(OPEN_NEW_PROJECT_EVENT, open);
-    return () => window.removeEventListener(OPEN_NEW_PROJECT_EVENT, open);
-  }, [companyName]);
-
-  // "Create your first project" on another screen leaves a one-shot request and navigates here.
-  useEffect(() => {
-    if (!consumeNewProjectRequest()) return;
-    setNewGeneralContractor((prev) => prev || companyName || "");
-    setIsNewProjectModalOpen(true);
-  }, []);
-
-  useEffect(() => {
-    if (!isNewProjectModalOpen) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !creating) setIsNewProjectModalOpen(false);
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [creating, isNewProjectModalOpen]);
 
   const pipelineStages = [
     {
@@ -203,48 +145,6 @@ export const Header: React.FC<HeaderProps> = ({
     { id: "audit", label: "Activity log", icon: Clock },
     ...(isDemo ? [{ id: "diagnostics", label: "Model checks (Demo)", icon: Activity }] : []),
   ];
-
-  const handleCreateSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (createInFlightRef.current) return;
-    const validation = validateNewProjectFields({ title: newTitle, budget: newBudget, weeks: newWeeks });
-    if (!validation.ok) {
-      setCreateError(validation.error || "Please check the project fields.");
-      return;
-    }
-    if (!onCreateProject) {
-      setCreateError("Project creation is unavailable in this session.");
-      return;
-    }
-    setCreating(true);
-    setCreateError(null);
-    createInFlightRef.current = true;
-    try {
-      await onCreateProject({
-        title: newTitle.trim(),
-        location: newLocation.trim() || "Austin, TX",
-        projectType: newType.trim() || "Class-A Commercial Mixed-Use",
-        estBudget: validation.budget as number,
-        targetCompletionWeeks: validation.weeks as number,
-        specDocumentText: newSpec.trim() || `Project Scope for ${newTitle.trim()}. Standard CSI MasterFormat commercial obligations.`,
-        isDemoProject: false,
-        generalContractorName: newGeneralContractor.trim() || companyName || undefined,
-      });
-      setIsNewProjectModalOpen(false);
-      setNewTitle("");
-      setNewLocation("");
-      setNewType("");
-      setNewBudget("");
-      setNewWeeks("");
-      setNewSpec("");
-      setNewGeneralContractor("");
-    } catch (err: any) {
-      setCreateError(getErrorMessage(err) || "The project could not be created.");
-    } finally {
-      createInFlightRef.current = false;
-      setCreating(false);
-    }
-  };
 
   return (
     <header className="border-b border-slate-800 bg-slate-900/95 backdrop-blur sticky top-0 z-40 shadow-lg">
@@ -334,24 +234,13 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           )}
 
-          <button
-            onClick={() => {
-              setCreateError(null);
-              // A18-01: a cancelled draft must not leak into the next project.
-              setNewTitle("");
-              setNewLocation("");
-              setNewType("");
-              setNewBudget("");
-              setNewWeeks("");
-              setNewSpec("");
-              setNewGeneralContractor(companyName ?? "");
-              setIsNewProjectModalOpen(true);
-            }}
+          <a
+            href={NEW_PROJECT_HASH}
             className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600 text-xs font-semibold px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 transition shadow-sm"
           >
             <Plus className="w-3.5 h-3.5 text-emerald-400" />
             <span>New Project</span>
-          </button>
+          </a>
 
           {currentProject && !currentProject.isDemoProject && onDeleteProject && (
             <button
@@ -480,154 +369,6 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* New Project Modal */}
-      {isNewProjectModalOpen &&
-        createPortal(
-          <div
-            className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in overflow-y-auto"
-            role="presentation"
-            onMouseDown={(event) => {
-              if (event.target === event.currentTarget && !creating) setIsNewProjectModalOpen(false);
-            }}
-          >
-            <div
-              ref={newProjectDialogRef}
-              className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4 my-auto max-h-[90vh] overflow-y-auto"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="new-project-title"
-            >
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h3 id="new-project-title" className="text-base font-bold text-white flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-emerald-400" />
-                Create New Construction Project
-              </h3>
-              <button
-                onClick={() => setIsNewProjectModalOpen(false)}
-                aria-label="Close new project dialog"
-                className="text-slate-400 hover:text-white text-xs font-mono"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateSubmit} className="space-y-3.5 text-xs">
-              <div>
-                <label className="block text-slate-400 font-medium mb-1">Project Title</label>
-                <input
-                  type="text"
-                  required
-                  value={newTitle}
-                  aria-label="Project title"
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="e.g. Austin Innovation Tower - Phase II"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-400 font-medium mb-1">Location</label>
-                  <input
-                    type="text"
-                    required
-                    value={newLocation}
-                    aria-label="Project location"
-                    onChange={(e) => setNewLocation(e.target.value)}
-                    placeholder="e.g. Austin, TX"
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-400 font-medium mb-1">Project Type</label>
-                  <input
-                    type="text"
-                    required
-                    value={newType}
-                    aria-label="Project type"
-                    onChange={(e) => setNewType(e.target.value)}
-                    placeholder="e.g. Healthcare / Mixed-Use"
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-slate-400 font-medium mb-1">General Contractor / Contracting Entity</label>
-                <input
-                  type="text"
-                  required
-                  value={newGeneralContractor}
-                  aria-label="General contractor or contracting entity"
-                  onChange={(e) => setNewGeneralContractor(e.target.value)}
-                  placeholder={companyName || "e.g. Bayview Builders Inc."}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-400 font-medium mb-1">Estimated Budget ($)</label>
-<input
-                  type="number"
-                  min={1}
-                  step={1}
-                  placeholder="e.g. 5500000"
-                  value={newBudget}
-                  onChange={(e) => setNewBudget(e.target.value)}
-                  aria-label="Estimated budget in dollars"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-500 font-mono"
-                />
-                </div>
-                <div>
-                  <label className="block text-slate-400 font-medium mb-1">Duration (Weeks)</label>
-<input
-                  type="number"
-                  min={1}
-                  step={1}
-                  placeholder="e.g. 52"
-                  value={newWeeks}
-                  onChange={(e) => setNewWeeks(e.target.value)}
-                  aria-label="Target completion duration in weeks"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-500 font-mono"
-                />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-slate-400 font-medium mb-1">Specification Summary</label>
-                <textarea
-                  rows={3}
-                  value={newSpec}
-                  onChange={(e) => setNewSpec(e.target.value)}
-                  placeholder="Outline high-level trade scopes, design criteria, and mandatory inclusions..."
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
-                {createError && <p role="alert" className="mr-auto max-w-[55%] text-[11px] text-rose-400">{createError}</p>}
-                <button
-                  type="button"
-                  onClick={() => setIsNewProjectModalOpen(false)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={creating}
-                  className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white font-semibold rounded-lg transition flex items-center gap-1.5"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  {creating ? "Creating Project..." : "Create Commercial Project"}
-                </button>
-              </div>
-            </form>
-            </div>
-          </div>,
-          document.body
-        )}
     </header>
   );
 };

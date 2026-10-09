@@ -5,6 +5,7 @@ import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import schema from "./schema";
 import { buildTenancyFixture } from "./lib/tenancyFixtures";
+import { projectSetupArgs } from "./lib/projectSetupFixture";
 import { generalContractorNameFor, projectGcCompanyName, workingOnBehalfOf } from "./lib/gcCompanyName";
 import { payAgentSystemPrompt } from "./agent/agentLoop";
 import { reviewSystemPrompt, runPayAppReview, type ModelCaller } from "./payApps/reviewModel";
@@ -59,15 +60,12 @@ describe("GC company name in generated documents", () => {
   test("createProject without a GC name stores the caller's company name", async () => {
     const t = convexTest(schema, modules);
     const f = await buildTenancyFixture(t);
-    const args = {
+    const args = projectSetupArgs({
       title: "Camelback Suite 500",
-      location: "Phoenix, AZ",
+      address: { line1: "2425 E Camelback Rd", city: "Phoenix", zip: "85016" },
+      state: "AZ",
       projectType: "Tenant improvement",
-      estBudget: 250_000,
-      targetCompletionWeeks: 12,
-      specDocumentText: "",
-      isDemoProject: false,
-    };
+    });
     const projectId = await f.gcB.admin.as.mutation(api.projects.createProject, args);
     const project = await t.run((ctx) => ctx.db.get(projectId));
     expect(project!.generalContractorName).toBe("Sonoran Interiors GC");

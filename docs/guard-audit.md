@@ -5,7 +5,7 @@ function calls a role guard before it reads or writes data, and a company-tenanc
 (`convex/lib/tenancy.ts`, `convex/lib/projectScope.ts`) unless it reads no project data.
 Internal functions (163 `internal*` exports) are not callable from clients and are not listed.
 
-Public functions: 141. Problems: 0. Without a tenancy guard: 0.
+Public functions: 145. Problems: 0. Without a tenancy guard: 0.
 
 | Function | Kind | Location | Guard | Tenancy |
 |---|---|---|---|---|
@@ -29,10 +29,11 @@ Public functions: 141. Problems: 0. Without a tenancy guard: 0.
 | `bids:updateBidLeveling` | mutation | `convex/bids.ts:297` | requireDocScope() at line 327 | requireDocScope() |
 | `bids:updateBidAdjustments` | mutation | `convex/bids.ts:384` | requireDocScope() at line 411 | requireDocScope() |
 | `bids:submitDirectBid` | mutation | `convex/bids.ts:465` | requireDocScope() at line 510 | requireDocScope() |
-| `companies:myCompany` | query | `convex/companies.ts:18` | requireCompanyMember() at line 21 | requireCompanyMember() |
-| `companies:updateProfile` | mutation | `convex/companies.ts:92` | requireCompanyMember() at line 102 | requireCompanyMember() |
-| `companies:setMemberRole` | mutation | `convex/companies.ts:155` | requireCompanyMember() at line 159 | requireCompanyMember() |
-| `companies:removeMember` | mutation | `convex/companies.ts:171` | requireCompanyMember() at line 175 | requireCompanyMember() |
+| `companies:myCompany` | query | `convex/companies.ts:19` | requireCompanyMember() at line 22 | requireCompanyMember() |
+| `companies:updateProfile` | mutation | `convex/companies.ts:94` | requireCompanyMember() at line 104 | requireCompanyMember() |
+| `companies:updateDefaults` | mutation | `convex/companies.ts:143` | requireCompanyMember() at line 147 | requireCompanyMember() |
+| `companies:setMemberRole` | mutation | `convex/companies.ts:176` | requireCompanyMember() at line 180 | requireCompanyMember() |
+| `companies:removeMember` | mutation | `convex/companies.ts:192` | requireCompanyMember() at line 196 | requireCompanyMember() |
 | `contractorDiscovery:discoverSubcontractors` | action | `convex/contractorDiscovery.ts:341` | requireProjectScopeInAction() at line 346 | requireProjectScopeInAction() |
 | `contractorDiscovery:scrapeContractorWebsite` | action | `convex/contractorDiscovery.ts:510` | requireRoleInAction() at line 515 | none needed: scrapes a public URL, no project data |
 | `contractors:listByPackage` | query | `convex/contractors.ts:7` | requireDocScope() at line 10 | requireDocScope() |
@@ -125,12 +126,15 @@ Public functions: 141. Problems: 0. Without a tenancy guard: 0.
 | `profiles:me` | query | `convex/profiles.ts:13` | getLiveAuthUserId(): caller's own users row only, then getViewer() | none needed: caller's own profile |
 | `projectFileDownload:projectFilePreflight` | httpAction | `convex/projectFileDownload.ts:41` | CORS preflight only, no data access | none needed: CORS preflight |
 | `projectFileDownload:projectFileDownload` | httpAction | `convex/projectFileDownload.ts:50` | Bearer token, then authorizeDownload (requireDocScope) before ctx.storage | requireDocScope() via authorizeDownload |
-| `projects:getDemoProject` | query | `convex/projects.ts:30` | requireRole() at line 33 | callerProjects() |
-| `projects:listProjects` | query | `convex/projects.ts:40` | requireRole() at line 43 | callerProjects() |
-| `projects:getProject` | query | `convex/projects.ts:48` | requireProjectScope() at line 51 | requireProjectScope() |
-| `projects:createProject` | mutation | `convex/projects.ts:73` | requireRole() at line 85 | requireCompanyMember() |
-| `projects:seedInitialData` | mutation | `convex/projects.ts:943` | requireDemoCompany() at line 946 | requireDemoCompany() |
-| `projects:deleteProject` | mutation | `convex/projects.ts:957` | requireProjectScope() at line 960 | requireProjectScope() |
+| `projects:getDemoProject` | query | `convex/projects.ts:28` | requireRole() at line 31 | callerProjects() |
+| `projects:listProjects` | query | `convex/projects.ts:38` | requireRole() at line 41 | callerProjects() |
+| `projects:getProject` | query | `convex/projects.ts:46` | requireProjectScope() at line 50 | requireProjectScope() |
+| `projects:createProject` | mutation | `convex/projects.ts:142` | requireRole() at line 151 | requireCompanyMember() |
+| `projects:updateProject` | mutation | `convex/projects.ts:193` | requireProjectScope() at line 196 | requireProjectScope() |
+| `projects:archiveProject` | mutation | `convex/projects.ts:214` | requireProjectScope() at line 217 | requireProjectScope() |
+| `projects:restoreProject` | mutation | `convex/projects.ts:234` | requireProjectScope() at line 237 | requireProjectScope() |
+| `projects:seedInitialData` | mutation | `convex/projects.ts:1067` | requireDemoCompany() at line 1070 | requireDemoCompany() |
+| `projects:deleteProject` | mutation | `convex/projects.ts:1081` | requireProjectScope() at line 1084 | requireProjectScope() |
 | `rfq:listConversations` | query | `convex/rfq.ts:7` | requireDocScope() at line 10 | requireDocScope() |
 | `rfq:getProjectDeliveryStatus` | query | `convex/rfq.ts:24` | requireProjectScope() at line 27 | requireProjectScope() |
 | `rfq:dispatchRfqs` | mutation | `convex/rfq.ts:81` | requireDocScope() at line 84 | requireDocScope() |

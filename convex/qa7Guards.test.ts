@@ -9,6 +9,7 @@ import { expect, test } from "vitest";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
 import { asGc, type GcTest } from "./lib/testIdentity";
+import { projectSetupArgs } from "./lib/projectSetupFixture";
 import {
   sanitizeBidLevelingOutput,
   applyExplicitExclusionAmounts,
@@ -25,15 +26,10 @@ const modules = import.meta.glob("./**/*.ts");
 type T = GcTest;
 
 async function makeProject(t: T, title: string) {
-  return await t.mutation(api.projects.createProject, {
-    title,
-    location: "Austin, TX",
-    projectType: "Class-A Commercial Mixed-Use",
-    estBudget: 2_500_000,
-    targetCompletionWeeks: 52,
-    specDocumentText: "QA7 verification specification text.",
-    isDemoProject: false,
-  });
+  return await t.mutation(
+    api.projects.createProject,
+    projectSetupArgs({ title, projectType: "Class-A Commercial Mixed-Use", specDocumentText: "QA7 verification specification text." }),
+  );
 }
 
 async function makePackage(t: T, projectId: any, csi = "26 00 00", budget = 1_250_000) {

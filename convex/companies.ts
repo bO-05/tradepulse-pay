@@ -5,6 +5,7 @@ import { addressValidator } from "./schema";
 import { formatUsPhone, phoneDigits, validateCompanyProfile } from "./lib/companyProfile";
 import { listTeammateInvites } from "./lib/teammateInvites";
 import { notFound, requireCompanyMember } from "./lib/tenancy";
+import { DEFAULT_COMPANY_RETAINAGE_BPS, MAX_RETAINAGE_BPS } from "./lib/retainageRules";
 
 /** Company settings (architecture §13): profile, members, roles. Only admins change anything. */
 
@@ -64,6 +65,7 @@ export const myCompany = query({
         phone: company.phone ?? "",
         website: company.website ?? "",
         address: company.address ?? null,
+        defaultRetainageBps: company.defaultRetainageBps ?? DEFAULT_COMPANY_RETAINAGE_BPS,
       },
       isAdmin,
       members,
@@ -133,6 +135,25 @@ export const updateProfile = mutation({
       website: website || undefined,
       address,
     });
+    return null;
+  },
+});
+
+/** Admins of a GC company set defaults for new projects (§13 Company settings → Defaults). */
+export const updateDefaults = mutation({
+  args: { defaultRetainageBps: v.number() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { user, company } = await requireCompanyMember(ctx, { admin: true });
+    if (user.emailVerificationTime === undefined) {
+      throw new ConvexError({ code: "EMAIL_UNVERIFIED", message: "Verify your email first." });
+    }
+    if (company.kind !== "gc") throw invalid("Only general contractor companies have project defaults.");
+    const bps = args.defaultRetainageBps;
+    if (!Number.isSafeInteger(bps) || bps < 0 || bps > MAX_RETAINAGE_BPS) {
+      throw invalid("Default retainage must be between 0% and 100%.", "defaultRetainageBps");
+    }
+    await ctx.db.patch(company._id, { defaultRetainageBps: bps });
     return null;
   },
 });

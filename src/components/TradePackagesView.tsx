@@ -1,5 +1,6 @@
 import { getErrorMessage } from "../lib/errors.ts";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { consumeSpecBreakdownRequest } from "../projects/gc/specBreakdownRequest";
 import {
   Layers,
   DollarSign,
@@ -212,6 +213,22 @@ Furnish and install domestic cold, hot, and recirculated water piping, sanitary 
     );
   };
 
+  const openSpecBreakdownDialog = () => {
+    // A18-01: start each breakdown from a clean draft.
+    setPreviewPackages(null);
+    setGenerationErrorMessage(null);
+    setSpecInputText("");
+    setIsSpecModalOpen(true);
+    populateSampleSpec();
+  };
+
+  // The New project wizard's "AI spec breakdown" lands here and asks for the dialog once.
+  const currentProjectId = currentProject?._id;
+  useEffect(() => {
+    if (consumeSpecBreakdownRequest(currentProjectId)) openSpecBreakdownDialog();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentProjectId]);
+
   const getStatusBadge = (status: TradePackage["status"]) => {
     switch (status) {
       case "awarded":
@@ -273,14 +290,7 @@ Furnish and install domestic cold, hot, and recirculated water piping, sanitary 
           <div className="flex items-center gap-2.5">
             {currentProject && (
               <button
-                onClick={() => {
-                  // A18-01: start each breakdown from a clean draft.
-                  setPreviewPackages(null);
-                  setGenerationErrorMessage(null);
-                  setSpecInputText("");
-                  setIsSpecModalOpen(true);
-                  populateSampleSpec();
-                }}
+                onClick={openSpecBreakdownDialog}
                 className="bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-slate-950 font-bold text-xs px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition shadow-sm"
               >
                 <Sparkles className="w-4 h-4 fill-slate-950" />
@@ -328,7 +338,7 @@ Furnish and install domestic cold, hot, and recirculated water piping, sanitary 
           <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center text-slate-400">
             <Layers className="w-6 h-6" />
           </div>
-          <h3 className="text-base font-bold text-white">No Trade Packages Configured</h3>
+          <h3 className="text-base font-bold text-white">No trade packages yet</h3>
           <p className="text-xs text-slate-400 max-w-md">
             Break down your architectural specifications into CSI MasterFormat buyout packages using AI Spec Breakdown, or create a package manually.
           </p>

@@ -63,12 +63,17 @@ function useMaskedNumber(options: {
   const [focused, setFocused] = useState(false);
   const [text, setText] = useState(() => toDisplay(value));
   const [localError, setLocalError] = useState<string | null>(null);
+  // Set when the last edit contained characters the mask removed ("12,40a", "-5000"): the filtered
+  // text must not silently become a valid amount, so the value stays null until the user edits again.
+  const [rejected, setRejected] = useState(false);
   const lastEmitted = useRef<number | null>(value);
 
   useEffect(() => {
     if (!focused && value !== lastEmitted.current) {
       lastEmitted.current = value;
       setText(toDisplay(value));
+      setRejected(false);
+      setLocalError(null);
     }
   }, [focused, value, toDisplay]);
 
@@ -86,6 +91,7 @@ function useMaskedNumber(options: {
     },
     onBlur: () => {
       setFocused(false);
+      if (rejected) return;
       const parsed = parse(text);
       if (parsed.ok) {
         setText(toDisplay(parsed.value));
@@ -97,9 +103,14 @@ function useMaskedNumber(options: {
     onChange: (raw: string) => {
       const masked = mask(raw);
       setText(masked.text);
+      setRejected(masked.rejected);
+      if (masked.rejected) {
+        setLocalError(rejectMessage);
+        emit(null);
+        return;
+      }
       const parsed = parse(masked.text);
-      if (masked.rejected) setLocalError(rejectMessage);
-      else if (!parsed.ok && masked.text !== "-" && masked.text !== ".") setLocalError(parsed.error);
+      if (!parsed.ok && masked.text !== "-" && masked.text !== ".") setLocalError(parsed.error);
       else setLocalError(null);
       if (parsed.ok) emit(parsed.value);
       else emit(null);

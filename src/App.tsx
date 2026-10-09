@@ -2,7 +2,8 @@ import { getErrorMessage } from "./lib/errors.ts";
 import React, { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../convex/_generated/api.js";
-import { Header, OPEN_NEW_PROJECT_EVENT } from "./components/Header.tsx";
+import { Header } from "./components/Header.tsx";
+import { requestNewProject } from "./projects/newProjectRequest";
 import { Button, EmptyState, NotFoundState } from "./ui";
 import { resolveRequestedProject } from "./projects/requestedProject";
 import { ExecutiveKpiBar } from "./components/ExecutiveKpiBar.tsx";
@@ -296,7 +297,6 @@ export const App: React.FC = () => {
 
   // Convex Mutations & Actions
   const seedDataMutation = useMutation(api.projects.seedInitialData);
-  const createProjectMutation = useMutation(api.projects.createProject);
   const deleteProjectMutation = useMutation(api.projects.deleteProject);
   const createPackageMutation = useMutation(api.tradePackages.createTradePackage);
   const deletePackageMutation = useMutation(api.tradePackages.deleteTradePackage);
@@ -367,26 +367,6 @@ export const App: React.FC = () => {
       }
     } catch (err: any) {
       showToast(`RFQ dispatch failed: ${getErrorMessage(err) || "No invitations were confirmed."}`, "error");
-    }
-  };
-
-  const handleCreateProject = async (proj: {
-    title: string;
-    location: string;
-    projectType: string;
-    estBudget: number;
-    targetCompletionWeeks: number;
-    specDocumentText: string;
-    isDemoProject: boolean;
-    generalContractorName?: string;
-  }) => {
-    try {
-      const newId: any = await createProjectMutation(proj);
-      setSelectedProjectId(newId);
-      showToast(`Project '${proj.title}' created.`);
-    } catch (err: any) {
-      showToast(`Error creating project: ${getErrorMessage(err)}`);
-      throw err;
     }
   };
 
@@ -1181,7 +1161,6 @@ export const App: React.FC = () => {
         projects={projects}
         currentProject={currentProject}
         onSelectProject={selectProject}
-        onCreateProject={handleCreateProject}
         onDeleteProject={handleDeleteProject}
         onOpenSimulation={() => setIsSimulationOpen(true)}
         isTourOpen={isTourOpen}
@@ -1239,7 +1218,7 @@ export const App: React.FC = () => {
             title="No projects yet"
             description={`Create your first project${company.name ? ` for ${company.name}` : ""} to set up trade packages, invite bidders and manage contracts. Nothing is added for you automatically.`}
             action={
-              <Button onClick={() => window.dispatchEvent(new Event(OPEN_NEW_PROJECT_EVENT))}>Create your first project</Button>
+              <Button onClick={() => requestNewProject()}>Create your first project</Button>
             }
           />
         )}

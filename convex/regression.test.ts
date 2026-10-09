@@ -5,19 +5,15 @@ import { api, internal } from "./_generated/api";
 import schema from "./schema";
 import { asGc, type GcTest } from "./lib/testIdentity";
 import { validateBidDeadline } from "./validation";
+import { projectSetupArgs } from "./lib/projectSetupFixture";
 
 const modules = import.meta.glob("./**/*.ts");
 
 async function createProject(t: GcTest, title = "Regression Project") {
-  return await t.mutation(api.projects.createProject, {
-    title,
-    location: "Austin, TX",
-    projectType: "Class-A Commercial Mixed-Use",
-    estBudget: 2_500_000,
-    targetCompletionWeeks: 52,
-    specDocumentText: "Regression specification text.",
-    isDemoProject: false,
-  });
+  return await t.mutation(
+    api.projects.createProject,
+    projectSetupArgs({ title, projectType: "Class-A Commercial Mixed-Use", specDocumentText: "Regression specification text." }),
+  );
 }
 
 async function createPackage(t: GcTest, projectId: any) {

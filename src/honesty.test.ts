@@ -128,15 +128,16 @@ test("Model diagnostics disclose unavailable providers instead of silently gradi
   expect(diagnostics).not.toContain("305");
 });
 
-test("F3: the New Project form uses placeholders, not silent prefilled values", () => {
+test("F3: the New project wizard starts empty and uses placeholders, not silent prefilled values", async () => {
+  const fields = (await import("./projects/gc/ProjectSetupFields.tsx?raw")).default as string;
+  const form = (await import("./projects/gc/projectSetupForm.ts?raw")).default as string;
+  expect(fields).toContain('placeholder="e.g. Harbor Point Dental LLC"');
+  expect(form).toMatch(/EMPTY_PROJECT_SETUP[^=]*= \{\n  title: "",\n  ownerName: "",/);
+  expect(form).toContain("contractValueCents: null,");
+  expect(form).toContain("validateProjectSetup");
   const header = find("Header.tsx", componentSources);
-  expect(header).toContain('placeholder="e.g. Austin, TX"');
-  expect(header).toContain('placeholder="e.g. 5500000"');
-  expect(header).not.toContain('useState("Austin, TX")');
-  expect(header).not.toContain('useState("Class-A Commercial Mixed-Use")');
+  expect(header).toContain("href={NEW_PROJECT_HASH}");
   expect(header).not.toContain("useState(5500000)");
-  expect(header).not.toContain("useState(52)");
-  expect(header).toContain("validateNewProjectFields");
 });
 
 test("F4: the leveling simulate control's label matches what it opens", () => {

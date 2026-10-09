@@ -6,12 +6,13 @@ import { COMPANY_KIND_LABEL } from "../../convex/lib/inviteRules";
 import { getErrorMessage } from "../lib/errors";
 import { InviteDialog } from "../people/InviteDialog";
 import { InviteList } from "../people/InviteList";
-import { Button, Card, ConfirmDialog, PageHeader, TextInput, useToast } from "../ui";
+import { formatRetainagePercent } from "../../convex/lib/retainageRules";
+import { Button, Card, ConfirmDialog, PageHeader, PercentInput, TextInput, useToast } from "../ui";
 import { inputClass } from "../ui/Field";
 
 type Company = FunctionReturnType<typeof api.companies.myCompany>;
 
-/** Company settings (user menu): profile and members. Only admins can change anything. */
+/** Company settings (user menu): profile, project defaults (GC) and members. Only admins can change anything. */
 export function CompanySettingsPage() {
   const data = useQuery(api.companies.myCompany, {});
   if (data === undefined) return <p role="status" className="text-sm text-ink-subtle">Loading company…</p>;
@@ -22,6 +23,7 @@ export function CompanySettingsPage() {
         description={`${data.company.name} · ${COMPANY_KIND_LABEL[data.company.kind]}`}
       />
       <ProfileCard key={`${data.company._id}-${data.company.name}-${data.company.phone}-${data.company.website}`} data={data} />
+      {data.company.kind === "gc" && <DefaultsCard key={`defaults-${data.company.defaultRetainageBps}`} data={data} />}
       <MembersCard data={data} />
     </div>
   );
@@ -109,6 +111,70 @@ function ProfileCard({ data }: { data: Company }) {
         )}
         <Button type="submit" loading={saving} loadingLabel="Saving…">
           Save changes
+        </Button>
+      </form>
+    </Card>
+  );
+}
+
+function DefaultsCard({ data }: { data: Company }) {
+  const update = useMutation(api.companies.updateDefaults);
+  const toast = useToast();
+  const { company, isAdmin } = data;
+  const [bps, setBps] = useState<number | null>(company.defaultRetainageBps);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const description =
+    "New projects start with this retainage, lowered automatically to the state's cap where one applies.";
+
+  if (!isAdmin) {
+    return (
+      <Card title="Defaults" description={description}>
+        <p className="text-sm">
+          Default retainage: <strong>{formatRetainagePercent(company.defaultRetainageBps)}</strong>
+        </p>
+        <p className="mt-1 text-sm text-ink-subtle">Only company admins can change this.</p>
+      </Card>
+    );
+  }
+
+  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (saving) return;
+    if (bps === null) {
+      setError("Enter a default retainage between 0% and 100%.");
+      return;
+    }
+    setError(null);
+    setSaving(true);
+    try {
+      await update({ defaultRetainageBps: bps });
+      toast.success("Defaults saved.");
+    } catch (err) {
+      setError(getErrorMessage(err, "We couldn't save the defaults. Try again."));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card title="Defaults" description={description}>
+      <form onSubmit={onSubmit} noValidate aria-label="Company defaults" className="space-y-4">
+        <div className="max-w-xs">
+          <PercentInput
+            id="company-settings-default-retainage"
+            label="Default retainage %"
+            required
+            value={bps}
+            onChange={(next) => {
+              setError(null);
+              setBps(next);
+            }}
+            error={error ?? undefined}
+          />
+        </div>
+        <Button type="submit" loading={saving} loadingLabel="Saving…">
+          Save defaults
         </Button>
       </form>
     </Card>

@@ -5,6 +5,7 @@ describe("role navigation", () => {
   test("GC gets procurement, payments and the read-only overview; sub and owner never get procurement", () => {
     expect(NAV_BY_ROLE.gc.map((i) => i.area)).toEqual([
       "procurement",
+      "gc-projects",
       "payments",
       "inbox",
       "owner-portal",
@@ -24,6 +25,19 @@ describe("role navigation", () => {
     expect(resolveRoute("owner", "#/my-projects")).toEqual({ area: "my-projects" });
     expect(resolveRoute("gc", "#/my-projects")).toEqual({ area: "not-found" });
     for (const role of ["gc", "sub", "owner"] as const) expect(resolveRoute(role, "#/company")).toEqual({ area: "company" });
+  });
+
+  test("GC project setup routes: list, wizard, project page and settings; GC only", () => {
+    expect(resolveRoute("gc", "#/all-projects")).toEqual({ area: "gc-projects" });
+    expect(resolveRoute("gc", "#/all-projects/new")).toEqual({ area: "gc-projects", view: "new" });
+    expect(resolveRoute("gc", "#/all-projects/k97p")).toEqual({ area: "gc-projects", projectId: "k97p" });
+    expect(resolveRoute("gc", "#/all-projects/k97p/settings")).toEqual({ area: "gc-projects", projectId: "k97p", view: "settings" });
+    expect(resolveRoute("gc", "#/all-projects/k97p/other")).toEqual({ area: "not-found" });
+    for (const role of ["sub", "owner"] as const) {
+      for (const hash of ["#/all-projects", "#/all-projects/new", "#/all-projects/k97p", "#/all-projects/k97p/settings"]) {
+        expect(resolveRoute(role, hash)).toEqual({ area: "not-found" });
+      }
+    }
   });
 
   test("an empty hash is the role's home", () => {

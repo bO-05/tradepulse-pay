@@ -6,6 +6,7 @@ import { api, internal } from "./_generated/api";
 import schema from "./schema";
 import { agentIdProfile, syncAgentProfile } from "./lib/agentAccess";
 import { withSession, signInAs } from "./lib/testIdentity";
+import { projectSetupArgs } from "./lib/projectSetupFixture";
 
 const modules = import.meta.glob("./**/*.ts");
 type T = TestConvex<typeof schema>;
@@ -184,6 +185,9 @@ const GC_ONLY: Case[] = [
   m("bids:awardContract (award)", api.bids.awardContract, (i) => ({ bidId: i.bidId, tradePackageId: i.tradePackageId })),
   m("agreements:executeAgreement (execute)", api.agreements.executeAgreement, (i) => ({ agreementId: i.agreementId })),
   m("projects:seedInitialData (reset/seed)", api.projects.seedInitialData, () => ({ force: true })),
+  m("projects:updateProject (settings)", api.projects.updateProject, (i) => ({ projectId: i.projectId, ...projectSetupArgs() })),
+  m("projects:archiveProject", api.projects.archiveProject, (i) => ({ projectId: i.projectId })),
+  m("projects:restoreProject", api.projects.restoreProject, (i) => ({ projectId: i.projectId })),
   a("payments/orders:createFundingOrder (fund)", api.payments.orders.createFundingOrder, (i) => ({ milestoneId: i.milestoneId })),
   a("payments/orders:authorizeFundingOrder (fund)", api.payments.orders.authorizeFundingOrder, () => ({ orderId: "SWEEP-ORDER-1" })),
   a("payments/release:releaseAndPay (capture + payout)", api.payments.release.releaseAndPay, (i) => ({

@@ -19,12 +19,10 @@ import { deleteAgreementCascade, deleteContractorCascade } from "./payments/casc
 function authoritativeDocSize(fileName: string, fallback: number): number {
   return getRealDocumentPdfBytes(fileName)?.length ?? fallback;
 }
-import {
-  DEFAULT_GENERAL_CONTRACTOR,
-  validatePositiveAmount,
-  validatePositiveInteger,
-  validateProjectText,
-} from "./validation";
+import { DEFAULT_GENERAL_CONTRACTOR, validateProjectText } from "./validation";
+import { firstProjectSetupError, validateProjectSetup } from "./lib/projectSetup";
+import { formatRetainagePercent } from "./lib/retainageRules";
+import { formatCents } from "./lib/money";
 
 /** The caller's seeded demo project (or newest accessible project); never another company's. */
 export const getDemoProject = query({
@@ -46,7 +44,8 @@ export const listProjects = query({
 });
 
 export const getProject = query({
-  args: { projectId: v.id("projects") },
+  // A string so a malformed id from a URL reads "Not found." like a foreign or deleted one.
+  args: { projectId: v.string() },
   handler: async (ctx, args) => {
     const { project } = await requireProjectScope(ctx, args.projectId, { roles: ["gc", "owner", "sub"] });
     return project;
@@ -70,61 +69,186 @@ export const getProjectCompanyNameInternal = internalQuery({
   },
 });
 
+const setupArgs = {
+  title: v.string(),
+  ownerName: v.string(),
+  address: v.object({ line1: v.string(), city: v.string(), zip: v.string(), state: v.optional(v.string()) }),
+  state: v.string(),
+  contractValueCents: v.number(),
+  retainageBps: v.number(),
+  billingDay: v.number(),
+  startDate: v.string(),
+  substantialCompletionDate: v.optional(v.string()),
+};
+
+type SetupArgs = {
+  title: string;
+  ownerName: string;
+  address: { line1: string; city: string; zip: string; state?: string };
+  state: string;
+  contractValueCents: number;
+  retainageBps: number;
+  billingDay: number;
+  startDate: string;
+  substantialCompletionDate?: string;
+};
+
+/** Validates the §14 setup fields with the wizard's rules and returns the values to store. */
+function cleanSetup(args: SetupArgs) {
+  const state = args.state.trim().toUpperCase();
+  if (args.address.state !== undefined && args.address.state.trim() !== "" && args.address.state.trim().toUpperCase() !== state) {
+    throw new ConvexError({ code: "INVALID", field: "state", message: "The address state must match the project state." });
+  }
+  const sc = args.substantialCompletionDate?.trim() ?? "";
+  const input = {
+    title: args.title,
+    ownerName: args.ownerName,
+    address: args.address,
+    state,
+    contractValueCents: args.contractValueCents,
+    retainageBps: args.retainageBps,
+    billingDay: args.billingDay,
+    startDate: args.startDate.trim(),
+    substantialCompletionDate: sc,
+  };
+  const errors = validateProjectSetup(input);
+  const first = firstProjectSetupError(errors);
+  if (first) throw new ConvexError({ code: "INVALID", field: first.field, message: first.message, fields: errors });
+  const weeks =
+    sc === "" ? 52 : Math.max(1, Math.ceil((Date.parse(`${sc}T00:00:00Z`) - Date.parse(`${input.startDate}T00:00:00Z`)) / (7 * 86_400_000)));
+  const city = args.address.city.trim();
+  return {
+    title: args.title.trim().replace(/\s+/g, " "),
+    ownerName: args.ownerName.trim().replace(/\s+/g, " "),
+    address: { line1: args.address.line1.trim(), city, state, zip: args.address.zip.trim() },
+    state,
+    contractValueCents: args.contractValueCents,
+    retainageBps: args.retainageBps,
+    billingDay: args.billingDay,
+    startDate: input.startDate,
+    substantialCompletionDate: sc === "" ? undefined : sc,
+    // Legacy procurement screens still read these.
+    location: `${city}, ${state}`,
+    estBudget: args.contractValueCents / 100,
+    targetCompletionWeeks: Math.min(weeks, 520),
+  };
+}
+
+function setupSummary(p: ReturnType<typeof cleanSetup>): string {
+  return `${p.location}; contract ${formatCents(p.contractValueCents)}, retainage ${formatRetainagePercent(p.retainageBps)}, billing day ${p.billingDay}.`;
+}
+
+/** New project wizard (architecture §14). The owning company always comes from the session. */
 export const createProject = mutation({
   args: {
-    title: v.string(),
-    location: v.string(),
-    projectType: v.string(),
-    estBudget: v.number(),
-    targetCompletionWeeks: v.number(),
-    specDocumentText: v.string(),
-    isDemoProject: v.boolean(),
+    ...setupArgs,
+    projectType: v.optional(v.string()),
+    specDocumentText: v.optional(v.string()),
+    isDemoProject: v.optional(v.boolean()),
     generalContractorName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const viewer = await requireRole(ctx, ["gc"]);
-    // The owning company always comes from the session, never from the client.
     const { user, company } = await requireCompanyMember(ctx);
     if (company.kind !== "gc") throw new ConvexError({ code: "FORBIDDEN", message: forbiddenMessage(["gc"]) });
     if (user.emailVerificationTime === undefined) {
       throw new ConvexError({ code: "EMAIL_UNVERIFIED", message: "Verify your email first." });
     }
-    const title = validateProjectText(args.title, "Project title");
-    const location = validateProjectText(args.location, "Project location");
-    const projectType = validateProjectText(args.projectType, "Project type");
-    const estBudget = validatePositiveAmount(args.estBudget, "Estimated budget");
-    const targetCompletionWeeks = validatePositiveInteger(args.targetCompletionWeeks, "Target completion", 520);
-    const specDocumentText = args.specDocumentText.trim() || `Project Scope for ${title}.`;
+    const setup = cleanSetup(args);
+    const projectType = args.projectType?.trim() ? validateProjectText(args.projectType, "Project type") : "Commercial";
+    const specDocumentText = args.specDocumentText?.trim() || `Project Scope for ${setup.title}.`;
     const generalContractorName = args.generalContractorName?.trim()
       ? validateProjectText(args.generalContractorName, "General contractor name")
       : company.isDemo
         ? DEFAULT_GENERAL_CONTRACTOR
         : company.name;
 
+    const now = Date.now();
     const projectId = await ctx.db.insert("projects", {
-      title,
-      location,
+      ...setup,
       projectType,
-      estBudget,
-      targetCompletionWeeks,
       specDocumentText,
       // Demo seed code looks projects up by this flag, so only the Demo company may set it.
-      isDemoProject: args.isDemoProject && company.isDemo,
+      isDemoProject: args.isDemoProject === true && company.isDemo,
       generalContractorName,
       gcCompanyId: company._id,
-      createdAt: Date.now(),
+      status: "active",
+      createdAt: now,
     });
 
     await ctx.db.insert("auditLogs", {
       projectId,
-      eventType: "compliance_audit",
-      title: `Project Initialized: ${args.title}`,
-      description: `Established commercial project in ${location} ($${estBudget.toLocaleString()} budget, ${targetCompletionWeeks} weeks target completion).`,
+      eventType: "project_created",
+      title: `Project created: ${setup.title}`,
+      description: `Owner ${setup.ownerName}; ${setupSummary(setup)}`,
       ...auditActor({ user, viewer, company }),
-      timestamp: Date.now(),
+      timestamp: now,
     });
 
     return projectId;
+  },
+});
+
+/** Project settings (GC of the owning company only). Archived projects must be restored first. */
+export const updateProject = mutation({
+  args: { projectId: v.string(), ...setupArgs },
+  handler: async (ctx, args) => {
+    const access = await requireProjectScope(ctx, args.projectId, { roles: ["gc"], write: true });
+    const projectId = access.project._id;
+    const { projectId: _ignored, ...fields } = args;
+    const setup = cleanSetup(fields);
+    await ctx.db.patch(projectId, setup);
+    await ctx.db.insert("auditLogs", {
+      projectId,
+      eventType: "project_updated",
+      title: `Project settings updated: ${setup.title}`,
+      description: setupSummary(setup),
+      ...auditActor(access),
+      timestamp: Date.now(),
+    });
+    return null;
+  },
+});
+
+/** Hides the project from lists and makes it read-only; nothing is deleted. */
+export const archiveProject = mutation({
+  args: { projectId: v.string() },
+  handler: async (ctx, args) => {
+    const access = await requireProjectScope(ctx, args.projectId, { roles: ["gc"], write: true });
+    if (access.project.isDemoProject) {
+      throw new ConvexError({ code: "INVALID", message: "The Demo company's walkthrough project can't be archived." });
+    }
+    await ctx.db.patch(access.project._id, { archived: true, status: "archived" });
+    await ctx.db.insert("auditLogs", {
+      projectId: access.project._id,
+      eventType: "project_archived",
+      title: `Project archived: ${access.project.title}`,
+      description: "Hidden from project lists and read-only until restored.",
+      ...auditActor(access),
+      timestamp: Date.now(),
+    });
+    return null;
+  },
+});
+
+export const restoreProject = mutation({
+  args: { projectId: v.string() },
+  handler: async (ctx, args) => {
+    const access = await requireProjectScope(ctx, args.projectId, { roles: ["gc"] });
+    if (access.user.emailVerificationTime === undefined) {
+      throw new ConvexError({ code: "EMAIL_UNVERIFIED", message: "Verify your email first." });
+    }
+    if (access.project.archived !== true) return null;
+    await ctx.db.patch(access.project._id, { archived: false, status: "active" });
+    await ctx.db.insert("auditLogs", {
+      projectId: access.project._id,
+      eventType: "project_restored",
+      title: `Project restored: ${access.project.title}`,
+      description: "Back in project lists and editable.",
+      ...auditActor(access),
+      timestamp: Date.now(),
+    });
+    return null;
   },
 });
 

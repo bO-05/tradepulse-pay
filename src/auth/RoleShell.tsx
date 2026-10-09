@@ -1,4 +1,4 @@
-import { lazy, Suspense, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, type ReactNode } from "react";
 import { AgreementLedgerView } from "../payments/AgreementLedgerView";
 import { AgreementSummaryView } from "../payments/AgreementSummaryView";
 import { ApprovalInbox } from "../payments/inbox/ApprovalInbox";
@@ -12,6 +12,10 @@ import { QueryBoundary } from "../lib/QueryBoundary";
 import { NotFoundHomeContext, NotFoundState } from "../ui/NotFoundState";
 import { PeoplePage } from "../people/PeoplePage";
 import { MyProjectsPage } from "../projects/MyProjectsPage";
+import { NewProjectWizard } from "../projects/gc/NewProjectWizard";
+import { ProjectPage } from "../projects/gc/ProjectPage";
+import { ProjectSettingsPage } from "../projects/gc/ProjectSettingsPage";
+import { ProjectsListPage } from "../projects/gc/ProjectsListPage";
 import { ActiveCompanyContext } from "./companyContext";
 import { ConnectionBanner } from "./ConnectionBanner";
 import { COMPANY_HASH, DEMO_ONLY_AREAS, navFor, resolveRoute, type Role } from "./navigation";
@@ -39,6 +43,19 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
   const route = resolveRoute(me.role, hash, isDemo, window.location.search);
   const nav = navFor(me.role, isDemo);
   const homeHash = nav[0].hash;
+  const leftProcurement = route.area !== "procurement" && hash !== "" && hash !== "#" && hash !== "#/";
+
+  // `?project=&tab=` belong to the procurement workspace. Once the user moves to another area they would
+  // otherwise linger and reopen a stale (for example archived) project the next time Procurement opens.
+  useEffect(() => {
+    if (!leftProcurement) return;
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has("project") && !params.has("tab")) return;
+    params.delete("project");
+    params.delete("tab");
+    const query = params.toString();
+    window.history.replaceState(window.history.state, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);
+  }, [leftProcurement, hash]);
 
   let content: ReactNode;
   if (route.area === "procurement") content = procurementApp;
@@ -51,6 +68,12 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
   else if (route.area === "people") content = <PeoplePage projectId={route.projectId} />;
   else if (route.area === "my-projects") content = <MyProjectsPage projectId={route.projectId} />;
   else if (route.area === "company") content = <CompanySettingsPage />;
+  else if (route.area === "gc-projects") {
+    if (route.view === "new") content = <NewProjectWizard />;
+    else if (route.projectId && route.view === "settings") content = <ProjectSettingsPage projectId={route.projectId} />;
+    else if (route.projectId) content = <ProjectPage projectId={route.projectId} />;
+    else content = <ProjectsListPage />;
+  }
   else if (route.area === "dashboard")
     content = (
       <Suspense fallback={<p className="text-sm text-slate-400">Loading dashboard…</p>}>
