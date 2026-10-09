@@ -6,6 +6,7 @@ import { auditActor, requireDocScope } from "./lib/projectScope";
 import { draftFromTerms, firstTermsError, stateName, termsFromDraft, validateAgreementTerms } from "./lib/agreementTerms";
 import {
   currentDraftTerms,
+  isGoverningStateExplicit,
   legacyTermFields,
   projectPlace,
   refreshAgreementDocument,
@@ -61,7 +62,7 @@ export const updateAgreementTerms = mutation({
     const previous = currentDraftTerms(agreement, access.project).governingState;
     const governingStateExplicit =
       terms.governingState === previous
-        ? agreement.governingStateExplicit === true
+        ? isGoverningStateExplicit(agreement, access.project)
         : terms.governingState !== projectPlace(access.project).state;
     await ctx.db.patch(agreement._id, { governingStateExplicit });
     await refreshAgreementDocument(ctx, agreement._id, terms);
@@ -105,6 +106,27 @@ export const backfillAgreementTerms = internalMutation({
         const terms = resolveAgreementTerms(agreement, project);
         await ctx.db.patch(agreement._id, { terms, ...legacyTermFields(terms) });
       }
+      updated += 1;
+    }
+    return { updated, isDone: page.isDone, continueCursor: page.continueCursor };
+  },
+});
+
+/**
+ * Idempotent backfill: records governing-law provenance on open drafts saved before the flag existed
+ * (explicit when the stored state differs from the project's current state).
+ */
+export const backfillGoverningStateExplicit = internalMutation({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    const page = await ctx.db.query("agreements").paginate(args.paginationOpts);
+    let updated = 0;
+    for (const agreement of page.page) {
+      if (agreement.governingStateExplicit !== undefined) continue;
+      if (agreement.status === "executed" || agreement.status === "superseded") continue;
+      const project = await ctx.db.get(agreement.projectId);
+      if (!project) continue;
+      await ctx.db.patch(agreement._id, { governingStateExplicit: isGoverningStateExplicit(agreement, project) });
       updated += 1;
     }
     return { updated, isDone: page.isDone, continueCursor: page.continueCursor };

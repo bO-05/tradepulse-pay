@@ -9,7 +9,7 @@ import { backfillVendorsForCompany } from "./lib/vendorDirectory";
 import { applyDemoLicenseNumbers } from "./kernel/demoLicenses";
 import { remapAgentLinks, snapshotActiveAgentLinks } from "./lib/agentLinkRemap";
 import { v, ConvexError } from "convex/values";
-import { refreshAgreementDocument } from "./lib/agreementDocument";
+import { classifyUnflaggedDrafts, refreshAgreementDocument } from "./lib/agreementDocument";
 import { getRealDocumentPdfBytes } from "./realDocuments";
 import { deleteAgreementCascade, deleteContractorCascade } from "./payments/cascade";
 
@@ -198,6 +198,8 @@ export const updateProject = mutation({
     const projectId = access.project._id;
     const { projectId: _ignored, ...fields } = args;
     const setup = cleanSetup(fields);
+    // Provenance must be inferred against the state the drafts were saved under, before it changes.
+    await classifyUnflaggedDrafts(ctx, access.project);
     await ctx.db.patch(projectId, setup);
     await ctx.db.insert("auditLogs", {
       projectId,

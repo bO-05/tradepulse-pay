@@ -369,6 +369,76 @@ describe("execution revalidates against the current project", () => {
   });
 });
 
+describe("drafts saved before governing-law provenance was recorded", () => {
+  async function legacyDraft(t: ReturnType<typeof convexTest>, agreementId: Id<"agreements">, governingState: string) {
+    await t.run(async (ctx) => {
+      const a = (await ctx.db.get(agreementId))!;
+      await ctx.db.patch(agreementId, { terms: { ...a.terms!, governingState }, governingStateExplicit: undefined });
+    });
+    expect((await load(t, agreementId)).governingStateExplicit).toBeUndefined();
+  }
+
+  test("an AZ draft saved with Nevada law and no flag keeps Nevada through display and execution", async () => {
+    const t = convexTest(schema, modules);
+    const f = await buildTenancyFixture(t);
+    const { agreementId } = await awardedAgreement(t, f.gcA.admin, { ...AZ_PROJECT, retainageBps: 500 });
+    await legacyDraft(t, agreementId, "NV");
+
+    const view = await f.gcA.admin.as.query(api.agreementTerms.getAgreementTerms, { agreementId });
+    expect(view.terms.governingState).toBe("NV");
+    await f.gcA.admin.as.mutation(api.agreements.executeAgreement, { agreementId });
+    const a = await load(t, agreementId);
+    expect(a.status).toBe("executed");
+    expect(a.terms!.governingState).toBe("NV");
+    expect(a.contractText).toContain("governed by the law of the State of Nevada");
+    expect(a.contractText).not.toContain("governed by the law of the State of Arizona");
+  });
+
+  test("a legacy Nevada choice survives a project correction to CA; a legacy default follows the correction", async () => {
+    const t = convexTest(schema, modules);
+    const f = await buildTenancyFixture(t);
+    const nv = await awardedAgreement(t, f.gcA.admin, { ...AZ_PROJECT, retainageBps: 500 });
+    await legacyDraft(t, nv.agreementId, "NV");
+    const def = await awardedAgreement(t, f.gcA.admin, { ...AZ_PROJECT, retainageBps: 500 }, { bidder: "Valley Electric" });
+    await legacyDraft(t, def.agreementId, "AZ");
+
+    await f.gcA.admin.as.mutation(api.projects.updateProject, { projectId: nv.projectId, ...projectSetupArgs({ ...CA_PROJECT, title: AZ_PROJECT.title }) });
+    await f.gcA.admin.as.mutation(api.projects.updateProject, { projectId: def.projectId, ...projectSetupArgs({ ...CA_PROJECT, title: AZ_PROJECT.title }) });
+
+    expect((await f.gcA.admin.as.query(api.agreementTerms.getAgreementTerms, { agreementId: nv.agreementId })).terms.governingState).toBe("NV");
+    expect((await f.gcA.admin.as.query(api.agreementTerms.getAgreementTerms, { agreementId: def.agreementId })).terms.governingState).toBe("CA");
+    await f.gcA.admin.as.mutation(api.agreements.executeAgreement, { agreementId: nv.agreementId });
+    const a = await load(t, nv.agreementId);
+    expect(a.terms!.governingState).toBe("NV");
+    expect(a.contractText).toContain("governed by the law of the State of Nevada");
+    expect(a.contractText).toContain("Oakland, Alameda County, California");
+  });
+
+  test("the backfill flags unflagged drafts by comparing with the project state and is idempotent", async () => {
+    const t = convexTest(schema, modules);
+    const f = await buildTenancyFixture(t);
+    const nv = await awardedAgreement(t, f.gcA.admin, AZ_PROJECT);
+    await legacyDraft(t, nv.agreementId, "NV");
+    const def = await awardedAgreement(t, f.gcA.admin, AZ_PROJECT, { bidder: "Valley Electric" });
+    await legacyDraft(t, def.agreementId, "AZ");
+
+    const run = () => t.mutation(internal.agreementTerms.backfillGoverningStateExplicit, { paginationOpts: { numItems: 100, cursor: null } });
+    const first = await run();
+    expect(first.updated).toBeGreaterThanOrEqual(2);
+    expect((await load(t, nv.agreementId)).governingStateExplicit).toBe(true);
+    expect((await load(t, def.agreementId)).governingStateExplicit).toBe(false);
+    expect((await run()).updated).toBe(0);
+    expect((await load(t, nv.agreementId)).terms!.governingState).toBe("NV");
+  });
+
+  test("a newly generated draft is recorded as following the project state", async () => {
+    const t = convexTest(schema, modules);
+    const f = await buildTenancyFixture(t);
+    const { agreementId } = await awardedAgreement(t, f.gcA.admin, AZ_PROJECT);
+    expect((await load(t, agreementId)).governingStateExplicit).toBe(false);
+  });
+});
+
 describe("backfill", () => {
   test("legacy agreements get terms from their stored fields; executed text is kept", async () => {
     const t = convexTest(schema, modules);

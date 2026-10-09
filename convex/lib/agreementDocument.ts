@@ -87,6 +87,40 @@ export function resolveAgreementTerms(agreement: Doc<"agreements">, project: Doc
   return terms;
 }
 
+function isOpenDraft(agreement: Doc<"agreements">): boolean {
+  return agreement.status !== "executed" && agreement.status !== "superseded";
+}
+
+/**
+ * Drafts saved before the provenance flag existed have no flag. A stored governing state that differs
+ * from the project's current state can only have been chosen by the GC, so it counts as explicit.
+ * New drafts are flagged when first rendered, and project edits classify unflagged drafts before the
+ * state changes, so this inference only ever applies to rows written before the flag existed.
+ */
+export function isGoverningStateExplicit(agreement: Doc<"agreements">, project: Doc<"projects">): boolean {
+  if (agreement.governingStateExplicit !== undefined) return agreement.governingStateExplicit;
+  const stored = agreement.terms?.governingState;
+  return !!stored && stored !== projectPlace(project).state;
+}
+
+/** Records the inferred provenance on unflagged open drafts of a project; returns how many were set. */
+export async function classifyUnflaggedDrafts(
+  ctx: Pick<MutationCtx, "db">,
+  project: Doc<"projects">,
+): Promise<number> {
+  const agreements = await ctx.db
+    .query("agreements")
+    .withIndex("by_project", (q) => q.eq("projectId", project._id))
+    .collect();
+  let classified = 0;
+  for (const agreement of agreements) {
+    if (agreement.governingStateExplicit !== undefined || !isOpenDraft(agreement)) continue;
+    await ctx.db.patch(agreement._id, { governingStateExplicit: isGoverningStateExplicit(agreement, project) });
+    classified += 1;
+  }
+  return classified;
+}
+
 /**
  * A draft's governing state is the project default unless the GC chose another one, so a corrected
  * project state carries into the draft. Executed and superseded agreements keep what they recorded.
@@ -97,7 +131,7 @@ export function reconcileDraftGoverningState(
   terms: AgreementTerms,
 ): AgreementTerms {
   if (agreement.status === "executed" || agreement.status === "superseded") return terms;
-  if (agreement.governingStateExplicit === true) return terms;
+  if (isGoverningStateExplicit(agreement, project)) return terms;
   const state = projectPlace(project).state;
   if (!state || state === terms.governingState) return terms;
   return { ...terms, governingState: state };
@@ -197,6 +231,10 @@ export async function refreshAgreementDocument(
   if (!project) throw new Error("Project not found");
   const resolved = terms ?? currentDraftTerms(agreement, project);
   const contractText = await renderAgreementText(ctx, agreement, project, resolved);
-  await ctx.db.patch(agreementId, { terms: resolved, ...legacyTermFields(resolved), contractText });
+  const flag =
+    agreement.governingStateExplicit === undefined && isOpenDraft(agreement)
+      ? { governingStateExplicit: isGoverningStateExplicit(agreement, project) }
+      : {};
+  await ctx.db.patch(agreementId, { terms: resolved, ...legacyTermFields(resolved), contractText, ...flag });
   return (await ctx.db.get(agreementId))!;
 }
