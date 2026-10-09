@@ -1,6 +1,6 @@
 import { usePaginatedQuery, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { agreementHash } from "../auth/navigation";
+import { agreementHash, sovHash } from "../auth/navigation";
 import { formatCents, formatDate, formatDollars } from "./format";
 import { PayAppForm } from "./PayAppForm";
 import { subPayoutStatusLabel } from "./payoutStatusLabel";
@@ -59,6 +59,9 @@ export function SubPortal() {
                 <th className="py-2 pr-3 font-medium">Project</th>
                 <th className="py-2 pr-3 font-medium text-right">Contract sum</th>
                 <th className="py-2 pr-3 font-medium">Status</th>
+                <th className="py-2 pr-3 font-medium">
+                  <span className="sr-only">Schedule of values</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -73,6 +76,11 @@ export function SubPortal() {
                   <td className="py-2 pr-3">{a.projectTitle}</td>
                   <td className="py-2 pr-3 text-right">{formatDollars(a.contractSum)}</td>
                   <td className="py-2 pr-3">{a.status}</td>
+                  <td className="py-2 pr-3">
+                    <a href={sovHash(a._id)} className="text-emerald-400 hover:text-emerald-300">
+                      Schedule of values
+                    </a>
+                  </td>
                 </tr>
               ))}
             </tbody>

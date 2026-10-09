@@ -5,6 +5,7 @@ import { api, internal } from "../_generated/api";
 import schema from "../schema";
 import { signInAs } from "../lib/testIdentity";
 import { fromDollars } from "../lib/money";
+import { agreementContractSumCents } from "./sov";
 
 const modules = import.meta.glob("/convex/**/*.ts");
 
@@ -218,7 +219,7 @@ describe("SOV regeneration when the award changes", () => {
     expect(rows.sov).toHaveLength(0);
     expect(rows.milestones).toHaveLength(0);
 
-    // Rows left on a not-yet-executed agreement are cleared when it is regenerated.
+    // Regenerating a not-yet-executed agreement replaces its rows with a fresh draft SOV and no milestones.
     await t.run(async (ctx) => {
       await ctx.db.patch(demo.agreement._id, { status: "executed", executedAt: Date.now() });
     });
@@ -232,7 +233,10 @@ describe("SOV regeneration when the award changes", () => {
       tradePackageId: demo.agreement.tradePackageId,
     });
     rows = await rowsFor(t, demo.agreement._id);
-    expect(rows.sov).toHaveLength(0);
+    const regenerated = await t.run(async (ctx) => ctx.db.get(demo.agreement._id));
+    expect(regenerated?.sov?.status).toBe("draft");
+    expect(rows.sov.length).toBeGreaterThan(0);
+    expect(rows.sov.reduce((s, r) => s + r.scheduledValueCents, 0)).toBe(agreementContractSumCents(regenerated!));
     expect(rows.milestones).toHaveLength(0);
   });
 

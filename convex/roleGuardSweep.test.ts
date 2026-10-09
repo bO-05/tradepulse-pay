@@ -473,6 +473,7 @@ describe("static guard sweep over convex/**", () => {
       "payments/changeOrderDb",
       "payments/sandboxTopUp",
       "payApps/submit",
+      "billing/sov",
       "payApps/review",
       "payApps/proposals",
       "payApps/reviewEvals",

@@ -982,6 +982,17 @@ export default defineSchema({
     veDeducts: v.optional(v.array(v.object({ description: v.string(), amountCents: v.number() }))),
     // "Excluded scope (not in contract)": the awarded bid's exclusions, passed to the pay-app review as notes.
     excludedScopeNotes: v.optional(v.array(v.string())),
+    // Schedule-of-values state (§16). Missing means draft. `editedAt` is set once the GC changes the
+    // prefilled lines, after which award changes no longer regenerate them.
+    sov: v.optional(
+      v.object({
+        status: v.union(v.literal("draft"), v.literal("approved")),
+        editedAt: v.optional(v.number()),
+        approvedAt: v.optional(v.number()),
+        approvedByUserId: v.optional(v.id("users")),
+        approvedByName: v.optional(v.string()),
+      }),
+    ),
     // Mirrors of terms.retainageBps / terms.liquidatedDamagesCentsPerDay for legacy readers.
     retainagePercent: v.number(),
     liquidatedDamagesDaily: v.number(),

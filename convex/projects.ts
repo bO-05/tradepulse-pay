@@ -24,7 +24,7 @@ import { DEFAULT_GENERAL_CONTRACTOR, validateProjectText } from "./validation";
 import { firstProjectSetupError, validateProjectSetup } from "./lib/projectSetup";
 import { formatRetainagePercent } from "./lib/retainageRules";
 import { formatCents } from "./lib/money";
-import { bidRowFromDollars } from "./lib/bidMoney";
+import { seededProposalBidRow } from "./lib/bidMoney";
 
 /** The caller's seeded demo project (or newest accessible project); never another company's. */
 export const getDemoProject = query({
@@ -515,7 +515,7 @@ Furnish and install 1600A main service switchboard, 480/277V step-down distribut
 
     // 5. Seed Bids & Forensic Normalization Records (The "Apples-to-Apples" Leveling Matrix)
     // Bidder 1: Rosendin Electric, Inc. (Higher Base, Fully Compliant, Zero Hidden Exclusions)
-    const b1 = await ctx.db.insert("bids", bidRowFromDollars({
+    const b1 = await ctx.db.insert("bids", seededProposalBidRow({
       tradePackageId: elecPackageId,
       contractorId: c1,
       subcontractorName: "Rosendin Electric, Inc.",
@@ -549,7 +549,7 @@ Furnish and install 1600A main service switchboard, 480/277V step-down distribut
     }));
 
     // Bidder 2: Alterman, Inc. (Appears $125k cheaper on paper, but hides $185k of exclusions + COI deficiency!)
-    await ctx.db.insert("bids", bidRowFromDollars({
+    await ctx.db.insert("bids", seededProposalBidRow({
       tradePackageId: elecPackageId,
       contractorId: c2,
       subcontractorName: "Alterman, Inc.",
@@ -659,7 +659,7 @@ Furnish and install 1600A main service switchboard, 480/277V step-down distribut
       timestamp: Date.now() - 72000000,
     });
 
-    await ctx.db.insert("bids", bidRowFromDollars({
+    await ctx.db.insert("bids", seededProposalBidRow({
       tradePackageId: hvacPackageId,
       contractorId: h1,
       subcontractorName: "TDIndustries, Inc.",
@@ -684,7 +684,7 @@ Furnish and install 1600A main service switchboard, 480/277V step-down distribut
       receivedAt: Date.now() - 3600000 * 16,
     }));
 
-    await ctx.db.insert("bids", bidRowFromDollars({
+    await ctx.db.insert("bids", seededProposalBidRow({
       tradePackageId: hvacPackageId,
       contractorId: h2,
       subcontractorName: "The Brandt Companies, LLC",
@@ -787,7 +787,7 @@ Furnish and install 1600A main service switchboard, 480/277V step-down distribut
       timestamp: Date.now() - 54000000,
     });
 
-    await ctx.db.insert("bids", bidRowFromDollars({
+    await ctx.db.insert("bids", seededProposalBidRow({
       tradePackageId: plumbingPackageId,
       contractorId: p1,
       subcontractorName: "Clarke Kent Plumbing",
@@ -811,7 +811,7 @@ Furnish and install 1600A main service switchboard, 480/277V step-down distribut
       receivedAt: Date.now() - 3600000 * 14,
     }));
 
-    await ctx.db.insert("bids", bidRowFromDollars({
+    await ctx.db.insert("bids", seededProposalBidRow({
       tradePackageId: plumbingPackageId,
       contractorId: p2,
       subcontractorName: "Limbach Facility Services LLC",

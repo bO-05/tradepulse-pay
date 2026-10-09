@@ -13,6 +13,7 @@ import {
 } from "./lib/demoTenancy";
 import { ensureDemoPayees } from "./lib/demoPayees";
 import { attributeDemoPlugs, DEMO_GC_EMAIL, demoGcPlugActor } from "./lib/demoPlugs";
+import { approveDemoSovs } from "./lib/demoBilling";
 
 /** Shared, publicly documented password for the demo accounts (README "Demo accounts"). */
 export const DEMO_PASSWORD = "TradePulseDemo!2026";
@@ -141,6 +142,7 @@ export async function linkDemoProfiles(ctx: MutationCtx) {
   await ensureDemoPayees(ctx, companyIds, demoGcUser?._id ?? null);
   const plugActor = await demoGcPlugActor(ctx, demoGcUser?._id ?? null);
   if (plugActor) await attributeDemoPlugs(ctx, companyIds.gc, plugActor);
+  await approveDemoSovs(ctx, companyIds.gc, demoGcUser?._id ?? null);
   return results;
 }
 

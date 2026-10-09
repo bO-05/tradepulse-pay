@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, type ReactNode } from "react";
 import { AgreementLedgerView } from "../payments/AgreementLedgerView";
 import { AgreementSummaryView } from "../payments/AgreementSummaryView";
+import { SovPage } from "../billing/SovEditor";
 import { ApprovalInbox } from "../payments/inbox/ApprovalInbox";
 import { PaymentsWorkspace } from "../payments/PaymentsWorkspace";
 import { OwnerPortal } from "../payments/OwnerPortal";
@@ -24,7 +25,7 @@ import { ProjectSettingsPage } from "../projects/gc/ProjectSettingsPage";
 import { ProjectsListPage } from "../projects/gc/ProjectsListPage";
 import { ActiveCompanyContext } from "./companyContext";
 import { ConnectionBanner } from "./ConnectionBanner";
-import { COMPANY_HASH, DEMO_ONLY_AREAS, navFor, resolveRoute, type Role } from "./navigation";
+import { COMPANY_HASH, DEMO_ONLY_AREAS, agreementHash, navFor, resolveRoute, type Role } from "./navigation";
 import { useSignOutAndReset } from "./signOutAndReset";
 import { useHash } from "./useHash";
 
@@ -94,6 +95,8 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
   else if (route.area === "ledger") {
     const backHash = nav.find((item) => item.area === "payments")?.hash ?? homeHash;
     content = <AgreementLedgerView agreementId={route.agreementId ?? ""} backHash={backHash} />;
+  } else if (route.view === "sov") {
+    content = <SovPage agreementId={route.agreementId ?? ""} backHash={agreementHash(route.agreementId ?? "")} />;
   } else content = <AgreementSummaryView agreementId={route.agreementId ?? ""} backHash={homeHash} />;
 
   const isLegacyFullPage = route.area === "procurement";

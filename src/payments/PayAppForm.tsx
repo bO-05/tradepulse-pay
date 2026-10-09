@@ -20,7 +20,7 @@ function parsePercent(text: string): number {
 
 /** Sub portal form: per-SOV-line percentages and requested amounts, validated with the backend's rules. */
 export function PayAppForm({ agreements }: { agreements: AgreementOption[] }) {
-  const executed = agreements.filter((a) => a.status === "executed");
+  const executed = agreements.filter((a) => a.status !== "superseded");
   const [agreementId, setAgreementId] = useState(executed[0]?._id ?? "");
   const context = useQuery(api.payApps.submit.payAppFormContext, agreementId ? { agreementId } : "skip");
   const submit = useMutation(api.payApps.submit.submitPayApplication);
@@ -39,6 +39,8 @@ export function PayAppForm({ agreements }: { agreements: AgreementOption[] }) {
   if (executed.length === 0) {
     return <p className="text-sm text-slate-400">Pay applications open once the GC executes one of your agreements.</p>;
   }
+
+  const blockedReason = context?.blockedReason ?? null;
 
   const sovLines = context?.sovLines ?? [];
   const draftFor = (id: string) => lines[id] ?? EMPTY_LINE;
@@ -151,6 +153,20 @@ export function PayAppForm({ agreements }: { agreements: AgreementOption[] }) {
 
       {context === undefined ? (
         <p className="text-sm text-slate-400" role="status">Loading schedule of values…</p>
+      ) : blockedReason !== null ? (
+        <div className="flex flex-wrap items-center gap-3" data-testid="payapp-blocked">
+          <button
+            type="button"
+            disabled
+            aria-describedby="payapp-blocked-reason"
+            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            New pay app
+          </button>
+          <p id="payapp-blocked-reason" role="status" className="text-sm text-amber-200">
+            {blockedReason}
+          </p>
+        </div>
       ) : context === null || sovLines.length === 0 ? (
         <p className="text-sm text-slate-400">This agreement has no schedule of values yet.</p>
       ) : (
@@ -255,7 +271,7 @@ export function PayAppForm({ agreements }: { agreements: AgreementOption[] }) {
 
       <button
         type="submit"
-        disabled={busy || !context || sovLines.length === 0}
+        disabled={busy || !context || blockedReason !== null || sovLines.length === 0}
         className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold hover:bg-emerald-500 disabled:opacity-50"
       >
         {busy ? "Submitting…" : "Submit pay application"}

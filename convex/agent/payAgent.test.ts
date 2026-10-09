@@ -90,6 +90,7 @@ async function setup(opts: { license?: "active" | "expired" | null; funded?: boo
       .first())!;
   });
   await gc.as.mutation(api.agreements.executeAgreement, { agreementId: agreement._id });
+  await gc.as.mutation(api.billing.sov.approveSov, { agreementId: agreement._id });
   const { sov, milestones } = await t.run(async (ctx) => {
     const milestones = await ctx.db
       .query("milestones")

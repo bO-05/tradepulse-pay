@@ -32,7 +32,7 @@ export type Route = {
   projectId?: string;
   vendorId?: string;
   tradePackageId?: string;
-  view?: "new" | "settings";
+  view?: "new" | "settings" | "sov";
 };
 
 /** Areas that exist only for Demo companies; everyone else gets "Not found" on the direct route. */
@@ -107,6 +107,10 @@ export function agreementHash(agreementId: string): string {
   return `#/agreements/${encodeURIComponent(agreementId)}`;
 }
 
+export function sovHash(agreementId: string): string {
+  return `${agreementHash(agreementId)}/sov`;
+}
+
 export function ledgerHash(agreementId: string): string {
   return `#/payments/${encodeURIComponent(agreementId)}`;
 }
@@ -147,8 +151,11 @@ export function parseHash(hash: string): Route | null {
   }
   const projectMatch = path.match(/^\/(people|my-projects)\/([^/?#]+)$/);
   if (projectMatch) return { area: projectMatch[1] as "people" | "my-projects", projectId: decodeURIComponent(projectMatch[2]) };
-  const agreementMatch = path.match(/^\/agreements\/([^/?#]+)$/);
-  if (agreementMatch) return { area: "agreement", agreementId: decodeURIComponent(agreementMatch[1]) };
+  const agreementMatch = path.match(/^\/agreements\/([^/?#]+)(\/sov)?$/);
+  if (agreementMatch) {
+    const agreementId = decodeURIComponent(agreementMatch[1]);
+    return agreementMatch[2] ? { area: "agreement", agreementId, view: "sov" } : { area: "agreement", agreementId };
+  }
   const ledgerMatch = path.match(/^\/payments\/([^/?#]+)$/);
   if (ledgerMatch) return { area: "ledger", agreementId: decodeURIComponent(ledgerMatch[1]) };
   for (const [area, h] of Object.entries(AREA_HASH)) {

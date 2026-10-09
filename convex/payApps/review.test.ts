@@ -45,6 +45,7 @@ async function setup() {
       .first())!;
   });
   await gc.as.mutation(api.agreements.executeAgreement, { agreementId: agreement._id });
+  await gc.as.mutation(api.billing.sov.approveSov, { agreementId: agreement._id });
   // Mobilization complete and Rough-in under way: base lines are supported up to 30%.
   const { sov, excludedLineId } = await t.run(async (ctx) => {
     const milestones = await ctx.db

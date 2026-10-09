@@ -1,7 +1,7 @@
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { NotFoundState } from "../ui/NotFoundState";
-import { ledgerHash } from "../auth/navigation";
+import { ledgerHash, sovHash } from "../auth/navigation";
 import { formatDate } from "./format";
 import { formatCents } from "../ui/format";
 import { MilestoneFundingTable } from "./MilestoneFundingSummary";
@@ -92,6 +92,9 @@ export function AgreementSummaryView({ agreementId, backHash }: { agreementId: s
         </section>
       ) : null}
       <div className="flex gap-4">
+        <a href={sovHash(agreement._id)} className="inline-block text-sm text-emerald-400 hover:text-emerald-300">
+          Schedule of values
+        </a>
         <a href={ledgerHash(agreement._id)} className="inline-block text-sm text-emerald-400 hover:text-emerald-300">
           Open payment ledger
         </a>

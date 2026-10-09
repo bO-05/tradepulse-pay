@@ -10,7 +10,9 @@ import {
   X,
   Search,
   Award,
+  ListOrdered,
 } from "lucide-react";
+import { sovHash } from "../auth/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api.js";
 import { Project, Agreement } from "../types.ts";
@@ -309,6 +311,14 @@ const handlePrint = (agr: Agreement) => {
                         <FileText className="w-3.5 h-3.5 text-emerald-400" />
                         Inspect Draft
                       </button>
+
+                      <a
+                        href={sovHash(agr._id)}
+                        className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-slate-700 inline-flex items-center gap-1 transition"
+                      >
+                        <ListOrdered className="w-3.5 h-3.5 text-emerald-400" />
+                        Schedule of values
+                      </a>
 
                       {agr.status === "generated" && (
                         <button

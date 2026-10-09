@@ -66,21 +66,40 @@ async function auditKeptRows(ctx: MutationCtx, agreement: Doc<"agreements">, why
   });
 }
 
+export function sovIsApproved(agreement: Pick<Doc<"agreements">, "sov">): boolean {
+  return agreement.sov?.status === "approved";
+}
+
+export const LEGACY_SOV_APPROVER = "Approved before SOV approval existed (billing had already started)";
+
 /**
- * Creates the schedule of values and the four default milestones for an
- * executed agreement. Re-executing with the same award inputs keeps the same
- * rows. If the award inputs changed (same total but a different bid, scope or
- * lead time), the rows are regenerated unless money has already moved against
- * them, in which case they are kept and an audit warning is written.
+ * SOV state for an agreement that has none yet. Agreements billed before SOV approval existed keep
+ * billing (their lines are already referenced by pay apps); everything else starts as a draft.
+ */
+export async function initialSovState(ctx: MutationCtx, agreementId: Id<"agreements">): Promise<NonNullable<Doc<"agreements">["sov"]>> {
+  if (await hasMoneyActivity(ctx, agreementId)) {
+    return { status: "approved", approvedAt: Date.now(), approvedByName: LEGACY_SOV_APPROVER };
+  }
+  return { status: "draft" };
+}
+
+/**
+ * Creates the draft schedule of values prefilled from the award (generated or executed
+ * agreements) and, once executed, the default milestones. Re-running with the same award inputs
+ * keeps the same rows. If the award inputs changed, untouched draft lines are regenerated unless
+ * money has already moved against them (then they are kept and an audit warning is written).
+ * Lines the GC edited or approved are never regenerated here.
  */
 export async function ensureSovAndMilestones(
   ctx: MutationCtx,
   agreementId: Id<"agreements">,
 ): Promise<{ sovCreated: number; milestonesCreated: number }> {
   const agreement = await ctx.db.get(agreementId);
-  if (agreement === null || agreement.status !== "executed") {
+  if (agreement === null || (agreement.status !== "executed" && agreement.status !== "generated")) {
     return { sovCreated: 0, milestonesCreated: 0 };
   }
+  const executed = agreement.status === "executed";
+  const gcOwnsLines = sovIsApproved(agreement) || agreement.sov?.editedAt !== undefined;
   const contractSumCents = agreementContractSumCents(agreement);
   const bid = await ctx.db.get(agreement.bidId);
   const lineItems = bid?.lineItems ?? [];
@@ -95,8 +114,8 @@ export async function ensureSovAndMilestones(
   });
 
   let rows = await loadRows(ctx, agreementId);
-  const sovStale = rows.sovRows.some((r) => r.sourceFingerprint !== fingerprint);
-  const orphanMilestones = rows.sovRows.length === 0 && rows.milestoneRows.length > 0;
+  const sovStale = !gcOwnsLines && rows.sovRows.some((r) => r.sourceFingerprint !== fingerprint);
+  const orphanMilestones = !gcOwnsLines && rows.sovRows.length === 0 && rows.milestoneRows.length > 0;
   if (sovStale || orphanMilestones) {
     if (await hasMoneyActivity(ctx, agreementId)) {
       if (sovStale) {
@@ -114,7 +133,7 @@ export async function ensureSovAndMilestones(
 
   let sovRows = rows.sovRows;
   let sovCreated = 0;
-  if (sovRows.length === 0) {
+  if (sovRows.length === 0 && agreement.sov?.editedAt === undefined) {
     const drafts = buildSovLines({
       contractSumCents,
       lineItems,
@@ -128,9 +147,10 @@ export async function ensureSovAndMilestones(
     sovCreated = drafts.length;
     sovRows = (await loadRows(ctx, agreementId)).sovRows;
   }
+  if (agreement.sov === undefined) await ctx.db.patch(agreementId, { sov: await initialSovState(ctx, agreementId) });
 
   let milestonesCreated = 0;
-  if (rows.milestoneRows.length === 0) {
+  if (executed && rows.milestoneRows.length === 0) {
     const project = await ctx.db.get(agreement.projectId);
     const dates = planMilestoneDates({
       projectStartMs: project?.createdAt ?? agreement.createdAt,

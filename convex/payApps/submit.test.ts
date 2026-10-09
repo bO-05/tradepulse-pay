@@ -38,6 +38,7 @@ async function setup() {
     return { agreement, otherContractorId: other._id };
   });
   await gc.as.mutation(api.agreements.executeAgreement, { agreementId: agreement._id });
+  await gc.as.mutation(api.billing.sov.approveSov, { agreementId: agreement._id });
   const sov = await t.run(async (ctx) =>
     ctx.db
       .query("scheduleOfValues")

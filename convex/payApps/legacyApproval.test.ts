@@ -33,6 +33,7 @@ async function setup() {
       .first())!;
   });
   await gc.as.mutation(api.agreements.executeAgreement, { agreementId: agreement._id });
+  await gc.as.mutation(api.billing.sov.approveSov, { agreementId: agreement._id });
   const line = await t.run(async (ctx) => {
     const first = (await ctx.db
       .query("scheduleOfValues")

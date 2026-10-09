@@ -79,7 +79,7 @@ async function insertCompany(ctx: MutationCtx, name: string, kind: Role): Promis
 export async function insertProjectFor(
   ctx: MutationCtx,
   gcCompanyId: Id<"companies">,
-  opts: { title: string; subCompanyId?: Id<"companies">; bidderName?: string },
+  opts: { title: string; subCompanyId?: Id<"companies">; bidderName?: string; sovStatus?: "draft" | "approved" },
 ): Promise<FixtureProject> {
   const now = Date.now();
   const projectId = await ctx.db.insert("projects", {
@@ -151,6 +151,7 @@ export async function insertProjectFor(
     mandatoryInclusions: [],
     status: "executed",
     contractText: "Fixture.",
+    sov: { status: opts.sovStatus ?? "approved" },
     executedAt: now,
     createdAt: now,
   });

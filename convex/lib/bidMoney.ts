@@ -156,3 +156,16 @@ export function bidRowFromDollars<T extends DollarBidSpec>(spec: T) {
     spec;
   return { ...rest, ...centsFieldsFromDollarSpec(spec) };
 }
+
+/**
+ * A seeded proposal (Demo seed, demo scenarios): its exclusion rows are the bidder's own, so they
+ * carry `source: "bidder"` and are listed in `exclusions`, exactly as a portal or parsed bid stores them.
+ */
+export function seededProposalBidRow<T extends DollarBidSpec>(spec: T) {
+  const row = bidRowFromDollars(spec);
+  return {
+    ...row,
+    identifiedExclusions: row.identifiedExclusions.map((e) => ({ ...e, source: "bidder" as const })),
+    exclusions: row.identifiedExclusions.map((e) => e.description.trim()),
+  };
+}

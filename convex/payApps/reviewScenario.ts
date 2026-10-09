@@ -18,8 +18,9 @@ import { internalMutation, internalQuery } from "../_generated/server";
 import { findDemoContractorId } from "../demoAccounts";
 import { attachProjectToDemo } from "../lib/demoTenancy";
 import { ensureSovAndMilestones } from "../payments/sov";
+import { DEMO_SOV_APPROVER } from "../lib/demoBilling";
 import { RETAINAGE_PERCENT } from "../terms";
-import { bidRowFromDollars } from "../lib/bidMoney";
+import { seededProposalBidRow } from "../lib/bidMoney";
 import { fromDollars } from "../lib/money";
 
 export const REVIEW_SCENARIO_AGREEMENT_NUMBER = "A401-DEMO-PAYREVIEW-01";
@@ -89,7 +90,7 @@ export const seedReviewScenario = internalMutation({
       bidDeadline: "2026-09-30",
       status: "awarded",
     });
-    const bidId = await ctx.db.insert("bids", bidRowFromDollars({
+    const bidId = await ctx.db.insert("bids", seededProposalBidRow({
       tradePackageId,
       contractorId,
       subcontractorName: contractorName,
@@ -131,6 +132,7 @@ export const seedReviewScenario = internalMutation({
       mandatoryInclusions: ["Temporary power", "Testing and commissioning"],
       status: "executed",
       contractText: "Demo subcontract for the AI pay-app review scenario. Not a real contract.",
+      sov: { status: "approved", approvedAt: now, approvedByName: DEMO_SOV_APPROVER },
       executedAt: now,
       createdAt: now,
     });

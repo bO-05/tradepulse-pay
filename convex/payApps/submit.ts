@@ -13,6 +13,14 @@ import {
   type SovLineContext,
 } from "./validation";
 import { billingPayAppHistory } from "./billingHistory";
+import { sovIsApproved } from "../payments/sov";
+import { SOV_NOT_APPROVED_MESSAGE } from "../lib/sovRules";
+
+function assertSovApproved(agreement: Doc<"agreements">): void {
+  if (!sovIsApproved(agreement)) {
+    throw new ConvexError({ code: "SOV_NOT_APPROVED", message: SOV_NOT_APPROVED_MESSAGE });
+  }
+}
 
 async function sovContext(ctx: QueryCtx, agreementId: Id<"agreements">) {
   const sov = await ctx.db
@@ -57,11 +65,18 @@ export const payAppFormContext = query({
     const scope = await findSubcontractDocScope(ctx, "agreements", args.agreementId, { roles: ["sub"] });
     if (scope === null) return null;
     const agreement = scope.doc;
+    const sovApproved = sovIsApproved(agreement);
     return {
       agreementId: agreement._id,
       agreementNumber: agreement.agreementNumber,
       status: agreement.status,
-      sovLines: agreement.status === "executed" ? await sovContext(ctx, agreement._id) : [],
+      sovApproved,
+      blockedReason: !sovApproved
+        ? SOV_NOT_APPROVED_MESSAGE
+        : agreement.status !== "executed"
+          ? "Pay applications open once the GC records execution of this agreement."
+          : null,
+      sovLines: agreement.status === "executed" && sovApproved ? await sovContext(ctx, agreement._id) : [],
     };
   },
 });
@@ -87,6 +102,7 @@ export const submitPayApplication = mutation({
     const scope = await requireDocScope(ctx, "agreements", args.agreementId, { roles: ["sub"], write: true });
     const agreement = scope.doc;
     const viewer = scope.viewer;
+    assertSovApproved(agreement);
     if (agreement.status !== "executed") {
       throw new ConvexError({
         code: "INVALID_STATE",
@@ -128,6 +144,7 @@ export async function recordPayApplication(
     auditNote?: string;
   },
 ): Promise<Id<"payApplications">> {
+  assertSovApproved(agreement);
   const sov = await sovContext(ctx, agreement._id);
   const sovForValidation: SovLineContext[] = sov.map((s) => ({ ...s, _id: s._id as string }));
   const result = validatePayApp(args, sovForValidation);

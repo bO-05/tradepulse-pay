@@ -1,4 +1,6 @@
-import { mutation, query } from "./_generated/server";
+import { mutation, query, type MutationCtx } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
+import { SOV_MAX_ROWS, sumSovCents } from "./lib/sovRules";
 import { auditActor, partyMaySeeContractor, requireDocOfProject, requireDocScope, requireProjectScope } from "./lib/projectScope";
 import { v, ConvexError } from "convex/values";
 import { validateProjectText } from "./validation";
@@ -13,7 +15,7 @@ import {
 import { draftFromTerms, firstTermsError, validateAgreementTerms } from "./lib/agreementTerms";
 import { formatCents } from "./lib/money";
 import { acceptedIndexesFor, agreementAwardFields, computeAwardSum, excludedScopeNotesFor } from "./lib/awardMath";
-import { ensureSovAndMilestones, removeSovAndMilestonesIfUnbilled } from "./payments/sov";
+import { agreementContractSumCents, ensureSovAndMilestones, hasMoneyActivity, removeSovAndMilestonesIfUnbilled } from "./payments/sov";
 import { contractorCanBidOnPackage } from "./lib/packageContractors";
 
 /**
@@ -106,6 +108,9 @@ export const generateAgreement = mutation({
       });
       await refreshAgreementDocument(ctx, existing._id);
       await removeSovAndMilestonesIfUnbilled(ctx, existing._id);
+      // A re-award starts a fresh draft SOV prefilled from the newly selected bid.
+      if (!(await hasMoneyActivity(ctx, existing._id))) await ctx.db.patch(existing._id, { sov: { status: "draft" } });
+      await ensureSovAndMilestones(ctx, existing._id);
 
       await ctx.db.insert("auditLogs", {
         projectId: project._id,
@@ -146,6 +151,7 @@ export const generateAgreement = mutation({
       createdAt: Date.now(),
     });
     await refreshAgreementDocument(ctx, agreementId, terms);
+    await ensureSovAndMilestones(ctx, agreementId);
 
     // Un-award any other bids in this package
     const packageBids = await ctx.db
@@ -492,6 +498,35 @@ export async function syncAgreementForBid(ctx: any, bidId: any): Promise<any> {
     mandatoryInclusions: tradePkg.mandatoryInclusions,
   });
   await refreshAgreementDocument(ctx, existingAgreement._id);
+  await reopenSovIfSumChanged(ctx, existingAgreement._id);
+  await ensureSovAndMilestones(ctx, existingAgreement._id);
 
   return await ctx.db.get(existingAgreement._id);
+}
+
+/**
+ * An approved SOV on a not-yet-executed agreement goes back to draft when a leveling change moves
+ * the contract sum away from its total, so it is never left approved with a mismatch.
+ */
+async function reopenSovIfSumChanged(ctx: MutationCtx, agreementId: Id<"agreements">): Promise<void> {
+  const agreement = await ctx.db.get(agreementId);
+  if (agreement === null || agreement.sov?.status !== "approved" || agreement.status === "executed") return;
+  const rows = await ctx.db
+    .query("scheduleOfValues")
+    .withIndex("by_agreementId_and_lineNo", (q) => q.eq("agreementId", agreementId))
+    .take(SOV_MAX_ROWS + 50);
+  if (sumSovCents(rows) === agreementContractSumCents(agreement)) return;
+  await ctx.db.patch(agreementId, {
+    sov: { status: "draft", ...(agreement.sov.editedAt !== undefined ? { editedAt: agreement.sov.editedAt } : {}) },
+  });
+  await ctx.db.insert("auditLogs", {
+    projectId: agreement.projectId,
+    tradePackageId: agreement.tradePackageId,
+    agreementId,
+    eventType: "compliance_audit",
+    title: `Schedule of values reopened: ${agreement.agreementNumber}`,
+    description: `The contract sum changed to ${formatCents(agreementContractSumCents(agreement))} after the schedule of values was approved, so it is back in draft for the GC to reconcile.`,
+    actor: "TradePulse Pay",
+    timestamp: Date.now(),
+  });
 }
