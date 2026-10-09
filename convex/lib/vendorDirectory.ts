@@ -10,6 +10,7 @@ import {
   type VendorField,
   type VendorInput,
 } from "./vendorRules";
+import { isMergedVendor, liveVendor } from "./vendorRead";
 import { searchTextPatch, vendorSearchText } from "./vendorSearch";
 
 /**
@@ -23,10 +24,11 @@ export async function findVendorByEmail(
   companyId: Id<"companies">,
   email: string,
 ): Promise<Doc<"vendors"> | null> {
-  return await ctx.db
+  const rows = await ctx.db
     .query("vendors")
     .withIndex("by_companyId_and_email", (q) => q.eq("companyId", companyId).eq("email", email.trim().toLowerCase()))
-    .first();
+    .take(50);
+  return rows.find((r) => !isMergedVendor(r)) ?? null;
 }
 
 /** The GC company's oldest vendor row linked to this sub company, if any. */
@@ -35,10 +37,11 @@ export async function findVendorByLinkedCompany(
   companyId: Id<"companies">,
   linkedCompanyId: Id<"companies">,
 ): Promise<Doc<"vendors"> | null> {
-  return await ctx.db
+  const rows = await ctx.db
     .query("vendors")
     .withIndex("by_companyId_and_linkedCompanyId", (q) => q.eq("companyId", companyId).eq("linkedCompanyId", linkedCompanyId))
-    .first();
+    .take(50);
+  return rows.find((r) => !isMergedVendor(r)) ?? null;
 }
 
 async function findVendorByName(ctx: QueryCtx, companyId: Id<"companies">, name: string): Promise<Doc<"vendors"> | null> {
@@ -47,7 +50,7 @@ async function findVendorByName(ctx: QueryCtx, companyId: Id<"companies">, name:
     .query("vendors")
     .withIndex("by_companyId", (q) => q.eq("companyId", companyId))
     .take(1000);
-  return rows.find((r) => r.name.trim().toLowerCase() === key) ?? null;
+  return rows.find((r) => !isMergedVendor(r) && r.name.trim().toLowerCase() === key) ?? null;
 }
 
 const UNINFORMATIVE_LICENSE = /^(0|not verified|unknown|n\/a|none|pending)$/i;
@@ -101,7 +104,11 @@ export async function vendorForBidder(
 export async function attachBidderVendor(ctx: MutationCtx, contractorId: Id<"contractors">): Promise<Id<"vendors"> | null> {
   const contractor = await ctx.db.get(contractorId);
   if (contractor === null) return null;
-  if (contractor.vendorId !== undefined) return contractor.vendorId;
+  if (contractor.vendorId !== undefined) {
+    const live = await liveVendor(ctx, contractor.vendorId);
+    if (live !== null && live._id !== contractor.vendorId) await ctx.db.patch(contractorId, { vendorId: live._id });
+    return live?._id ?? contractor.vendorId;
+  }
   const pkg = await ctx.db.get(contractor.tradePackageId);
   const project = pkg === null ? null : await ctx.db.get(pkg.projectId);
   if (pkg === null || project?.gcCompanyId === undefined) return null;

@@ -5,6 +5,7 @@ import { INVALID_EMAIL_MESSAGE, normalizeInviteEmail } from "./lib/inviteRules";
 import { notify } from "./lib/notify";
 import { clearPayeeConfirmations, payeeState } from "./lib/payee";
 import { notFound, requireCompanyMember, requireVerifiedUser } from "./lib/tenancy";
+import { liveVendorByRawId } from "./lib/vendorRead";
 
 /**
  * Payee control and owner billing email (architecture §14). Each company's payment addresses are set
@@ -155,8 +156,7 @@ export const confirmPayee = mutation({
   handler: async (ctx, args) => {
     const caller = await requireVerifiedUser(ctx);
     const { user, company } = await requireCompanyMember(ctx);
-    const id = ctx.db.normalizeId("vendors", args.vendorId);
-    const vendor = id === null ? null : await ctx.db.get(id);
+    const vendor = await liveVendorByRawId(ctx, args.vendorId);
     if (vendor === null || vendor.companyId !== company._id || company.kind !== "gc" || caller.actorType === "agent") throw notFound();
     const sub = vendor.linkedCompanyId ? await ctx.db.get(vendor.linkedCompanyId) : null;
     const current = sub?.payoutPaypalEmail ?? null;

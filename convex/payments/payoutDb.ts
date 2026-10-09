@@ -2,6 +2,7 @@ import { ConvexError, v, type Infer } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
 import { toDollarString } from "../lib/money";
+import { payoutBlockedMessage, stalePayeeReason } from "../lib/payee";
 import { syncProposalForPayment } from "../payApps/proposalSync";
 import { isCaptureCollected } from "./captureSettlement";
 import { moveMilestone } from "./releaseDb";
@@ -68,8 +69,24 @@ export const beginPayout = internalMutation({
     }
     const agreement = await ctx.db.get(p.agreementId);
     if (agreement === null) throw new ConvexError({ code: "NOT_FOUND", message: "Agreement not found." });
-    const milestone = p.milestoneId ? await ctx.db.get(p.milestoneId) : null;
     const isRetainage = p.kind === "retainage_release";
+    // A row whose POST may already have reached PayPal is re-sent unchanged so the duplicate
+    // sender_batch_id resolves to the existing batch; anything else must still pay the confirmed payee.
+    if (p.payoutSubmittedAt === undefined) {
+      const stale = await stalePayeeReason(ctx, agreement.contractorId, p.receiverEmail);
+      if (stale !== null) {
+        const effect = isRetainage
+          ? "No retainage was released; it stays on hold and can be released again once the payee is confirmed."
+          : "The sub was not paid; the captured amount stays in the platform account. Confirm the payee, then retry the payout.";
+        const error = payoutBlockedMessage(agreement.subcontractorName, stale, effect);
+        assertPaymentTransition(p.kind, "created", "failed");
+        await ctx.db.patch(p._id, { status: "failed", error, updatedAt: Date.now() });
+        await syncProposalForPayment(ctx, p._id);
+        return { state: "closed", status: "failed", error };
+      }
+    }
+    await ctx.db.patch(p._id, { payoutSubmittedAt: Date.now() });
+    const milestone = p.milestoneId ? await ctx.db.get(p.milestoneId) : null;
     const note = isRetainage
       ? `${agreement.agreementNumber} · retainage release at closeout`
       : `${agreement.agreementNumber}${milestone ? ` · ${milestone.name}` : ""} · progress payment net of retainage`;
@@ -159,7 +176,7 @@ export const recordPayoutDeferred = internalMutation({
   handler: async (ctx, { paymentId, note }) => {
     const p = await ctx.db.get(paymentId);
     if (p === null || p.status !== "created" || p.paypalPayoutBatchId) return null;
-    await ctx.db.patch(p._id, { error: note, updatedAt: Date.now() });
+    await ctx.db.patch(p._id, { error: note, payoutSubmittedAt: undefined, updatedAt: Date.now() });
     return null;
   },
 });

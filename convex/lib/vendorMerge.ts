@@ -28,14 +28,6 @@ export function addMergeCounts(into: VendorMergeCounts, from: VendorMergeCounts)
   into.notificationsRepointed += from.notificationsRepointed;
 }
 
-/** Same sub when both rows share a real (non-placeholder) email or a linked company, and no linked companies conflict. */
-export function isSameVendor(a: Doc<"vendors">, b: Doc<"vendors">): boolean {
-  if (a.companyId !== b.companyId) return false;
-  if (a.linkedCompanyId !== undefined && b.linkedCompanyId !== undefined) return a.linkedCompanyId === b.linkedCompanyId;
-  const email = a.email.trim().toLowerCase();
-  return email !== "" && !isPlaceholderEmail(email) && email === b.email.trim().toLowerCase();
-}
-
 type Confirmation = NonNullable<Doc<"vendors">["payoutEmailConfirmed"]>;
 
 /** Prefers the confirmation matching the linked company's current payout email, then the newest. */
@@ -47,8 +39,9 @@ function pickConfirmation(rows: Doc<"vendors">[], currentPayoutEmail: string | n
 }
 
 /**
- * Folds `dup` into `keep` (same GC company) and deletes `dup`: contractors, project members, invites
- * and GC notification links that pointed at `dup` now point at `keep`. Returns the updated `keep`.
+ * Folds `dup` into `keep` (same GC company) and marks `dup` merged into it: contractors, project members,
+ * invites and GC notification links that pointed at `dup` are repointed at `keep` where the bounded
+ * scans reach them. Returns the updated `keep`.
  */
 export async function mergeVendorInto(
   ctx: MutationCtx,
@@ -61,6 +54,7 @@ export async function mergeVendorInto(
   if (keep.linkedCompanyId !== undefined && dup.linkedCompanyId !== undefined && keep.linkedCompanyId !== dup.linkedCompanyId) {
     throw new Error("mergeVendorInto: vendors are linked to different companies");
   }
+  if (keep.status === "merged" || dup.status === "merged") throw new Error("mergeVendorInto: a merged vendor row cannot be merged again");
   const gcCompanyId = keep.companyId;
   const linkedCompanyId = keep.linkedCompanyId ?? dup.linkedCompanyId;
   const linked = linkedCompanyId === undefined ? null : await ctx.db.get(linkedCompanyId);
@@ -131,7 +125,14 @@ export async function mergeVendorInto(
     }
   }
 
-  await ctx.db.delete(dup._id);
+  // Kept as a tombstone: references outside the bounded scans above still resolve through liveVendor.
+  await ctx.db.patch(dup._id, {
+    status: "merged",
+    mergedIntoVendorId: keep._id,
+    linkedCompanyId: undefined,
+    payoutEmailConfirmed: undefined,
+    searchText: undefined,
+  });
   counts.vendorsMerged++;
   return (await ctx.db.get(keep._id))!;
 }
@@ -147,22 +148,73 @@ export async function mergeVendorPair(
   return await mergeVendorInto(ctx, keep, dup, counts);
 }
 
-/** Merges every duplicate vendor row of one GC company into its oldest match. Idempotent. */
-export async function mergeDuplicateVendorsForCompany(ctx: MutationCtx, gcCompanyId: Id<"companies">): Promise<VendorMergeCounts> {
+export const MERGE_SCAN_LIMIT = 4000;
+
+/**
+ * Groups one GC company's live vendor rows into complete duplicate groups (union-find): rows sharing a
+ * linked company always join; rows sharing a real email join unless that would put two different
+ * linked companies in one group. Groups are returned oldest row first; singletons are omitted.
+ */
+export function duplicateVendorGroups(rows: readonly Doc<"vendors">[]): Doc<"vendors">[][] {
+  const sorted = [...rows].sort((a, b) => a._creationTime - b._creationTime);
+  const parent = sorted.map((_, i) => i);
+  const linkOf = sorted.map((r) => r.linkedCompanyId);
+  const find = (i: number): number => {
+    while (parent[i] !== i) {
+      parent[i] = parent[parent[i]];
+      i = parent[i];
+    }
+    return i;
+  };
+  const union = (a: number, b: number) => {
+    const ra = find(a);
+    const rb = find(b);
+    if (ra === rb) return;
+    if (linkOf[ra] !== undefined && linkOf[rb] !== undefined && linkOf[ra] !== linkOf[rb]) return;
+    const [root, child] = ra < rb ? [ra, rb] : [rb, ra];
+    parent[child] = root;
+    linkOf[root] = linkOf[root] ?? linkOf[child];
+  };
+  const bucket = (key: (r: Doc<"vendors">) => string | null) => {
+    const firstByKey = new Map<string, number>();
+    sorted.forEach((r, i) => {
+      const k = key(r);
+      if (k === null) return;
+      const first = firstByKey.get(k);
+      if (first === undefined) firstByKey.set(k, i);
+      else union(first, i);
+    });
+  };
+  // Linked-company edges first: they can never conflict, and an email edge is then judged by the full group.
+  bucket((r) => r.linkedCompanyId ?? null);
+  bucket((r) => {
+    const email = r.email.trim().toLowerCase();
+    return email === "" || isPlaceholderEmail(email) ? null : email;
+  });
+  const groups = new Map<number, Doc<"vendors">[]>();
+  sorted.forEach((r, i) => {
+    const root = find(i);
+    groups.set(root, [...(groups.get(root) ?? []), r]);
+  });
+  return [...groups.values()].filter((g) => g.length > 1);
+}
+
+/**
+ * Merges every complete duplicate group of one GC company into its oldest row. Idempotent: merged rows
+ * are tombstones that the next run no longer sees. `truncated` reports a directory beyond the scan limit.
+ */
+export async function mergeDuplicateVendorsForCompany(
+  ctx: MutationCtx,
+  gcCompanyId: Id<"companies">,
+): Promise<VendorMergeCounts & { truncated: boolean }> {
   const counts = emptyMergeCounts();
   const rows = await ctx.db
     .query("vendors")
     .withIndex("by_companyId", (q) => q.eq("companyId", gcCompanyId))
-    .take(2000);
-  rows.sort((a, b) => a._creationTime - b._creationTime);
-  const kept: Doc<"vendors">[] = [];
-  for (const row of rows) {
-    const index = kept.findIndex((k) => isSameVendor(k, row));
-    if (index === -1) {
-      kept.push(row);
-      continue;
-    }
-    kept[index] = await mergeVendorInto(ctx, kept[index], row, counts);
+    .take(MERGE_SCAN_LIMIT);
+  for (const group of duplicateVendorGroups(rows.filter((r) => r.status !== "merged"))) {
+    let keep = group[0];
+    for (const dup of group.slice(1)) keep = await mergeVendorInto(ctx, keep, dup, counts);
   }
-  return counts;
+  return { ...counts, truncated: rows.length === MERGE_SCAN_LIMIT };
 }

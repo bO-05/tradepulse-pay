@@ -212,6 +212,29 @@ describe("PENDING captures hold the payout", () => {
     expect(payoutPosts()).toHaveLength(0);
   });
 
+  test("a sub that switches its payout email while the capture is PENDING is not paid at the old address on COMPLETED", async () => {
+    const { t, gc, milestoneId } = await setup();
+    fake.state.captureStatus = "PENDING";
+    const out = await gc.as.action(api.payments.release.releaseAndPay, { milestoneId, amountCents: 600_000, requestKey: "test-key-swap1" });
+    expect(out.status).toBe("capture_pending");
+    await t.run(async (ctx) => {
+      const payout = (await ctx.db.get(out.paymentId))!;
+      const agreement = (await ctx.db.get(payout.agreementId))!;
+      const contractor = (await ctx.db.get(agreement.contractorId))!;
+      const vendor = (await ctx.db.get(contractor.vendorId!))!;
+      await ctx.db.patch(vendor.linkedCompanyId!, { payoutPaypalEmail: "new-b@paypal.test" });
+      await ctx.db.patch(vendor._id, { payoutEmailConfirmed: undefined });
+    });
+
+    await dispatch(t, captureEvent("WH-S-1", "COMPLETED", out.captureId!));
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const r = await rows(t, milestoneId);
+    expect(payoutPosts()).toHaveLength(0);
+    expect(r.payouts[0].status).toBe("failed");
+    expect(r.payouts[0].error).toMatch(/^Payout blocked for .*waiting for confirmation/);
+    expect(r.ledger).toHaveLength(0);
+  });
+
   test("Refresh status GETs the capture and pays once it is COMPLETED", async () => {
     const { t, gc, milestoneId } = await setup();
     fake.state.captureStatus = "PENDING";

@@ -406,6 +406,104 @@ test("a transient INSUFFICIENT_FUNDS payout is retried with the same sender_batc
   expect(fake.posts(/\/capture$/)).toHaveLength(1);
 });
 
+/** The vendor (GC relationship) of the agreement's sub and its linked company. */
+async function payeeRows(t: Setup["t"], agreementId: Id<"agreements">) {
+  return await t.run(async (ctx) => {
+    const agreement = await ctx.db.get(agreementId);
+    const contractor = await ctx.db.get(agreement!.contractorId);
+    const vendor = await ctx.db.get(contractor!.vendorId!);
+    return { vendorId: vendor!._id, companyId: vendor!.linkedCompanyId! };
+  });
+}
+
+/** The sub switches its payout email; optionally a GC member confirms the new one. */
+async function changePayee(t: Setup["t"], agreementId: Id<"agreements">, email: string, confirm: boolean) {
+  const { vendorId, companyId } = await payeeRows(t, agreementId);
+  await t.run(async (ctx) => {
+    await ctx.db.patch(companyId, { payoutPaypalEmail: email });
+    const gcUser = await ctx.db.query("users").first();
+    await ctx.db.patch(vendorId, {
+      payoutEmailConfirmed: confirm ? { email, confirmedByUserId: gcUser!._id, confirmedAt: Date.now() } : undefined,
+    });
+  });
+}
+
+describe("queued payouts re-check the confirmed payee before sending", () => {
+  const payoutPosts = () => fake.posts(/^\/v1\/payments\/payouts$/);
+
+  test("an INSUFFICIENT_FUNDS retry after the payee confirmation was revoked is blocked and never sent", async () => {
+    const { t, gc, milestone, agreement } = await setup({ authorizedCents: 1_000_000 });
+    fake.state.insufficientFunds = 1;
+    await gc.as.action(api.payments.release.releaseAndPay, { milestoneId: milestone._id, amountCents: 1_000_000, requestKey: key("revoke") });
+    expect(payoutPosts()).toHaveLength(1);
+    await changePayee(t, agreement._id, "attacker@paypal.test", false);
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const r = await rows(t, milestone._id);
+    expect(payoutPosts()).toHaveLength(1);
+    expect(fake.batches.size).toBe(0);
+    expect(r.payouts[0].status).toBe("failed");
+    expect(r.payouts[0].error).toMatch(/^Payout blocked for .*waiting for confirmation/);
+    expect(r.ledger).toHaveLength(0);
+  });
+
+  test("a retry after the payee changed to a newly confirmed email is not sent to the old address; Retry payout pays the new one", async () => {
+    const { t, gc, milestone, agreement } = await setup({ authorizedCents: 1_000_000 });
+    fake.state.insufficientFunds = 1;
+    await gc.as.action(api.payments.release.releaseAndPay, { milestoneId: milestone._id, amountCents: 1_000_000, requestKey: key("chg") });
+    await changePayee(t, agreement._id, "new-payee@paypal.test", true);
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    let r = await rows(t, milestone._id);
+    expect(payoutPosts()).toHaveLength(1);
+    expect(r.payouts[0]).toMatchObject({ status: "failed", receiverEmail: SUB_EMAIL });
+    expect(r.payouts[0].error).toContain("changed after this payout was queued");
+
+    await gc.as.action(api.payments.payoutRetry.retryPayout, { paymentId: r.payouts[0]._id });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const receivers = [...fake.batches.values()].map((b) => b.receiver);
+    expect(receivers).toEqual(["new-payee@paypal.test"]);
+    r = await rows(t, milestone._id);
+    expect(r.payouts.find((p) => p.retryOfPaymentId)?.status).toBe("success");
+  });
+
+  test("resuming a retainage release after the payee was revoked is blocked and keeps the retainage on hold", async () => {
+    const s = await setup({ authorizedCents: 1_000_000 });
+    await s.gc.as.action(api.payments.release.releaseAndPay, { milestoneId: s.milestone._id, amountCents: 1_000_000, requestKey: key("rr") });
+    await s.t.finishAllScheduledFunctions(vi.runAllTimers);
+    const begun = await s.t.mutation(internal.payments.retainageDb.beginRetainageRelease, { agreementId: s.agreement._id });
+    if (begun.state !== "new") throw new Error("expected a new release");
+    await changePayee(s.t, s.agreement._id, "attacker@paypal.test", false);
+    vi.advanceTimersByTime(RESUME_RELEASE_AFTER_MS + 1_000);
+    const before = payoutPosts().length;
+
+    const err = await errorOf(s.gc.as.action(api.payments.retainage.resumeRetainageRelease, { paymentId: begun.paymentId }));
+    expect(err.data.message).toMatch(/^Payout blocked for .*No retainage was released/);
+    expect(payoutPosts()).toHaveLength(before);
+    const view = await s.gc.as.query(api.payments.ledger.getAgreementLedger, { agreementId: s.agreement._id });
+    expect(view?.totals.retainageHeldCents).toBe(100_000);
+    expect(view?.retainageReleases[0]?.status).toBe("failed");
+  });
+
+  test("a POST that may have reached PayPal is still reconciled through the same batch after the payee changes", async () => {
+    const s = await setup({ authorizedCents: 1_000_000 });
+    await s.gc.as.action(api.payments.release.releaseAndPay, { milestoneId: s.milestone._id, amountCents: 1_000_000, requestKey: key("rec") });
+    await s.t.finishAllScheduledFunctions(vi.runAllTimers);
+    const begun = await s.t.mutation(internal.payments.retainageDb.beginRetainageRelease, { agreementId: s.agreement._id });
+    if (begun.state !== "new") throw new Error("expected a new release");
+    // The action reached PayPal, which created the batch, but died before recording it.
+    await s.t.mutation(internal.payments.payoutDb.beginPayout, { paymentId: begun.paymentId });
+    const row = await s.t.run((ctx) => ctx.db.get(begun.paymentId));
+    fake.batches.set("BATCH-SENT", { id: "BATCH-SENT", senderBatchId: row!.idempotencyKey, senderItemId: row!._id, receiver: SUB_EMAIL, value: "1000.00" });
+    await changePayee(s.t, s.agreement._id, "attacker@paypal.test", false);
+    vi.advanceTimersByTime(RESUME_RELEASE_AFTER_MS + 1_000);
+
+    const out = await s.gc.as.action(api.payments.retainage.resumeRetainageRelease, { paymentId: begun.paymentId });
+    expect(out.batchId).toBe("BATCH-SENT");
+    expect([...fake.batches.values()].map((b) => b.receiver)).not.toContain("attacker@paypal.test");
+  });
+});
+
 describe("retainage ledger", () => {
   test("payouts of $10,000 and $5,000 gross hold $1,500 and the ledger view shows it", async () => {
     const { t, gc, milestone, agreement } = await setup({ authorizedCents: 2_000_000 });

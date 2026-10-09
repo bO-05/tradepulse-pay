@@ -16,7 +16,7 @@ export function PackageBidders({ pkg, readOnly }: { pkg: Pkg; readOnly?: boolean
   const vendors = useQuery(api.vendors.vendorSummaries, bidders === undefined ? "skip" : { vendorIds: bidderVendorIds.slice(0, 500) });
   const [open, setOpen] = useState(false);
   if (bidders === undefined || vendors === undefined) return <p role="status" className="text-sm text-ink-subtle">Loading bidders…</p>;
-  const vendorById = new Map(vendors.map((v) => [v._id as string, v]));
+  const vendorById = new Map(vendors.map((v) => [v.requestedId, v]));
   const addButton = readOnly ? null : (
     <Button size="sm" onClick={() => setOpen(true)}>
       Add from directory

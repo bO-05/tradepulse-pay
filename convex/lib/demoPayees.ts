@@ -3,6 +3,7 @@ import type { MutationCtx } from "../_generated/server";
 import { normalizeInviteEmail } from "./inviteRules";
 import type { DemoCompanyIds, DemoCompanyKey } from "./demoTenancy";
 import { attachBidderVendor, backfillVendorsForCompany } from "./vendorDirectory";
+import { liveVendor } from "./vendorRead";
 
 /** Demo sub company → Convex env var with its PayPal sandbox personal account (values never committed). */
 export const DEMO_SUB_PAYEE_ENV: ReadonlyArray<{ key: DemoCompanyKey; env: string }> = [
@@ -52,7 +53,7 @@ export async function ensureDemoPayees(ctx: MutationCtx, ids: DemoCompanyIds, de
       .take(200);
     for (const c of contractors) {
       const vendorId = await attachBidderVendor(ctx, c._id);
-      const vendor = vendorId === null ? null : await ctx.db.get(vendorId);
+      const vendor = vendorId === null ? null : await liveVendor(ctx, vendorId);
       if (vendor === null || vendor.companyId !== ids.gc || vendor.linkedCompanyId !== undefined) continue;
       await ctx.db.patch(vendor._id, { linkedCompanyId: sub._id });
       counts.vendorsLinked++;
@@ -63,7 +64,18 @@ export async function ensureDemoPayees(ctx: MutationCtx, ids: DemoCompanyIds, de
       .take(200);
     for (const vendor of vendors) {
       if (vendor.companyId !== ids.gc || vendor.payoutEmailConfirmed?.email === email) continue;
-      await ctx.db.patch(vendor._id, { payoutEmailConfirmed: { email, confirmedByUserId: demoGcUserId, confirmedAt: Date.now() } });
+      const now = Date.now();
+      await ctx.db.patch(vendor._id, { payoutEmailConfirmed: { email, confirmedByUserId: demoGcUserId, confirmedAt: now } });
+      // The sandbox payee address comes from a deployment env var, so the entry does not repeat it.
+      await ctx.db.insert("auditLogs", {
+        eventType: "payee_confirmed",
+        title: `Payee confirmed for ${vendor.name}`,
+        description: `The demo seed confirmed ${sub.name}'s PayPal sandbox payout email (from ${env}) for vendor ${vendor.name} (${vendor._id}) on behalf of the Demo GC; previously confirmed: ${vendor.payoutEmailConfirmed ? "a different email" : "(none)"}.`,
+        actor: "system:demo-seed",
+        actorUserId: demoGcUserId,
+        actorCompanyId: ids.gc,
+        timestamp: now,
+      });
       counts.payeesConfirmed++;
     }
   }

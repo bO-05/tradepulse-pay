@@ -4,6 +4,7 @@ import { query } from "./_generated/server";
 import { requireProjectScope } from "./lib/projectScope";
 import { payeeState } from "./lib/payee";
 import { notFound, requireCompanyMember } from "./lib/tenancy";
+import { liveVendorByRawId } from "./lib/vendorRead";
 import { invoiceRecipientForProject } from "./payments/changeOrderRecipient";
 
 /**
@@ -28,8 +29,7 @@ export const getVendor = query({
   args: { vendorId: v.string() },
   handler: async (ctx, args) => {
     const { user, company } = await requireCompanyMember(ctx);
-    const id = ctx.db.normalizeId("vendors", args.vendorId);
-    const vendor = id === null ? null : await ctx.db.get(id);
+    const vendor = await liveVendorByRawId(ctx, args.vendorId);
     if (vendor === null || vendor.companyId !== company._id || company.kind !== "gc" || user.actorType === "agent") throw notFound();
     const linked = vendor.linkedCompanyId ? await ctx.db.get(vendor.linkedCompanyId) : null;
     const payee = payeeState(vendor, linked);

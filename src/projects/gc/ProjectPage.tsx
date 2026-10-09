@@ -5,6 +5,7 @@ import type { Doc, Id } from "../../../convex/_generated/dataModel";
 import { formatRetainagePercent } from "../../../convex/lib/retainageRules";
 import { GC_PROJECTS_HASH, gcProjectSettingsHash, peopleHash } from "../../auth/navigation";
 import { Button, Card, DateText, Money, PageHeader, StatusPill, useToast } from "../../ui";
+import { ownerDetailRows } from "./ownerDetails";
 import { openProcurementPackages } from "./specBreakdownRequest";
 import { TradePackagesSection } from "./TradePackagesSection";
 
@@ -133,16 +134,14 @@ function OwnerCompanyCard({ projectId }: { projectId: Id<"projects"> }) {
     >
       {company ? (
         <dl className="grid gap-x-6 text-sm sm:grid-cols-2">
-          <div className="flex justify-between gap-4 border-b border-line py-2">
-            <dt className="text-ink-subtle">Company</dt>
-            <dd className="text-right">{company.name}</dd>
-          </div>
-          <div className="flex justify-between gap-4 border-b border-line py-2">
-            <dt className="text-ink-subtle">Billing email</dt>
-            <dd className="break-all text-right" data-testid="owner-billing-email">
-              {company.billingEmail ?? "Not set"}
-            </dd>
-          </div>
+          {ownerDetailRows(company).map((row) => (
+            <div key={row.label} className="flex justify-between gap-4 border-b border-line py-2">
+              <dt className="text-ink-subtle">{row.label}</dt>
+              <dd className={`break-words text-right${row.value === "Not set" ? " text-ink-muted" : ""}`} data-testid={row.testId}>
+                {row.value}
+              </dd>
+            </div>
+          ))}
         </dl>
       ) : (
         <p className="text-sm text-ink-muted">No owner company has joined this project yet.</p>

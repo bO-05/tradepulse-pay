@@ -107,6 +107,44 @@ describe("bell, list and mark read", () => {
     expect(page.page.every((n) => n.read)).toBe(true);
   });
 
+  test("mark all read clears a backlog larger than one batch, and only the caller's rows", async () => {
+    vi.useFakeTimers();
+    try {
+      const { t, fx } = await setup();
+      const backlog = 2 * 1000 + 1;
+      await t.run(async (ctx) => {
+        for (let i = 0; i < backlog; i++) {
+          await ctx.db.insert("notifications", {
+            userId: fx.gcA.admin.userId,
+            companyId: fx.gcA.companyId,
+            kind: "pay_app_submitted",
+            title: `Event ${i}`,
+            body: "x",
+            link: "#/payments",
+            createdAt: i,
+          });
+        }
+        await ctx.db.insert("notifications", {
+          userId: fx.gcA.member.userId,
+          companyId: fx.gcA.companyId,
+          kind: "pay_app_submitted",
+          title: "Luis",
+          body: "x",
+          link: "#/payments",
+          createdAt: 1,
+        });
+      });
+      await fx.gcA.admin.as.mutation(api.notifications.markAllRead, {});
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      const rows = await allNotifications(t);
+      expect(rows.filter((r) => r.userId === fx.gcA.admin.userId && r.readAt === undefined)).toHaveLength(0);
+      expect(rows.find((r) => r.title === "Luis")?.readAt).toBeUndefined();
+      expect((await fx.gcA.admin.as.query(api.notifications.summary, {})).unreadCount).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test("users without a company and signed-out callers see an empty bell", async () => {
     const { t, fx } = await setup();
     expect(await fx.noCompany.as.query(api.notifications.summary, {})).toEqual({ unreadCount: 0, unreadCapped: false, latest: [], hasMore: false });

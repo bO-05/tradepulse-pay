@@ -26,7 +26,12 @@ function tokenOf(link: string): string {
   return link.match(/#\/invite\/([A-Za-z0-9_-]+)$/)![1];
 }
 
+/** The live (not merged) vendor rows of a GC company. */
 async function vendorsOf(t: T, companyId: Id<"companies">) {
+  return (await allVendorsOf(t, companyId)).filter((r) => r.status !== "merged");
+}
+
+async function allVendorsOf(t: T, companyId: Id<"companies">) {
   return await t.run((ctx) => ctx.db.query("vendors").withIndex("by_companyId", (q) => q.eq("companyId", companyId)).collect());
 }
 
@@ -204,6 +209,14 @@ describe("mergeDuplicateVendors migration", () => {
 
     const rows = await vendorsOf(t, fx.gcA.companyId);
     expect(rows.map((r) => r._id).sort()).toEqual([ids.oldest, ids.p1, ids.p2].sort());
+    // Merged rows are never deleted: they stay as hidden tombstones pointing at the kept row.
+    const tombstones = (await allVendorsOf(t, fx.gcA.companyId)).filter((r) => r.status === "merged");
+    expect(tombstones.map((r) => r._id).sort()).toEqual([ids.sameEmail, ids.sameLink].sort());
+    for (const r of tombstones) {
+      expect(r).toMatchObject({ mergedIntoVendorId: ids.oldest });
+      expect(r.linkedCompanyId).toBeUndefined();
+      expect(r.payoutEmailConfirmed).toBeUndefined();
+    }
     const kept = rows.find((r) => r._id === ids.oldest)!;
     expect(kept).toMatchObject({
       email: "kim@eastbay.test",
@@ -234,5 +247,105 @@ describe("mergeDuplicateVendors migration", () => {
 
     const second = await t.mutation(internal.vendors.mergeDuplicateVendors, {});
     expect(second).toMatchObject({ vendorsMerged: 0, contractorsRepointed: 0, projectMembersRepointed: 0, invitesRepointed: 0, notificationsRepointed: 0 });
+  });
+});
+
+describe("mergeDuplicateVendors resolves complete groups", () => {
+  test("A (email x, unlinked), B (email y, linked S), C (email x, linked S) collapse into A in one run; a second run is all zero", async () => {
+    const { t, fx } = await setup();
+    const ids = await t.run(async (ctx) => {
+      const base = { name: "Eastbay Electric", contactName: "", status: "active" as const, createdAt: Date.now(), companyId: fx.gcA.companyId };
+      const a = await ctx.db.insert("vendors", { ...base, trades: ["26 00 00"], email: "x@eastbay-mail.com" });
+      const b = await ctx.db.insert("vendors", { ...base, trades: ["26 05 00"], email: "y@eastbay-mail.com", linkedCompanyId: fx.sub.companyId });
+      const c = await ctx.db.insert("vendors", { ...base, trades: ["26 10 00"], email: "x@eastbay-mail.com", linkedCompanyId: fx.sub.companyId });
+      return { a, b, c };
+    });
+    const first = await t.mutation(internal.vendors.mergeDuplicateVendors, { gcCompanyId: fx.gcA.companyId });
+    expect(first.vendorsMerged).toBe(2);
+    const live = await vendorsOf(t, fx.gcA.companyId);
+    expect(live.map((r) => r._id)).toEqual([ids.a]);
+    expect(live[0].linkedCompanyId).toBe(fx.sub.companyId);
+    expect(live[0].trades.sort()).toEqual(["26 00 00", "26 05 00", "26 10 00"]);
+    const linkedRows = await t.run((ctx) =>
+      ctx.db
+        .query("vendors")
+        .withIndex("by_companyId_and_linkedCompanyId", (q) => q.eq("companyId", fx.gcA.companyId).eq("linkedCompanyId", fx.sub.companyId))
+        .collect(),
+    );
+    expect(linkedRows.map((r) => r._id)).toEqual([ids.a]);
+
+    const second = await t.mutation(internal.vendors.mergeDuplicateVendors, { gcCompanyId: fx.gcA.companyId });
+    expect(second).toMatchObject({ vendorsMerged: 0, contractorsRepointed: 0, projectMembersRepointed: 0, invitesRepointed: 0, notificationsRepointed: 0 });
+  });
+
+  test("rows sharing an email but linked to two different companies are never merged", async () => {
+    const { t, fx } = await setup();
+    const otherSub = await t.run((ctx) => ctx.db.insert("companies", { name: "Other Electric", kind: "sub", isDemo: false, createdAt: Date.now() }));
+    await t.run(async (ctx) => {
+      const base = { name: "Shared inbox", contactName: "", trades: [], status: "active" as const, createdAt: Date.now(), companyId: fx.gcA.companyId };
+      await ctx.db.insert("vendors", { ...base, email: "bids@shared-mail.com" });
+      await ctx.db.insert("vendors", { ...base, email: "bids@shared-mail.com", linkedCompanyId: fx.sub.companyId });
+      await ctx.db.insert("vendors", { ...base, email: "bids@shared-mail.com", linkedCompanyId: otherSub });
+    });
+    const first = await t.mutation(internal.vendors.mergeDuplicateVendors, { gcCompanyId: fx.gcA.companyId });
+    expect(first.vendorsMerged).toBe(1);
+    const live = await vendorsOf(t, fx.gcA.companyId);
+    expect(live.map((r) => r.linkedCompanyId).sort()).toEqual([fx.sub.companyId, otherSub].sort());
+    expect((await t.mutation(internal.vendors.mergeDuplicateVendors, { gcCompanyId: fx.gcA.companyId })).vendorsMerged).toBe(0);
+  });
+
+  test("a pending invite beyond the invite scan still names the merged row and is accepted onto the surviving row", async () => {
+    const { t, fx } = await setup();
+    const email = "kim.new@eastbay-mail.com";
+    const ids = await t.run(async (ctx) => {
+      for (let i = 0; i < 2000; i++) {
+        await ctx.db.insert("invites", {
+          tokenHash: `h${i}`.padEnd(64, "0"),
+          email: `old${i}@history.test`,
+          kind: "sub",
+          inviterCompanyId: fx.gcA.companyId,
+          status: "revoked",
+          expiresAt: 0,
+          emailStatus: "not_sent",
+          tokenVersion: 1,
+          createdByUserId: fx.gcA.admin.userId,
+          createdAt: i,
+        });
+      }
+      const base = { name: "Eastbay Electric", contactName: "Kim Tran", trades: ["26 00 00"], status: "active" as const, createdAt: Date.now(), companyId: fx.gcA.companyId };
+      const keep = await ctx.db.insert("vendors", { ...base, email });
+      const dup = await ctx.db.insert("vendors", { ...base, email });
+      return { keep, dup };
+    });
+    const res = await fx.gcA.admin.as.action(api.invites.create, {
+      kind: "sub",
+      email,
+      projectId: fx.gcA.project.projectId,
+      vendorId: ids.dup,
+      sendEmail: false,
+    });
+    const merged = await t.mutation(internal.vendors.mergeDuplicateVendors, { gcCompanyId: fx.gcA.companyId });
+    expect(merged).toMatchObject({ vendorsMerged: 1, invitesRepointed: 0 });
+    // The invite was outside the bounded scan, so it still stores the merged row's id.
+    expect((await t.run((ctx) => ctx.db.get(res.inviteId)))?.vendorId).toBe(ids.dup);
+    expect(await t.run((ctx) => ctx.db.get(ids.dup))).toMatchObject({ status: "merged", mergedIntoVendorId: ids.keep });
+
+    const kimId = await t.run((ctx) => ctx.db.insert("users", { email, name: "Kim Tran", emailVerificationTime: Date.now() }));
+    const kim = await withSession(t, kimId, email);
+    const accepted = await kim.mutation(api.invites.accept, { token: tokenOf(res.link) });
+    const live = await vendorsOf(t, fx.gcA.companyId);
+    expect(live.map((r) => r._id)).toEqual([ids.keep]);
+    expect(live[0].linkedCompanyId).toBe(accepted.companyId);
+    const member = await t.run((ctx) =>
+      ctx.db
+        .query("projectMembers")
+        .withIndex("by_project_company_and_status", (q) => q.eq("projectId", fx.gcA.project.projectId).eq("companyId", accepted.companyId).eq("status", "active"))
+        .first(),
+    );
+    expect(member?.vendorId).toBe(ids.keep);
+    // The GC opening the merged row's id (e.g. an old notification link) sees the surviving vendor.
+    const detail = await fx.gcA.admin.as.query(api.partyProfiles.getVendor, { vendorId: ids.dup });
+    expect(detail._id).toBe(ids.keep);
+    expect((await fx.gcA.admin.as.query(api.vendors.listVendors, { includeInactive: true })).map((v) => v._id)).toEqual([ids.keep]);
   });
 });

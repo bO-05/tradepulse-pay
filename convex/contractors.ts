@@ -5,6 +5,7 @@ import { deleteContractorCascade } from "./payments/cascade";
 import { validateEmail, validateProjectText } from "./validation";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
+import { liveVendorByRawId } from "./lib/vendorRead";
 import {
   alreadyBidderError,
   existingBidderFor,
@@ -383,8 +384,7 @@ export const addBiddersFromDirectory = mutation({
     const existing = await packageBidders(ctx, pkg);
     const vendors: Doc<"vendors">[] = [];
     for (const raw of args.vendorIds) {
-      const id = ctx.db.normalizeId("vendors", raw);
-      const vendor = id === null ? null : await ctx.db.get(id);
+      const vendor = await liveVendorByRawId(ctx, raw);
       if (vendor === null || vendor.companyId !== project.gcCompanyId) throw new ConvexError({ code: "NOT_FOUND" as const, message: "Not found." });
       if (vendor.status !== "active") throw inactiveVendorError(vendor.name);
       if (existingBidderFor(existing, vendor) !== null || vendors.some((x) => x._id === vendor._id)) throw alreadyBidderError(vendor.name);

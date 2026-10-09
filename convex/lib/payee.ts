@@ -1,6 +1,7 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { attachBidderVendor } from "./vendorDirectory";
+import { liveVendor } from "./vendorRead";
 
 /**
  * Payee control (architecture §14). A sub company admin sets `companies.payoutPaypalEmail`; each GC
@@ -43,6 +44,7 @@ export const PAYEE_REASON = {
   notLinked: "it has no TradePulse Pay company account yet, so there is no confirmed payee. Invite it to the project first.",
   noEmail: "its company has not set a payout PayPal email yet, so there is no confirmed payee.",
   pending: "its payout PayPal email is waiting for confirmation. A GC member must confirm the payee on the vendor page.",
+  changed: "its confirmed payout PayPal email changed after this payout was queued, so nothing was sent to the earlier address.",
 } as const;
 
 async function receiverForVendor(ctx: QueryCtx, vendor: Doc<"vendors">): Promise<PayoutReceiver> {
@@ -57,9 +59,23 @@ async function receiverForVendor(ctx: QueryCtx, vendor: Doc<"vendors">): Promise
 /** Read-only check for screens: the confirmed payee of a contractor (bidder) row, or why there is none. */
 export async function payoutReceiverForContractorReadOnly(ctx: QueryCtx, contractorId: Id<"contractors">): Promise<PayoutReceiver> {
   const contractor = await ctx.db.get(contractorId);
-  const vendor = contractor?.vendorId ? await ctx.db.get(contractor.vendorId) : null;
+  const vendor = contractor?.vendorId ? await liveVendor(ctx, contractor.vendorId) : null;
   if (vendor === null) return { ok: false, reason: PAYEE_REASON.noVendor };
   return await receiverForVendor(ctx, vendor);
+}
+
+/**
+ * Why a queued payout to `queuedEmail` must not be sent now, or null when that address is still the
+ * contractor's currently confirmed payee. Checked right before every unsent payout POST.
+ */
+export async function stalePayeeReason(
+  ctx: QueryCtx,
+  contractorId: Id<"contractors">,
+  queuedEmail: string,
+): Promise<string | null> {
+  const receiver = await payoutReceiverForContractorReadOnly(ctx, contractorId);
+  if (!receiver.ok) return receiver.reason;
+  return receiver.email === queuedEmail ? null : PAYEE_REASON.changed;
 }
 
 /**
@@ -68,7 +84,7 @@ export async function payoutReceiverForContractorReadOnly(ctx: QueryCtx, contrac
  */
 export async function payoutReceiverForContractor(ctx: MutationCtx, contractorId: Id<"contractors">): Promise<PayoutReceiver> {
   const vendorId = await attachBidderVendor(ctx, contractorId);
-  const vendor = vendorId === null ? null : await ctx.db.get(vendorId);
+  const vendor = vendorId === null ? null : await liveVendor(ctx, vendorId);
   if (vendor === null) return { ok: false, reason: PAYEE_REASON.noVendor };
   return await receiverForVendor(ctx, vendor);
 }

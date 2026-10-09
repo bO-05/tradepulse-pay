@@ -13,6 +13,7 @@ import {
   type VendorBackfillCounts,
 } from "./lib/vendorDirectory";
 import { payeeState } from "./lib/payee";
+import { liveVendor, liveVendorByRawId } from "./lib/vendorRead";
 import { vendorSearchQuery, vendorSearchText } from "./lib/vendorSearch";
 import { addMergeCounts, emptyMergeCounts, mergeDuplicateVendorsForCompany } from "./lib/vendorMerge";
 import { VENDOR_IMPORT_MAX_ROWS, firstVendorError, isPlaceholderEmail, validateVendorInput } from "./lib/vendorRules";
@@ -40,8 +41,7 @@ function gcDirectoryMember(member: CompanyMember): CompanyMember {
 }
 
 async function ownVendor(ctx: QueryCtx, companyId: Id<"companies">, vendorId: string): Promise<Doc<"vendors">> {
-  const id = ctx.db.normalizeId("vendors", vendorId);
-  const vendor = id === null ? null : await ctx.db.get(id);
+  const vendor = await liveVendorByRawId(ctx, vendorId);
   if (vendor === null || vendor.companyId !== companyId) throw notFound();
   return vendor;
 }
@@ -89,7 +89,7 @@ export const listVendors = query({
           .query("vendors")
           .withIndex("by_companyId_and_status_and_name", (q) => q.eq("companyId", company._id).eq("status", "active"))
           .take(2000);
-    return (await vendorViews(ctx, rows)).sort((a, b) => a.name.localeCompare(b.name));
+    return (await vendorViews(ctx, rows.filter((r) => r.status !== "merged"))).sort((a, b) => a.name.localeCompare(b.name));
   },
 });
 
@@ -123,7 +123,8 @@ export const listVendorsPage = query({
               .query("vendors")
               .withIndex("by_companyId_and_status_and_name", (q) => q.eq("companyId", company._id).eq("status", status))
               .paginate(args.paginationOpts);
-    return { ...result, page: await vendorViews(ctx, result.page) };
+    // Merged tombstones only appear in the unfiltered ("all") reads; a page can come back short.
+    return { ...result, page: await vendorViews(ctx, result.page.filter((r) => r.status !== "merged")) };
   },
 });
 
@@ -141,19 +142,25 @@ export const directorySummary = query({
   },
 });
 
-/** Directory entries of the given ids that belong to the caller's company (bidder lists). */
+/**
+ * Directory entries of the given ids that belong to the caller's company (bidder lists). An id of a
+ * merged row returns the row it was merged into, with `requestedId` naming the id asked for.
+ */
 export const vendorSummaries = query({
   args: { vendorIds: v.array(v.string()) },
   handler: async (ctx, args) => {
     const { company } = gcDirectoryMember(await requireCompanyMember(ctx));
     if (args.vendorIds.length > 500) throw invalidVendor("Ask for at most 500 vendors at a time.", "vendor");
     const rows: Doc<"vendors">[] = [];
+    const requested: string[] = [];
     for (const raw of new Set(args.vendorIds)) {
-      const id = ctx.db.normalizeId("vendors", raw);
-      const row = id === null ? null : await ctx.db.get(id);
-      if (row !== null && row.companyId === company._id) rows.push(row);
+      const row = await liveVendorByRawId(ctx, raw);
+      if (row !== null && row.companyId === company._id) {
+        rows.push(row);
+        requested.push(raw);
+      }
     }
-    return await vendorViews(ctx, rows);
+    return (await vendorViews(ctx, rows)).map((view, i) => ({ ...view, requestedId: requested[i] }));
   },
 });
 
@@ -289,14 +296,19 @@ export const myGcRelationships = query({
       .query("projectMembers")
       .withIndex("by_companyId", (q) => q.eq("companyId", company._id))
       .take(500);
+    const memberVendor = new Map<Id<"vendors">, Id<"vendors"> | null>();
+    for (const m of memberships) {
+      if (m.vendorId !== undefined && !memberVendor.has(m.vendorId)) memberVendor.set(m.vendorId, (await liveVendor(ctx, m.vendorId))?._id ?? null);
+    }
     const out = [];
     for (const vendor of vendorRows) {
+      if (vendor.status === "merged") continue;
       const gc = await ctx.db.get(vendor.companyId);
       if (gc === null) continue;
       const projects: { projectId: Id<"projects">; title: string }[] = [];
       for (const m of memberships) {
         if (m.status !== "active" || m.partyRole !== "sub") continue;
-        if (m.vendorId !== undefined && m.vendorId !== vendor._id) continue;
+        if (m.vendorId !== undefined && memberVendor.get(m.vendorId) !== vendor._id) continue;
         const project = await ctx.db.get(m.projectId);
         if (project === null || project.gcCompanyId !== gc._id || project.archived === true) continue;
         if (!projects.some((p) => p.projectId === project._id)) projects.push({ projectId: project._id, title: project.title });
@@ -315,8 +327,9 @@ export const myGcRelationships = query({
 });
 
 /**
- * Merges duplicate vendor rows (same normalized email or same linked company) of every GC company, or
- * one, into the oldest row and repoints their references. Idempotent; run once after deploy.
+ * Merges complete duplicate groups of vendor rows (same normalized email or same linked company, never
+ * across two linked companies) of every GC company, or one, into the oldest row; merged rows stay as
+ * tombstones pointing at it. Idempotent: a second run reports all zeros.
  */
 export const mergeDuplicateVendors = internalMutation({
   args: { gcCompanyId: v.optional(v.id("companies")) },
@@ -327,10 +340,12 @@ export const mergeDuplicateVendors = internalMutation({
           .query("companies")
           .withIndex("by_kind", (q) => q.eq("kind", "gc"))
           .take(1000);
-    const total = { ...emptyMergeCounts(), companies: 0 };
+    const total = { ...emptyMergeCounts(), companies: 0, truncatedCompanies: 0 };
     for (const c of companies) {
       if (c.kind !== "gc") continue;
-      addMergeCounts(total, await mergeDuplicateVendorsForCompany(ctx, c._id));
+      const counts = await mergeDuplicateVendorsForCompany(ctx, c._id);
+      addMergeCounts(total, counts);
+      if (counts.truncated) total.truncatedCompanies++;
       total.companies++;
     }
     return total;

@@ -3,6 +3,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type QueryCtx } from "./_generated/server";
 import { callerProjects, isNotFoundError, partyMaySeeContractor, requireProjectScope } from "./lib/projectScope";
 import { findActiveMembership, notFound } from "./lib/tenancy";
+import { liveVendor } from "./lib/vendorRead";
 import { listTeammateInvites } from "./lib/teammateInvites";
 import { ownerChangeOrdersOfProject } from "./lib/ownerView";
 import { changeOrderLabel } from "./payments/changeOrderMath";
@@ -46,7 +47,7 @@ export const listForProject = query({
       if (row.status !== "active" || row.companyId === gc?._id) continue;
       const company = await ctx.db.get(row.companyId);
       if (company === null) continue;
-      const vendor = row.vendorId ? await ctx.db.get(row.vendorId) : null;
+      const vendor = row.vendorId ? await liveVendor(ctx, row.vendorId) : null;
       companies.push({
         companyId: company._id,
         name: company.name,
@@ -63,7 +64,7 @@ export const listForProject = query({
       .take(200);
     const invites = [];
     for (const i of inviteRows) {
-      const vendor = i.vendorId ? await ctx.db.get(i.vendorId) : null;
+      const vendor = i.vendorId ? await liveVendor(ctx, i.vendorId) : null;
       invites.push({
         _id: i._id,
         email: i.email,

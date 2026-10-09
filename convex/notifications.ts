@@ -1,7 +1,8 @@
 import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
-import type { Doc } from "./_generated/dataModel";
-import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
+import type { Doc, Id } from "./_generated/dataModel";
+import { internalMutation, mutation, query, type MutationCtx } from "./_generated/server";
 import { notFound, requireCompanyMember } from "./lib/tenancy";
 
 /**
@@ -79,18 +80,40 @@ export const markRead = mutation({
   },
 });
 
-/** Marks every unread notification of the caller read. Returns how many changed. */
+export const MARK_ALL_BATCH = 1000;
+
+/** Marks one bounded batch read and schedules the next one while unread rows remain. */
+async function markReadBatch(ctx: MutationCtx, userId: Id<"users">, companyId: Id<"companies">): Promise<number> {
+  const unread = await ctx.db
+    .query("notifications")
+    .withIndex("by_userId_and_companyId_and_readAt", (q) => q.eq("userId", userId).eq("companyId", companyId).eq("readAt", undefined))
+    .take(MARK_ALL_BATCH);
+  const now = Date.now();
+  for (const n of unread) await ctx.db.patch(n._id, { readAt: now });
+  if (unread.length === MARK_ALL_BATCH) {
+    await ctx.scheduler.runAfter(0, internal.notifications.markAllReadContinue, { userId, companyId });
+  }
+  return unread.length;
+}
+
+/**
+ * Marks every unread notification of the caller read. The first batch is marked in this call and the
+ * rest in scheduled batches. Returns how many this call changed.
+ */
 export const markAllRead = mutation({
   args: {},
   returns: v.number(),
   handler: async (ctx) => {
     const { user, company } = await requireCompanyMember(ctx);
-    const unread = await ctx.db
-      .query("notifications")
-      .withIndex("by_userId_and_companyId_and_readAt", (q) => q.eq("userId", user._id).eq("companyId", company._id).eq("readAt", undefined))
-      .take(1000);
-    const now = Date.now();
-    for (const n of unread) await ctx.db.patch(n._id, { readAt: now });
-    return unread.length;
+    return await markReadBatch(ctx, user._id, company._id);
+  },
+});
+
+export const markAllReadContinue = internalMutation({
+  args: { userId: v.id("users"), companyId: v.id("companies") },
+  returns: v.null(),
+  handler: async (ctx, { userId, companyId }) => {
+    await markReadBatch(ctx, userId, companyId);
+    return null;
   },
 });

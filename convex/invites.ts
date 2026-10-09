@@ -24,6 +24,7 @@ import { requireCompanyMemberInAction } from "./lib/tenancyAction";
 import { findActiveMembership, notFound, requireCompanyMember, requireVerifiedUser } from "./lib/tenancy";
 import { findVendorByEmail, findVendorByLinkedCompany } from "./lib/vendorDirectory";
 import { mergeVendorPair } from "./lib/vendorMerge";
+import { liveVendor, liveVendorByRawId } from "./lib/vendorRead";
 import { vendorSearchText } from "./lib/vendorSearch";
 import { notify } from "./lib/notify";
 
@@ -165,8 +166,7 @@ export const prepareCreate = internalMutation({
     let inviteeCompanyName: string | null = null;
     if (args.kind === "sub" && project !== null) {
       if (args.vendorId !== undefined) {
-        const vendorId = ctx.db.normalizeId("vendors", args.vendorId);
-        vendor = vendorId === null ? null : await ctx.db.get(vendorId);
+        vendor = await liveVendorByRawId(ctx, args.vendorId);
         if (vendor === null || vendor.companyId !== company._id) throw notFound();
       } else if (args.newVendor !== undefined) {
         const name = args.newVendor.name.trim().replace(/\s+/g, " ");
@@ -664,7 +664,8 @@ async function acceptInvite(ctx: MutationCtx, user: Doc<"users">, invite: Doc<"i
     const project = invite.projectId ? await ctx.db.get(invite.projectId) : null;
     if (project === null || project.gcCompanyId !== inviter._id) throw new ConvexError({ code: "INVITE_INVALID", message: NO_LONGER_VALID });
     if (invite.kind === "sub") {
-      const invitedVendor = invite.vendorId ? await ctx.db.get(invite.vendorId) : null;
+      // The invite may name a row merged into another since it was sent; it then joins the surviving row.
+      const invitedVendor = invite.vendorId ? await liveVendor(ctx, invite.vendorId) : null;
       if (invitedVendor === null) throw new ConvexError({ code: "INVITE_INVALID", message: NO_LONGER_VALID });
       let vendor = invitedVendor;
       // A sub invite admits a company to a project; it never admits a person into an existing
@@ -691,7 +692,9 @@ async function acceptInvite(ctx: MutationCtx, user: Doc<"users">, invite: Doc<"i
       }
       if (vendor.linkedCompanyId === undefined) newlyLinkedVendor = vendor;
       await ctx.db.patch(vendor._id, { linkedCompanyId: subCompanyId });
-      const contractorId = await linkVendorContractors(ctx, project._id, vendor, subCompanyId, [invitedVendor.email]);
+      const invitedRow = invite.vendorId ? await ctx.db.get(invite.vendorId) : null;
+      const invitedEmails = [...new Set([invitedVendor.email, invitedRow?.email ?? invitedVendor.email])];
+      const contractorId = await linkVendorContractors(ctx, project._id, vendor, subCompanyId, invitedEmails);
       await upsertProjectMember(ctx, {
         projectId: project._id,
         companyId: subCompanyId,

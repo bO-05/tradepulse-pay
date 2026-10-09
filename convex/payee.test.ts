@@ -304,6 +304,30 @@ describe("demo seed", () => {
       expect(state.receiver).toMatchObject({ ok: true, email: "sub1-sandbox@personal.example.com" });
       const recipient = await t.run((ctx) => invoiceRecipientForProject(ctx, state.demoProject));
       expect(recipient).toMatchObject({ ok: true, email: "owner-sandbox@business.example.com" });
+
+      // Each confirmation the seed makes is audited once (the unchanged rerun adds none), without the email.
+      const confirmed = async () =>
+        await t.run(async (ctx) => {
+          const ids = await ensureDemoCompanies(ctx);
+          return (await ctx.db.query("vendors").collect()).filter((v) => v.companyId === ids.gc && v.payoutEmailConfirmed !== undefined);
+        });
+      const audits = async () =>
+        await t.run(async (ctx) => (await ctx.db.query("auditLogs").collect()).filter((a) => a.eventType === "payee_confirmed"));
+      const vendors = await confirmed();
+      expect(vendors.length).toBeGreaterThan(0);
+      let entries = await audits();
+      expect(entries).toHaveLength(vendors.length);
+      const gcUser = await t.run(async (ctx) => (await ctx.db.query("users").collect()).find((u) => u.email === "gc@demo.tradepulse")!);
+      for (const e of entries) {
+        expect(e).toMatchObject({ actorUserId: gcUser._id, actorCompanyId: vendors[0].companyId });
+        expect(e.description).toContain("demo seed");
+        expect(e.description).not.toMatch(/sandbox@/i);
+      }
+      // A reset that restores a cleared confirmation audits that restoration.
+      await t.run((ctx) => ctx.db.patch(vendors[0]._id, { payoutEmailConfirmed: undefined }));
+      await t.mutation(internal.demoAccounts.linkDemoProfilesInternal, {});
+      entries = await audits();
+      expect(entries).toHaveLength(vendors.length + 1);
     } finally {
       vi.unstubAllEnvs();
     }

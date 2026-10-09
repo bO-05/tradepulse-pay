@@ -18,6 +18,7 @@ export const STATUS_LABELS = {
   created: { label: "Created", tone: "neutral" },
   active: { label: "Active", tone: "success" },
   inactive: { label: "Inactive", tone: "muted" },
+  merged: { label: "Merged", tone: "muted" },
   linked: { label: "Linked", tone: "info" },
 
   // Payee control (vendor payout email)

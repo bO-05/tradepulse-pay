@@ -304,7 +304,9 @@ export default defineSchema({
     payoutEmailConfirmed: v.optional(
       v.object({ email: v.string(), confirmedByUserId: v.id("users"), confirmedAt: v.number() })
     ),
-    status: v.union(v.literal("active"), v.literal("inactive")),
+    // "merged": a duplicate folded into mergedIntoVendorId (lib/vendorMerge.ts); hidden from every list.
+    status: v.union(v.literal("active"), v.literal("inactive"), v.literal("merged")),
+    mergedIntoVendorId: v.optional(v.id("vendors")),
     createdAt: v.number(),
     // Name, email and trades for the directory search index; written by lib/vendorSearch.ts.
     searchText: v.optional(v.string()),
@@ -593,6 +595,9 @@ export default defineSchema({
     // Payout rows: recipient snapshot at release time, and PayPal's raw item status (e.g. UNCLAIMED).
     receiverEmail: v.optional(v.string()),
     paypalItemStatus: v.optional(v.string()),
+    // Payout rows: set when the payout POST is about to go out and cleared when PayPal definitively
+    // rejects it. While set, PayPal may hold the batch, so the row is re-sent only for reconciliation.
+    payoutSubmittedAt: v.optional(v.number()),
     // Payout rows: a "Retry payout" row points at the original release it re-sends (same capture).
     retryOfPaymentId: v.optional(v.id("payments")),
     // Funding rows: honor-period watcher state. PayPal allows one reauthorization per authorization.

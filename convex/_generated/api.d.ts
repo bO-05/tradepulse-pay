@@ -85,6 +85,7 @@ import type * as lib_tenancyFixtures from "../lib/tenancyFixtures.js";
 import type * as lib_testIdentity from "../lib/testIdentity.js";
 import type * as lib_vendorDirectory from "../lib/vendorDirectory.js";
 import type * as lib_vendorMerge from "../lib/vendorMerge.js";
+import type * as lib_vendorRead from "../lib/vendorRead.js";
 import type * as lib_vendorRules from "../lib/vendorRules.js";
 import type * as lib_vendorSearch from "../lib/vendorSearch.js";
 import type * as lib_venue from "../lib/venue.js";
@@ -249,6 +250,7 @@ declare const fullApi: ApiFromModules<{
   "lib/testIdentity": typeof lib_testIdentity;
   "lib/vendorDirectory": typeof lib_vendorDirectory;
   "lib/vendorMerge": typeof lib_vendorMerge;
+  "lib/vendorRead": typeof lib_vendorRead;
   "lib/vendorRules": typeof lib_vendorRules;
   "lib/vendorSearch": typeof lib_vendorSearch;
   "lib/venue": typeof lib_venue;
