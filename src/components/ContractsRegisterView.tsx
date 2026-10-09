@@ -18,6 +18,7 @@ import { ConfirmDialog } from "./ConfirmDialog.tsx";
 import { useDialogFocus, useEscapeToClose } from "../lib/useDialogFocus.ts";
 import { printContractText } from "../lib/printContract.ts";
 import { formatCents, fromDollars } from "../../convex/lib/money";
+import { AgreementTermsPanel } from "../contracts/AgreementTermsPanel.tsx";
 
 interface ContractsRegisterViewProps {
   currentProject: Project | null;
@@ -36,19 +37,20 @@ export const ContractsRegisterView: React.FC<ContractsRegisterViewProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [selectedAgreement, setSelectedAgreement] = useState<Agreement | null>(null);
+  const [selectedAgreementId, setSelectedAgreementId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [showWhyCare, setShowWhyCare] = useState(false);
   const [agreementToExecute, setAgreementToExecute] = useState<string | null>(null);
   const [agreementToVoid, setAgreementToVoid] = useState<string | null>(null);
-  const contractDialogRef = useDialogFocus<HTMLDivElement>(Boolean(selectedAgreement));
-  useEscapeToClose(Boolean(selectedAgreement), () => setSelectedAgreement(null));
-
   const agreementsData = useQuery(
     api.agreements.listAgreements,
     currentProject && !currentProject._id.startsWith("proj_") ? { projectId: currentProject._id as any } : "skip"
   );
   const agreements: Agreement[] = (agreementsData as any) ?? fallbackAgreements;
+  // Read from the live list so saved terms and regenerated text show without reopening the viewer.
+  const selectedAgreement = agreements.find((a) => a._id === selectedAgreementId) ?? null;
+  const contractDialogRef = useDialogFocus<HTMLDivElement>(Boolean(selectedAgreement));
+  useEscapeToClose(Boolean(selectedAgreement), () => setSelectedAgreementId(null));
 
   const executeAgreementMutation = useMutation(api.agreements.executeAgreement);
   const voidExecutedAgreementMutation = useMutation(api.agreements.voidExecutedAgreement);
@@ -65,13 +67,6 @@ export const ContractsRegisterView: React.FC<ContractsRegisterViewProps> = ({
     } else {
       await executeAgreementMutation({ agreementId: agreementToExecute as any });
     }
-    if (selectedAgreement && selectedAgreement._id === agreementToExecute) {
-      setSelectedAgreement({
-        ...selectedAgreement,
-        status: "executed",
-        executedAt: Date.now(),
-      });
-    }
     setAgreementToExecute(null);
   };
 
@@ -86,7 +81,7 @@ const handleDownload = (agr: Agreement) => {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.setAttribute("href", url);
-  link.setAttribute("download", `${agr.agreementNumber}_A401-style_Subcontract_Draft.txt`);
+  link.setAttribute("download", `${agr.agreementNumber}_AIA-style_Subcontract_Draft.txt`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -139,7 +134,7 @@ const handlePrint = (agr: Agreement) => {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <span className="font-mono text-xs font-bold px-2 py-0.5 bg-emerald-950 text-emerald-400 border border-emerald-800 rounded">
-                A401-style Subcontract Draft
+                AIA-style Subcontract Draft
               </span>
               <h2 className="text-lg font-bold text-white tracking-tight">
                 Subcontract Agreements Register
@@ -182,7 +177,7 @@ const handlePrint = (agr: Agreement) => {
         {showWhyCare && (
           <div className="mt-3 pt-3 border-t border-slate-800 text-xs text-slate-300 leading-relaxed bg-slate-950/60 rounded-lg p-3 border animate-in fade-in">
             <span className="font-semibold text-emerald-400">Legal Safeguard: </span>
-            Manual subcontract generation takes 2 to 3 weeks of administrative delay, risking jobsite mobilization and material escalation costs. TradePulse Pay instantly generates standardized, 10-article <strong className="text-emerald-300 font-semibold">A401-style subcontract drafts</strong> populated with negotiated contract sums, mandatory inclusions, retainage percentages (10%), and liquidated damages for completion delay ($1,200/calendar day; ADR-0003 lead-time adjustments of $6,000/week are a separate schedule-impact term)—ready for execution and export.
+            Manual subcontract generation takes 2 to 3 weeks of administrative delay, risking jobsite mobilization and material escalation costs. TradePulse Pay instantly generates standardized, 10-article <strong className="text-emerald-300 font-semibold">AIA-style subcontract drafts</strong> populated with the awarded contract sum, mandatory inclusions and each agreement's own terms (retainage capped by the project's state, payment terms, liquidated damages, insurance limits, warranty and governing state). The GC edits the terms until execution; after execution they are locked.
           </div>
         )}
       </div>
@@ -232,7 +227,7 @@ const handlePrint = (agr: Agreement) => {
           <h3 className="text-base font-bold text-white">No Subcontract Agreements Found</h3>
           <p className="text-xs text-slate-400 max-w-md mx-auto">
             {agreements.length === 0
-              ? "When you award a leveled bid in the Bid Leveling Matrix, TradePulse Pay automatically generates an A401-style subcontract draft for external execution."
+              ? "When you award a leveled bid in the Bid Leveling Matrix, TradePulse Pay automatically generates an AIA-style subcontract draft for external execution."
               : "No agreements match your search criteria."}
           </p>
           {onNavigateToLeveling && agreements.length === 0 && (
@@ -287,7 +282,7 @@ const handlePrint = (agr: Agreement) => {
 
                     <td className="px-4 py-3.5 text-slate-400 font-mono text-[11px]">
                       <div>Retainage: <strong className="text-slate-200">{agr.retainagePercent}%</strong></div>
-                      <div>LDs: <strong className="text-slate-200">${agr.liquidatedDamagesDaily.toLocaleString("en-US")}/day</strong></div>
+                      <div>LDs: <strong className="text-slate-200">{agr.liquidatedDamagesDaily > 0 ? `${formatCents(fromDollars(agr.liquidatedDamagesDaily))}/day` : "None"}</strong></div>
                     </td>
 
                     <td className="px-4 py-3.5">
@@ -308,7 +303,7 @@ const handlePrint = (agr: Agreement) => {
 
                     <td className="px-4 py-3.5 text-right space-x-2 whitespace-nowrap">
                       <button
-                        onClick={() => setSelectedAgreement(agr)}
+                        onClick={() => setSelectedAgreementId(agr._id)}
                         className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-slate-700 inline-flex items-center gap-1 transition"
                       >
                         <FileText className="w-3.5 h-3.5 text-emerald-400" />
@@ -365,7 +360,7 @@ const handlePrint = (agr: Agreement) => {
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in"
           role="presentation"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setSelectedAgreement(null);
+            if (event.target === event.currentTarget) setSelectedAgreementId(null);
           }}
         >
           <div ref={contractDialogRef} className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden" role="dialog" aria-modal="true" aria-labelledby="contract-viewer-title">
@@ -377,7 +372,7 @@ const handlePrint = (agr: Agreement) => {
                 </div>
                 <div>
                   <h3 id="contract-viewer-title" className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
-                    A401-style Subcontract Draft
+                    AIA-style Subcontract Draft
                     {selectedAgreement.status === "executed" ? (
                       <span className="text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800 px-2 py-0.5 rounded-full">
                          Execution Status Recorded • Signature Verification Required
@@ -428,7 +423,7 @@ const handlePrint = (agr: Agreement) => {
                 </button>
 
                 <button
-                  onClick={() => setSelectedAgreement(null)}
+                  onClick={() => setSelectedAgreementId(null)}
                   aria-label="Close contract viewer"
                   className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition"
                 >
@@ -457,7 +452,7 @@ const handlePrint = (agr: Agreement) => {
                   </div>
                   <div>
                     <span className="text-slate-400 block text-[10px] uppercase">Liquidated Damages</span>
-                    <span className="font-bold text-slate-300">${selectedAgreement.liquidatedDamagesDaily.toLocaleString("en-US")}/day</span>
+                    <span className="font-bold text-slate-300">{selectedAgreement.liquidatedDamagesDaily > 0 ? `${formatCents(fromDollars(selectedAgreement.liquidatedDamagesDaily))}/day` : "None"}</span>
                   </div>
                 </div>
 
@@ -469,7 +464,7 @@ const handlePrint = (agr: Agreement) => {
                       </div>
                       <div>
                         <div className="font-bold text-xs tracking-wider uppercase text-emerald-300">
-                          ✓ Execution recorded in TradePulse for this A401-style draft
+                          ✓ Execution recorded in TradePulse for this AIA-style draft
                         </div>
                         <div className="text-[10px] text-emerald-400/80 font-mono">
                           Audit record: {selectedAgreement.agreementNumber}-EXE • External signature verification required
@@ -490,7 +485,14 @@ const handlePrint = (agr: Agreement) => {
                   </div>
                 )}
 
-                <pre className="whitespace-pre-wrap font-mono text-xs bg-slate-900 p-6 rounded-xl border border-slate-800/80 leading-relaxed text-slate-200 print:border-none print:p-0 print:text-black">
+                {agreementsData !== undefined && (
+                  <div className="font-sans not-italic print:hidden">
+                    <AgreementTermsPanel agreementId={selectedAgreement._id} />
+                  </div>
+                )}
+
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 font-sans print:hidden">Subcontract preview</h4>
+                <pre aria-label="Subcontract preview" className="whitespace-pre-wrap font-mono text-xs bg-slate-900 p-6 rounded-xl border border-slate-800/80 leading-relaxed text-slate-200 print:border-none print:p-0 print:text-black">
                   {selectedAgreement.contractText}
                 </pre>
               </div>
@@ -500,7 +502,7 @@ const handlePrint = (agr: Agreement) => {
             <div className="p-4 border-t border-slate-800 bg-slate-900 flex flex-wrap items-center justify-between gap-3 text-xs">
               <div className="text-slate-400 text-[11px] flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                Generated A401-style draft — not an AIA-licensed form • Prime Project: {selectedAgreement.projectTitle}
+                Generated AIA-style draft — not an AIA form • Prime Project: {selectedAgreement.projectTitle}
               </div>
 
               <div className="flex items-center gap-2">
@@ -514,7 +516,7 @@ const handlePrint = (agr: Agreement) => {
                   </button>
                 )}
                 <button
-                  onClick={() => setSelectedAgreement(null)}
+                  onClick={() => setSelectedAgreementId(null)}
                   className="bg-slate-800 hover:bg-slate-750 text-slate-300 text-xs px-4 py-2 rounded-lg transition"
                 >
                   Close Viewer
@@ -544,10 +546,6 @@ const handlePrint = (agr: Agreement) => {
             agreementId: voidedId as any,
             reason: "Voided in TradePulse to correct a recorded execution; external amendment handled outside the system.",
           });
-          // A20-03: refresh the open viewer so it cannot keep the executed state.
-          setSelectedAgreement((prev) =>
-            prev && prev._id === voidedId ? { ...prev, status: "superseded", executedAt: undefined } : prev
-          );
           setAgreementToVoid(null);
         }}
       />

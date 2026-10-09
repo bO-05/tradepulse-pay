@@ -33,7 +33,8 @@ import { Bid, TradePackage, Agreement, Contractor, ScopeExclusion, ValueEngineer
 import { extractTextFromPdfStream } from "../lib/documentText.ts";
 import { getDeceptiveBidIds, getSuspiciouslyLowBidIds, leadPenaltyArithmetic, leadTargetWeeksFor } from "../leveling.ts";
 import { ConfirmDialog } from "./ConfirmDialog.tsx";
-import { roundDollarsToCents } from "../../convex/lib/money.ts";
+import { formatCents, fromDollars, roundDollarsToCents } from "../../convex/lib/money.ts";
+import { AgreementTermsPanel } from "../contracts/AgreementTermsPanel.tsx";
 import { useDialogFocus, useEscapeToClose } from "../lib/useDialogFocus.ts";
 import { printContractText } from "../lib/printContract.ts";
 
@@ -649,7 +650,7 @@ const [scannedPdfWarning, setScannedPdfWarning] = useState<string | null>(null);
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `${agreement.agreementNumber}_A401-style_Subcontract_Draft.txt`);
+    link.setAttribute("download", `${agreement.agreementNumber}_AIA-style_Subcontract_Draft.txt`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -840,7 +841,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                 </span>
               </div>
               <p className="text-xs text-slate-300 mt-0.5">
-                Subcontract agreement drafted with all mandatory inclusions and retainage. Ready for cross-trade clash deduction or AIA A401 execution.
+                Subcontract agreement drafted with all mandatory inclusions and retainage. Ready for cross-trade clash deduction or execution.
               </p>
             </div>
           </div>
@@ -1556,7 +1557,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
           </div>
           <p className="text-xs text-slate-400 mt-1 max-w-xl">
             {awardedBid
-              ? `Subcontract awarded to ${awardedBid.subcontractorName}. Proceed to cross-trade scope clash detection or inspect the generated A401-style subcontract draft.`
+              ? `Subcontract awarded to ${awardedBid.subcontractorName}. Proceed to cross-trade scope clash detection or inspect the generated AIA-style subcontract draft.`
               : "ADR-0003 leveling normalized base bids against exclusions and penalties. Advance to cross-trade clash coordination or contractual registers."}
           </p>
         </div>
@@ -2117,7 +2118,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
         </div>
       )}
 
-      {/* AIA Document A401 Agreement Viewer Modal */}
+      {/* Subcontract agreement viewer modal */}
       {viewingAgreementBidId && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in"
@@ -2135,7 +2136,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                 </div>
                 <div>
                   <h3 id="leveling-agreement-title" className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
-                    A401-style Subcontract Draft
+                    AIA-style Subcontract Draft
                     {activeAgreement?.status === "executed" ? (
                       <span className="text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800 px-2 py-0.5 rounded-full">
                         Execution status recorded • external signature required
@@ -2147,7 +2148,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                     )}
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Generated draft based on the A401 article structure — not an AIA-licensed form • {activeAgreement?.agreementNumber ?? "Loading..."}
+                    Generated AIA-style draft — not an AIA form • {activeAgreement?.agreementNumber ?? "Loading..."}
                   </p>
                 </div>
               </div>
@@ -2216,7 +2217,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                     </div>
                     <div>
                       <span className="text-slate-400 block text-[10px] uppercase">Liquidated Damages</span>
-                      <span className="font-bold text-slate-300">${activeAgreement.liquidatedDamagesDaily}/day</span>
+                      <span className="font-bold text-slate-300">{activeAgreement.liquidatedDamagesDaily > 0 ? `${formatCents(fromDollars(activeAgreement.liquidatedDamagesDaily))}/day` : "None"}</span>
                     </div>
                   </div>
 
@@ -2228,7 +2229,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                         </div>
                         <div>
                           <div className="font-bold text-xs tracking-wider uppercase text-emerald-300">
-                            ✓ Execution recorded in TradePulse for this A401-style draft
+                            ✓ Execution recorded in TradePulse for this AIA-style draft
                           </div>
                           <div className="text-[10px] text-emerald-400/80 font-mono">
                             Audit record: {activeAgreement.agreementNumber}-EXE • External signature verification required
@@ -2241,14 +2242,19 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                     </div>
                   )}
 
-                  <pre className="whitespace-pre-wrap font-mono text-xs bg-slate-900 p-6 rounded-xl border border-slate-800/80 leading-relaxed text-slate-200 print:border-none print:p-0 print:text-black">
+                  <div className="font-sans not-italic print:hidden">
+                    <AgreementTermsPanel agreementId={activeAgreement._id} />
+                  </div>
+
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 font-sans print:hidden">Subcontract preview</h4>
+                  <pre aria-label="Subcontract preview" className="whitespace-pre-wrap font-mono text-xs bg-slate-900 p-6 rounded-xl border border-slate-800/80 leading-relaxed text-slate-200 print:border-none print:p-0 print:text-black">
                     {activeAgreement.contractText}
                   </pre>
                 </div>
               ) : (
                 <div className="p-12 text-center text-slate-400 flex items-center justify-center gap-2">
                   <Clock className="w-4 h-4 animate-spin text-emerald-400" />
-                  Generating A401-style Subcontract Draft...
+                  Generating AIA-style Subcontract Draft...
                 </div>
               )}
             </div>
@@ -2258,7 +2264,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
               <div className="p-4 border-t border-slate-800 bg-slate-900 flex flex-wrap items-center justify-between gap-3 text-xs">
                 <div className="text-slate-400 text-[11px] flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                  Generated A401-style draft — not an AIA-licensed form • Verified CSI Division {activeAgreement.csiDivision}
+                  Generated AIA-style draft — not an AIA form • CSI Division {activeAgreement.csiDivision}
                 </div>
 
                 <div className="flex items-center gap-2">

@@ -108,7 +108,7 @@ export const RETAINAGE_RULES: RetainageRule[] = [
 export const DEFAULT_COMPANY_RETAINAGE_BPS = 1000;
 export const MAX_RETAINAGE_BPS = 10_000;
 
-const NOT_LEGAL_ADVICE = "This is general information, not legal advice.";
+export const NOT_LEGAL_ADVICE = "This is general information, not legal advice.";
 
 export function retainageRuleFor(state: string | null | undefined): RetainageRule | null {
   const code = (state ?? "").trim().toUpperCase();

@@ -8,7 +8,7 @@ import { attachProjectToDemo, ensureDemoCompanies, type DemoCompanyIds } from ".
 import { applyDemoLicenseNumbers } from "./kernel/demoLicenses";
 import { remapAgentLinks, snapshotActiveAgentLinks } from "./lib/agentLinkRemap";
 import { v, ConvexError } from "convex/values";
-import { generateAiaA401AgreementText } from "./agreements";
+import { refreshAgreementDocument } from "./lib/agreementDocument";
 import { getRealDocumentPdfBytes } from "./realDocuments";
 import { deleteAgreementCascade, deleteContractorCascade } from "./payments/cascade";
 
@@ -971,44 +971,7 @@ Furnish and install 1600A main service switchboard, 480/277V step-down distribut
 
     // 10. Seed the A401-style draft subcontract for Rosendin Electric, Inc.
     const agreementNumber = "A401-2026-2601-18042";
-    const agreementText = generateAiaA401AgreementText({
-      agreementNumber,
-      formattedDate: `${new Date().toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-        timeZone: "UTC",
-      })} (UTC)`,
-      generalContractor: DEFAULT_GENERAL_CONTRACTOR,
-      gcCity: "Austin",
-      gcState: "Texas",
-      stateAbbr: "TX",
-      subName: "Rosendin Electric, Inc.",
-      contactEmail: "estimating@rosendin.com",
-      licenseNumber: "TX-TECL-18042",
-      licenseStatus: "Unverified — demo record; state registry lookup not performed",
-      projectTitle: "The Domain Tower B - Commercial MEP",
-      projectLocation: "Austin, TX",
-      projectType: "Class-A Commercial Mixed-Use",
-      csiDivision: "26 00 00",
-      tradeName: "Electrical & Lighting Systems",
-      scopeSummary: "Complete commercial electrical distribution, 1600A switchgear, penthouse crane hoisting, emergency lighting, and seismic bracing.",
-      mandatoryInclusions: [
-        "Crane hoisting to 14th-floor mechanical room",
-        "Seismic bracing (IBC Section 1613)",
-        "Temporary 400A jobsite power distribution",
-        "UL 1479 floor/wall firestopping",
-      ],
-      contractSum: 1225000,
-      baseBidAmount: 1225000,
-      acceptedVeTotal: 0,
-      leveledTotalCost: 1225000,
-      retainagePercent: 10,
-      liquidatedDamagesDaily: 1200,
-      bidDeadline: "2026-09-25",
-    });
-
-    await ctx.db.insert("agreements", {
+    const demoAgreementId = await ctx.db.insert("agreements", {
       projectId,
       tradePackageId: elecPackageId,
       bidId: b1,
@@ -1033,9 +996,10 @@ Furnish and install 1600A main service switchboard, 480/277V step-down distribut
         "UL 1479 floor/wall firestopping",
       ],
       status: "generated",
-      contractText: agreementText,
+      contractText: "",
       createdAt: Date.now() - 3600000 * 6,
     });
+    await refreshAgreementDocument(ctx, demoAgreementId);
 
     return {
       status: "seeded_success",

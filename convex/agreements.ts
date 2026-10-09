@@ -3,15 +3,14 @@ import { auditActor, partyMaySeeContractor, requireDocOfProject, requireDocScope
 import { v, ConvexError } from "convex/values";
 import { validateProjectText } from "./validation";
 import { generalContractorNameFor } from "./lib/gcCompanyName";
-import { LIQUIDATED_DAMAGES_PER_DAY, RETAINAGE_PERCENT } from "./terms";
+import { defaultTermsForProject, legacyTermFields, refreshAgreementDocument } from "./lib/agreementDocument";
+import { fromDollars } from "./lib/money";
 import { ensureSovAndMilestones, removeSovAndMilestonesIfUnbilled } from "./payments/sov";
 import { contractorCanBidOnPackage } from "./lib/packageContractors";
 
 /**
- * AIA Document A401™ - 2017 Standard Form of Agreement Between Contractor and Subcontractor.
- * Generates an authentic, legally formatted construction subcontract agreement
- * tying together CSI MasterFormat scope, mandatory inclusions, leveled subcontract sum,
- * retainage, and ACORD 25 insurance requirements.
+ * Awards a bid and generates its subcontract draft (AIA-style terms, not an AIA form). Terms default
+ * from the project and the GC company and stay editable until execution (agreementTerms.ts).
  */
 export const generateAgreement = mutation({
   args: {
@@ -45,32 +44,14 @@ export const generateAgreement = mutation({
       );
     }
 
-    const acceptedVeTotal = (bid.valueEngineeringAlternates || []).reduce(
-      (sum, ve) => (ve.isAccepted ? sum + (ve.costDeduct || 0) : sum),
-      0
-    );
     const contractSum = Math.max(0, bid.leveledTotalCost);
-    const retainagePercent = RETAINAGE_PERCENT;
-    const liquidatedDamagesDaily = LIQUIDATED_DAMAGES_PER_DAY;
-
-    // A16-01: the server runs in UTC and cannot know the operator's timezone.
-    // Label the generated date explicitly so it is never misread as local.
-    const formattedDate = `${new Date().toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      timeZone: "UTC",
-    })} (UTC)`;
-
-    const contractLocation = project.location || "Austin, Texas";
-    const { city: gcCity, state: gcState, stateAbbr } = parseCityAndState(contractLocation);
-    const generalContractor = await generalContractorNameFor(ctx, project);
     const contractor = await ctx.db.get(bid.contractorId);
     if (!contractor || !contractorCanBidOnPackage(contractor, tradePkg)) {
       throw new Error("The selected bid is not linked to a valid contractor in this trade package.");
     }
     const subName = contractor.companyName.trim();
     if (!subName) throw new Error("The selected contractor must have a company name before an agreement can be generated.");
+    const generalContractor = await generalContractorNameFor(ctx, project);
 
     if (existing) {
       if (existing.status === "executed") {
@@ -98,35 +79,6 @@ export const generateAgreement = mutation({
       await ctx.db.patch(bid._id, { isAwarded: true });
       await ctx.db.patch(tradePkg._id, { status: "awarded" });
 
-      const updatedText = generateAiaA401AgreementText({
-        agreementNumber: existing.agreementNumber,
-        formattedDate,
-        generalContractor,
-        gcCity,
-        gcState,
-        stateAbbr,
-        subName,
-        contactEmail:
-          contractor?.contactEmail ??
-          `estimating@${subName.toLowerCase().replace(/[^a-z0-9]/g, "") || "contractor"}.com`,
-        licenseNumber: contractor?.licenseNumber ?? "Not verified",
-        licenseStatus: contractor?.licenseStatus ?? "Unverified - verify before execution",
-        projectTitle: project.title,
-        projectLocation: project.location,
-        projectType: project.projectType,
-        csiDivision: tradePkg.csiDivision,
-        tradeName: tradePkg.tradeName,
-        scopeSummary: tradePkg.scopeSummary,
-        mandatoryInclusions: tradePkg.mandatoryInclusions,
-        contractSum,
-        baseBidAmount: bid.baseBidAmount,
-        acceptedVeTotal,
-        leveledTotalCost: bid.leveledTotalCost,
-        retainagePercent,
-        liquidatedDamagesDaily,
-        bidDeadline: tradePkg.bidDeadline,
-      });
-
       await ctx.db.patch(existing._id, {
         status: "generated",
         contractorId: bid.contractorId,
@@ -134,17 +86,17 @@ export const generateAgreement = mutation({
         subcontractorEmail: contractor.contactEmail,
         generalContractorName: generalContractor,
         contractSum,
-        contractText: updatedText,
         scopeSummary: tradePkg.scopeSummary,
         mandatoryInclusions: tradePkg.mandatoryInclusions,
       });
+      await refreshAgreementDocument(ctx, existing._id);
       await removeSovAndMilestonesIfUnbilled(ctx, existing._id);
 
       await ctx.db.insert("auditLogs", {
         projectId: project._id,
         tradePackageId: tradePkg._id,
         eventType: "contract_awarded",
-        title: `AIA A401 Subcontract Agreement Re-Awarded: ${existing.subcontractorName}`,
+        title: `Subcontract Agreement Re-Awarded: ${subName}`,
         description: `Re-activated subcontract agreement ${existing.agreementNumber} for CSI Division ${tradePkg.csiDivision} (${tradePkg.tradeName}) in the amount of $${contractSum.toLocaleString("en-US")}.`,
         ...auditActor(access),
         timestamp: Date.now(),
@@ -152,36 +104,8 @@ export const generateAgreement = mutation({
       return await ctx.db.get(existing._id);
     }
 
-    const agreementNumber = `A401-2026-${tradePkg.csiDivision.replace(/\s+/g, "").slice(0, 4)}-${Date.now().toString().slice(-4)}`;
-
-    const contractText = generateAiaA401AgreementText({
-      agreementNumber,
-      formattedDate,
-      generalContractor,
-      gcCity,
-      gcState,
-      stateAbbr,
-      subName,
-      contactEmail:
-        contractor?.contactEmail ??
-        `estimating@${subName.toLowerCase().replace(/[^a-z0-9]/g, "") || "contractor"}.com`,
-      licenseNumber: contractor?.licenseNumber ?? "Not verified",
-      licenseStatus: contractor?.licenseStatus ?? "Unverified - verify before execution",
-      projectTitle: project.title,
-      projectLocation: project.location,
-      projectType: project.projectType,
-      csiDivision: tradePkg.csiDivision,
-      tradeName: tradePkg.tradeName,
-      scopeSummary: tradePkg.scopeSummary,
-      mandatoryInclusions: tradePkg.mandatoryInclusions,
-      contractSum,
-      baseBidAmount: bid.baseBidAmount,
-      acceptedVeTotal,
-      leveledTotalCost: bid.leveledTotalCost,
-      retainagePercent,
-      liquidatedDamagesDaily,
-      bidDeadline: tradePkg.bidDeadline,
-    });
+    const agreementNumber = `SC-${tradePkg.csiDivision.replace(/\s+/g, "").slice(0, 4)}-${Date.now().toString().slice(-6)}`;
+    const terms = await defaultTermsForProject(ctx, project, fromDollars(contractSum));
 
     const agreementId = await ctx.db.insert("agreements", {
       projectId: project._id,
@@ -189,7 +113,7 @@ export const generateAgreement = mutation({
       bidId: bid._id,
       contractorId: bid.contractorId,
       agreementNumber,
-      documentTitle: "Subcontract Agreement (A401-style structure) — generated draft, not an AIA-licensed form",
+      documentTitle: "Subcontract Agreement (AIA-style terms) — generated draft, not an AIA form",
       subcontractorName: subName,
       subcontractorEmail: contractor.contactEmail,
       generalContractorName: generalContractor,
@@ -198,14 +122,15 @@ export const generateAgreement = mutation({
       csiDivision: tradePkg.csiDivision,
       tradeName: tradePkg.tradeName,
       contractSum,
-      retainagePercent,
-      liquidatedDamagesDaily,
+      ...legacyTermFields(terms),
+      terms,
       scopeSummary: tradePkg.scopeSummary,
       mandatoryInclusions: tradePkg.mandatoryInclusions,
       status: "generated",
-      contractText,
+      contractText: "",
       createdAt: Date.now(),
     });
+    await refreshAgreementDocument(ctx, agreementId, terms);
 
     // Un-award any other bids in this package
     const packageBids = await ctx.db
@@ -240,7 +165,7 @@ export const generateAgreement = mutation({
       projectId: project._id,
       tradePackageId: tradePkg._id,
       eventType: "contract_awarded",
-      title: `AIA A401 Subcontract Agreement Awarded: ${subName}`,
+      title: `Subcontract Agreement Awarded: ${subName}`,
       description: `Subcontract agreement ${agreementNumber} generated for CSI Division ${tradePkg.csiDivision} (${tradePkg.tradeName}) in the amount of $${contractSum.toLocaleString("en-US")} — pending external execution.`,
       ...auditActor(access),
       timestamp: Date.now(),
@@ -356,7 +281,7 @@ export const executeAgreement = mutation({
       projectId: agreement.projectId,
       tradePackageId: agreement.tradePackageId,
       eventType: "contract_awarded",
-      title: `AIA A401 Execution Status Recorded`,
+      title: `Subcontract Execution Status Recorded`,
       description: `Execution status recorded for ${agreement.agreementNumber} between ${agreement.generalContractorName} and ${agreement.subcontractorName}; external signature verification remains required.`,
       ...auditActor(access),
       contractorId: agreement.contractorId,
@@ -498,8 +423,8 @@ export function parseCityAndState(location?: string): { city: string; state: str
 /**
  * Synchronizes the active subcontract agreement for an awarded bid when its leveling,
  * VE alternates, scope voids, or double buy credits are adjusted.
- * Ensures the statutory AIA Document A401 contractText, mandatoryInclusions, and
- * contractSum stay 100% in sync with the agreed procurement terms.
+ * Keeps the subcontract text, mandatory inclusions and contract sum in sync with the award; the
+ * agreement's stored terms are kept.
  */
 export async function syncAgreementForBid(ctx: any, bidId: any): Promise<any> {
   const bid = await ctx.db.get(bidId);
@@ -529,278 +454,17 @@ export async function syncAgreementForBid(ctx: any, bidId: any): Promise<any> {
   const subcontractorName = contractor.companyName.trim();
   const generalContractorName = await generalContractorNameFor(ctx, project);
 
-  const acceptedVeTotal = (bid.valueEngineeringAlternates || []).reduce(
-    (sum: number, ve: any) => (ve.isAccepted ? sum + (ve.costDeduct || 0) : sum),
-    0
-  );
   const contractSum = Math.max(0, bid.leveledTotalCost);
-  const retainagePercent = existingAgreement.retainagePercent || RETAINAGE_PERCENT;
-  const liquidatedDamagesDaily = existingAgreement.liquidatedDamagesDaily || LIQUIDATED_DAMAGES_PER_DAY;
-
-  const formattedDate = `${new Date(existingAgreement.createdAt || Date.now()).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    timeZone: "UTC",
-  })} (UTC)`;
-
-  const contractLocation = project.location || "Austin, Texas";
-  const { city: gcCity, state: gcState, stateAbbr } = parseCityAndState(contractLocation);
-
-  const updatedContractText = generateAiaA401AgreementText({
-    agreementNumber: existingAgreement.agreementNumber,
-    formattedDate,
-    generalContractor: generalContractorName,
-    gcCity,
-    gcState,
-    stateAbbr,
-    subName: subcontractorName,
-    contactEmail:
-      contractor.contactEmail ||
-      `estimating@${subcontractorName.toLowerCase().replace(/[^a-z0-9]/g, "") || "contractor"}.com`,
-    licenseNumber: contractor.licenseNumber || "Not verified",
-    licenseStatus: contractor.licenseStatus || "Unverified - verify before execution",
-    projectTitle: project.title,
-    projectLocation: project.location,
-    projectType: project.projectType,
-    csiDivision: tradePkg.csiDivision,
-    tradeName: tradePkg.tradeName,
-    scopeSummary: tradePkg.scopeSummary,
-    mandatoryInclusions: tradePkg.mandatoryInclusions,
-    contractSum,
-    baseBidAmount: bid.baseBidAmount,
-    acceptedVeTotal,
-    leveledTotalCost: bid.leveledTotalCost,
-    retainagePercent,
-    liquidatedDamagesDaily,
-    bidDeadline: tradePkg.bidDeadline,
-  });
-
   await ctx.db.patch(existingAgreement._id, {
     contractorId: bid.contractorId,
     subcontractorName,
     subcontractorEmail: contractor.contactEmail,
     generalContractorName,
     contractSum,
-    contractText: updatedContractText,
     scopeSummary: tradePkg.scopeSummary,
     mandatoryInclusions: tradePkg.mandatoryInclusions,
   });
+  await refreshAgreementDocument(ctx, existingAgreement._id);
 
   return await ctx.db.get(existingAgreement._id);
-}
-
-export function numberToWords(num: number): string {
-  num = Math.round(num);
-  const units = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
-  const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
-  if (num >= 1000000) {
-    const millions = Math.floor(num / 1000000);
-    const rem = num % 1000000;
-    return `${numberToWords(millions)} Million` + (rem ? ` ${numberToWords(rem)}` : "");
-  }
-  if (num >= 1000) {
-    const thousands = Math.floor(num / 1000);
-    const rem = num % 1000;
-    return `${numberToWords(thousands)} Thousand` + (rem ? ` ${numberToWords(rem)}` : "");
-  }
-  if (num >= 100) {
-    const hundreds = Math.floor(num / 100);
-    const rem = num % 100;
-    return `${units[hundreds]} Hundred` + (rem ? ` ${numberToWords(rem)}` : "");
-  }
-  if (num >= 20) {
-    const t = Math.floor(num / 10);
-    const rem = num % 10;
-    return tens[t] + (rem ? `-${units[rem]}` : "");
-  }
-  if (num > 0) return units[num];
-  return "Zero";
-}
-
-export function generateAiaA401AgreementText(params: {
-  agreementNumber: string;
-  formattedDate: string;
-  generalContractor: string;
-  gcCity: string;
-  gcState: string;
-  stateAbbr: string;
-  subName: string;
-  contactEmail: string;
-  licenseNumber: string;
-  licenseStatus: string;
-  projectTitle: string;
-  projectLocation: string;
-  projectType: string;
-  csiDivision: string;
-  tradeName: string;
-  scopeSummary: string;
-  mandatoryInclusions: string[];
-  contractSum: number;
-  baseBidAmount: number;
-  acceptedVeTotal: number;
-  leveledTotalCost: number;
-  retainagePercent: number;
-  liquidatedDamagesDaily: number;
-  bidDeadline: string;
-}): string {
-  return `================================================================================
-SUBCONTRACT AGREEMENT — A401-STYLE STRUCTURE (GENERATED DRAFT)
-AGREEMENT NO: ${params.agreementNumber}
-================================================================================
-
-NOTICE: This is a TradePulse-generated draft that follows the A401 article
-structure. It is not an official AIA document or a licensed AIA form, and the
-parties, addresses, license numbers and dates marked [from the Prime Agreement]
-must be completed from the executed Prime Agreement before use. TradePulse does
-not provide a signature service.
-
-AGREEMENT made as of the ${params.formattedDate}.
-
-BETWEEN the Contractor:
-  ${params.generalContractor}
-  Address & license: [from the Prime Agreement — verify before execution]
-
-and the Subcontractor:
-  ${params.subName}
-  Contact: ${
-    /\.invalid$/i.test(params.contactEmail)
-      ? "not published — obtain the subcontractor's notice address before execution"
-      : params.contactEmail
-  }
-  License No: ${params.licenseNumber} (${params.licenseStatus})
-
-The Prime Project:
-  ${params.projectTitle}
-  Location: ${params.projectLocation}
-  Type: ${params.projectType}
-  Owner: [Owner from the Prime Agreement]
-
-The Prime Agreement between Contractor and Owner is dated: [Prime Agreement date]
-The Architect / Owner Representative: [from the Prime Agreement]
-
---------------------------------------------------------------------------------
-TABLE OF ARTICLES
---------------------------------------------------------------------------------
-ARTICLE 1   THE SUBCONTRACT DOCUMENTS & CSI MASTERFORMAT SPECIFICATIONS
-ARTICLE 2   MUTUAL RIGHTS AND RESPONSIBILITIES
-ARTICLE 3   CONTRACTOR OBLIGATIONS & SITE LOGISTICS
-ARTICLE 4   SUBCONTRACTOR WORK & MANDATORY SCOPE INCLUSIONS
-ARTICLE 5   CHANGES IN THE WORK & CHANGE ORDER PROTOCOL
-ARTICLE 6   SUBCONTRACT SUM, SCHEDULE OF VALUES & PROGRESS PAYMENTS
-ARTICLE 7   INSURANCE, ACORD 25 COI & INDEMNIFICATION
-ARTICLE 8   SAFETY, QUALITY ASSURANCE & STATUTORY WARRANTIES
-ARTICLE 9   DISPUTE RESOLUTION & BINDING ARBITRATION
-ARTICLE 10  ATTESTATION & FORMAL EXECUTION
-
---------------------------------------------------------------------------------
-ARTICLE 1 - THE SUBCONTRACT DOCUMENTS
---------------------------------------------------------------------------------
-§ 1.1 The Subcontract Documents consist of:
-  (1) this A401-style Subcontract Agreement draft;
-  (2) the Prime Agreement between Contractor and Owner;
-  (3) the Conditions of the Subcontract (General, Supplementary, and Special);
-  (4) CSI MasterFormat Division ${params.csiDivision} (${params.tradeName}) Drawings and Specifications;
-  (5) Addenda issued prior to execution; and
-  (6) Written Pre-Bid Clarifications and Modifications recorded in TradePulse Pay.
-
---------------------------------------------------------------------------------
-ARTICLE 2 - MUTUAL RIGHTS AND RESPONSIBILITIES
---------------------------------------------------------------------------------
-§ 2.1 The Contractor and Subcontractor shall be mutually bound by the terms of this
-Agreement and, to the extent that the provisions of the Prime Agreement apply to
-the Work of the Subcontractor, the Contractor shall assume toward the Subcontractor
-all obligations and responsibilities that the Owner assumes toward the Contractor.
-
---------------------------------------------------------------------------------
-ARTICLE 3 - CONTRACTOR OBLIGATIONS & SITE LOGISTICS
---------------------------------------------------------------------------------
-§ 3.1 Contractor shall coordinate utility hookup points, establish perimeter benchmarks,
-and administer the TradePulse Pay project portal for RFI clarifications.
-All hoisting logistics, floor loading capacities, and crane pick zones shall be
-coordinated through Contractor's field superintendent.
-
---------------------------------------------------------------------------------
-ARTICLE 4 - SUBCONTRACTOR WORK & MANDATORY SCOPE INCLUSIONS
---------------------------------------------------------------------------------
-§ 4.1 Scope of Work: The Subcontractor shall furnish all labor, materials, equipment,
-services, hoisting, and supervision necessary to complete Division ${params.csiDivision}:
-${params.tradeName}.
-
-Summary of Scope:
-${params.scopeSummary}
-
-§ 4.2 MANDATORY SCOPE INCLUSIONS:
-The Subcontractor explicitly certifies and agrees that the Subcontract Sum includes
-complete and unabridged fulfillment of the following mandatory trade obligations:
-${params.mandatoryInclusions.map((inc) => `  [✓] ${inc}`).join("\n")}
-
-§ 4.3 No fine-print exclusions, unauthorized substitutions, or scope gap carve-outs
-shall be recognized or allowed unless approved in an executed Change Order.
-
---------------------------------------------------------------------------------
-ARTICLE 5 - CHANGES IN THE WORK
---------------------------------------------------------------------------------
-§ 5.1 The Contractor may, without invalidating the Subcontract, order Changes in the Work
-within the general scope of this Subcontract. Such changes shall be authorized by
-written Change Order prior to commencement of extra work. Overhead and profit
-on approved change orders shall not exceed 10% overhead and 5% profit.
-
---------------------------------------------------------------------------------
-ARTICLE 6 - SUBCONTRACT SUM & PROGRESS PAYMENTS
---------------------------------------------------------------------------------
-§ 6.1 The Contractor shall pay the Subcontractor in current funds for the Subcontractor's
-performance of the Subcontract the Subcontract Sum of:
-  $${params.contractSum.toLocaleString("en-US")} (${numberToWords(params.contractSum)} Dollars).
-  (Accounting Reconciliation: Base Bid $${params.baseBidAmount.toLocaleString("en-US")}, plus scope-gap exclusions, lead-time, and COI adjustments, less Accepted VE Deducts $${params.acceptedVeTotal.toLocaleString("en-US")}. Baseline Leveled Cost: $${params.leveledTotalCost.toLocaleString("en-US")}).
-
-§ 6.2 Progress Payments: Contractor shall pay Subcontractor monthly based on approved
-Schedule of Values minus ${params.retainagePercent}% retainage.
-Payment terms: Net 30 days following Owner funding.
-Liquidated Damages: $${params.liquidatedDamagesDaily.toLocaleString("en-US")} per calendar day for unexcused project delays past Substantial Completion (see the Project Schedule / Prime Agreement).
-
---------------------------------------------------------------------------------
-ARTICLE 7 - INSURANCE & INDEMNIFICATION
---------------------------------------------------------------------------------
-§ 7.1 Prior to commencing Work, Subcontractor shall furnish Contractor with an official
-ACORD 25 Certificate of Liability Insurance evidencing:
-  - Commercial General Liability: $1,000,000 per occurrence / $2,000,000 general aggregate
-  - Commercial Umbrella / Excess Liability: $5,000,000 each occurrence
-  - Workers' Compensation & Employer's Liability: Statutory limits
-  - Contractor and Owner named as Additional Insureds on Primary & Non-Contributory basis
-  - 30-Day Written Notice of Cancellation
-
---------------------------------------------------------------------------------
-ARTICLE 8 - SAFETY & STATUTORY WARRANTIES
---------------------------------------------------------------------------------
-§ 8.1 Subcontractor warrants that all materials and equipment furnished under this
-Subcontract will be new and of recent manufacture, and that Work will be free from
-defects and conform strictly to CSI MasterFormat Division ${params.csiDivision} specs.
-Warranty period: One (1) full year from Substantial Completion.
-
---------------------------------------------------------------------------------
-ARTICLE 9 - DISPUTE RESOLUTION
---------------------------------------------------------------------------------
-§ 9.1 Any claim arising out of or related to this Subcontract Agreement shall be
-subject to mediation as a condition precedent to binding dispute resolution administered
-by the American Arbitration Association (AAA) in ${params.gcCity}, ${params.gcState}.
-
---------------------------------------------------------------------------------
-ARTICLE 10 - ATTESTATION & FORMAL EXECUTION
---------------------------------------------------------------------------------
-IN WITNESS WHEREOF, the parties hereto have executed this Subcontract Agreement
-as of the day and year first written above.
-
-CONTRACTOR: ${params.generalContractor}
-By: ___________________________________       Date: ${params.formattedDate}
-    Authorized Executive Officer
-
-SUBCONTRACTOR: ${params.subName}
-By: ___________________________________       Date: ${params.formattedDate}
-    Authorized Corporate Principal
-
-================================================================================
-Prepared in TradePulse Pay for ${params.generalContractor}
-Generated draft based on the AIA A401 article structure — not an AIA-licensed form
-================================================================================`;
 }

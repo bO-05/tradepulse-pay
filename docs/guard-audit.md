@@ -5,7 +5,7 @@ function calls a role guard before it reads or writes data, and a company-tenanc
 (`convex/lib/tenancy.ts`, `convex/lib/projectScope.ts`) unless it reads no project data.
 Internal functions (163 `internal*` exports) are not callable from clients and are not listed.
 
-Public functions: 145. Problems: 0. Without a tenancy guard: 0.
+Public functions: 147. Problems: 0. Without a tenancy guard: 0.
 
 | Function | Kind | Location | Guard | Tenancy |
 |---|---|---|---|---|
@@ -14,12 +14,14 @@ Public functions: 145. Problems: 0. Without a tenancy guard: 0.
 | `agentLinks:addAgentLink` | mutation | `convex/agentLinks.ts:69` | requireDocScope() at line 72 | requireDocScope() |
 | `agentLinks:revokeAgentLink` | mutation | `convex/agentLinks.ts:115` | requireRole() at line 118 | requireCompanyMember() |
 | `agentmailWebhook:agentmailWebhook` | httpAction | `convex/agentmailWebhook.ts:22` | AgentMail Svix signature verification before any write; 503 when no secret is set | none needed: AgentMail-signed delivery; no caller session. Routing by stored thread or ref; unmatched mail carries no tenant ids |
-| `agreements:generateAgreement` | mutation | `convex/agreements.ts:16` | requireDocScope() at line 22 | requireDocScope() |
-| `agreements:voidExecutedAgreement` | mutation | `convex/agreements.ts:259` | requireDocScope() at line 265 | requireDocScope() |
-| `agreements:getAgreementByBid` | query | `convex/agreements.ts:297` | requireDocScope() at line 300 | requireDocScope() |
-| `agreements:getAgreementByPackage` | query | `convex/agreements.ts:308` | requireDocScope() at line 311 | requireDocScope() |
-| `agreements:listAgreements` | query | `convex/agreements.ts:321` | requireProjectScope() at line 324 | requireProjectScope() |
-| `agreements:executeAgreement` | mutation | `convex/agreements.ts:334` | requireDocScope() at line 337 | requireDocScope() |
+| `agreementTerms:getAgreementTerms` | query | `convex/agreementTerms.ts:12` | requireDocScope() at line 15 | requireDocScope() |
+| `agreementTerms:updateAgreementTerms` | mutation | `convex/agreementTerms.ts:36` | requireDocScope() at line 39 | requireDocScope() |
+| `agreements:generateAgreement` | mutation | `convex/agreements.ts:15` | requireDocScope() at line 21 | requireDocScope() |
+| `agreements:voidExecutedAgreement` | mutation | `convex/agreements.ts:184` | requireDocScope() at line 190 | requireDocScope() |
+| `agreements:getAgreementByBid` | query | `convex/agreements.ts:222` | requireDocScope() at line 225 | requireDocScope() |
+| `agreements:getAgreementByPackage` | query | `convex/agreements.ts:233` | requireDocScope() at line 236 | requireDocScope() |
+| `agreements:listAgreements` | query | `convex/agreements.ts:246` | requireProjectScope() at line 249 | requireProjectScope() |
+| `agreements:executeAgreement` | mutation | `convex/agreements.ts:259` | requireDocScope() at line 262 | requireDocScope() |
 | `auditLogs:listRecentLogs` | query | `convex/auditLogs.ts:41` | requireProjectScope() at line 51 | requireProjectScope() |
 | `bids:listByPackage` | query | `convex/bids.ts:81` | requireDocScope() at line 85 | requireDocScope() |
 | `bids:listAllProjectBids` | query | `convex/bids.ts:93` | requireProjectScope() at line 96 | requireProjectScope() |
@@ -58,15 +60,15 @@ Public functions: 145. Problems: 0. Without a tenancy guard: 0.
 | `evals:getLatestEvalRun` | query | `convex/evals.ts:101` | requireDemoCompany() at line 104 | requireDemoCompany() |
 | `evals:listTracesForRun` | query | `convex/evals.ts:132` | requireDemoCompany() at line 135 | requireDemoCompany() |
 | `evals:executeEvalSuite` | action | `convex/evals.ts:155` | requireDemoCompanyInAction() at line 161 | requireDemoCompanyInAction() |
-| `files:generateUploadUrl` | mutation | `convex/files.ts:44` | requireRole() at line 48 | requireProjectScope() |
-| `files:saveFileRecord` | mutation | `convex/files.ts:143` | requireProjectScope() at line 157 | requireProjectScope() |
-| `files:repairSeededDocumentSizes` | mutation | `convex/files.ts:255` | requireDemoCompany() at line 258 | requireDemoCompany() |
-| `files:listFilesByProject` | query | `convex/files.ts:286` | requireProjectScope() at line 289 | requireProjectScope() |
-| `files:listFilesByPackage` | query | `convex/files.ts:299` | requireDocScope() at line 302 | requireDocScope() |
-| `files:deleteFile` | mutation | `convex/files.ts:312` | requireDocScope() at line 315 | requireDocScope() |
-| `files:extractBidFromQuoteFile` | action | `convex/files.ts:897` | requireProjectScopeInAction() at line 909 | requireProjectScopeInAction() |
-| `files:extractBidFromFile` | action | `convex/files.ts:925` | requireProjectScopeInAction() at line 935 | requireProjectScopeInAction() |
-| `files:generatePreBidAddendum` | action | `convex/files.ts:973` | requireProjectScopeInAction() at line 980 | requireProjectScopeInAction() |
+| `files:generateUploadUrl` | mutation | `convex/files.ts:43` | requireRole() at line 47 | requireProjectScope() |
+| `files:saveFileRecord` | mutation | `convex/files.ts:142` | requireProjectScope() at line 156 | requireProjectScope() |
+| `files:repairSeededDocumentSizes` | mutation | `convex/files.ts:254` | requireDemoCompany() at line 257 | requireDemoCompany() |
+| `files:listFilesByProject` | query | `convex/files.ts:285` | requireProjectScope() at line 288 | requireProjectScope() |
+| `files:listFilesByPackage` | query | `convex/files.ts:298` | requireDocScope() at line 301 | requireDocScope() |
+| `files:deleteFile` | mutation | `convex/files.ts:311` | requireDocScope() at line 314 | requireDocScope() |
+| `files:extractBidFromQuoteFile` | action | `convex/files.ts:896` | requireProjectScopeInAction() at line 908 | requireProjectScopeInAction() |
+| `files:extractBidFromFile` | action | `convex/files.ts:924` | requireProjectScopeInAction() at line 934 | requireProjectScopeInAction() |
+| `files:generatePreBidAddendum` | action | `convex/files.ts:972` | requireProjectScopeInAction() at line 979 | requireProjectScopeInAction() |
 | `invites:create` | action | `convex/invites.ts:386` | requireCompanyMemberInAction() at line 398 | requireCompanyMemberInAction() |
 | `invites:resend` | action | `convex/invites.ts:412` | requireCompanyMemberInAction() at line 416 | requireCompanyMemberInAction() |
 | `invites:revoke` | mutation | `convex/invites.ts:428` | requireCompanyMember() at line 432 | requireCompanyMember() |
@@ -133,8 +135,8 @@ Public functions: 145. Problems: 0. Without a tenancy guard: 0.
 | `projects:updateProject` | mutation | `convex/projects.ts:193` | requireProjectScope() at line 196 | requireProjectScope() |
 | `projects:archiveProject` | mutation | `convex/projects.ts:214` | requireProjectScope() at line 217 | requireProjectScope() |
 | `projects:restoreProject` | mutation | `convex/projects.ts:234` | requireProjectScope() at line 237 | requireProjectScope() |
-| `projects:seedInitialData` | mutation | `convex/projects.ts:1067` | requireDemoCompany() at line 1070 | requireDemoCompany() |
-| `projects:deleteProject` | mutation | `convex/projects.ts:1081` | requireProjectScope() at line 1084 | requireProjectScope() |
+| `projects:seedInitialData` | mutation | `convex/projects.ts:1031` | requireDemoCompany() at line 1034 | requireDemoCompany() |
+| `projects:deleteProject` | mutation | `convex/projects.ts:1045` | requireProjectScope() at line 1048 | requireProjectScope() |
 | `rfq:listConversations` | query | `convex/rfq.ts:7` | requireDocScope() at line 10 | requireDocScope() |
 | `rfq:getProjectDeliveryStatus` | query | `convex/rfq.ts:24` | requireProjectScope() at line 27 | requireProjectScope() |
 | `rfq:dispatchRfqs` | mutation | `convex/rfq.ts:81` | requireDocScope() at line 84 | requireDocScope() |

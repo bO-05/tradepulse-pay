@@ -184,6 +184,23 @@ const a = (name: string, fn: AnyRef, args: Case["args"]): Case => ({ name, kind:
 const GC_ONLY: Case[] = [
   m("bids:awardContract (award)", api.bids.awardContract, (i) => ({ bidId: i.bidId, tradePackageId: i.tradePackageId })),
   m("agreements:executeAgreement (execute)", api.agreements.executeAgreement, (i) => ({ agreementId: i.agreementId })),
+  m("agreementTerms:updateAgreementTerms", api.agreementTerms.updateAgreementTerms, (i) => ({
+    agreementId: i.agreementId,
+    terms: {
+      retainageBps: 500,
+      paymentTerms: { type: "net", days: 30 },
+      insurance: {
+        glEachOccurrenceCents: 100_000_000,
+        glAggregateCents: 200_000_000,
+        autoCents: 100_000_000,
+        umbrellaCents: 500_000_000,
+        workersComp: true,
+        additionalInsured: true,
+      },
+      warrantyMonths: 12,
+      governingState: "TX",
+    },
+  })),
   m("projects:seedInitialData (reset/seed)", api.projects.seedInitialData, () => ({ force: true })),
   m("projects:updateProject (settings)", api.projects.updateProject, (i) => ({ projectId: i.projectId, ...projectSetupArgs() })),
   m("projects:archiveProject", api.projects.archiveProject, (i) => ({ projectId: i.projectId })),
@@ -289,6 +306,7 @@ describe("agreement ledger and payment reads", () => {
     { name: "payApps/proposals:listInbox", fn: api.payApps.proposals.listInbox, args: () => ({}) },
     { name: "payApps/proposals:getAgentTrace", fn: api.payApps.proposals.getAgentTrace, args: (i) => ({ payAppId: i.payAppId }) },
     { name: "portal:getAgreementSummary", fn: api.portal.getAgreementSummary, args: (i) => ({ agreementId: i.agreementId }) },
+    { name: "agreementTerms:getAgreementTerms", fn: api.agreementTerms.getAgreementTerms, args: (i) => ({ agreementId: i.agreementId }) },
     { name: "portal:mySubPortal", fn: api.portal.mySubPortal, args: () => ({}) },
     { name: "portal:mySubPayApps", fn: api.portal.mySubPayApps, args: () => ({ paginationOpts: { numItems: 50, cursor: null } }) },
     { name: "kernel/licenseChecks:getContractorLicense", fn: api.kernel.licenseChecks.getContractorLicense, args: (i) => ({ contractorId: i.contractorId }) },

@@ -19,11 +19,10 @@ import {
 import {
   COI_DEFICIENCY_PENALTY,
   LEAD_TIME_PENALTY_PER_WEEK,
-  LIQUIDATED_DAMAGES_PER_DAY,
-  RETAINAGE_PERCENT,
   leadTimePenaltyFor,
   targetWeeksForDivision,
 } from "./terms";
+import { formatRetainagePercent } from "./lib/retainageRules";
 
 export { extractTextFromPdfStream };
 
@@ -824,13 +823,13 @@ This Addendum forms a legally binding part of the Contract Documents and modifie
    - Temporary power distribution boards (400A) must be furnished and maintained by the electrical trade subcontractor from the primary utility tap.
 
 2. **Liquidated Delay Adjustments & Schedule**:
-   - Equipment lead times exceeding the target project milestone without a pre-approved expedited shipping rider incur ADR-0003 lead-time delay adjustments at $${LEAD_TIME_PENALTY_PER_WEEK.toLocaleString("en-US")} per week. These are distinct from the subcontract's liquidated damages of $${LIQUIDATED_DAMAGES_PER_DAY.toLocaleString("en-US")} per calendar day for completion delay.
+   - Equipment lead times exceeding the target project milestone without a pre-approved expedited shipping rider incur ADR-0003 lead-time delay adjustments at $${LEAD_TIME_PENALTY_PER_WEEK.toLocaleString("en-US")} per week. These are distinct from any liquidated damages for completion delay, which are stated in each subcontract's terms.
 
 3. **Mandatory Insurance Standards (ACORD 25)**:
-   - All trade subcontractors must maintain $2,000,000 General Aggregate, $1,000,000 Each Occurrence, and $5,000,000 Commercial Umbrella liability naming General Contractor as Additional Insured.
+   - Insurance limits and additional-insured requirements are stated in each subcontract's terms.
 
 4. **Retainage**:
-   - Progress payments are subject to ${RETAINAGE_PERCENT}% retainage per the subcontract terms.
+   - Progress payments are subject to ${project?.retainageBps !== undefined ? `${formatRetainagePercent(project.retainageBps)} ` : ""}retainage as stated in each subcontract's terms.
 
 ### ARTICLE 2: PRE-BID QUESTIONS & AUTHORITATIVE CLARIFICATIONS
 ${

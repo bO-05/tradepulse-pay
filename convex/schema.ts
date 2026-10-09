@@ -14,6 +14,23 @@ export const addressValidator = v.object({
   zip: v.string(),
 });
 
+export const agreementTermsValidator = v.object({
+  retainageBps: v.number(),
+  retainageReductionBpsAt50: v.optional(v.number()),
+  paymentTerms: v.object({ type: v.union(v.literal("net"), v.literal("pay_when_paid")), days: v.number() }),
+  liquidatedDamagesCentsPerDay: v.optional(v.number()),
+  insurance: v.object({
+    glEachOccurrenceCents: v.number(),
+    glAggregateCents: v.number(),
+    autoCents: v.number(),
+    umbrellaCents: v.number(),
+    workersComp: v.boolean(),
+    additionalInsured: v.boolean(),
+  }),
+  warrantyMonths: v.number(),
+  governingState: v.string(),
+});
+
 export const milestoneStatusValidator = v.union(
   v.literal("planned"),
   v.literal("funding"),
@@ -807,8 +824,11 @@ export default defineSchema({
     csiDivision: v.string(),
     tradeName: v.string(),
     contractSum: v.number(),
+    // Mirrors of terms.retainageBps / terms.liquidatedDamagesCentsPerDay for legacy readers.
     retainagePercent: v.number(),
     liquidatedDamagesDaily: v.number(),
+    // §14 per-agreement terms; legacy rows without it are resolved from the fields above.
+    terms: v.optional(agreementTermsValidator),
     scopeSummary: v.string(),
     mandatoryInclusions: v.array(v.string()),
     status: v.string(), // "generated" | "executed"

@@ -4,6 +4,7 @@ import { NotFoundState } from "../ui/NotFoundState";
 import { ledgerHash } from "../auth/navigation";
 import { formatDate, formatDollars } from "./format";
 import { MilestoneFundingTable } from "./MilestoneFundingSummary";
+import { AgreementTermsPanel } from "../contracts/AgreementTermsPanel";
 
 export function AgreementSummaryView({ agreementId, backHash }: { agreementId: string; backHash: string }) {
   const agreement = useQuery(api.portal.getAgreementSummary, { agreementId });
@@ -42,6 +43,7 @@ export function AgreementSummaryView({ agreementId, backHash }: { agreementId: s
           <dd className="font-semibold">{formatDate(agreement.executedAt)}</dd>
         </div>
       </dl>
+      <AgreementTermsPanel agreementId={agreement._id} />
       {agreement.status === "executed" ? (
         <section aria-labelledby="agreement-milestone-funding">
           <h3 id="agreement-milestone-funding" className="text-sm font-semibold mb-1">

@@ -1,19 +1,14 @@
 /**
- * Canonical commercial terms for TradePulse Pay.
- *
- * Every surface that quotes these figures (AIA A401 agreements, ADR-0003 leveling,
- * generated specifications, addenda and UI copy) must read them from here so the
- * same contract term can never be stated two different ways.
+ * Leveling constants for TradePulse Pay (ADR-0003). Subcontract commercial terms (retainage,
+ * payment terms, liquidated damages, insurance, warranty, governing state) are per agreement:
+ * see convex/lib/agreementTerms.ts.
  */
-
-/** Subcontract retainage withheld from progress payments. */
-export const RETAINAGE_PERCENT = 10;
 
 /**
- * AIA A401 subcontract liquidated damages for unexcused completion delay.
- * Stated per calendar day in the agreement.
+ * Retainage percent of the seeded Demo company's Texas scenarios, and the fallback for a legacy
+ * agreement row whose stored percent is unusable.
  */
-export const LIQUIDATED_DAMAGES_PER_DAY = 1200;
+export const RETAINAGE_PERCENT = 10;
 
 /**
  * ADR-0003 lead-time penalty rate applied when a bidder's equipment lead time

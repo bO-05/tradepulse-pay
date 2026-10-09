@@ -4,9 +4,9 @@ import { v, ConvexError } from "convex/values";
 import { notFound } from "./lib/tenancy";
 import { deleteAgreementCascade } from "./payments/cascade";
 import { internal } from "./_generated/api";
-import { generateAiaA401AgreementText, getStateAbbreviation } from "./agreements";
+import { defaultTermsForProject, legacyTermFields, refreshAgreementDocument } from "./lib/agreementDocument";
 import { persistPendingRfi } from "./rfq";
-import { LIQUIDATED_DAMAGES_PER_DAY, RETAINAGE_PERCENT } from "./terms";
+import { fromDollars } from "./lib/money";
 
 /**
  * Demo simulation (Demo company only; everyone else gets "Not found."): inserts simulated
@@ -397,7 +397,7 @@ export const retryRfiAnalysis = mutation({
  * Demo company only. 1-click full procurement lifecycle simulation (no email is sent):
  * Executes the entire causal lifecycle from discovery -> RFQ dispatch ->
  * pre-bid RFI clarification -> dual-quote ingestion & forensic leveling ->
- * to AIA Document A401 contract award in a single click.
+ * to subcontract award in a single click.
  */
 export const runFullProcurementCycle = mutation({
   args: {
@@ -754,46 +754,10 @@ export const runFullProcurementCycle = mutation({
 
     await ctx.db.patch(packageId, { status: "awarded" });
 
-    // 6. Generate AIA Document A401 Subcontract Agreement for Winning Bidder
+    // 6. Generate the subcontract draft (AIA-style terms) for the winning bidder
     const divPrefix = tradePkg.csiDivision.replace(/\s+/g, "").slice(0, 4);
-    const agreementNumber = `A401-2026-${divPrefix}-${now.toString().slice(-4)}`;
-    const formattedDate = `${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" })} (UTC)`;
-    const locParts = (project?.location || "Austin, Texas").split(",").map((s: string) => s.trim());
-    const gcCity = locParts[0] || "Austin";
-    const gcState = locParts[1] || "Texas";
-    const stateAbbr = getStateAbbreviation(gcState);
-    const acceptedVeTotal = (bid1Data.valueEngineeringAlternates || []).reduce(
-      (sum: number, ve: any) => (ve.isAccepted ? sum + (ve.costDeduct || 0) : sum),
-      0
-    );
-
-    const agreementText = generateAiaA401AgreementText({
-      agreementNumber,
-      formattedDate,
-      generalContractor: "Austin Commercial, LP",
-      gcCity,
-      gcState,
-      stateAbbr,
-      subName: c1Name,
-      contactEmail: c1Email,
-      licenseNumber: c1License,
-      licenseStatus: "Unverified — demo record; registry lookup not performed",
-      projectTitle: project?.title || "The Domain Tower B - Commercial MEP",
-      projectLocation: project?.location || "Austin, TX",
-      projectType: project?.projectType || "Class-A Commercial Mixed-Use",
-      csiDivision: tradePkg.csiDivision,
-      tradeName: tradePkg.tradeName,
-      scopeSummary: tradePkg.scopeSummary,
-      mandatoryInclusions: tradePkg.mandatoryInclusions || [],
-      contractSum: winningCost,
-      baseBidAmount: bid1Data.baseBidAmount,
-      acceptedVeTotal,
-      leveledTotalCost: bid1Data.leveledTotalCost,
-      retainagePercent: RETAINAGE_PERCENT,
-      liquidatedDamagesDaily: LIQUIDATED_DAMAGES_PER_DAY,
-      bidDeadline: tradePkg.bidDeadline || "2026-09-30",
-    });
-
+    const agreementNumber = `SC-${divPrefix}-${now.toString().slice(-6)}`;
+    const terms = await defaultTermsForProject(ctx, project, fromDollars(winningCost));
     // A10-01: an executed subcontract is immutable; the full-cycle simulation must
     // never delete it. Refuse before any destructive work happens for this package.
     const packageAgreementsBefore = await ctx.db
@@ -819,7 +783,7 @@ export const runFullProcurementCycle = mutation({
       bidId: bid1Id,
       contractorId: c1!._id,
       agreementNumber,
-      documentTitle: "Subcontract Agreement (A401-style structure) — generated draft, not an AIA-licensed form",
+      documentTitle: "Subcontract Agreement (AIA-style terms) — generated draft, not an AIA form",
       subcontractorName: c1Name,
       generalContractorName: "Austin Commercial, LP",
       projectTitle: project?.title || "The Domain Tower B - Commercial MEP",
@@ -827,21 +791,22 @@ export const runFullProcurementCycle = mutation({
       csiDivision: tradePkg.csiDivision,
       tradeName: tradePkg.tradeName,
       contractSum: winningCost,
-      retainagePercent: RETAINAGE_PERCENT,
-      liquidatedDamagesDaily: LIQUIDATED_DAMAGES_PER_DAY,
+      ...legacyTermFields(terms),
+      terms,
       scopeSummary: tradePkg.scopeSummary,
       mandatoryInclusions: tradePkg.mandatoryInclusions,
       status: "generated",
-      contractText: agreementText,
+      contractText: "",
       createdAt: now + 2000,
     });
+    await refreshAgreementDocument(ctx, agreementId, terms);
 
     await ctx.db.insert("auditLogs", {
       projectId: tradePkg.projectId,
       tradePackageId: packageId,
       eventType: "contract_awarded",
       title: `Subcontract Awarded: ${c1Name}`,
-      description: `Awarded Division ${tradePkg.csiDivision} to ${c1Name} at $${winningCost.toLocaleString()} leveled cost. A401-style subcontract draft generated (not an AIA-licensed form).`,
+      description: `Awarded Division ${tradePkg.csiDivision} to ${c1Name} at $${winningCost.toLocaleString()} leveled cost. AIA-style subcontract draft generated (not an AIA form).`,
       actor: "Autonomous Procurement Engine (ADR-0003)",
       timestamp: now + 2000,
     });
