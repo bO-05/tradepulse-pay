@@ -309,6 +309,7 @@ export default defineSchema({
   })
     .index("by_companyId", ["companyId"])
     .index("by_companyId_and_email", ["companyId", "email"])
+    .index("by_companyId_and_linkedCompanyId", ["companyId", "linkedCompanyId"])
     .index("by_linkedCompanyId", ["linkedCompanyId"]),
 
   // One row per recipient user, written only by convex/lib/notify.ts. companyId is the recipient's company

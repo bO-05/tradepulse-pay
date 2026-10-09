@@ -84,6 +84,7 @@ import type * as lib_tenancyAction from "../lib/tenancyAction.js";
 import type * as lib_tenancyFixtures from "../lib/tenancyFixtures.js";
 import type * as lib_testIdentity from "../lib/testIdentity.js";
 import type * as lib_vendorDirectory from "../lib/vendorDirectory.js";
+import type * as lib_vendorMerge from "../lib/vendorMerge.js";
 import type * as lib_vendorRules from "../lib/vendorRules.js";
 import type * as lib_venue from "../lib/venue.js";
 import type * as llmRouter from "../llmRouter.js";
@@ -246,6 +247,7 @@ declare const fullApi: ApiFromModules<{
   "lib/tenancyFixtures": typeof lib_tenancyFixtures;
   "lib/testIdentity": typeof lib_testIdentity;
   "lib/vendorDirectory": typeof lib_vendorDirectory;
+  "lib/vendorMerge": typeof lib_vendorMerge;
   "lib/vendorRules": typeof lib_vendorRules;
   "lib/venue": typeof lib_venue;
   llmRouter: typeof llmRouter;

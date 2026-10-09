@@ -22,7 +22,8 @@ import { deliveryFailureMessage } from "./emailOutbox";
 import { getLiveAuthUserId } from "./lib/session";
 import { requireCompanyMemberInAction } from "./lib/tenancyAction";
 import { findActiveMembership, notFound, requireCompanyMember, requireVerifiedUser } from "./lib/tenancy";
-import { findVendorByEmail } from "./lib/vendorDirectory";
+import { findVendorByEmail, findVendorByLinkedCompany } from "./lib/vendorDirectory";
+import { mergeVendorPair } from "./lib/vendorMerge";
 import { notify } from "./lib/notify";
 
 /**
@@ -548,13 +549,18 @@ async function vendorAlreadyOnPay(
   });
 }
 
-/** Links the project's bidder records for this vendor (by vendor id, else by its contact email) to the sub company. */
+/**
+ * Links the project's bidder records for this vendor (by vendor id, else by its contact email or one of
+ * `otherEmails`) to the sub company.
+ */
 async function linkVendorContractors(
   ctx: MutationCtx,
   projectId: Id<"projects">,
   vendor: Doc<"vendors">,
   subCompanyId: Id<"companies">,
+  otherEmails: string[] = [],
 ): Promise<Id<"contractors"> | undefined> {
+  const emails = new Set([vendor.email, ...otherEmails]);
   let first: Id<"contractors"> | undefined;
   const packages = await ctx.db
     .query("tradePackages")
@@ -566,7 +572,7 @@ async function linkVendorContractors(
       .withIndex("by_package", (q) => q.eq("tradePackageId", pkg._id))
       .take(200);
     for (const c of bidders) {
-      const matches = c.vendorId === vendor._id || (c.vendorId === undefined && c.contactEmail.trim().toLowerCase() === vendor.email);
+      const matches = c.vendorId === vendor._id || (c.vendorId === undefined && emails.has(c.contactEmail.trim().toLowerCase()));
       if (!matches) continue;
       if (c.linkedCompanyId !== undefined && c.linkedCompanyId !== subCompanyId) continue;
       await ctx.db.patch(c._id, { linkedCompanyId: subCompanyId, vendorId: vendor._id });
@@ -656,8 +662,9 @@ async function acceptInvite(ctx: MutationCtx, user: Doc<"users">, invite: Doc<"i
     const project = invite.projectId ? await ctx.db.get(invite.projectId) : null;
     if (project === null || project.gcCompanyId !== inviter._id) throw new ConvexError({ code: "INVITE_INVALID", message: NO_LONGER_VALID });
     if (invite.kind === "sub") {
-      const vendor = invite.vendorId ? await ctx.db.get(invite.vendorId) : null;
-      if (vendor === null) throw new ConvexError({ code: "INVITE_INVALID", message: NO_LONGER_VALID });
+      const invitedVendor = invite.vendorId ? await ctx.db.get(invite.vendorId) : null;
+      if (invitedVendor === null) throw new ConvexError({ code: "INVITE_INVALID", message: NO_LONGER_VALID });
+      let vendor = invitedVendor;
       // A sub invite admits a company to a project; it never admits a person into an existing
       // company. Joining one happens only through that company's own teammate invite.
       let subCompanyId: Id<"companies">;
@@ -665,6 +672,9 @@ async function acceptInvite(ctx: MutationCtx, user: Doc<"users">, invite: Doc<"i
         if (current.kind !== "sub") throw alreadyInCompany(current, "a subcontractor company");
         if (vendor.linkedCompanyId !== undefined && vendor.linkedCompanyId !== current._id) throw await vendorAlreadyOnPay(ctx, vendor);
         subCompanyId = current._id;
+        // The GC may already list this company on another vendor row; keep a single row per sub.
+        const alreadyListed = await findVendorByLinkedCompany(ctx, inviter._id, subCompanyId);
+        if (alreadyListed !== null && alreadyListed._id !== vendor._id) vendor = await mergeVendorPair(ctx, alreadyListed, vendor);
       } else if (vendor.linkedCompanyId !== undefined) {
         throw await vendorAlreadyOnPay(ctx, vendor);
       } else {
@@ -679,7 +689,7 @@ async function acceptInvite(ctx: MutationCtx, user: Doc<"users">, invite: Doc<"i
       }
       if (vendor.linkedCompanyId === undefined) newlyLinkedVendor = vendor;
       await ctx.db.patch(vendor._id, { linkedCompanyId: subCompanyId });
-      const contractorId = await linkVendorContractors(ctx, project._id, vendor, subCompanyId);
+      const contractorId = await linkVendorContractors(ctx, project._id, vendor, subCompanyId, [invitedVendor.email]);
       await upsertProjectMember(ctx, {
         projectId: project._id,
         companyId: subCompanyId,

@@ -28,6 +28,18 @@ export async function findVendorByEmail(
     .first();
 }
 
+/** The GC company's oldest vendor row linked to this sub company, if any. */
+export async function findVendorByLinkedCompany(
+  ctx: QueryCtx,
+  companyId: Id<"companies">,
+  linkedCompanyId: Id<"companies">,
+): Promise<Doc<"vendors"> | null> {
+  return await ctx.db
+    .query("vendors")
+    .withIndex("by_companyId_and_linkedCompanyId", (q) => q.eq("companyId", companyId).eq("linkedCompanyId", linkedCompanyId))
+    .first();
+}
+
 async function findVendorByName(ctx: QueryCtx, companyId: Id<"companies">, name: string): Promise<Doc<"vendors"> | null> {
   const key = name.trim().toLowerCase();
   const rows = await ctx.db
@@ -49,9 +61,12 @@ export async function vendorForBidder(
 ): Promise<{ vendorId: Id<"vendors">; created: boolean }> {
   const email = bidder.contactEmail.trim().toLowerCase();
   const trade = csiDivision ? normalizeTrade(csiDivision) : null;
-  const existing = isPlaceholderEmail(email)
-    ? await findVendorByName(ctx, gcCompanyId, bidder.companyName)
-    : await findVendorByEmail(ctx, gcCompanyId, email);
+  const linked = bidder.linkedCompanyId === undefined ? null : await findVendorByLinkedCompany(ctx, gcCompanyId, bidder.linkedCompanyId);
+  const existing =
+    linked ??
+    (isPlaceholderEmail(email)
+      ? await findVendorByName(ctx, gcCompanyId, bidder.companyName)
+      : await findVendorByEmail(ctx, gcCompanyId, email));
   if (existing !== null) {
     const patch: Partial<Doc<"vendors">> = {};
     if (trade !== null && !existing.trades.includes(trade)) patch.trades = [...existing.trades, trade];

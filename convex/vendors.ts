@@ -12,6 +12,7 @@ import {
   type VendorBackfillCounts,
 } from "./lib/vendorDirectory";
 import { payeeState } from "./lib/payee";
+import { addMergeCounts, emptyMergeCounts, mergeDuplicateVendorsForCompany } from "./lib/vendorMerge";
 import { VENDOR_IMPORT_MAX_ROWS, firstVendorError, isPlaceholderEmail, validateVendorInput } from "./lib/vendorRules";
 
 /**
@@ -219,6 +220,29 @@ export const myGcRelationships = query({
       });
     }
     return out.sort((a, b) => a.gcCompanyName.localeCompare(b.gcCompanyName));
+  },
+});
+
+/**
+ * Merges duplicate vendor rows (same normalized email or same linked company) of every GC company, or
+ * one, into the oldest row and repoints their references. Idempotent; run once after deploy.
+ */
+export const mergeDuplicateVendors = internalMutation({
+  args: { gcCompanyId: v.optional(v.id("companies")) },
+  handler: async (ctx, args) => {
+    const companies = args.gcCompanyId
+      ? [await ctx.db.get(args.gcCompanyId)].filter((c): c is Doc<"companies"> => c !== null)
+      : await ctx.db
+          .query("companies")
+          .withIndex("by_kind", (q) => q.eq("kind", "gc"))
+          .take(1000);
+    const total = { ...emptyMergeCounts(), companies: 0 };
+    for (const c of companies) {
+      if (c.kind !== "gc") continue;
+      addMergeCounts(total, await mergeDuplicateVendorsForCompany(ctx, c._id));
+      total.companies++;
+    }
+    return total;
   },
 });
 
