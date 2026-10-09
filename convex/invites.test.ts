@@ -141,11 +141,10 @@ describe("creating invites", () => {
     expect((await inviteRow(t, res.inviteId)).emailStatus).toBe("failed");
   });
 
-  test("only GC members create invites, only on their own projects; bad emails create nothing", async () => {
+  test("only GC members create project invites, only on their own projects; bad emails create nothing", async () => {
     const { t, fx } = await setup();
     const projectId = fx.gcA.project.projectId;
     const before = await t.run(async (ctx) => (await ctx.db.query("invites").collect()).length);
-    await expect(fx.sub.admin.as.action(api.invites.create, { kind: "teammate", email: "x@mail-test.com", sendEmail: false })).rejects.toThrow(/Forbidden/);
     await expect(
       fx.sub.admin.as.action(api.invites.create, { kind: "owner", email: "x@mail-test.com", projectId, sendEmail: false }),
     ).rejects.toThrow(/Not found/);

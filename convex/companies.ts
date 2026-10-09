@@ -15,7 +15,7 @@ function invalid(message: string, field?: string) {
   return new ConvexError({ code: "INVALID" as const, message, ...(field ? { field } : {}) });
 }
 
-/** The caller's company with its members and (for GC admins) teammate invites. */
+/** The caller's company with its members and (for admins) teammate invites. */
 export const myCompany = query({
   args: {},
   handler: async (ctx) => {
@@ -41,7 +41,7 @@ export const myCompany = query({
     members.sort((a, b) => a.name.localeCompare(b.name));
     const isAdmin = membership.role === "admin";
     const teammateInvites = [];
-    if (isAdmin && company.kind === "gc") {
+    if (isAdmin) {
       for (const i of await listTeammateInvites(ctx, company._id)) {
         teammateInvites.push({
           _id: i._id,

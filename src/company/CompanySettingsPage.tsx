@@ -355,7 +355,7 @@ function MembersCard({ data }: { data: Company }) {
   const [inviting, setInviting] = useState(false);
   const [removing, setRemoving] = useState<{ membershipId: string; name: string; isYou: boolean } | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const canInvite = data.isAdmin && data.company.kind === "gc";
+  const canInvite = data.isAdmin;
 
   const changeRole = async (membershipId: string, name: string, role: "admin" | "member") => {
     setBusyId(membershipId);

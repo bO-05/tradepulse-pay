@@ -29,8 +29,8 @@ import { vendorSearchText } from "./lib/vendorSearch";
 import { notify } from "./lib/notify";
 
 /**
- * Invites (architecture §13): a GC company invites teammates, a vendor's sub contact for a project,
- * or the project owner. The plaintext token lives only in the link (shown to the inviter and
+ * Invites (architecture §13): any company's admins invite teammates; a GC company also invites a
+ * vendor's sub contact for a project, or the project owner. The plaintext token lives only in the link (shown to the inviter and
  * optionally emailed); the database keeps its sha256. Accepting requires a verified human account
  * with the invited email.
  */
@@ -127,7 +127,8 @@ export const prepareCreate = internalMutation({
       ({ project } = await requireProjectScope(ctx, args.projectId, { roles: ["gc"], write: true }));
     }
     const { user, membership, company } = await requireCompanyMember(ctx);
-    if (company.kind !== "gc") {
+    // Any company's admins invite their own teammates; project (sub/owner) invites are GC-only.
+    if (company.kind !== "gc" && args.kind !== "teammate") {
       throw new ConvexError({ code: "FORBIDDEN", message: "Forbidden: only general contractor companies can send invites." });
     }
     if (user.emailVerificationTime === undefined) {
@@ -252,7 +253,10 @@ export const prepareCreate = internalMutation({
   },
 });
 
-/** The invite the caller may manage: it belongs to the caller's GC company and (for project invites) a project the caller's company runs. */
+/**
+ * The invite the caller may manage: it belongs to the caller's company and is either a teammate
+ * invite (admins of any company kind) or a project invite on a project the caller's GC company runs.
+ */
 async function requireManageableInvite(
   ctx: MutationCtx,
   member: Awaited<ReturnType<typeof requireCompanyMember>>,
@@ -261,7 +265,8 @@ async function requireManageableInvite(
   const { user, membership, company } = member;
   const normalized = ctx.db.normalizeId("invites", inviteId);
   const invite = normalized === null ? null : await ctx.db.get(normalized);
-  if (invite === null || invite.inviterCompanyId !== company._id || company.kind !== "gc") throw notFound();
+  if (invite === null || invite.inviterCompanyId !== company._id) throw notFound();
+  if (company.kind !== "gc" && (invite.kind !== "teammate" || invite.projectId !== undefined)) throw notFound();
   let project: Doc<"projects"> | null = null;
   if (invite.projectId !== undefined) {
     ({ project } = await requireProjectScope(ctx, invite.projectId, { roles: ["gc"], write: true }));
@@ -477,7 +482,9 @@ async function upsertProfile(
     return;
   }
   if (role === "sub") {
-    await ctx.db.patch(profile._id, { role, companyId, contractorId: profile.contractorId ?? contractorId });
+    // A contractor id remembered from a former company must not carry over to a new one.
+    const kept = profile.companyId === companyId ? profile.contractorId : undefined;
+    await ctx.db.patch(profile._id, { role, companyId, contractorId: kept ?? contractorId });
   } else {
     await ctx.db.patch(profile._id, { role, companyId, contractorId: undefined, paypalEmail: undefined });
   }
@@ -658,7 +665,7 @@ async function acceptInvite(ctx: MutationCtx, user: Doc<"users">, invite: Doc<"i
   if (invite.kind === "teammate") {
     if (current !== null && current._id !== inviter._id) throw alreadyInCompany(current, `${inviter.name}`);
     if (current === null) await addCompanyMember(ctx, inviter._id, user._id, "member");
-    await upsertProfile(ctx, user, "gc", inviter._id);
+    await upsertProfile(ctx, user, inviter.kind, inviter._id);
     joinedCompanyId = inviter._id;
   } else {
     const project = invite.projectId ? await ctx.db.get(invite.projectId) : null;
