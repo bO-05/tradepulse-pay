@@ -205,7 +205,6 @@ const CASES: Case[] = [
   m("projects:createProject", api.projects.createProject, () => projectSetupArgs({ title: "Forged" })),
   m("projects:seedInitialData", api.projects.seedInitialData, () => ({ force: true })),
   m("projects:deleteProject", api.projects.deleteProject, (i) => ({ projectId: i.projectId })),
-  m("rfq:dispatchRfqs", api.rfq.dispatchRfqs, (i) => ({ tradePackageId: i.packageId })),
   m("rfq:reviewEscalatedRfi", api.rfq.reviewEscalatedRfi, (i) => ({ conversationId: i.conversationId, status: "rejected" })),
   a("rfq:generatePreBidAddendum", api.rfq.generatePreBidAddendum, (i) => ({ projectId: i.projectId })),
   a("rfqActions:provisionPackageInbox", api.rfqActions.provisionPackageInbox, (i) => ({
@@ -214,9 +213,15 @@ const CASES: Case[] = [
   })),
   a("rfqActions:dispatchRfqsWithNotification", api.rfqActions.dispatchRfqsWithNotification, (i) => ({
     tradePackageId: i.packageId,
+    recipients: [{ contractorId: i.contractorId, email: "bids@example.test" }],
   })),
   a("rfqActions:dispatchSingleRfqWithNotification", api.rfqActions.dispatchSingleRfqWithNotification, (i) => ({
     contractorId: i.contractorId,
+    email: "bids@example.test",
+  })),
+  m("rfqRecipients:confirmBidderEmail", api.rfqRecipients.confirmBidderEmail, (i) => ({
+    contractorId: i.contractorId,
+    email: "bids@example.test",
   })),
   m("simulation:triggerJudgeSimulation", api.simulation.triggerJudgeSimulation, (i) => ({
     tradePackageId: i.packageId,

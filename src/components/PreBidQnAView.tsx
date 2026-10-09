@@ -625,7 +625,7 @@ Each proposal submitted must include affirmative written acknowledgement of ADDE
                   <p className="text-slate-300 font-semibold">No pre-bid RFIs yet.</p>
                   <p>
                     Bidders email questions to this package's AgentMail inbox and they appear here automatically, or use
-                    the form on the right to file one manually. Dispatch RFQs from Discovery first to start the round.
+                    the form on the right to file one manually. Send RFQs from Discovery first to start the round.
                   </p>
                 </>
               ) : (

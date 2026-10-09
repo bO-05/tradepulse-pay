@@ -391,16 +391,19 @@ const GC_ONLY: Case[] = [
   })),
   a("files:generatePreBidAddendum", api.files.generatePreBidAddendum, (i) => ({ projectId: i.projectId })),
   q("rfq:getProjectDeliveryStatus", api.rfq.getProjectDeliveryStatus, (i) => ({ projectId: i.projectId })),
-  m("rfq:dispatchRfqs", api.rfq.dispatchRfqs, (i) => ({ tradePackageId: i.tradePackageId })),
   m("rfq:reviewEscalatedRfi", api.rfq.reviewEscalatedRfi, (i) => ({ conversationId: i.conversationId, status: "rejected" })),
   a("rfq:generatePreBidAddendum", api.rfq.generatePreBidAddendum, (i) => ({ projectId: i.projectId })),
   a("rfqActions:provisionPackageInbox", api.rfqActions.provisionPackageInbox, (i) => ({
     tradePackageId: i.tradePackageId,
     usernamePrefix: "forged",
   })),
-  a("rfqActions:dispatchRfqsWithNotification", api.rfqActions.dispatchRfqsWithNotification, (i) => ({ tradePackageId: i.tradePackageId })),
+  a("rfqActions:dispatchRfqsWithNotification", api.rfqActions.dispatchRfqsWithNotification, (i) => ({
+    tradePackageId: i.tradePackageId,
+    recipients: [{ contractorId: i.contractorId, email: "bids@example.test" }],
+  })),
   a("rfqActions:dispatchSingleRfqWithNotification", api.rfqActions.dispatchSingleRfqWithNotification, (i) => ({
     contractorId: i.contractorId,
+    email: "bids@example.test",
   })),
   q("coordination:detectCrossTradeClashes", api.coordination.detectCrossTradeClashes, (i) => ({ projectId: i.projectId })),
   m("coordination:deductDoubleBuyCredit", api.coordination.deductDoubleBuyCredit, (i) => ({

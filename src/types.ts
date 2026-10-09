@@ -35,7 +35,20 @@ export interface Contractor {
   licenseNumber: string;
   licenseStatus: string;
   sourceUrl: string;
-  rfqStatus: "discovered" | "invited" | "rfi_submitted" | "bid_received";
+  rfqStatus:
+    | "discovered"
+    | "invited"
+    | "rfi_submitted"
+    | "bid_received"
+    | "sent"
+    | "failed"
+    | "skipped_budget"
+    | "blocked_recipient"
+    | "bounced"
+    | "replied";
+  rfqEmailStatus?: "sent" | "failed" | "skipped_budget" | "blocked_recipient" | "bounced" | "replied" | "not_sent";
+  rfqEmailError?: string;
+  rfqSentAt?: number;
   dispatchedAt?: number;
   updatedAt?: number;
 }

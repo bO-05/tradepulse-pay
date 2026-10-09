@@ -1,6 +1,7 @@
 /**
  * The only email send path in the app. Every attempt is recorded in `emailOutbox`
- * (sent | uncertain | delivery_failed | failed | skipped_budget) and is subject to the daily budget guard.
+ * (sent | uncertain | delivery_failed | failed | skipped_budget | blocked_recipient) and is subject to the daily
+ * budget guard. Outside production, recipients outside EMAIL_RECIPIENT_ALLOWLIST are refused (lib/recipientAllowlist.ts).
  * Only a definite refusal releases a budget slot; a lost or timed-out response stays charged as
  * `uncertain` until a retry with the same Idempotency-Key reconciles it.
  * Notifications are in-app only and cannot be emailed through here.
@@ -9,6 +10,7 @@ import type { GenericActionCtx, GenericDataModel } from "convex/server";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { agentmailConfig } from "../agentmailApi";
+import { BLOCKED_RECIPIENT_MESSAGE } from "./recipientAllowlist";
 
 export const SYSTEM_INBOX = "cleverneed464@agentmail.to";
 export const RFQ_INBOX = "dullstreet57@agentmail.to";
@@ -45,7 +47,7 @@ export interface SendEmailRequest {
 export type SendEmailResult =
   | { status: "sent"; outboxId: Id<"emailOutbox">; messageId: string; threadId: string }
   | { status: "skipped_budget"; outboxId: Id<"emailOutbox">; message: string }
-  | { status: "failed"; outboxId?: Id<"emailOutbox">; error: string; uncertain?: boolean };
+  | { status: "failed"; outboxId?: Id<"emailOutbox">; error: string; uncertain?: boolean; blockedRecipient?: boolean };
 
 export const DEMO_NO_EMAIL_MESSAGE = "Demo company: no external email is sent.";
 
@@ -126,6 +128,9 @@ export async function sendEmail(ctx: MailerCtx, req: SendEmailRequest, opts: Mai
 
   if (reservation.action === "demo_blocked") {
     return { status: "failed", error: DEMO_NO_EMAIL_MESSAGE };
+  }
+  if (reservation.action === "blocked_recipient") {
+    return { status: "failed", outboxId: reservation.outboxId, error: BLOCKED_RECIPIENT_MESSAGE, blockedRecipient: true };
   }
   if (reservation.action === "already_sent") {
     return {

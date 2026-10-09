@@ -15,6 +15,7 @@ const app = defineApp({
     AGENTMAIL_API_KEY: v.optional(v.string()),
     AGENTMAIL_WEBHOOK_SECRET: v.optional(v.string()),
     EMAIL_DAILY_BUDGET: v.optional(v.string()),
+    EMAIL_RECIPIENT_ALLOWLIST: v.optional(v.string()),
     OPENAI_API_KEY: v.optional(v.string()),
     GEMINI_API_KEY: v.optional(v.string()),
     ANTHROPIC_API_KEY: v.optional(v.string()),

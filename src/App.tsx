@@ -5,6 +5,8 @@ import { api } from "../convex/_generated/api.js";
 import { Header } from "./components/Header.tsx";
 import { requestNewProject } from "./projects/newProjectRequest";
 import { Button, EmptyState, NotFoundState } from "./ui";
+import { RfqSendDialog } from "./vendors/RfqSendDialog";
+import type { Id } from "../convex/_generated/dataModel";
 import { resolveRequestedProject } from "./projects/requestedProject";
 import { ExecutiveKpiBar } from "./components/ExecutiveKpiBar.tsx";
 import { TradePackagesView } from "./components/TradePackagesView.tsx";
@@ -300,8 +302,7 @@ export const App: React.FC = () => {
   const deleteProjectMutation = useMutation(api.projects.deleteProject);
   const createPackageMutation = useMutation(api.tradePackages.createTradePackage);
   const deletePackageMutation = useMutation(api.tradePackages.deleteTradePackage);
-  const dispatchRfqsAction = useAction(api.rfqActions.dispatchRfqsWithNotification);
-  const dispatchSingleRfqAction = useAction(api.rfqActions.dispatchSingleRfqWithNotification);
+  const [rfqReview, setRfqReview] = useState<{ tradePackageId: string; contractorIds?: string[] } | null>(null);
   const generateAgreementMutation = useMutation(api.agreements.generateAgreement);
   const triggerSimulationMutation = useMutation(api.simulation.triggerJudgeSimulation);
   const submitCustomRfiMutation = useMutation(api.simulation.submitCustomRfi);
@@ -344,30 +345,14 @@ export const App: React.FC = () => {
   };
 
   // Handlers
+  // RFQs are only sent from the review dialog, after the GC confirms the exact recipient list.
   const handleDispatchRfqs = async (packageId: string) => {
-    try {
-      const isRealPkg = isRealConvexProject && Boolean(packageId) && !packageId.startsWith("pkg_");
-      if (isRealPkg) {
-        const res = await dispatchRfqsAction({ tradePackageId: packageId as any });
-        if (!res || res.dispatchedCount === 0) {
-          showToast("No RFQ invitations were sent: no contractors require dispatch for this package.", "error");
-        } else if (res.emailsSent > 0) {
-          showToast(`RFQs delivered to ${res.emailsSent} contractor(s) via AgentMail.`, "success");
-        } else if (res.deliveryConfigured === false) {
-          showToast(
-            `RFQs recorded for ${res.dispatchedCount} contractor(s), but AgentMail is not configured on this deployment, so no email left the system.`,
-            "info"
-          );
-        } else {
-          const firstFailure = Array.isArray(res.deliveryFailures) && res.deliveryFailures.length > 0 ? ` First issue: ${res.deliveryFailures[0]}` : "";
-          showToast(`RFQs recorded for ${res.dispatchedCount} contractor(s), but no email was delivered.${firstFailure}`, "error");
-        }
-      } else {
-        throw new Error(NO_PROJECT_MESSAGE);
-      }
-    } catch (err: any) {
-      showToast(`RFQ dispatch failed: ${getErrorMessage(err) || "No invitations were confirmed."}`, "error");
+    const isRealPkg = isRealConvexProject && Boolean(packageId) && !packageId.startsWith("pkg_");
+    if (!isRealPkg) {
+      showToast(`RFQ dispatch failed: ${NO_PROJECT_MESSAGE}`, "error");
+      return;
     }
+    setRfqReview({ tradePackageId: packageId });
   };
 
   const handleDeleteProject = async (projectId: string) => {
@@ -493,26 +478,13 @@ export const App: React.FC = () => {
   };
 
   const handleDispatchIndividualRfq = async (contractorId: string) => {
-    try {
-      const isRealCtr = isRealConvexProject && Boolean(contractorId) && !contractorId.startsWith("ctr_");
-      if (isRealCtr) {
-        const res = await dispatchSingleRfqAction({
-          contractorId: contractorId as any,
-        });
-        if (res && res.emailSent) {
-          showToast("Invitation to bid delivered via AgentMail.", "success");
-        } else if (res && res.deliveryConfigured === false) {
-          showToast("Contractor marked invited, but AgentMail is not configured so no email was sent.", "info");
-        } else {
-          showToast("Contractor marked invited, but the AgentMail delivery did not succeed (check the contact email).", "error");
-        }
-      } else {
-        throw new Error(NO_PROJECT_MESSAGE);
-      }
-    } catch (err: any) {
-      showToast(`RFQ invitation failed: ${getErrorMessage(err) || "The invitation was not sent."}`);
-      throw err;
+    const contractor = contractors.find((c) => c._id === contractorId);
+    const isRealCtr = isRealConvexProject && Boolean(contractor) && !contractorId.startsWith("ctr_");
+    if (!isRealCtr || !contractor) {
+      showToast(`RFQ invitation failed: ${NO_PROJECT_MESSAGE}`, "error");
+      return;
     }
+    setRfqReview({ tradePackageId: contractor.tradePackageId, contractorIds: [contractorId] });
   };
 
   const handleCreateContractor = async (contractor: {
@@ -1150,6 +1122,14 @@ export const App: React.FC = () => {
         >
           <span>{toastMessage}</span>
         </div>
+      )}
+
+      {rfqReview && (
+        <RfqSendDialog
+          tradePackageId={rfqReview.tradePackageId as Id<"tradePackages">}
+          contractorIds={rfqReview.contractorIds as Id<"contractors">[] | undefined}
+          onClose={() => setRfqReview(null)}
+        />
       )}
 
       {/* Primary Navigation & Control Header */}

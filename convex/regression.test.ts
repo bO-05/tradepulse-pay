@@ -321,14 +321,14 @@ test("Guest RFI: submission without a contractor id succeeds (no v.id failure)",
   expect(result.success).toBe(true);
 });
 
-test("RFQ dispatch with zero discovered contractors is rejected and leaves the package undispached", async () => {
+test("RFQ dispatch with an empty recipient list is rejected and leaves the package undispatched", async () => {
   const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "Zero Recipient RFQ Project");
   const packageId = await createPackage(t, projectId);
 
-  await expect(t.mutation(api.rfq.dispatchRfqs, { tradePackageId: packageId })).rejects.toThrow(
-    /No contractors have been discovered/i
-  );
+  await expect(
+    t.action(api.rfqActions.dispatchRfqsWithNotification, { tradePackageId: packageId, recipients: [] })
+  ).rejects.toThrow(/Choose at least one bidder/i);
 
   const pkg = await t.query(api.tradePackages.getPackage, { tradePackageId: packageId });
   expect(pkg?.status).toBe("draft");
@@ -337,21 +337,22 @@ test("RFQ dispatch with zero discovered contractors is rejected and leaves the p
   expect(logs.some((l) => l.eventType === "rfq_dispatched")).toBe(false);
 });
 
-test("RFQ dispatch with discovered contractors marks them invited", async () => {
+test("RFQ dispatch on a Demo/legacy project sends no email and records not_sent", async () => {
   const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "Recipient RFQ Project");
   const packageId = await createPackage(t, projectId);
   const contractorId = await createContractor(t, packageId);
   await t.run(async (ctx) => await ctx.db.patch(contractorId, { rfqStatus: "discovered" }));
-
-  const result: any = await t.mutation(api.rfq.dispatchRfqs, { tradePackageId: packageId });
-  expect(result.success).toBe(true);
-  expect(result.dispatchedCount).toBe(1);
+  const result: any = await t.action(api.rfqActions.dispatchRfqsWithNotification, {
+    tradePackageId: packageId,
+    recipients: [{ contractorId, email: "estimating@regression-electric.test" }],
+  });
+  expect(result.emailsSent).toBe(0);
+  expect(result.deliveryResults[0]).toMatchObject({ status: "not_sent" });
+  expect(await t.run(async (ctx) => (await ctx.db.query("emailOutbox").collect()).length)).toBe(0);
 
   const contractors = await t.query(api.contractors.listByPackage, { tradePackageId: packageId });
-  expect(contractors.find((c) => c._id === contractorId)?.rfqStatus).toBe("invited");
-  const pkg = await t.query(api.tradePackages.getPackage, { tradePackageId: packageId });
-  expect(pkg?.status).toBe("rfqs_dispatched");
+  expect(contractors.find((c) => c._id === contractorId)).toMatchObject({ rfqEmailStatus: "not_sent" });
 });
 
 /** Force the deterministic (no-network) reasoning path in tests. */
@@ -726,15 +727,6 @@ test("A10-01/A10-02: full-cycle simulation and project delete refuse executed su
     await ctx.db.query("agreements").withIndex("by_package" as any, (q: any) => q.eq("tradePackageId", packageId)).collect()
   );
   expect(agreements.filter((a: any) => a.status === "executed").length).toBe(1);
-});
-
-test("RFQ dispatch without contractors returns a readable error", async () => {
-  const t = await asGc(convexTest(schema, modules));
-  const projectId = await createProject(t, "Readable Dispatch Error");
-  const packageId = await createPackage(t, projectId);
-  await expect(t.mutation(api.rfq.dispatchRfqs, { tradePackageId: packageId })).rejects.toThrow(
-    /Run Discovery before dispatching RFQs/i
-  );
 });
 
 test("A12-01: awarding cannot ride on a superseded agreement", async () => {

@@ -2,6 +2,8 @@ import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { readDailyBudget, sendLimitFor, utcDayKey } from "./lib/mailer";
+import { BLOCKED_RECIPIENT_MESSAGE, recipientAllowed } from "./lib/recipientAllowlist";
+import { RFQ_PRE_REPLY_STATUSES } from "./lib/rfqEmail";
 
 const mailKind = v.union(
   v.literal("auth_code"),
@@ -72,6 +74,29 @@ export const reserveSend = internalMutation({
       .query("emailOutbox")
       .withIndex("by_idempotencyKey", (q) => q.eq("idempotencyKey", args.idempotencyKey))
       .unique();
+
+    if (!recipientAllowed(args.to)) {
+      const fields = { status: "blocked_recipient" as const, day, error: BLOCKED_RECIPIENT_MESSAGE, updatedAt: now };
+      if (existing && existing.status !== "sent" && existing.status !== "delivery_failed") {
+        await ctx.db.patch(existing._id, fields);
+        return { action: "blocked_recipient" as const, outboxId: existing._id };
+      }
+      if (!existing) {
+        const outboxId = await ctx.db.insert("emailOutbox", {
+          kind: args.kind,
+          to: args.to,
+          fromInbox: args.fromInbox,
+          subject: args.subject,
+          companyId: args.companyId,
+          projectId: args.projectId,
+          idempotencyKey: args.idempotencyKey,
+          attempts: 0,
+          createdAt: now,
+          ...fields,
+        });
+        return { action: "blocked_recipient" as const, outboxId };
+      }
+    }
 
     if (existing?.status === "sent") {
       return {
@@ -261,6 +286,17 @@ async function markLogicalEventUndelivered(ctx: MutationCtx, row: Doc<"emailOutb
     const contractor = contractorId ? await ctx.db.get(contractorId) : null;
     const tradePackage = contractor ? await ctx.db.get(contractor.tradePackageId) : null;
     if (!contractor || !tradePackage) return;
+    const ownsStatus =
+      contractor.rfqOutboxId === row._id ||
+      (contractor.rfqOutboxId === undefined && contractor.contactEmail.trim().toLowerCase() === row.to);
+    if (ownsStatus && contractor.rfqEmailStatus !== "replied") {
+      const status = event === "rejected" ? ("failed" as const) : ("bounced" as const);
+      await ctx.db.patch(contractor._id, {
+        rfqEmailStatus: status,
+        rfqEmailError: error,
+        ...(RFQ_PRE_REPLY_STATUSES.has(contractor.rfqStatus) ? { rfqStatus: status } : {}),
+      });
+    }
     await ctx.db.insert("auditLogs", {
       projectId: tradePackage.projectId,
       tradePackageId: tradePackage._id,
@@ -293,7 +329,7 @@ export const listForDay = internalQuery({
   args: { day: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const day = args.day ?? utcDayKey(Date.now());
-    const statuses = ["pending", "sent", "uncertain", "delivery_failed", "failed", "skipped_budget"] as const;
+    const statuses = ["pending", "sent", "uncertain", "delivery_failed", "failed", "skipped_budget", "blocked_recipient"] as const;
     const rows = [];
     for (const status of statuses) {
       rows.push(

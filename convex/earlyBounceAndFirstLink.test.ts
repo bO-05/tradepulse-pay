@@ -27,6 +27,7 @@ test("a rejection recorded before the send's ids are stored never becomes an RFQ
   });
   const result = await f.gcA.admin.as.action(api.rfqActions.dispatchSingleRfqWithNotification, {
     contractorId: f.gcA.project.contractorId,
+    email: "bidder@example.test",
   });
   expect(result.emailSent).toBe(false);
   expect(result.emailStatus).toBe("failed");

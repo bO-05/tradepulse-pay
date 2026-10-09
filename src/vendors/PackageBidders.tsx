@@ -5,6 +5,9 @@ import type { Id } from "../../convex/_generated/dataModel";
 import { getErrorMessage } from "../lib/errors";
 import { Button, Dialog, EmptyState, StatusPill, Tabs, focusFirstInvalid, useToast } from "../ui";
 import { inputClass } from "../ui/Field";
+import { BidderRfqStatus, PackageBidderMessages } from "./BidderRfqStatus";
+import { RfqSendDialog } from "./RfqSendDialog";
+import { RFQ_EMAIL_LABELS } from "./rfqLabels";
 import { EMPTY_VENDOR_FORM, VendorFormFields, serverVendorError, vendorFormArgs, type VendorFormErrors, type VendorFormState } from "./VendorFormFields";
 
 type Pkg = { _id: Id<"tradePackages">; csiDivision: string; tradeName: string };
@@ -15,6 +18,7 @@ export function PackageBidders({ pkg, readOnly }: { pkg: Pkg; readOnly?: boolean
   const bidderVendorIds = [...new Set((bidders ?? []).map((b) => b.vendorId).filter((id): id is Id<"vendors"> => id !== undefined))];
   const vendors = useQuery(api.vendors.vendorSummaries, bidders === undefined ? "skip" : { vendorIds: bidderVendorIds.slice(0, 500) });
   const [open, setOpen] = useState(false);
+  const [rfqReview, setRfqReview] = useState<{ contractorIds?: Id<"contractors">[] } | null>(null);
   if (bidders === undefined || vendors === undefined) return <p role="status" className="text-sm text-ink-subtle">Loading bidders…</p>;
   const vendorById = new Map(vendors.map((v) => [v.requestedId, v]));
   const addButton = readOnly ? null : (
@@ -26,7 +30,16 @@ export function PackageBidders({ pkg, readOnly }: { pkg: Pkg; readOnly?: boolean
     <section aria-label={`Bidders for ${pkg.csiDivision} ${pkg.tradeName}`} className="mt-2 space-y-3 rounded-xl border border-line bg-surface p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h4 className="text-sm font-semibold">Bidders ({bidders.length})</h4>
-        {bidders.length > 0 && addButton}
+        {bidders.length > 0 && (
+          <span className="flex flex-wrap gap-2">
+            {!readOnly && (
+              <Button size="sm" variant="secondary" onClick={() => setRfqReview({})}>
+                Send RFQ
+              </Button>
+            )}
+            {addButton}
+          </span>
+        )}
       </div>
       {bidders.length === 0 ? (
         <EmptyState headingLevel={3} title="No bidders yet" description="Add subcontractors from your vendor directory or create a new vendor." action={addButton} />
@@ -38,17 +51,27 @@ export function PackageBidders({ pkg, readOnly }: { pkg: Pkg; readOnly?: boolean
               <li key={b._id} className="flex flex-wrap items-center justify-between gap-2 py-2">
                 <span className="flex flex-col">
                   <span className="font-semibold">{vendor?.name ?? b.companyName}</span>
-                  <span className="break-all text-xs text-ink-subtle">{vendor?.email ?? b.contactEmail}</span>
+                  <span className="break-all text-xs text-ink-subtle">{b.contactEmail}</span>
                 </span>
                 <span className="flex flex-wrap gap-1">
-                  <StatusPill status={b.rfqStatus} />
+                  {!(b.rfqStatus in RFQ_EMAIL_LABELS) && <StatusPill status={b.rfqStatus} />}
                   {b.linkedCompanyId && <StatusPill status="linked" label="Linked · company account" />}
                   {vendor?.status === "inactive" && <StatusPill status="inactive" label="Inactive vendor" />}
                 </span>
+                <BidderRfqStatus bidder={b} readOnly={readOnly} onRetry={() => setRfqReview({ contractorIds: [b._id] })} />
               </li>
             );
           })}
         </ul>
+      )}
+      {bidders.length > 0 && <PackageBidderMessages tradePackageId={pkg._id} bidders={bidders} />}
+      {rfqReview && (
+        <RfqSendDialog
+          tradePackageId={pkg._id}
+          contractorIds={rfqReview.contractorIds}
+          title={`Send RFQ · ${pkg.csiDivision} ${pkg.tradeName}`}
+          onClose={() => setRfqReview(null)}
+        />
       )}
       {open && (
         <AddBiddersDialog

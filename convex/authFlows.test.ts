@@ -31,6 +31,8 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(now);
   vi.stubEnv("AGENTMAIL_API_KEY", "test-key");
+  // Fictitious recipient domains: these tests exercise real send paths, so allow them past the non-prod recipient guard.
+  vi.stubEnv("EMAIL_RECIPIENT_ALLOWLIST", "mail-test.com,bayview-mail.com,eastbay-mail.com,harbor-mail.com,other-mail.com,*.test,agentmail.to");
   vi.stubEnv("EMAIL_DAILY_BUDGET", "60");
   vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
     const body = JSON.parse(String(init.body));

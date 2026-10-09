@@ -66,6 +66,8 @@ function stubAgentmail(status = 200) {
 
 beforeEach(() => {
   vi.stubEnv("AGENTMAIL_API_KEY", "test-agentmail-key");
+  // Fictitious recipient domains: these tests exercise real send paths, so allow them past the non-prod recipient guard.
+  vi.stubEnv("EMAIL_RECIPIENT_ALLOWLIST", "mail-test.com,bayview-mail.com,eastbay-mail.com,harbor-mail.com,other-mail.com,*.test,agentmail.to");
   vi.stubEnv("EMAIL_DAILY_BUDGET", "60");
   vi.stubEnv("SITE_URL", "http://localhost:3150");
 });

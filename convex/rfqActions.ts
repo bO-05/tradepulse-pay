@@ -2,9 +2,11 @@ import { action, type ActionCtx } from "./_generated/server";
 import { requireProjectScopeInAction } from "./lib/tenancyAction";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import { isAgentmailConfigured } from "./agentmailApi";
-import { RFQ_INBOX, brandedHtml, sendEmail } from "./lib/mailer";
-import { subjectWithRef } from "./inboundEmail";
+import { BUDGET_SKIP_MESSAGE, RFQ_INBOX, sendEmail } from "./lib/mailer";
+import { buildRfqEmail } from "./lib/rfqEmail";
+import { assertRecipientList } from "./rfqRecipients";
 
 /**
  * Every package uses the shared RFQ inbox; the app never creates or deletes
@@ -27,196 +29,177 @@ export const provisionPackageInbox = action({
   },
 });
 
-type RfqOutcome =
-  | { status: "sent"; messageId: string }
-  | { status: "skipped_budget" | "failed" | "not_sent"; reason: string };
+export const RFQ_BUDGET_MESSAGE = "Email limit reached for today — copy the RFQ link instead.";
 
-function rfqContent(tradePkg: any, project: any, contractor: any, ref: string) {
-  const projectTitle = project?.title || "the project";
-  const subject = subjectWithRef(
-    `Invitation to bid: ${tradePkg.tradeName} (CSI ${tradePkg.csiDivision}) - ${projectTitle}`,
-    ref
-  );
-  const text = `Dear ${contractor.companyName} estimating team,
+type DeliveryStatus =
+  | "sent"
+  | "failed"
+  | "skipped_budget"
+  | "blocked_recipient"
+  | "bounced"
+  | "not_sent"
+  | "no_email"
+  | "email_unconfirmed"
+  | "already_sent"
+  | "email_changed"
+  | "not_in_package";
 
-You are invited to submit a proposal for ${tradePkg.tradeName} on ${projectTitle} in ${project?.location || "the project area"}.
+type DeliveryResult = { contractorId: Id<"contractors">; email: string; status: DeliveryStatus; reason?: string };
 
-Mandatory inclusions:
-${tradePkg.mandatoryInclusions.map((inc: string) => `- ${inc}`).join("\n")}
+const recipientValidator = v.object({ contractorId: v.id("contractors"), email: v.string() });
 
-Bid deadline: ${tradePkg.bidDeadline}
-
-Reply to this email with pre-bid questions and your proposal. Keep the reference [TP-${ref}] in the subject.
-
-TradePulse Pay procurement`;
-  return { subject, text, html: brandedHtml(text) };
-}
-
-/** One RFQ email to one bidder through the mailer. Demo companies never send external email. */
-async function sendRfq(
+/** One confirmed bidder: prepare, send through the mailer, then record the real outcome. */
+async function sendOneRfq(
   ctx: ActionCtx,
-  tradePkg: any,
-  project: any,
-  contractor: any,
-  mail: { companyId: any; isDemo: boolean }
-): Promise<RfqOutcome> {
-  if (mail.isDemo) return { status: "not_sent", reason: "Demo company: no external email is sent" };
-  const to = String(contractor.contactEmail || "").trim();
-  if (!to.includes("@")) return { status: "not_sent", reason: "no published email on file" };
-  if (/\.invalid$/i.test(to)) return { status: "not_sent", reason: `contact email is not published (${to})` };
-
-  const thread = await ctx.runMutation(internal.inboundEmail.ensureRfqThread, {
-    projectId: tradePkg.projectId,
-    tradePackageId: tradePkg._id,
-    contractorId: contractor._id,
+  tradePackageId: Id<"tradePackages">,
+  recipient: { contractorId: Id<"contractors">; email: string },
+  mail: { companyId: Id<"companies"> | null; isDemo: boolean },
+  projectId: Id<"projects">,
+): Promise<DeliveryResult> {
+  const base = { contractorId: recipient.contractorId, email: recipient.email.trim().toLowerCase() };
+  const prepared = await ctx.runMutation(internal.rfqRecipients.prepareRfqSend, {
+    tradePackageId,
+    contractorId: recipient.contractorId,
+    email: recipient.email,
   });
-  const content = rfqContent(tradePkg, project, contractor, thread.ref);
+  if (prepared.action === "skip") return { ...base, status: prepared.status, reason: prepared.reason };
+  if (mail.isDemo) {
+    await ctx.runMutation(internal.rfqRecipients.recordRfqOutcome, {
+      contractorId: recipient.contractorId,
+      to: prepared.to,
+      status: "not_sent",
+      error: "Demo company: no external email is sent.",
+      ref: prepared.ref,
+    });
+    return { ...base, status: "not_sent", reason: "Demo company: no external email is sent" };
+  }
+
+  const content = buildRfqEmail({ ...prepared.content, ref: prepared.ref, siteUrl: process.env.SITE_URL });
   const result = await sendEmail(ctx, {
     kind: "rfq",
     from: "rfq",
-    to,
-    ...content,
-    idempotencyKey: `rfq.${contractor._id}.${contractor.dispatchedAt ?? 0}`,
+    to: prepared.to,
+    subject: content.subject,
+    text: content.text,
+    html: content.html,
+    idempotencyKey: prepared.idempotencyKey,
     companyId: mail.companyId ?? undefined,
-    projectId: tradePkg.projectId,
+    projectId,
   });
-  if (result.status === "sent") {
-    if (result.threadId) {
-      await ctx.runMutation(internal.inboundEmail.attachThreadId, { threadRowId: thread.threadRowId, threadId: result.threadId });
-    }
-    return { status: "sent", messageId: result.messageId };
+
+  if (result.status === "sent" && result.threadId) {
+    await ctx.runMutation(internal.inboundEmail.attachThreadId, { threadRowId: prepared.threadRowId, threadId: result.threadId });
   }
-  if (result.status === "skipped_budget") return { status: "skipped_budget", reason: result.message };
-  return { status: "failed", reason: result.error };
+  const status =
+    result.status === "sent"
+      ? ("sent" as const)
+      : result.status === "skipped_budget"
+        ? ("skipped_budget" as const)
+        : result.blockedRecipient
+          ? ("blocked_recipient" as const)
+          : ("failed" as const);
+  const error =
+    result.status === "sent" ? undefined : result.status === "skipped_budget" ? RFQ_BUDGET_MESSAGE : result.error;
+  const recorded = await ctx.runMutation(internal.rfqRecipients.recordRfqOutcome, {
+    contractorId: recipient.contractorId,
+    to: prepared.to,
+    status,
+    error,
+    outboxId: result.outboxId,
+    ref: prepared.ref,
+    threadId: result.status === "sent" ? result.threadId || undefined : undefined,
+  });
+  const finalStatus = (recorded?.status ?? status) as DeliveryStatus;
+  return finalStatus === "sent" ? { ...base, status: "sent" } : { ...base, status: finalStatus, reason: error ?? BUDGET_SKIP_MESSAGE };
 }
 
+async function sendConfirmedRfqs(
+  ctx: ActionCtx,
+  tradePackageId: Id<"tradePackages">,
+  recipients: { contractorId: Id<"contractors">; email: string }[],
+) {
+  assertRecipientList(recipients);
+  const tradePkg = await ctx.runQuery(internal.tradePackages.getPackageInternal, { tradePackageId });
+  if (!tradePkg) throw new Error("Trade package not found");
+  const mail = await ctx.runQuery(internal.emailOutbox.projectMailContext, { projectId: tradePkg.projectId });
+
+  const seen = new Set<string>();
+  const deliveryResults: DeliveryResult[] = [];
+  for (const recipient of recipients) {
+    if (seen.has(recipient.contractorId)) continue;
+    seen.add(recipient.contractorId);
+    deliveryResults.push(await sendOneRfq(ctx, tradePackageId, recipient, mail, tradePkg.projectId));
+  }
+
+  const emailsSent = deliveryResults.filter((r) => r.status === "sent").length;
+  const attempted = deliveryResults.filter((r) => r.status !== "already_sent").length;
+  const problems = deliveryResults
+    .filter((r) => r.status !== "sent" && r.status !== "already_sent")
+    .map((r) => `${r.email}: ${(r.reason ?? r.status).slice(0, 160)}`);
+  await ctx.runMutation(internal.auditLogs.recordLogInternal, {
+    projectId: tradePkg.projectId,
+    tradePackageId,
+    eventType: "rfq_dispatched",
+    title: `AgentMail Delivery: ${emailsSent} of ${attempted} eligible recipient(s)`,
+    description:
+      emailsSent > 0
+        ? `Sent ${emailsSent} RFQ email(s) from ${RFQ_INBOX} after GC review of the recipient list.${
+            problems.length > 0 ? ` Not sent: ${problems.slice(0, 3).join("; ")}` : ""
+          }`
+        : `No RFQ email was sent.${problems.length > 0 ? ` Reasons: ${problems.slice(0, 3).join("; ")}` : ""}`,
+    actor: "AgentMail Subcontractor Dispatcher",
+  });
+
+  return {
+    success: true,
+    tradePackageId,
+    emailsSent,
+    deliveryConfigured: isAgentmailConfigured(),
+    deliveryResults,
+    deliveryFailures: problems,
+  };
+}
+
+/** Sends RFQs to the recipient list the GC reviewed and confirmed (contractor id + the exact address shown). */
 export const dispatchRfqsWithNotification = action({
   args: {
     tradePackageId: v.id("tradePackages"),
+    recipients: v.array(recipientValidator),
   },
   handler: async (ctx, args): Promise<any> => {
-    await requireProjectScopeInAction(ctx, { docs: [{ table: "tradePackages", id: args.tradePackageId }] }, { roles: ["gc"], write: true });
-    // 1. Run mutation to mark contractors invited and package dispatched
-    const result: any = await ctx.runMutation(internal.rfq.dispatchRfqsInternal, {
-      tradePackageId: args.tradePackageId,
-    });
-
-    // 2. Fetch package details
-    const tradePkg = await ctx.runQuery(internal.tradePackages.getPackageInternal, {
-      tradePackageId: args.tradePackageId,
-    });
-    if (!tradePkg) throw new Error("Trade package not found");
-
-    // Fetch project details for dynamic email subject & text
-    const project = await ctx.runQuery(internal.projects.getProjectInternal, {
-      projectId: tradePkg.projectId,
-    });
-
-    // 3. Fetch invited contractors
-    const contractors = await ctx.runQuery(internal.contractors.listByPackageInternal, {
-      tradePackageId: args.tradePackageId,
-    });
-
-    const deliveryConfigured = isAgentmailConfigured();
-    const mail = await ctx.runQuery(internal.emailOutbox.projectMailContext, { projectId: tradePkg.projectId });
-    let emailsSent = 0;
-    const deliveryFailures: string[] = [];
-    const deliveryResults: Array<{ contractorId: string; status: RfqOutcome["status"]; reason?: string }> = [];
-
-    for (const contractor of contractors) {
-      const outcome = await sendRfq(ctx, tradePkg, project, contractor, mail);
-      deliveryResults.push({
-        contractorId: contractor._id,
-        status: outcome.status,
-        reason: outcome.status === "sent" ? undefined : outcome.reason,
-      });
-      if (outcome.status === "sent") emailsSent++;
-      else deliveryFailures.push(`${contractor.companyName}: ${outcome.reason.slice(0, 160)}`);
-    }
-
-    const eligibleRecipients = contractors.filter(
-      (c: any) => c.contactEmail && c.contactEmail.includes("@") && !/\.invalid$/i.test(c.contactEmail)
-    ).length;
-    await ctx.runMutation(internal.auditLogs.recordLogInternal, {
-      projectId: tradePkg.projectId,
-      tradePackageId: args.tradePackageId,
-      eventType: "rfq_dispatched",
-      title: `AgentMail Delivery: ${emailsSent} of ${eligibleRecipients} eligible recipient(s)`,
-      description:
-        emailsSent > 0
-          ? `Delivered ${emailsSent} invitation(s) from ${RFQ_INBOX}.${
-              deliveryFailures.length > 0 ? ` Skipped/failed: ${deliveryFailures.slice(0, 3).join("; ")}` : ""
-            }`
-          : `No invitation email was sent.${
-              deliveryFailures.length > 0 ? ` Reasons: ${deliveryFailures.slice(0, 3).join("; ")}` : ""
-            }`,
-      actor: "AgentMail Subcontractor Dispatcher",
-    });
-
-    return {
-      ...result,
-      emailsSent,
-      deliveryConfigured,
-      deliveryFailures,
-      deliveryResults,
-    };
+    await requireProjectScopeInAction(
+      ctx,
+      {
+        docs: [
+          { table: "tradePackages", id: args.tradePackageId },
+          ...args.recipients.slice(0, 50).map((r) => ({ table: "contractors" as const, id: r.contractorId })),
+        ],
+      },
+      { roles: ["gc"], write: true },
+    );
+    return await sendConfirmedRfqs(ctx, args.tradePackageId, args.recipients);
   },
 });
 
+/** One bidder, after the GC confirmed the address shown in the review dialog. */
 export const dispatchSingleRfqWithNotification = action({
   args: {
     contractorId: v.id("contractors"),
+    email: v.string(),
   },
   handler: async (ctx, args): Promise<any> => {
     await requireProjectScopeInAction(ctx, { docs: [{ table: "contractors", id: args.contractorId }] }, { roles: ["gc"], write: true });
-    // 1. Fetch contractor details
-    const contractor = await ctx.runQuery(internal.contractors.getContractorInternal, {
-      contractorId: args.contractorId,
-    });
+    const contractor = await ctx.runQuery(internal.contractors.getContractorInternal, { contractorId: args.contractorId });
     if (!contractor) throw new Error("Contractor not found");
-
-    // 2. Fetch trade package details
-    const tradePkg = await ctx.runQuery(internal.tradePackages.getPackageInternal, {
-      tradePackageId: contractor.tradePackageId,
-    });
-    if (!tradePkg) throw new Error("Trade package not found");
-
-    // 3. Fetch project details
-    const project = await ctx.runQuery(internal.projects.getProjectInternal, {
-      projectId: tradePkg.projectId,
-    });
-
-    // 4. Update contractor status and log audit record
-    await ctx.runMutation(internal.rfq.markSingleContractorInvitedInternal, {
-      contractorId: args.contractorId,
-      tradePackageId: tradePkg._id,
-    });
-
-    // 5. Dispatch the email through the mailer (re-read so the idempotency key uses the new dispatchedAt)
-    const deliveryConfigured = isAgentmailConfigured();
-    const invited = await ctx.runQuery(internal.contractors.getContractorInternal, { contractorId: args.contractorId });
-    const mail = await ctx.runQuery(internal.emailOutbox.projectMailContext, { projectId: tradePkg.projectId });
-    const outcome = await sendRfq(ctx, tradePkg, project, invited ?? contractor, mail);
-    const emailSent = outcome.status === "sent";
-
-    await ctx.runMutation(internal.auditLogs.recordLogInternal, {
-      projectId: tradePkg.projectId,
-      tradePackageId: tradePkg._id,
-      eventType: "rfq_dispatched",
-      title: `AgentMail Delivery: ${emailSent ? 1 : 0} of 1 eligible recipient(s)`,
-      description: emailSent
-        ? `Delivered invitation to ${contractor.contactEmail} from ${RFQ_INBOX}.`
-        : `No email was sent to ${contractor.contactEmail}: ${outcome.reason}.`,
-      actor: "AgentMail Subcontractor Dispatcher",
-    });
-
+    const res = await sendConfirmedRfqs(ctx, contractor.tradePackageId, [{ contractorId: args.contractorId, email: args.email }]);
+    const [only] = res.deliveryResults;
     return {
       success: true,
       contractorId: args.contractorId,
-      emailSent,
-      emailStatus: outcome.status,
-      emailError: outcome.status === "sent" ? undefined : outcome.reason,
-      deliveryConfigured,
+      emailSent: only?.status === "sent",
+      emailStatus: only?.status ?? "failed",
+      emailError: only?.status === "sent" ? undefined : only?.reason,
+      deliveryConfigured: res.deliveryConfigured,
     };
   },
 });

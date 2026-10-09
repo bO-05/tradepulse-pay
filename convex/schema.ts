@@ -358,7 +358,9 @@ export default defineSchema({
       v.literal("uncertain"),
       v.literal("delivery_failed"),
       v.literal("failed"),
-      v.literal("skipped_budget")
+      v.literal("skipped_budget"),
+      // Refused before any provider call: the recipient is outside EMAIL_RECIPIENT_ALLOWLIST on a non-production deployment.
+      v.literal("blocked_recipient")
     ),
     idempotencyKey: v.string(),
     day: v.string(), // UTC yyyy-mm-dd of the latest attempt
@@ -760,8 +762,35 @@ export default defineSchema({
     licenseNumber: v.string(),
     licenseStatus: v.string(),
     sourceUrl: v.string(),
-    rfqStatus: v.string(), // "discovered" | "invited" | "rfi_submitted" | "bid_received"
+    // "discovered" | RFQ email outcome ("sent" | "failed" | "skipped_budget" | "blocked_recipient" | "bounced" | "replied")
+    // | "rfi_submitted" | "bid_received". "invited" is only used by Demo data, which sends no email.
+    rfqStatus: v.string(),
     dispatchedAt: v.optional(v.number()),
+    // RFQ email lifecycle for this bidder, kept separately so a later bid/RFI stage does not hide that the bidder replied.
+    rfqEmailStatus: v.optional(
+      v.union(
+        v.literal("sent"),
+        v.literal("failed"),
+        v.literal("skipped_budget"),
+        v.literal("blocked_recipient"),
+        v.literal("bounced"),
+        v.literal("replied"),
+        v.literal("not_sent")
+      )
+    ),
+    rfqEmailError: v.optional(v.string()),
+    rfqEmailTo: v.optional(v.string()),
+    rfqSentAt: v.optional(v.number()),
+    rfqRepliedAt: v.optional(v.number()),
+    rfqRef: v.optional(v.string()),
+    rfqThreadId: v.optional(v.string()),
+    rfqOutboxId: v.optional(v.id("emailOutbox")),
+    /** Timestamp in the RFQ idempotency key; changes only when a new email (new address, or after a bounce) is needed. */
+    rfqKeyTs: v.optional(v.number()),
+    // Where contactEmail came from. Web-discovered addresses belong to real businesses and are not emailed until a GC confirms them.
+    emailSource: v.optional(v.union(v.literal("web_discovery"), v.literal("gc"), v.literal("directory"), v.literal("document"))),
+    emailConfirmedAt: v.optional(v.number()),
+    emailConfirmedByUserId: v.optional(v.id("users")),
     /** A14-02: optimistic-concurrency marker for concurrent edits. */
     updatedAt: v.optional(v.number()),
     // The sub company that operates this bidder record, once linked (invite accept or demo migration).

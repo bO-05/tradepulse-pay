@@ -290,6 +290,7 @@ describe("RFQ dispatch through the mailer", () => {
 
     const res: any = await f.gcA.admin.as.action(api.rfqActions.dispatchSingleRfqWithNotification, {
       contractorId: f.gcA.project.contractorId,
+      email: "bidder@example.test",
     });
     expect(res).toMatchObject({ emailSent: true, emailStatus: "sent" });
     expect(calls).toHaveLength(1);
@@ -323,6 +324,7 @@ describe("RFQ dispatch through the mailer", () => {
     vi.stubGlobal("fetch", fetchSpy);
     const res: any = await f.demo.gc.as.action(api.rfqActions.dispatchSingleRfqWithNotification, {
       contractorId: f.demo.project.contractorId,
+      email: "estimating@rosendin.example",
     });
     expect(res).toMatchObject({ emailSent: false, emailStatus: "not_sent" });
     expect(fetchSpy).not.toHaveBeenCalled();

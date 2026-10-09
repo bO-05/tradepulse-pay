@@ -75,6 +75,7 @@ export const createContractor = mutation({
       ...fields,
       ...(resolved !== null ? { vendorId: resolved.vendor._id } : {}),
       dispatchedAt: args.rfqStatus === "invited" ? Date.now() : undefined,
+      emailSource: "gc",
       updatedAt: Date.now(),
     });
   },
@@ -114,6 +115,7 @@ export const createContractorInternal = internalMutation({
       ...fields,
       ...(resolved !== null ? { vendorId: resolved.vendor._id } : {}),
       dispatchedAt: args.rfqStatus === "invited" ? Date.now() : undefined,
+      emailSource: "document",
       updatedAt: Date.now(),
     });
   },
@@ -185,7 +187,8 @@ export const updateContractor = mutation({
   },
   handler: async (ctx, args) => {
     const { contractorId, expectedUpdatedAt, ...fields } = args;
-    const { doc: contractor } = await requireDocScope(ctx, "contractors", contractorId, { roles: ["gc"], write: true });
+    const access = await requireDocScope(ctx, "contractors", contractorId, { roles: ["gc"], write: true });
+    const contractor = access.doc;
     if (
       expectedUpdatedAt !== undefined &&
       (contractor.updatedAt ?? contractor._creationTime) !== expectedUpdatedAt
@@ -194,10 +197,14 @@ export const updateContractor = mutation({
         "This contractor was changed in another session, so your edit was not saved. Reload the record and re-apply your change."
       );
     }
+    const contactEmail = validateEmail(args.contactEmail);
+    // A GC edit of the address counts as confirming it for RFQ email.
+    const emailEdited = contactEmail.trim().toLowerCase() !== contractor.contactEmail.trim().toLowerCase();
     await ctx.db.patch(contractorId, {
       ...fields,
       companyName: validateProjectText(args.companyName, "Company name"),
-      contactEmail: validateEmail(args.contactEmail),
+      contactEmail,
+      ...(emailEdited ? { emailConfirmedAt: Date.now(), emailConfirmedByUserId: access.user._id } : {}),
       updatedAt: Date.now(),
     });
     return { success: true };
@@ -331,6 +338,7 @@ export const batchInsertContractors = internalMutation({
           ...c,
           tradePackageId: args.tradePackageId,
           rfqStatus: "discovered",
+          emailSource: "web_discovery",
           ...(resolved !== null ? { vendorId: resolved.vendor._id } : {}),
         });
         ids.push(id);
@@ -368,6 +376,7 @@ async function insertVendorBidder(
       : "No license on file",
     sourceUrl: "",
     rfqStatus: "discovered",
+    emailSource: "directory",
     vendorId: vendor._id,
     ...(linkedCompanyId !== undefined ? { linkedCompanyId } : {}),
     updatedAt: Date.now(),

@@ -475,10 +475,10 @@ Furnish and install domestic cold, hot, and recirculated water piping, sanitary 
                       handleDispatch(pkg._id);
                     }}
                     className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-semibold py-1.5 px-3 rounded-lg flex items-center gap-1 transition"
-                    title="Dispatch RFQ emails to discovered contractors via AgentMail"
+                    title="Review the recipient list, then send RFQ emails"
                   >
                     <Send className="w-3 h-3" />
-                    Dispatch RFQs
+                    Send RFQs
                   </button>
 
                   {onDeletePackage && (

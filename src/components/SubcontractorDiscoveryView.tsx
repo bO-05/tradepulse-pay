@@ -26,6 +26,8 @@ import { api } from "../../convex/_generated/api.js";
 import { Contractor, TradePackage } from "../types.ts";
 import { ConfirmDialog } from "./ConfirmDialog.tsx";
 import { useDialogFocus, useEscapeToClose } from "../lib/useDialogFocus.ts";
+import { StatusPill } from "../ui";
+import { RETRYABLE_RFQ_STATUSES, RFQ_BUDGET_MESSAGE, RFQ_EMAIL_LABELS } from "../vendors/rfqLabels";
 
 interface SubcontractorDiscoveryViewProps {
   currentPackage: TradePackage | null;
@@ -304,6 +306,8 @@ export const SubcontractorDiscoveryView: React.FC<SubcontractorDiscoveryViewProp
   };
 
   const getRfqStatusBadge = (status: Contractor["rfqStatus"]) => {
+    const email = RFQ_EMAIL_LABELS[status];
+    if (email) return <StatusPill status={status} label={email.label} tone={email.tone} />;
     switch (status) {
       case "bid_received":
         return (
@@ -320,7 +324,7 @@ export const SubcontractorDiscoveryView: React.FC<SubcontractorDiscoveryViewProp
       case "invited":
         return (
           <span className="flex items-center gap-1 text-[11px] font-semibold bg-sky-950/70 text-sky-300 border border-sky-800/60 px-2 py-0.5 rounded-full">
-            <Send className="w-3 h-3" /> RFQ Invited
+            <Send className="w-3 h-3" /> Invited
           </span>
         );
       default:
@@ -550,6 +554,11 @@ export const SubcontractorDiscoveryView: React.FC<SubcontractorDiscoveryViewProp
                       </span>
                     )}
                   </div>
+                  {RETRYABLE_RFQ_STATUSES.has(c.rfqStatus) && (
+                    <p className="text-xs text-slate-300">
+                      {c.rfqStatus === "skipped_budget" ? RFQ_BUDGET_MESSAGE : c.rfqEmailError || "The RFQ email was not delivered."}
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3 text-xs">
@@ -606,14 +615,14 @@ export const SubcontractorDiscoveryView: React.FC<SubcontractorDiscoveryViewProp
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
 
-                  {c.rfqStatus === "discovered" && (
+                  {(c.rfqStatus === "discovered" || RETRYABLE_RFQ_STATUSES.has(c.rfqStatus)) && (
                     <button
                       disabled={dispatchingId === c._id}
                       onClick={() => handleDispatch(c._id)}
                       className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-semibold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition"
                     >
                       <Send className="w-3.5 h-3.5" />
-                      Invite to Bid
+                      {c.rfqStatus === "discovered" ? "Send RFQ" : "Retry RFQ"}
                     </button>
                   )}
                 </div>

@@ -71,6 +71,10 @@ FROM_SECRETS=(
 : "${EMAIL_DAILY_BUDGET:=60}"
 SITE_URL="${SITE_URL_OVERRIDE:-${SITE_URL:-http://localhost:3150}}"
 LITERALS=(ANTHROPIC_MODEL SITE_URL EMAIL_DAILY_BUDGET)
+# Set only when provided. EMAIL_RECIPIENT_ALLOWLIST: comma-separated domains, *.suffixes or addresses
+# the mailer may email on non-prod deployments; unset uses the built-in test-domain default
+# (convex/lib/recipientAllowlist.ts). Leave it unset on prod (no allowlist).
+OPTIONAL=(EMAIL_RECIPIENT_ALLOWLIST)
 
 failures=0
 missing=0
@@ -92,6 +96,15 @@ for name in "${FROM_SECRETS[@]}" "${LITERALS[@]}"; do
   if [ -z "$value" ]; then
     echo "missing $name (not set in $SECRETS_FILE; skipped)" >&2
     missing=$((missing + 1))
+    continue
+  fi
+  set_var "$name" "$value"
+done
+
+for name in "${OPTIONAL[@]}"; do
+  value="${!name:-}"
+  if [ -z "$value" ]; then
+    echo "default $name (not provided; deployment default applies)"
     continue
   fi
   set_var "$name" "$value"

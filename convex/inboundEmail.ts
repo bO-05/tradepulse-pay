@@ -9,6 +9,7 @@ import { v } from "convex/values";
 import { internalMutation, internalQuery, type MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
+import { RFQ_PRE_REPLY_STATUSES } from "./lib/rfqEmail";
 
 const TOKEN_PATTERN = /\[TP-([A-Z0-9]{4,12})\]/gi;
 const REF_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
@@ -206,6 +207,15 @@ export const ingestReceived = internalMutation({
       matchMethod: route.matchMethod,
       contractorId: route.contractorId,
     });
+    const contractor = await ctx.db.get(route.contractorId);
+    if (contractor) {
+      await ctx.db.patch(contractor._id, {
+        rfqEmailStatus: "replied",
+        rfqRepliedAt: base.receivedAt,
+        rfqEmailError: undefined,
+        ...(RFQ_PRE_REPLY_STATUSES.has(contractor.rfqStatus) ? { rfqStatus: "replied" } : {}),
+      });
+    }
     await ctx.scheduler.runAfter(0, internal.emailActions.processInboundEmail, {
       inboxId: msg.inboxId,
       messageId: msg.messageId,
@@ -228,30 +238,35 @@ export const ensureRfqThread = internalMutation({
     tradePackageId: v.id("tradePackages"),
     contractorId: v.id("contractors"),
   },
-  handler: async (ctx, args) => {
-    const existing = await ctx.db
-      .query("emailThreads")
-      .withIndex("by_contractorId", (q) => q.eq("contractorId", args.contractorId))
-      .take(20);
-    const same = existing.find((t) => t.tradePackageId === args.tradePackageId);
-    if (same) return { threadRowId: same._id, ref: same.ref };
-    const project = await ctx.db.get(args.projectId);
-    let ref = newThreadRef();
-    while (await ctx.db.query("emailThreads").withIndex("by_ref", (q) => q.eq("ref", ref)).first()) {
-      ref = newThreadRef();
-    }
-    const threadRowId = await ctx.db.insert("emailThreads", {
-      ref,
-      kind: "rfq",
-      projectId: args.projectId,
-      companyId: project?.gcCompanyId,
-      tradePackageId: args.tradePackageId,
-      contractorId: args.contractorId,
-      createdAt: Date.now(),
-    });
-    return { threadRowId, ref };
-  },
+  handler: async (ctx, args) => await ensureRfqThreadRow(ctx, args),
 });
+
+export async function ensureRfqThreadRow(
+  ctx: MutationCtx,
+  args: { projectId: Id<"projects">; tradePackageId: Id<"tradePackages">; contractorId: Id<"contractors"> },
+): Promise<{ threadRowId: Id<"emailThreads">; ref: string }> {
+  const existing = await ctx.db
+    .query("emailThreads")
+    .withIndex("by_contractorId", (q) => q.eq("contractorId", args.contractorId))
+    .take(20);
+  const same = existing.find((t) => t.tradePackageId === args.tradePackageId);
+  if (same) return { threadRowId: same._id, ref: same.ref };
+  const project = await ctx.db.get(args.projectId);
+  let ref = newThreadRef();
+  while (await ctx.db.query("emailThreads").withIndex("by_ref", (q) => q.eq("ref", ref)).first()) {
+    ref = newThreadRef();
+  }
+  const threadRowId = await ctx.db.insert("emailThreads", {
+    ref,
+    kind: "rfq",
+    projectId: args.projectId,
+    companyId: project?.gcCompanyId,
+    tradePackageId: args.tradePackageId,
+    contractorId: args.contractorId,
+    createdAt: Date.now(),
+  });
+  return { threadRowId, ref };
+}
 
 export const attachThreadId = internalMutation({
   args: { threadRowId: v.id("emailThreads"), threadId: v.string() },

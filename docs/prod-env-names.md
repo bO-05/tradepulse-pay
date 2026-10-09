@@ -15,8 +15,8 @@ How it was built (2026-10-08):
 Categories:
 
 - **set on prod**: configured on production (and on dev).
-- **system-provided**: Convex provides it on every deployment; never set by hand (`CONVEX_CLOUD_URL`
-  is also provided but no backend code reads it).
+- **system-provided**: Convex provides it on every deployment; never set by hand. `CONVEX_CLOUD_URL`
+  is read by `convex/lib/recipientAllowlist.ts` to tell production apart from dev.
 - **optional**: unset on both dev and production; the code works without it. Each one is marked
   `# optional` with a reason in `.env.example`.
 
@@ -28,10 +28,12 @@ No required name was missing on production, so nothing was set, redeployed or re
 | `AGENTMAIL_BASE_URL` | optional | unset |
 | `AGENTMAIL_WEBHOOK_SECRET` | optional | set (Oct 8, dev AgentMail webhook) |
 | `EMAIL_DAILY_BUDGET` | optional | set (60; prod default 30) |
+| `EMAIL_RECIPIENT_ALLOWLIST` | optional | unset (built-in test-domain allowlist applies; leave unset on prod: no allowlist) |
 | `ANTHROPIC_API_KEY` | set on prod | set |
 | `ANTHROPIC_MODEL` | set on prod | set |
 | `AUTH_AGENTID_ID` | set on prod | set |
 | `AUTH_AGENTID_SECRET` | set on prod | set |
+| `CONVEX_CLOUD_URL` | system-provided | system-provided |
 | `CONVEX_SITE_URL` | system-provided | system-provided |
 | `FIRECRAWL_API_KEY` | set on prod | set |
 | `FIRECRAWL_API_URL` | optional | unset |

@@ -37,6 +37,7 @@ type Env = {
   readonly AUTH_AGENTID_ID: string | undefined;
   readonly AUTH_AGENTID_SECRET: string | undefined;
   readonly EMAIL_DAILY_BUDGET: string | undefined;
+  readonly EMAIL_RECIPIENT_ALLOWLIST: string | undefined;
   readonly FIRECRAWL_API_KEY: string;
   readonly FIRECRAWL_WEBHOOK_SECRET: string | undefined;
   readonly GEMINI_API_KEY: string | undefined;
