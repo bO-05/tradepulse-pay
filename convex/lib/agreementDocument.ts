@@ -87,6 +87,27 @@ export function resolveAgreementTerms(agreement: Doc<"agreements">, project: Doc
   return terms;
 }
 
+/**
+ * A draft's governing state is the project default unless the GC chose another one, so a corrected
+ * project state carries into the draft. Executed and superseded agreements keep what they recorded.
+ */
+export function reconcileDraftGoverningState(
+  agreement: Doc<"agreements">,
+  project: Doc<"projects">,
+  terms: AgreementTerms,
+): AgreementTerms {
+  if (agreement.status === "executed" || agreement.status === "superseded") return terms;
+  if (agreement.governingStateExplicit === true) return terms;
+  const state = projectPlace(project).state;
+  if (!state || state === terms.governingState) return terms;
+  return { ...terms, governingState: state };
+}
+
+/** Terms as a draft should be shown, validated and executed against the project now. */
+export function currentDraftTerms(agreement: Doc<"agreements">, project: Doc<"projects">): AgreementTerms {
+  return reconcileDraftGoverningState(agreement, project, resolveAgreementTerms(agreement, project));
+}
+
 export function contractSumCentsOf(agreement: Pick<Doc<"agreements">, "contractSum">): number {
   return fromDollars(Math.max(0, agreement.contractSum));
 }
@@ -174,7 +195,7 @@ export async function refreshAgreementDocument(
   if (!agreement) throw new Error("Agreement not found");
   const project = await ctx.db.get(agreement.projectId);
   if (!project) throw new Error("Project not found");
-  const resolved = terms ?? resolveAgreementTerms(agreement, project);
+  const resolved = terms ?? currentDraftTerms(agreement, project);
   const contractText = await renderAgreementText(ctx, agreement, project, resolved);
   await ctx.db.patch(agreementId, { terms: resolved, ...legacyTermFields(resolved), contractText });
   return (await ctx.db.get(agreementId))!;

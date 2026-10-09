@@ -4,7 +4,14 @@ import { ConvexError, v } from "convex/values";
 import { agreementTermsValidator } from "./schema";
 import { auditActor, requireDocScope } from "./lib/projectScope";
 import { draftFromTerms, firstTermsError, stateName, termsFromDraft, validateAgreementTerms } from "./lib/agreementTerms";
-import { legacyTermFields, projectPlace, refreshAgreementDocument, resolveAgreementTerms, termsContextFor } from "./lib/agreementDocument";
+import {
+  currentDraftTerms,
+  legacyTermFields,
+  projectPlace,
+  refreshAgreementDocument,
+  resolveAgreementTerms,
+  termsContextFor,
+} from "./lib/agreementDocument";
 
 /**
  * Agreement terms for the Terms editor. The project's GC reads and edits them; the agreement's own
@@ -26,7 +33,7 @@ export const getAgreementTerms = query({
       locked,
       superseded,
       canEdit: access.partyRole === "gc" && !locked && !superseded && project.archived !== true,
-      terms: resolveAgreementTerms(agreement, project),
+      terms: currentDraftTerms(agreement, project),
       context,
       projectStateName: stateName(context.projectState),
       contractText: agreement.contractText,
@@ -50,6 +57,13 @@ export const updateAgreementTerms = mutation({
     const first = firstTermsError(errors);
     if (first) throw new ConvexError({ code: "INVALID", field: first.field, message: first.message, fields: errors });
     const terms = termsFromDraft(draft);
+    // Only an actual change of the field records an explicit choice; saving other edits leaves it as it was.
+    const previous = currentDraftTerms(agreement, access.project).governingState;
+    const governingStateExplicit =
+      terms.governingState === previous
+        ? agreement.governingStateExplicit === true
+        : terms.governingState !== projectPlace(access.project).state;
+    await ctx.db.patch(agreement._id, { governingStateExplicit });
     await refreshAgreementDocument(ctx, agreement._id, terms);
     await ctx.db.insert("auditLogs", {
       projectId: agreement.projectId,
@@ -61,7 +75,7 @@ export const updateAgreementTerms = mutation({
       contractorId: agreement.contractorId,
       timestamp: Date.now(),
     });
-    return resolveAgreementTerms((await ctx.db.get(agreement._id))!, access.project);
+    return currentDraftTerms((await ctx.db.get(agreement._id))!, access.project);
   },
 });
 

@@ -70,22 +70,8 @@ export const beginPayout = internalMutation({
     const agreement = await ctx.db.get(p.agreementId);
     if (agreement === null) throw new ConvexError({ code: "NOT_FOUND", message: "Agreement not found." });
     const isRetainage = p.kind === "retainage_release";
-    // A row whose POST may already have reached PayPal is re-sent unchanged so the duplicate
-    // sender_batch_id resolves to the existing batch; anything else must still pay the confirmed payee.
-    if (p.payoutSubmittedAt === undefined) {
-      const stale = await stalePayeeReason(ctx, agreement.contractorId, p.receiverEmail);
-      if (stale !== null) {
-        const effect = isRetainage
-          ? "No retainage was released; it stays on hold and can be released again once the payee is confirmed."
-          : "The sub was not paid; the captured amount stays in the platform account. Confirm the payee, then retry the payout.";
-        const error = payoutBlockedMessage(agreement.subcontractorName, stale, effect);
-        assertPaymentTransition(p.kind, "created", "failed");
-        await ctx.db.patch(p._id, { status: "failed", error, updatedAt: Date.now() });
-        await syncProposalForPayment(ctx, p._id);
-        return { state: "closed", status: "failed", error };
-      }
-    }
-    await ctx.db.patch(p._id, { payoutSubmittedAt: Date.now() });
+    const blocked = await blockIfPayeeStale(ctx, p, agreement);
+    if (blocked !== null) return blocked;
     const milestone = p.milestoneId ? await ctx.db.get(p.milestoneId) : null;
     const note = isRetainage
       ? `${agreement.agreementNumber} · retainage release at closeout`
@@ -101,6 +87,61 @@ export const beginPayout = internalMutation({
       agreementId: agreement._id,
       projectId: agreement.projectId,
     };
+  },
+});
+
+/**
+ * A row whose POST may already have reached PayPal (payoutSubmittedAt set) is re-sent unchanged so the
+ * duplicate sender_batch_id resolves to the existing batch; anything else must still pay the confirmed payee.
+ */
+async function blockIfPayeeStale(
+  ctx: MutationCtx,
+  p: Doc<"payments">,
+  agreement: Doc<"agreements">,
+): Promise<{ state: "closed"; status: string; error: string } | null> {
+  if (p.payoutSubmittedAt !== undefined || !p.receiverEmail) return null;
+  const stale = await stalePayeeReason(ctx, agreement.contractorId, p.receiverEmail);
+  if (stale === null) return null;
+  const effect =
+    p.kind === "retainage_release"
+      ? "No retainage was released; it stays on hold and can be released again once the payee is confirmed."
+      : "The sub was not paid; the captured amount stays in the platform account. Confirm the payee, then retry the payout.";
+  const error = payoutBlockedMessage(agreement.subcontractorName, stale, effect);
+  assertPaymentTransition(p.kind, "created", "failed");
+  await ctx.db.patch(p._id, { status: "failed", error, updatedAt: Date.now() });
+  await syncProposalForPayment(ctx, p._id);
+  return { state: "closed", status: "failed", error };
+}
+
+const markPayoutSendingResult = v.union(
+  v.object({ state: v.literal("done"), batchId: v.string(), status: v.string() }),
+  v.object({ state: v.literal("closed"), status: v.string(), error: v.optional(v.string()) }),
+  v.object({ state: v.literal("ready") }),
+);
+export type MarkPayoutSending = Infer<typeof markPayoutSendingResult>;
+
+/**
+ * The durable send gate, called right before the payout POST once OAuth has succeeded. Failures before this
+ * point leave the row unsent, so a retry or resume re-checks the confirmed payee in beginPayout.
+ */
+export const markPayoutSending = internalMutation({
+  args: { paymentId: v.id("payments"), receiverEmail: v.string() },
+  returns: markPayoutSendingResult,
+  handler: async (ctx, { paymentId, receiverEmail }): Promise<MarkPayoutSending> => {
+    const p = await ctx.db.get(paymentId);
+    if (p === null) throw new ConvexError({ code: "NOT_FOUND", message: "Payout payment not found." });
+    if (p.paypalPayoutBatchId) return { state: "done", batchId: p.paypalPayoutBatchId, status: p.status };
+    if (p.status !== "created") return { state: "closed", status: p.status, error: p.error };
+    if (p.receiverEmail !== receiverEmail) {
+      throw new ConvexError({ code: "CONFLICT", message: "The payout recipient changed while it was being sent; nothing was sent." });
+    }
+    const agreement = await ctx.db.get(p.agreementId);
+    if (agreement === null) throw new ConvexError({ code: "NOT_FOUND", message: "Agreement not found." });
+    // The payee may have changed while the OAuth token was being fetched.
+    const blocked = await blockIfPayeeStale(ctx, p, agreement);
+    if (blocked !== null) return blocked;
+    if (p.payoutSubmittedAt === undefined) await ctx.db.patch(p._id, { payoutSubmittedAt: Date.now() });
+    return { state: "ready" };
   },
 });
 

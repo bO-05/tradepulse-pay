@@ -320,6 +320,53 @@ describe("execution revalidates against the current project", () => {
     await f.gcA.admin.as.mutation(api.agreements.executeAgreement, { agreementId });
     expect((await load(t, agreementId)).contractText).toBe(executed.contractText);
   });
+
+  test("an AZ draft at 5% whose project is corrected to CA / Oakland executes under California law and Alameda venue", async () => {
+    const t = convexTest(schema, modules);
+    const f = await buildTenancyFixture(t);
+    const { projectId, agreementId } = await awardedAgreement(t, f.gcA.admin, { ...AZ_PROJECT, retainageBps: 500 });
+    expect((await load(t, agreementId)).terms!.governingState).toBe("AZ");
+    await editProject(f.gcA.admin, projectId, { ...CA_PROJECT, title: AZ_PROJECT.title });
+
+    const view = await f.gcA.admin.as.query(api.agreementTerms.getAgreementTerms, { agreementId });
+    expect(view.terms.governingState).toBe("CA");
+
+    await f.gcA.admin.as.mutation(api.agreements.executeAgreement, { agreementId });
+    const a = await load(t, agreementId);
+    expect(a.status).toBe("executed");
+    expect(a.terms!.governingState).toBe("CA");
+    expect(a.contractText).toContain("governed by the law of the State of California");
+    expect(a.contractText).toContain("Oakland, Alameda County, California");
+    expect(a.contractText).not.toMatch(/Arizona|Maricopa/);
+  });
+
+  test("a governing state the GC chose is kept, while retainage is still checked against the project state", async () => {
+    const t = convexTest(schema, modules);
+    const f = await buildTenancyFixture(t);
+    const { projectId, agreementId } = await awardedAgreement(t, f.gcA.admin, AZ_PROJECT);
+    const draft = await load(t, agreementId);
+    await f.gcA.admin.as.mutation(api.agreementTerms.updateAgreementTerms, {
+      agreementId,
+      terms: { ...draft.terms!, governingState: "NV" },
+    });
+    await editProject(f.gcA.admin, projectId, { ...CA_PROJECT, title: AZ_PROJECT.title });
+
+    await expect(f.gcA.admin.as.mutation(api.agreements.executeAgreement, { agreementId })).rejects.toThrow(
+      /California caps retainage at 5%.*Edit the agreement terms before executing/,
+    );
+    const view = await f.gcA.admin.as.query(api.agreementTerms.getAgreementTerms, { agreementId });
+    expect(view.terms.governingState).toBe("NV");
+    await f.gcA.admin.as.mutation(api.agreementTerms.updateAgreementTerms, {
+      agreementId,
+      terms: { ...view.terms, retainageBps: 500 },
+    });
+    await f.gcA.admin.as.mutation(api.agreements.executeAgreement, { agreementId });
+    const a = await load(t, agreementId);
+    expect(a.status).toBe("executed");
+    expect(a.terms!.governingState).toBe("NV");
+    expect(a.contractText).toContain("governed by the law of the State of Nevada");
+    expect(a.contractText).toContain("Oakland, Alameda County, California");
+  });
 });
 
 describe("backfill", () => {

@@ -4,10 +4,10 @@ import { v, ConvexError } from "convex/values";
 import { validateProjectText } from "./validation";
 import { generalContractorNameFor } from "./lib/gcCompanyName";
 import {
+  currentDraftTerms,
   defaultTermsForProject,
   legacyTermFields,
   refreshAgreementDocument,
-  resolveAgreementTerms,
   termsContextFor,
 } from "./lib/agreementDocument";
 import { draftFromTerms, firstTermsError, validateAgreementTerms } from "./lib/agreementTerms";
@@ -280,7 +280,7 @@ export const executeAgreement = mutation({
 
     // Project settings may have changed since the draft was generated (state, prime retainage,
     // address, owner), so the terms are checked and the text re-rendered against the project now.
-    const terms = resolveAgreementTerms(agreement, access.project);
+    const terms = currentDraftTerms(agreement, access.project);
     const invalid = firstTermsError(validateAgreementTerms(draftFromTerms(terms), termsContextFor(agreement, access.project)));
     if (invalid) {
       throw new ConvexError({

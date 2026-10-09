@@ -11,6 +11,7 @@ import { RESUME_RELEASE_AFTER_MS } from "./retainageMath";
 
 const modules = import.meta.glob("/convex/**/*.ts");
 
+const realSetTimeout = globalThis.setTimeout;
 const SUB_EMAIL = "sub1-sandbox@paypal.test";
 const AUTH_ID = "AUTH-1";
 
@@ -23,13 +24,16 @@ function fakePayPal() {
   const voided = new Set<string>();
   const batches = new Map<string, { id: string; senderBatchId: string; senderItemId?: string; receiver: string; value: string }>();
   const itemStatus = new Map<string, string>();
-  const state = { defaultItemStatus: "SUCCESS", dropNextPayoutResponse: false, insufficientFunds: 0, n: 0 };
+  const state = { defaultItemStatus: "SUCCESS", dropNextPayoutResponse: false, insufficientFunds: 0, failOAuth: false, n: 0 };
   const json = (status: number, body: unknown) =>
     new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
   const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
     const req = new Request(input, init);
     const url = new URL(req.url);
-    if (url.pathname === "/v1/oauth2/token") return json(200, { access_token: "A21AAfaketoken", expires_in: 32400 });
+    if (url.pathname === "/v1/oauth2/token") {
+      if (state.failOAuth) throw new TypeError("fetch failed: getaddrinfo ENOTFOUND");
+      return json(200, { access_token: "A21AAfaketoken", expires_in: 32400 });
+    }
     const text = req.method === "GET" ? "" : await req.text();
     const requestId = req.headers.get("paypal-request-id") ?? undefined;
     const body = text ? JSON.parse(text) : undefined;
@@ -493,6 +497,7 @@ describe("queued payouts re-check the confirmed payee before sending", () => {
     if (begun.state !== "new") throw new Error("expected a new release");
     // The action reached PayPal, which created the batch, but died before recording it.
     await s.t.mutation(internal.payments.payoutDb.beginPayout, { paymentId: begun.paymentId });
+    await s.t.mutation(internal.payments.payoutDb.markPayoutSending, { paymentId: begun.paymentId, receiverEmail: SUB_EMAIL });
     const row = await s.t.run((ctx) => ctx.db.get(begun.paymentId));
     fake.batches.set("BATCH-SENT", { id: "BATCH-SENT", senderBatchId: row!.idempotencyKey, senderItemId: row!._id, receiver: SUB_EMAIL, value: "1000.00" });
     await changePayee(s.t, s.agreement._id, "attacker@paypal.test", false);
@@ -501,6 +506,42 @@ describe("queued payouts re-check the confirmed payee before sending", () => {
     const out = await s.gc.as.action(api.payments.retainage.resumeRetainageRelease, { paymentId: begun.paymentId });
     expect(out.batchId).toBe("BATCH-SENT");
     expect([...fake.batches.values()].map((b) => b.receiver)).not.toContain("attacker@paypal.test");
+  });
+
+  test("an OAuth failure before the payout POST leaves the release unsent; Resume release after revocation sends nothing", async () => {
+    const s = await setup({ authorizedCents: 1_000_000 });
+    await s.gc.as.action(api.payments.release.releaseAndPay, { milestoneId: s.milestone._id, amountCents: 1_000_000, requestKey: key("oauth") });
+    await s.t.finishAllScheduledFunctions(vi.runAllTimers);
+    const before = payoutPosts().length;
+
+    clearPayPalTokenCache();
+    fake.state.failOAuth = true;
+    let settled = false;
+    const failing = errorOf(s.gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: s.agreement._id })).finally(() => {
+      settled = true;
+    });
+    // The action reaches its backoff sleeps asynchronously, so yield real time between fake-timer advances.
+    for (let i = 0; i < 200 && !settled; i++) {
+      await new Promise((resolve) => realSetTimeout(resolve, 5));
+      await vi.advanceTimersByTimeAsync(5_000);
+    }
+    await failing;
+    expect(payoutPosts()).toHaveLength(before);
+    const release = await s.t.run(
+      async (ctx) => (await ctx.db.query("payments").collect()).find((p) => p.kind === "retainage_release")!,
+    );
+    expect(release.status).toBe("created");
+    expect(release.payoutSubmittedAt).toBeUndefined();
+
+    await changePayee(s.t, s.agreement._id, "attacker@paypal.test", false);
+    fake.state.failOAuth = false;
+    vi.advanceTimersByTime(RESUME_RELEASE_AFTER_MS + 1_000);
+    const err = await errorOf(s.gc.as.action(api.payments.retainage.resumeRetainageRelease, { paymentId: release._id }));
+    expect(err.data.message).toMatch(/^Payout blocked for .*No retainage was released/);
+    expect(payoutPosts()).toHaveLength(before);
+    expect([...fake.batches.values()].filter((b) => b.senderBatchId === release.idempotencyKey)).toHaveLength(0);
+    const view = await s.gc.as.query(api.payments.ledger.getAgreementLedger, { agreementId: s.agreement._id });
+    expect(view?.totals.retainageHeldCents).toBe(100_000);
   });
 });
 

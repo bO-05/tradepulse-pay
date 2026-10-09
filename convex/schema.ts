@@ -878,6 +878,8 @@ export default defineSchema({
     liquidatedDamagesDaily: v.number(),
     // §14 per-agreement terms; legacy rows without it are resolved from the fields above.
     terms: v.optional(agreementTermsValidator),
+    // True once the GC picked a governing state other than the project's; otherwise drafts follow the project state.
+    governingStateExplicit: v.optional(v.boolean()),
     scopeSummary: v.string(),
     mandatoryInclusions: v.array(v.string()),
     status: v.string(), // "generated" | "executed"
