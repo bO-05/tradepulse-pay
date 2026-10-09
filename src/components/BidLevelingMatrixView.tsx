@@ -751,6 +751,11 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                 Real-Time Bid Leveling Matrix
               </h2>
             </div>
+            {currentPackage.dueLabel && (
+              <p className="text-xs text-slate-300 mb-1" data-testid="leveling-bid-due">
+                {currentPackage.tradeName} bids due {currentPackage.dueLabel}
+              </p>
+            )}
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-xs text-slate-400">
                 Normalizing contractor quotes to true "apples-to-apples" baselines using the{" "}

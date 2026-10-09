@@ -14,7 +14,7 @@ import { keptPlugFields } from "./lib/levelingPlugs";
 import { reconcileBidderExclusions } from "./lib/exclusionOwnership";
 import { contractorCanBidOnPackage } from "./lib/packageContractors";
 import { auditActor, requireDocOfProject, requireDocScope } from "./lib/projectScope";
-import { formatBidDue } from "./lib/rfqEmail";
+import { bidDueHasPassed, bidDuePassedMessage, packageDue, projectStateOf } from "./lib/bidDue";
 import { accessibleProjectIds, notFound, requireCompanyMember, type ProjectAccess } from "./lib/tenancy";
 
 /**
@@ -56,6 +56,14 @@ function cleanTermsOrThrow(args: TermsArgs): CleanBidTerms {
 }
 
 const closedReason = biddingClosedReason;
+
+/** Portal submissions also close at the package's due instant; GC-entered and emailed bids do not. */
+function portalClosedReason(pkg: Doc<"tradePackages">, project: Doc<"projects">, now = Date.now()): string | null {
+  const reason = closedReason(pkg, project);
+  if (reason !== null) return reason;
+  const state = projectStateOf(project);
+  return bidDueHasPassed(pkg, state, now) ? bidDuePassedMessage(pkg, state) : null;
+}
 
 /** The caller's bidder record on the package, for human sub company members only. */
 export async function invitedBidderOf(
@@ -173,7 +181,7 @@ async function writeBidRevision(
   },
 ): Promise<{ bidId: Id<"bids">; revisionNumber: number }> {
   const { pkg, project, contractor, terms, submitter, existing } = args;
-  const reason = closedReason(pkg, project);
+  const reason = submitter.source === "portal" ? portalClosedReason(pkg, project) : closedReason(pkg, project);
   if (reason !== null || existing?.isAwarded) {
     throw new ConvexError({ code: "CLOSED" as const, message: reason ?? "Bidding on this package is closed: it has been awarded." });
   }
@@ -279,7 +287,7 @@ type InvitationStatus = "not_submitted" | "submitted" | "awarded" | "not_awarded
 function invitationStatus(pkg: Doc<"tradePackages">, project: Doc<"projects">, bid: Doc<"bids"> | null): InvitationStatus {
   if (bid?.isAwarded) return "awarded";
   if (pkg.status === "awarded") return "not_awarded";
-  if (closedReason(pkg, project) !== null) return "closed";
+  if (portalClosedReason(pkg, project) !== null) return "closed";
   return bid ? "submitted" : "not_submitted";
 }
 
@@ -321,7 +329,7 @@ export const listMyBidInvitations = query({
           csiDivision: pkg.csiDivision,
           tradeName: pkg.tradeName,
           bidDeadline: pkg.bidDeadline,
-          dueLabel: formatBidDue(pkg.bidDeadline, project.state),
+          ...packageDue(pkg, project),
           bidderName: contractor.companyName,
           status: invitationStatus(pkg, project, bid),
           revisionNumber: bid ? (bid.revisionNumber ?? 1) : 0,
@@ -329,7 +337,7 @@ export const listMyBidInvitations = query({
         });
       }
     }
-    return rows.sort((a, b) => a.bidDeadline.localeCompare(b.bidDeadline));
+    return rows.sort((a, b) => (a.bidClosesAt ?? Infinity) - (b.bidClosesAt ?? Infinity) || a.bidDeadline.localeCompare(b.bidDeadline));
   },
 });
 
@@ -404,13 +412,13 @@ export const getPackageForBidder = query({
         scopeSummary: pkg.scopeSummary,
         mandatoryInclusions: pkg.mandatoryInclusions,
         bidDeadline: pkg.bidDeadline,
-        dueLabel: formatBidDue(pkg.bidDeadline, project.state),
+        ...packageDue(pkg, project),
       },
       project: { _id: project._id, title: project.title, location: project.location },
       gcName: await gcCompanyName(ctx, project),
       bidderName: contractor.companyName,
       status: invitationStatus(pkg, project, bid),
-      closedReason: bid?.isAwarded ? "Your bid was awarded; revisions are closed." : closedReason(pkg, project),
+      closedReason: bid?.isAwarded ? "Your bid was awarded; revisions are closed." : portalClosedReason(pkg, project),
       documents,
       addenda: documents
         .filter((d) => d.fileType === "addendum")

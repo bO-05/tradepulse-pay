@@ -2,44 +2,8 @@
  * RFQ email content and recipient rules. Pure helpers shared by the send action, the recipient preview
  * and tests; the RFQ itself is sent only through convex/lib/mailer.ts.
  */
+import { formatBidDue } from "./bidDue";
 import { escapeHtml } from "./mailer";
-
-const PACIFIC = { iana: "America/Los_Angeles", label: "Pacific Time (PT)" };
-const MOUNTAIN = { iana: "America/Denver", label: "Mountain Time (MT)" };
-const ARIZONA = { iana: "America/Phoenix", label: "Arizona Time (MST)" };
-const CENTRAL = { iana: "America/Chicago", label: "Central Time (CT)" };
-const EASTERN = { iana: "America/New_York", label: "Eastern Time (ET)" };
-const ALASKA = { iana: "America/Anchorage", label: "Alaska Time (AKT)" };
-const HAWAII = { iana: "Pacific/Honolulu", label: "Hawaii Time (HT)" };
-
-const ZONE_BY_STATE: Record<string, { iana: string; label: string }> = {
-  CA: PACIFIC, NV: PACIFIC, OR: PACIFIC, WA: PACIFIC,
-  AZ: ARIZONA,
-  CO: MOUNTAIN, ID: MOUNTAIN, MT: MOUNTAIN, NM: MOUNTAIN, UT: MOUNTAIN, WY: MOUNTAIN,
-  AL: CENTRAL, AR: CENTRAL, IA: CENTRAL, IL: CENTRAL, KS: CENTRAL, LA: CENTRAL, MN: CENTRAL, MO: CENTRAL,
-  MS: CENTRAL, ND: CENTRAL, NE: CENTRAL, OK: CENTRAL, SD: CENTRAL, TN: CENTRAL, TX: CENTRAL, WI: CENTRAL,
-  AK: ALASKA, HI: HAWAII,
-};
-
-/** The project's time zone from its 2-letter state; unknown states fall back to Eastern. */
-export function timeZoneForState(state: string | undefined): { iana: string; label: string } {
-  return ZONE_BY_STATE[(state ?? "").trim().toUpperCase()] ?? EASTERN;
-}
-
-/** "Oct 30, 2026, 2:00 PM Pacific Time (PT)"; a date-only deadline reads "Oct 30, 2026, end of day Pacific Time (PT)". */
-export function formatBidDue(bidDeadline: string, state: string | undefined): string {
-  const zone = timeZoneForState(state);
-  const raw = bidDeadline.trim();
-  const m = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/.exec(raw);
-  if (!m) return raw ? `${raw} (${zone.label})` : `not set (${zone.label})`;
-  const [, y, mo, d, hh, mm] = m;
-  const date = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d), 12));
-  const day = date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
-  if (hh === undefined) return `${day}, end of day ${zone.label}`;
-  const hour = Number(hh);
-  const time = `${hour % 12 === 0 ? 12 : hour % 12}:${mm} ${hour < 12 ? "AM" : "PM"}`;
-  return `${day}, ${time} ${zone.label}`;
-}
 
 /** Where a bidder with a TradePulse Pay account views the invitation and submits a bid. */
 export function rfqPortalLink(siteUrl: string | undefined, tradePackageId?: string): string {
@@ -57,6 +21,8 @@ export interface RfqEmailInput {
   scopeSummary?: string;
   mandatoryInclusions: string[];
   bidDeadline: string;
+  bidDueTime?: string;
+  bidDueTimeZone?: string;
   bidderName: string;
   ref: string;
   siteUrl?: string;
@@ -69,7 +35,7 @@ export function rfqSubject(input: Pick<RfqEmailInput, "gcName" | "projectTitle" 
 
 export function buildRfqEmail(input: RfqEmailInput): { subject: string; text: string; html: string; portalLink: string } {
   const portalLink = rfqPortalLink(input.siteUrl, input.tradePackageId);
-  const due = formatBidDue(input.bidDeadline, input.projectState);
+  const due = formatBidDue(input, input.projectState);
   const where = input.projectLocation?.trim() ? ` in ${input.projectLocation.trim()}` : "";
   const inclusions = input.mandatoryInclusions.filter((s) => s.trim());
   const lines = [

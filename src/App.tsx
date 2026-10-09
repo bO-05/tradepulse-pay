@@ -380,6 +380,7 @@ export const App: React.FC = () => {
     scopeSummary: string;
     mandatoryInclusions: string[];
     bidDeadline: string;
+    bidDueTime?: string;
   }) => {
     if (!currentProject) return;
     try {

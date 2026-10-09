@@ -65,6 +65,7 @@ import type * as lib_authEmail from "../lib/authEmail.js";
 import type * as lib_authErrors from "../lib/authErrors.js";
 import type * as lib_awardMath from "../lib/awardMath.js";
 import type * as lib_bidDocuments from "../lib/bidDocuments.js";
+import type * as lib_bidDue from "../lib/bidDue.js";
 import type * as lib_bidMoney from "../lib/bidMoney.js";
 import type * as lib_bidRevisions from "../lib/bidRevisions.js";
 import type * as lib_bidTerms from "../lib/bidTerms.js";
@@ -251,6 +252,7 @@ declare const fullApi: ApiFromModules<{
   "lib/authErrors": typeof lib_authErrors;
   "lib/awardMath": typeof lib_awardMath;
   "lib/bidDocuments": typeof lib_bidDocuments;
+  "lib/bidDue": typeof lib_bidDue;
   "lib/bidMoney": typeof lib_bidMoney;
   "lib/bidRevisions": typeof lib_bidRevisions;
   "lib/bidTerms": typeof lib_bidTerms;

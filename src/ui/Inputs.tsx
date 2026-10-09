@@ -251,3 +251,31 @@ export const DateInput = forwardRef<HTMLInputElement, DateInputProps>(function D
     </Field>
   );
 });
+
+export interface TimeInputProps extends BaseFieldProps, NativeInputProps {
+  /** 24-hour `HH:MM`, or "" when empty. */
+  value: string;
+  onChange: (value: string) => void;
+}
+
+export const TimeInput = forwardRef<HTMLInputElement, TimeInputProps>(function TimeInput(
+  { label, required, hint, error, id, className, value, onChange, ...rest },
+  ref,
+) {
+  return (
+    <Field label={label} required={required} hint={hint} error={error} id={id} className={className}>
+      {(control) => (
+        <input
+          ref={ref}
+          {...rest}
+          {...control}
+          type="time"
+          step={60}
+          value={value}
+          onChange={(e) => onChange(e.target.value.slice(0, 5))}
+          className={cx(inputClass(Boolean(error)), "[color-scheme:dark]")}
+        />
+      )}
+    </Field>
+  );
+});

@@ -322,6 +322,7 @@ const GC_ONLY: Case[] = [
     mandatoryInclusions: [],
     bidDeadline: "2026-12-01",
   })),
+  m("tradePackages:updateBidDue", api.tradePackages.updateBidDue, (i) => ({ tradePackageId: i.tradePackageId, bidDeadline: "2026-12-01", bidDueTime: "14:00" })),
   m("tradePackages:updateStatus", api.tradePackages.updateStatus, (i) => ({ tradePackageId: i.tradePackageId, status: "draft" })),
   m("tradePackages:deleteTradePackage", api.tradePackages.deleteTradePackage, (i) => ({ tradePackageId: i.tradePackageId })),
   a("tradePackages:generateTradePackagesFromSpec", api.tradePackages.generateTradePackagesFromSpec, (i) => ({ projectId: i.projectId })),

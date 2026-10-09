@@ -23,6 +23,11 @@ export interface TradePackage {
   scopeSummary: string;
   mandatoryInclusions: string[];
   bidDeadline: string;
+  bidDueTime?: string;
+  bidDueTimeZone?: string;
+  /** "Oct 30, 2026, 2:00 PM PT" or "Oct 30, 2026, end of day PT", computed by the server. */
+  dueLabel?: string;
+  bidClosesAt?: number | null;
   status: "draft" | "rfqs_dispatched" | "leveling" | "awarded";
 }
 

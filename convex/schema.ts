@@ -765,6 +765,9 @@ export default defineSchema({
     scopeSummary: v.string(),
     mandatoryInclusions: v.array(v.string()), // ["Crane hoisting", "Seismic bracing", "Temporary power"]
     bidDeadline: v.string(),
+    // Optional "HH:MM" due time in bidDueTimeZone (IANA, recorded with the time); unset means end of day.
+    bidDueTime: v.optional(v.string()),
+    bidDueTimeZone: v.optional(v.string()),
     status: v.string(), // "draft" | "rfqs_dispatched" | "leveling" | "awarded"
     // Existing contractors (discovered for another package) invited to bid on this one.
     invitedContractorIds: v.optional(v.array(v.id("contractors"))),

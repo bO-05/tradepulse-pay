@@ -107,6 +107,7 @@ export function RfqSendDialog({
               From <span className="font-mono text-ink">{preview.fromInbox}</span> on behalf of {preview.gcName}.
             </span>
             <span className="block break-words">Subject: {preview.subjectPreview.replace("[TP-XXXXXXXX]", "[TP-reference]")}</span>
+            <span className="block">The email says: Bids are due {preview.dueLabel}.</span>
             {preview.isDemo && <span className="block text-amber-200">Demo company: no email is sent; bidders are marked invited in the demo only.</span>}
           </span>
         ) : undefined

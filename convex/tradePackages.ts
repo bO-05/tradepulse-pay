@@ -12,23 +12,41 @@ import {
   validatePositiveAmount,
   validateProjectText,
 } from "./validation";
+import { bidZoneForState, formatBidDue, packageDue, parseBidDueTime, projectStateOf } from "./lib/bidDue";
+import type { Doc } from "./_generated/dataModel";
+
+function validateBidDueTime(value: string | undefined): string | undefined {
+  try {
+    return parseBidDueTime(value);
+  } catch (err) {
+    throw new ConvexError(err instanceof Error ? err.message : "Bid due time must be a time like 14:00.");
+  }
+}
+
+/** Time and zone fields to store: the zone is the project's at the moment the GC sets the time. */
+function bidDueTimeFields(time: string | undefined, project: Doc<"projects">) {
+  return time === undefined
+    ? { bidDueTime: undefined, bidDueTimeZone: undefined }
+    : { bidDueTime: time, bidDueTimeZone: bidZoneForState(projectStateOf(project)).iana };
+}
 
 export const listByProject = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
-    await requireProjectScope(ctx, args.projectId, { roles: ["gc", "owner"] });
-    return await ctx.db
+    const { project } = await requireProjectScope(ctx, args.projectId, { roles: ["gc", "owner"] });
+    const packages = await ctx.db
       .query("tradePackages")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
       .collect();
+    return packages.map((pkg) => ({ ...pkg, ...packageDue(pkg, project) }));
   },
 });
 
 export const getPackage = query({
   args: { tradePackageId: v.id("tradePackages") },
   handler: async (ctx, args) => {
-    const { doc } = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc", "owner"] });
-    return doc;
+    const { doc, project } = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc", "owner"] });
+    return { ...doc, ...packageDue(doc, project) };
   },
 });
 
@@ -48,6 +66,8 @@ export const createTradePackage = mutation({
     scopeSummary: v.string(),
     mandatoryInclusions: v.array(v.string()),
     bidDeadline: v.string(),
+    /** Optional "HH:MM" (24-hour) in the project's time zone; blank means end of day. */
+    bidDueTime: v.optional(v.string()),
     agentMailbox: v.optional(v.string()),
     agentMailboxId: v.optional(v.string()),
   },
@@ -58,6 +78,7 @@ export const createTradePackage = mutation({
     const scopeSummary = validateProjectText(args.scopeSummary, "Scope summary");
     const budgetEstimate = validatePositiveAmount(args.budgetEstimate, "Budget estimate");
     const bidDeadline = validateBidDeadline(args.bidDeadline);
+    const bidDueTime = validateBidDueTime(args.bidDueTime);
     const existing = await ctx.db
       .query("tradePackages")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
@@ -74,6 +95,7 @@ export const createTradePackage = mutation({
       scopeSummary,
       mandatoryInclusions: args.mandatoryInclusions,
       bidDeadline,
+      ...(bidDueTime !== undefined ? bidDueTimeFields(bidDueTime, access.project) : {}),
       agentMailbox: args.agentMailbox ?? RFQ_INBOX,
       agentMailboxId: args.agentMailboxId ?? RFQ_INBOX,
       agentMailboxShared: true,
@@ -91,6 +113,32 @@ export const createTradePackage = mutation({
     });
 
     return pkgId;
+  },
+});
+
+/** GC changes a package's bid due date and optional time. Bidders see the new due instant at once. */
+export const updateBidDue = mutation({
+  args: { tradePackageId: v.id("tradePackages"), bidDeadline: v.string(), bidDueTime: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const access = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"], write: true });
+    const pkg = access.doc;
+    if (pkg.status === "awarded") throw new ConvexError("This package is awarded; its bid due date can no longer change.");
+    const bidDeadline = validateBidDeadline(args.bidDeadline);
+    const bidDueTime = validateBidDueTime(args.bidDueTime);
+    const before = formatBidDue(pkg, projectStateOf(access.project));
+    const patch = { bidDeadline, ...bidDueTimeFields(bidDueTime, access.project) };
+    await ctx.db.patch(pkg._id, patch);
+    const due = packageDue({ ...pkg, ...patch }, access.project);
+    await ctx.db.insert("auditLogs", {
+      projectId: pkg.projectId,
+      tradePackageId: pkg._id,
+      eventType: "package_updated",
+      title: `Bid due date changed: Division ${pkg.csiDivision}`,
+      description: `Bids for ${pkg.tradeName} were due ${before}; they are now due ${due.dueLabel}.`,
+      ...auditActor(access),
+      timestamp: Date.now(),
+    });
+    return due;
   },
 });
 

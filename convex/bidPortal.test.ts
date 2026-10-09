@@ -451,3 +451,125 @@ describe("bidder questions", () => {
     expect((await kim.query(api.bidPortal.getPackageForBidder, { tradePackageId: pkg })).myQuestions).toMatchObject([{ published: true }]);
   });
 });
+
+describe("bid due date and time", () => {
+  const DUE = Date.parse("2026-10-30T21:00:00Z");
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  async function dueSetup() {
+    const s = await setup();
+    await s.t.run(async (ctx) => {
+      await ctx.db.patch(s.fx.gcA.project.projectId, { state: "CA" });
+      await ctx.db.patch(s.pkg, { bidDeadline: "2026-10-30", bidDueTime: "14:00", bidDueTimeZone: "America/Los_Angeles" });
+    });
+    return s;
+  }
+
+  test("every view shows the same due date and time with its zone", async () => {
+    const { kim, dana, pkg, fx } = await dueSetup();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(DUE - 60_000);
+    const label = "Oct 30, 2026, 2:00 PM PT";
+    expect((await kim.query(api.bidPortal.listMyBidInvitations, {})).find((r) => r.tradePackageId === pkg)).toMatchObject({ dueLabel: label, bidClosesAt: DUE, status: "not_submitted" });
+    expect((await kim.query(api.bidPortal.getPackageForBidder, { tradePackageId: pkg })).package).toMatchObject({ dueLabel: label, bidClosesAt: DUE });
+    expect((await dana.query(api.tradePackages.listByProject, { projectId: fx.gcA.project.projectId })).find((p) => p._id === pkg)).toMatchObject({ dueLabel: label, bidClosesAt: DUE });
+    expect(await dana.query(api.tradePackages.getPackage, { tradePackageId: pkg })).toMatchObject({ dueLabel: label });
+    expect(await dana.query(api.rfqRecipients.previewRfqRecipients, { tradePackageId: pkg })).toMatchObject({ dueLabel: label });
+  });
+
+  test("portal bids are accepted until the due instant and refused from it on; the GC can still enter a late bid", async () => {
+    const { t, kim, nia, dana, pkg, ids } = await dueSetup();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(DUE - 1);
+    expect(await kim.mutation(api.bidPortal.submitPortalBid, { tradePackageId: pkg, ...BID })).toMatchObject({ revisionNumber: 1 });
+
+    vi.setSystemTime(DUE);
+    const before = await snapshot(t);
+    const late = await errorData(nia.mutation(api.bidPortal.submitPortalBid, { tradePackageId: pkg, ...BID }));
+    expect(late).toMatchObject({ code: "CLOSED", message: "Bidding on this package is closed: bids were due Oct 30, 2026, 2:00 PM PT." });
+    expect(await errorData(kim.mutation(api.bidPortal.submitPortalBid, { tradePackageId: pkg, ...BID, baseAmountCents: 1_000_000 }))).toMatchObject({ code: "CLOSED" });
+    expect(await snapshot(t)).toBe(before);
+
+    const view = await nia.query(api.bidPortal.getPackageForBidder, { tradePackageId: pkg });
+    expect(view.status).toBe("closed");
+    expect(view.closedReason).toMatch(/bids were due Oct 30, 2026, 2:00 PM PT/);
+    expect((await kim.query(api.bidPortal.listMyBidInvitations, {})).find((r) => r.tradePackageId === pkg)?.status).toBe("closed");
+
+    const onBehalf = await dana.mutation(api.bidPortal.enterBidOnBehalf, {
+      tradePackageId: pkg,
+      contractorId: ids.goldenGate,
+      baseAmountCents: 18_100_000,
+      alternates: [],
+      exclusions: [],
+      inclusions: [],
+      unitPrices: [],
+    });
+    expect(onBehalf.revisionNumber).toBe(1);
+  });
+
+  test("with no time set, bidding closes at the next local midnight", async () => {
+    const { t, kim, pkg } = await dueSetup();
+    await t.run(async (ctx) => await ctx.db.patch(pkg, { bidDueTime: undefined, bidDueTimeZone: undefined }));
+    const midnight = Date.parse("2026-10-31T07:00:00Z");
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(midnight - 1);
+    const row = (await kim.query(api.bidPortal.listMyBidInvitations, {})).find((r) => r.tradePackageId === pkg)!;
+    expect(row).toMatchObject({ dueLabel: "Oct 30, 2026, end of day PT", bidClosesAt: midnight });
+    await kim.mutation(api.bidPortal.submitPortalBid, { tradePackageId: pkg, ...BID });
+    vi.setSystemTime(midnight);
+    expect(await errorData(kim.mutation(api.bidPortal.submitPortalBid, { tradePackageId: pkg, ...BID }))).toMatchObject({ code: "CLOSED" });
+  });
+
+  test("the GC sets and clears the due time; bidders and other companies cannot", async () => {
+    const { t, kim, dana, pkg, fx } = await dueSetup();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.parse("2026-10-09T18:00:00Z"));
+    const set = await dana.mutation(api.tradePackages.updateBidDue, { tradePackageId: pkg, bidDeadline: "2026-11-02", bidDueTime: "14:00" });
+    expect(set).toEqual({ dueLabel: "Nov 2, 2026, 2:00 PM PT", bidClosesAt: Date.parse("2026-11-02T22:00:00Z") });
+    expect(await t.run(async (ctx) => await ctx.db.get(pkg))).toMatchObject({ bidDeadline: "2026-11-02", bidDueTime: "14:00", bidDueTimeZone: "America/Los_Angeles" });
+    expect((await kim.query(api.bidPortal.getPackageForBidder, { tradePackageId: pkg })).package.dueLabel).toBe("Nov 2, 2026, 2:00 PM PT");
+
+    const cleared = await dana.mutation(api.tradePackages.updateBidDue, { tradePackageId: pkg, bidDeadline: "2026-11-02", bidDueTime: "" });
+    expect(cleared.dueLabel).toBe("Nov 2, 2026, end of day PT");
+    const row = await t.run(async (ctx) => await ctx.db.get(pkg));
+    expect(row?.bidDueTime).toBeUndefined();
+    expect(row?.bidDueTimeZone).toBeUndefined();
+
+    expect(await outcome(dana.mutation(api.tradePackages.updateBidDue, { tradePackageId: pkg, bidDeadline: "2026-11-02", bidDueTime: "2pm" }))).toMatch(/time like 14:00/);
+    const before = await snapshot(t);
+    for (const caller of [kim, fx.owner.admin.as, fx.gcB.admin.as, fx.demo.gc.as]) {
+      expect(await outcome(caller.mutation(api.tradePackages.updateBidDue, { tradePackageId: pkg, bidDeadline: "2026-11-05", bidDueTime: "10:00" }))).toBe(NOT_FOUND);
+    }
+    expect(await snapshot(t)).toBe(before);
+
+    await t.run(async (ctx) => await ctx.db.patch(pkg, { status: "awarded" }));
+    expect(await outcome(dana.mutation(api.tradePackages.updateBidDue, { tradePackageId: pkg, bidDeadline: "2026-11-05" }))).toMatch(/awarded/);
+  });
+
+  test("a new package stores the due time with the project's zone", async () => {
+    const { t, dana, fx } = await dueSetup();
+    const id = await dana.mutation(api.tradePackages.createTradePackage, {
+      projectId: fx.gcA.project.projectId,
+      csiDivision: "09 00 00",
+      tradeName: "Finishes",
+      budgetEstimate: 10_000,
+      scopeSummary: "Paint and drywall",
+      mandatoryInclusions: [],
+      bidDeadline: "2099-03-10",
+      bidDueTime: "09:30",
+    });
+    expect(await t.run(async (ctx) => await ctx.db.get(id))).toMatchObject({ bidDueTime: "09:30", bidDueTimeZone: "America/Los_Angeles" });
+    const blank = await dana.mutation(api.tradePackages.createTradePackage, {
+      projectId: fx.gcA.project.projectId,
+      csiDivision: "22 00 00",
+      tradeName: "Plumbing",
+      budgetEstimate: 10_000,
+      scopeSummary: "Plumbing",
+      mandatoryInclusions: [],
+      bidDeadline: "2099-03-10",
+    });
+    expect((await t.run(async (ctx) => await ctx.db.get(blank)))?.bidDueTime).toBeUndefined();
+  });
+});

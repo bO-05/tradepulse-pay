@@ -14,6 +14,7 @@ import { generalContractorNameFor } from "./lib/gcCompanyName";
 import { RFQ_PRE_REPLY_STATUSES, gcConfirmedEmail, rfqRecipientState, rfqSubject, type RfqRecipientState } from "./lib/rfqEmail";
 import { ensureRfqThreadRow } from "./inboundEmail";
 import { validateEmail } from "./validation";
+import { packageDue, projectStateOf } from "./lib/bidDue";
 import { confirmVendorEmail, rfqAddressConfirmed } from "./lib/vendorDirectory";
 
 /** Same rule as emailOutbox.projectMailContext: projects without a company predate tenancy and are demo data. */
@@ -60,6 +61,7 @@ export const previewRfqRecipients = query({
       isDemo: company?.isDemo === true,
       gcName,
       subjectPreview: rfqSubject({ gcName, projectTitle: project.title, csiDivision: pkg.csiDivision, tradeName: pkg.tradeName, ref: "XXXXXXXX" }),
+      dueLabel: packageDue(pkg, project).dueLabel,
       recipients,
     };
   },
@@ -146,6 +148,8 @@ type Prepared =
         scopeSummary: string;
         mandatoryInclusions: string[];
         bidDeadline: string;
+        bidDueTime?: string;
+        bidDueTimeZone?: string;
         bidderName: string;
       };
     }
@@ -190,12 +194,14 @@ export const prepareRfqSend = internalMutation({
         gcName: await generalContractorNameFor(ctx, project),
         projectTitle: project.title,
         projectLocation: project.location,
-        projectState: project.state ?? project.address?.state,
+        projectState: projectStateOf(project),
         csiDivision: pkg.csiDivision,
         tradeName: pkg.tradeName,
         scopeSummary: pkg.scopeSummary,
         mandatoryInclusions: pkg.mandatoryInclusions,
         bidDeadline: pkg.bidDeadline,
+        ...(pkg.bidDueTime ? { bidDueTime: pkg.bidDueTime } : {}),
+        ...(pkg.bidDueTimeZone ? { bidDueTimeZone: pkg.bidDueTimeZone } : {}),
         bidderName: contractor.companyName,
       },
     };

@@ -3,8 +3,9 @@ import { FormEvent, useState } from "react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { getErrorMessage } from "../../lib/errors";
-import { Button, Card, DateInput, EmptyState, MoneyInput, StatusPill, TextInput, useToast } from "../../ui";
+import { Button, Card, DateInput, EmptyState, MoneyInput, StatusPill, TextInput, TimeInput, useToast } from "../../ui";
 import { PackageBidders } from "../../vendors/PackageBidders";
+import { BID_DUE_TIME_HINT, BidDueEditor } from "./BidDueEditor";
 import { openProcurementPackages, openSpecBreakdown } from "./specBreakdownRequest";
 
 const CSI_FORMAT = /^\d{2} \d{2} \d{2}$/;
@@ -14,7 +15,7 @@ function isoDateInDays(days: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-/** Manual trade package form: CSI division, trade name, budget, bid due date, optional scope. */
+/** Manual trade package form: CSI division, trade name, budget, bid due date and optional time, optional scope. */
 export function AddTradePackageForm({
   projectId,
   projectTitle,
@@ -32,6 +33,7 @@ export function AddTradePackageForm({
   const [tradeName, setTradeName] = useState("");
   const [budgetCents, setBudgetCents] = useState<number | null>(null);
   const [bidDeadline, setBidDeadline] = useState(() => isoDateInDays(14));
+  const [bidDueTime, setBidDueTime] = useState("");
   const [scopeSummary, setScopeSummary] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -59,12 +61,14 @@ export function AddTradePackageForm({
         scopeSummary: scopeSummary.trim() || `${tradeName.trim()} scope for ${projectTitle}.`,
         mandatoryInclusions: [],
         bidDeadline,
+        ...(bidDueTime ? { bidDueTime } : {}),
       });
       toast.success(`Trade package ${csi} ${tradeName.trim()} added.`);
       setCsiDivision("");
       setTradeName("");
       setBudgetCents(null);
       setScopeSummary("");
+      setBidDueTime("");
       onDone?.();
     } catch (err) {
       setFormError(getErrorMessage(err, "We couldn't add the trade package. Try again."));
@@ -97,9 +101,10 @@ export function AddTradePackageForm({
           maxLength={120}
         />
       </div>
+      <MoneyInput id="pkg-budget" label="Budget estimate" required value={budgetCents} onChange={setBudgetCents} error={errors.budget} />
       <div className="grid gap-4 sm:grid-cols-2">
-        <MoneyInput id="pkg-budget" label="Budget estimate" required value={budgetCents} onChange={setBudgetCents} error={errors.budget} />
         <DateInput id="pkg-deadline" label="Bid due date" required value={bidDeadline} onChange={setBidDeadline} error={errors.bidDeadline} />
+        <TimeInput id="pkg-deadline-time" label="Due time" value={bidDueTime} onChange={setBidDueTime} hint={BID_DUE_TIME_HINT} />
       </div>
       <TextInput
         id="pkg-scope"
@@ -201,6 +206,7 @@ export function TradePackagesSection({
                       )}
                     </span>
                   </div>
+                  <BidDueEditor pkg={p} readOnly={readOnly || p.status === "awarded"} />
                   {biddersOf === p._id && <PackageBidders pkg={p} readOnly={readOnly} />}
                 </li>
               ))}

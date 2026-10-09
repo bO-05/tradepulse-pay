@@ -13,7 +13,7 @@ import { RfqSendDialog } from "./RfqSendDialog";
 import { RFQ_EMAIL_LABELS } from "./rfqLabels";
 import { EMPTY_VENDOR_FORM, VendorFormFields, serverVendorError, vendorFormArgs, type VendorFormErrors, type VendorFormState } from "./VendorFormFields";
 
-type Pkg = { _id: Id<"tradePackages">; csiDivision: string; tradeName: string };
+type Pkg = { _id: Id<"tradePackages">; csiDivision: string; tradeName: string; dueLabel?: string };
 
 /** A trade package's bidders, each tied to a vendor directory entry. */
 export function PackageBidders({ pkg, readOnly }: { pkg: Pkg; readOnly?: boolean }) {
@@ -32,7 +32,10 @@ export function PackageBidders({ pkg, readOnly }: { pkg: Pkg; readOnly?: boolean
   return (
     <section aria-label={`Bidders for ${pkg.csiDivision} ${pkg.tradeName}`} className="mt-2 space-y-3 rounded-xl border border-line bg-surface p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h4 className="text-sm font-semibold">Bidders ({bidders.length})</h4>
+        <span className="flex flex-col">
+          <h4 className="text-sm font-semibold">Bidders ({bidders.length})</h4>
+          {pkg.dueLabel && <span className="text-xs text-ink-subtle">Bids due {pkg.dueLabel}</span>}
+        </span>
         {bidders.length > 0 && (
           <span className="flex flex-wrap gap-2">
             {!readOnly && (

@@ -8,7 +8,7 @@ export { StatusPill, type StatusPillProps } from "./StatusPill";
 export { Money, type MoneyProps } from "./Money";
 export { DateText, type DateTextProps } from "./DateText";
 export { Field, focusFirstInvalid, type FieldProps } from "./Field";
-export { TextInput, MoneyInput, PercentInput, DateInput } from "./Inputs";
+export { TextInput, MoneyInput, PercentInput, DateInput, TimeInput } from "./Inputs";
 export { ConfirmDialog, type ConfirmDialogProps, type ConfirmDetail } from "./ConfirmDialog";
 export { Dialog, type DialogProps } from "./Dialog";
 export { EmptyState, type EmptyStateProps } from "./EmptyState";

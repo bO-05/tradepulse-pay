@@ -15,7 +15,7 @@ import {
   recipientAllowed,
   recipientAllowlist,
 } from "./lib/recipientAllowlist";
-import { emailNeedsConfirmation, formatBidDue, rfqRecipientState } from "./lib/rfqEmail";
+import { emailNeedsConfirmation, rfqRecipientState } from "./lib/rfqEmail";
 import { RFQ_BUDGET_MESSAGE } from "./rfqActions";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -243,7 +243,7 @@ describe("RFQ status reflects the real send outcome", () => {
     expect(body.subject).toContain("Harbor Point Dental Office TI");
     expect(body.subject).toContain("26 00 00 Electrical");
     expect(body.text).toContain("Bayview Builders Inc. invites you");
-    expect(body.text).toContain("Oct 30, 2026, 2:00 PM Pacific Time (PT)");
+    expect(body.text).toContain("Bids are due Oct 30, 2026, 2:00 PM PT.");
     expect(body.text).toContain(`https://app.tradepulse.test/#/bids/${f.gcA.project.tradePackageId}`);
     expect(body.text).not.toMatch(/TradePulse Pro/);
     expect(body.html).toContain("Bayview Builders Inc.");
@@ -549,13 +549,5 @@ describe("web-discovered addresses keep their provenance through the vendor dire
       email: "bids@maxxspace.com",
       state: "ready",
     });
-  });
-});
-
-describe("bid due date formatting", () => {
-  test("uses the project's state time zone", () => {
-    expect(formatBidDue("2026-10-30T14:00", "CA")).toBe("Oct 30, 2026, 2:00 PM Pacific Time (PT)");
-    expect(formatBidDue("2026-10-30", "AZ")).toBe("Oct 30, 2026, end of day Arizona Time (MST)");
-    expect(formatBidDue("2026-10-30", "TX")).toContain("Central Time (CT)");
   });
 });

@@ -125,6 +125,7 @@ const CASES: Case[] = [
     mandatoryInclusions: [],
     bidDeadline: "2026-12-01",
   })),
+  m("tradePackages:updateBidDue", api.tradePackages.updateBidDue, (i) => ({ tradePackageId: i.packageId, bidDeadline: "2099-01-05", bidDueTime: "14:00" })),
   m("tradePackages:updateStatus", api.tradePackages.updateStatus, (i) => ({ tradePackageId: i.packageId, status: "awarded" })),
   m("tradePackages:deleteTradePackage", api.tradePackages.deleteTradePackage, (i) => ({ tradePackageId: i.packageId })),
   a("tradePackages:generateTradePackagesFromSpec", api.tradePackages.generateTradePackagesFromSpec, (i) => ({

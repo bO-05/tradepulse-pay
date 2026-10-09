@@ -1,4 +1,5 @@
 import { getErrorMessage } from "../lib/errors.ts";
+import { BID_DUE_TIME_HINT, BidDueEditor } from "../projects/gc/BidDueEditor";
 import React, { useEffect, useState } from "react";
 import { consumeSpecBreakdownRequest } from "../projects/gc/specBreakdownRequest";
 import {
@@ -43,6 +44,7 @@ interface TradePackagesViewProps {
     scopeSummary: string;
     mandatoryInclusions: string[];
     bidDeadline: string;
+    bidDueTime?: string;
   }) => Promise<void>;
   onGenerateTradePackagesFromSpec?: (
     specText: string,
@@ -91,6 +93,7 @@ export const TradePackagesView: React.FC<TradePackagesViewProps> = ({
   const [scopeSummary, setScopeSummary] = useState("");
   const [mandatoryInclusions, setMandatoryInclusions] = useState("Crane hoisting\nSeismic bracing\nTemporary power");
   const [bidDeadline, setBidDeadline] = useState("2026-09-30");
+  const [bidDueTime, setBidDueTime] = useState("");
 
   const generateTradePackagesAction = useAction(api.tradePackages.generateTradePackagesFromSpec);
   // A6-29: real per-package email delivery outcome from the audit trail.
@@ -119,6 +122,7 @@ export const TradePackagesView: React.FC<TradePackagesViewProps> = ({
         scopeSummary,
         mandatoryInclusions: mandatoryInclusions.split("\n").map((s) => s.trim()).filter(Boolean),
         bidDeadline,
+        ...(bidDueTime ? { bidDueTime } : {}),
       });
       setIsModalOpen(false);
       setTradeName("");
@@ -306,6 +310,7 @@ Furnish and install domestic cold, hot, and recirculated water piping, sanitary 
                 setScopeSummary("");
                 setMandatoryInclusions("Crane hoisting\nSeismic bracing\nTemporary power");
                 setBidDeadline("2026-09-30");
+                setBidDueTime("");
                 setCreationError(null);
                 setIsModalOpen(true);
               }}
@@ -391,15 +396,20 @@ Furnish and install domestic cold, hot, and recirculated water piping, sanitary 
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400 flex items-center gap-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-slate-400 flex items-center gap-1 shrink-0">
                         <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                        Bid Deadline:
+                        Bids due:
                       </span>
-                      <span className="text-slate-300 font-mono text-[11px]">
-                        {pkg.bidDeadline}
+                      <span className="text-slate-300 text-[11px] text-right" data-testid="procurement-bid-due">
+                        {pkg.dueLabel ?? pkg.bidDeadline}
                       </span>
                     </div>
+                    {pkg.status !== "awarded" && !pkg._id.startsWith("pkg_") && (
+                      <div className="flex justify-end">
+                        <BidDueEditor pkg={pkg} compact hideLabel />
+                      </div>
+                    )}
 
                     <div className="flex items-center justify-between">
                       <span className="text-slate-400 flex items-center gap-1">
@@ -757,17 +767,32 @@ Furnish and install domestic cold, hot, and recirculated water piping, sanitary 
                 />
               </div>
 
-              <div>
-                <label className="block text-slate-400 font-medium mb-1">Bid Deadline</label>
-                <input
-                  type="date"
-                  required
-                  aria-label="Bid deadline"
-                  value={bidDeadline}
-                  min={localDateInputValue()}
-                  onChange={(e) => setBidDeadline(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-400 font-medium mb-1">Bid Deadline</label>
+                  <input
+                    type="date"
+                    required
+                    aria-label="Bid deadline"
+                    value={bidDeadline}
+                    min={localDateInputValue()}
+                    onChange={(e) => setBidDeadline(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-400 font-medium mb-1" htmlFor="create-pkg-due-time">Due time (optional)</label>
+                  <input
+                    id="create-pkg-due-time"
+                    type="time"
+                    step={60}
+                    value={bidDueTime}
+                    onChange={(e) => setBidDueTime(e.target.value.slice(0, 5))}
+                    aria-describedby="create-pkg-due-time-hint"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-500 [color-scheme:dark]"
+                  />
+                </div>
+                <p id="create-pkg-due-time-hint" className="col-span-2 text-[11px] text-slate-400">{BID_DUE_TIME_HINT}</p>
               </div>
 
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
