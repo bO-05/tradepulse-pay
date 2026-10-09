@@ -12,7 +12,7 @@ import {
 } from "./vendorRules";
 import { isMergedVendor, liveVendor } from "./vendorRead";
 import { searchTextPatch, vendorSearchText } from "./vendorSearch";
-import { emailNeedsConfirmation } from "./rfqEmail";
+import { bidderAddressConfirmed, emailNeedsConfirmation, gcConfirmedEmail, vendorAddressConfirmed } from "./rfqEmail";
 
 /**
  * Vendor directory helpers for the bidder (contractors) write paths. Every bidder row carries the
@@ -57,29 +57,28 @@ async function findVendorByName(ctx: QueryCtx, companyId: Id<"companies">, name:
 const UNINFORMATIVE_LICENSE = /^(0|not verified|unknown|n\/a|none|pending)$/i;
 
 type BidderFields = Pick<Doc<"contractors">, "companyName" | "contactEmail" | "phone" | "licenseNumber" | "linkedCompanyId"> &
-  Partial<Pick<Doc<"contractors">, "licenseStatus" | "emailSource" | "emailConfirmedAt">>;
+  Partial<Pick<Doc<"contractors">, "licenseStatus" | "emailSource" | "emailConfirmedAt" | "emailConfirmedFor">>;
 
 function bidderEmailUnconfirmed(bidder: BidderFields): boolean {
   return emailNeedsConfirmation({ ...bidder, licenseStatus: bidder.licenseStatus ?? "" });
 }
 
+function bidderConfirmed(bidder: BidderFields): boolean {
+  return bidderAddressConfirmed({ ...bidder, licenseStatus: bidder.licenseStatus ?? "" });
+}
+
 /**
- * True when the vendor's current email came from web discovery and no GC member has confirmed or
- * entered it. Vendors created before provenance was stored are judged by the bidder rows that use
- * the same address: unconfirmed if one still needs confirmation and none was confirmed or GC-entered.
+ * Whether an RFQ may go to the bidder's current address. Default deny: a real company's bidder is
+ * emailed only when a GC member typed, edited or confirmed that exact address on the bidder, or on
+ * the directory vendor the bidder belongs to. Web-discovered, document-extracted and unknown
+ * addresses wait for confirmation. The Demo company, which never sends email, keeps its seeded rule.
  */
-export async function vendorEmailUnconfirmed(ctx: QueryCtx, vendor: Doc<"vendors">): Promise<boolean> {
-  const email = vendor.email.trim().toLowerCase();
-  if (isPlaceholderEmail(email)) return false;
-  if (vendor.discoveredEmail !== undefined) return vendor.discoveredEmail === email;
-  if (vendor.emailConfirmedAt !== undefined) return false;
-  const bidders = await ctx.db
-    .query("contractors")
-    .withIndex("by_vendorId", (q) => q.eq("vendorId", vendor._id))
-    .take(200);
-  const sameAddress = bidders.filter((c) => c.contactEmail.trim().toLowerCase() === email);
-  const trusted = sameAddress.some((c) => c.emailConfirmedAt !== undefined || c.emailSource === "gc");
-  return !trusted && sameAddress.some((c) => emailNeedsConfirmation(c));
+export async function rfqAddressConfirmed(ctx: QueryCtx, contractor: Doc<"contractors">, isDemo: boolean): Promise<boolean> {
+  if (isDemo) return !emailNeedsConfirmation(contractor);
+  if (bidderAddressConfirmed(contractor)) return true;
+  if (contractor.vendorId === undefined) return false;
+  const vendor = await liveVendor(ctx, contractor.vendorId);
+  return vendor !== null && vendorAddressConfirmed(vendor, contractor.contactEmail);
 }
 
 /** A GC member confirmed or typed `email` for a bidder of this vendor; the directory entry inherits it when it is the same address. */
@@ -87,7 +86,7 @@ export async function confirmVendorEmail(ctx: MutationCtx, vendorId: Id<"vendors
   if (vendorId === undefined) return;
   const vendor = await liveVendor(ctx, vendorId);
   if (vendor === null || vendor.email.trim().toLowerCase() !== email.trim().toLowerCase()) return;
-  await ctx.db.patch(vendor._id, { discoveredEmail: undefined, emailConfirmedAt: Date.now() });
+  await ctx.db.patch(vendor._id, { discoveredEmail: undefined, ...gcConfirmedEmail(email) });
 }
 
 export async function vendorForBidder(
@@ -111,9 +110,8 @@ export async function vendorForBidder(
       Object.assign(patch, searchTextPatch(existing, { trades: patch.trades }));
     }
     if (existing.linkedCompanyId === undefined && bidder.linkedCompanyId !== undefined) patch.linkedCompanyId = bidder.linkedCompanyId;
-    if (bidder.emailSource === "gc" && existing.email === email && existing.discoveredEmail !== undefined) {
-      patch.discoveredEmail = undefined;
-      patch.emailConfirmedAt = Date.now();
+    if (!isPlaceholderEmail(email) && bidderConfirmed(bidder) && existing.email === email && !vendorAddressConfirmed(existing, email)) {
+      Object.assign(patch, { discoveredEmail: undefined, ...gcConfirmedEmail(email) });
     }
     if (Object.keys(patch).length > 0) await ctx.db.patch(existing._id, patch);
     return { vendorId: existing._id, created: false };
@@ -128,6 +126,7 @@ export async function vendorForBidder(
     contactName: "",
     email,
     ...(!isPlaceholderEmail(email) && bidderEmailUnconfirmed(bidder) ? { discoveredEmail: email } : {}),
+    ...(!isPlaceholderEmail(email) && bidderConfirmed(bidder) ? gcConfirmedEmail(email) : {}),
     searchText: vendorSearchText({ name, trades, contactName: "", email }),
     ...(bidder.phone?.trim() ? { phone: bidder.phone.trim().slice(0, 30) } : {}),
     ...(license && !UNINFORMATIVE_LICENSE.test(license) ? { licenseNumber: license.slice(0, 40) } : {}),
@@ -255,6 +254,11 @@ export async function assertVendorEmailFree(ctx: QueryCtx, companyId: Id<"compan
   if (clash !== null && clash._id !== except) throw invalidVendor(DUPLICATE_VENDOR_EMAIL_MESSAGE, "email");
 }
 
+/** Confirmation fields for an address a GC member typed into the directory (none for placeholders). */
+export function gcEnteredEmail(email: string): Partial<ReturnType<typeof gcConfirmedEmail>> {
+  return isPlaceholderEmail(email) ? {} : gcConfirmedEmail(email);
+}
+
 /** Inserts a validated vendor into the caller's directory. Shared with the "New vendor" bidder path. */
 export async function insertDirectoryVendor(ctx: MutationCtx, companyId: Id<"companies">, raw: Parameters<typeof validateVendorInput>[0]) {
   const input = validatedVendor(raw);
@@ -262,6 +266,7 @@ export async function insertDirectoryVendor(ctx: MutationCtx, companyId: Id<"com
   const vendorId = await ctx.db.insert("vendors", {
     companyId,
     ...input,
+    ...gcEnteredEmail(input.email),
     status: "active",
     createdAt: Date.now(),
     searchText: vendorSearchText(input),

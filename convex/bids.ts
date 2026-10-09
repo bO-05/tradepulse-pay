@@ -23,6 +23,7 @@ import {
 } from "./lib/bidMoney";
 import { recordBidRevision, termsOfBid } from "./lib/bidRevisions";
 import { attributePlugs, cleanPlugNote, exclusionScopeText, keptPlugFields, type PlugActor } from "./lib/levelingPlugs";
+import { ownedLevelingRows, reconcileBidderExclusions } from "./lib/exclusionOwnership";
 import { buildLevelingRows } from "./lib/levelingSummary";
 import { attributeDemoExclusions, findDemoGcPlugActor } from "./lib/demoPlugs";
 import type { ProjectAccess } from "./lib/tenancy";
@@ -474,7 +475,7 @@ async function applyLeveling(
   const current = bidCents(bid);
   const baseAmountCents = centsArg(args.baseAmountCents ?? current.baseAmountCents, "Base bid amount", { positive: true });
   const exclusions = args.identifiedExclusions
-    ? attributePlugs(bid.identifiedExclusions, normalizeExclusions(args.identifiedExclusions), plugActor(access), Date.now())
+    ? ownedLevelingRows(bid, attributePlugs(bid.identifiedExclusions, normalizeExclusions(args.identifiedExclusions), plugActor(access), Date.now()))
     : bid.identifiedExclusions;
   const veAlternates = normalizeVe(args.valueEngineeringAlternates ?? bid.valueEngineeringAlternates ?? []);
   assertBidLevelingInputs(exclusions, veAlternates, args.coiComplianceStatus);
@@ -806,7 +807,8 @@ export const insertParsedBid = internalMutation({
       };
     });
     const demoActor = gcCompany?.isDemo === true ? await findDemoGcPlugActor(ctx) : null;
-    const safeExclusions = demoActor ? attributeDemoExclusions(parsedExclusions, demoActor, Date.now()).next : parsedExclusions;
+    const bidderExclusions = demoActor ? attributeDemoExclusions(parsedExclusions, demoActor, Date.now()).next : parsedExclusions;
+    const safeExclusions = reconcileBidderExclusions(existing, bidderExclusions);
     const safeVeAlternates = normalizeVe(args.valueEngineeringAlternates ?? []).map((a) => ({
       ...a,
       costDeductCents: Number.isSafeInteger(a.costDeductCents) ? Math.max(0, a.costDeductCents) : 0,
@@ -825,7 +827,7 @@ export const insertParsedBid = internalMutation({
       baseAmountCents,
       lineItems: safeLineItems,
       identifiedExclusions: safeExclusions,
-      exclusions: safeExclusions.map((e) => e.description),
+      exclusions: bidderExclusions.map((e) => e.description),
       valueEngineeringAlternates: safeVeAlternates,
       longLeadEquipmentWeeks,
       leadTimePenaltyCents,

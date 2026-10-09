@@ -22,7 +22,7 @@ import { deliveryFailureMessage } from "./emailOutbox";
 import { getLiveAuthUserId } from "./lib/session";
 import { requireCompanyMemberInAction } from "./lib/tenancyAction";
 import { findActiveMembership, notFound, requireCompanyMember, requireVerifiedUser } from "./lib/tenancy";
-import { findVendorByEmail, findVendorByLinkedCompany } from "./lib/vendorDirectory";
+import { findVendorByEmail, findVendorByLinkedCompany, gcEnteredEmail } from "./lib/vendorDirectory";
 import { mergeVendorPair } from "./lib/vendorMerge";
 import { liveVendor, liveVendorByRawId } from "./lib/vendorRead";
 import { vendorSearchText } from "./lib/vendorSearch";
@@ -186,6 +186,7 @@ export const prepareCreate = internalMutation({
           trades: [trade],
           contactName,
           email,
+          ...gcEnteredEmail(email),
           status: "active",
           createdAt: now,
           searchText: vendorSearchText({ name, trades: [trade], contactName, email }),

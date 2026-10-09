@@ -29,6 +29,9 @@ export const bidExclusionValidator = v.object({
   plugEnteredByUserId: v.optional(v.id("users")),
   plugEnteredByName: v.optional(v.string()),
   plugEnteredAt: v.optional(v.number()),
+  // "gc": added by the GC while leveling, kept through bidder revisions. Rows without it are
+  // resolved by lib/exclusionOwnership.ts exclusionOwner.
+  source: v.optional(v.union(v.literal("gc"), v.literal("bidder"))),
 });
 
 export const bidVeAlternateValidator = v.object({

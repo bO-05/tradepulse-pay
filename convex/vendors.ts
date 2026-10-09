@@ -7,6 +7,7 @@ import {
   assertVendorEmailFree,
   backfillVendorsForCompany,
   findVendorByEmail,
+  gcEnteredEmail,
   insertDirectoryVendor,
   invalidVendor,
   validatedVendor,
@@ -213,8 +214,9 @@ export const updateVendor = mutation({
         ? {
             ...(vendor.discoveredEmail !== undefined ? { discoveredEmail: vendor.discoveredEmail } : {}),
             ...(vendor.emailConfirmedAt !== undefined ? { emailConfirmedAt: vendor.emailConfirmedAt } : {}),
+            ...(vendor.emailConfirmedFor !== undefined ? { emailConfirmedFor: vendor.emailConfirmedFor } : {}),
           }
-        : { emailConfirmedAt: Date.now() }),
+        : gcEnteredEmail(input.email)),
     });
     return { vendorId: vendor._id };
   },
@@ -276,6 +278,7 @@ export const importVendors = mutation({
       const vendorId = await ctx.db.insert("vendors", {
         companyId: company._id,
         ...result.value,
+        ...gcEnteredEmail(result.value.email),
         status: "active",
         createdAt: Date.now(),
         searchText: vendorSearchText(result.value),

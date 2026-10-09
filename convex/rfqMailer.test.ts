@@ -56,7 +56,9 @@ async function setup(opts: { email?: string; webDiscovered?: boolean } = {}) {
       companyName: "Golden Gate Electric",
       contactEmail: opts.email ?? BIDDER,
       rfqStatus: "discovered",
-      ...(opts.webDiscovered ? { emailSource: "web_discovery" as const, licenseStatus: "Unverified — from web search result" } : {}),
+      ...(opts.webDiscovered
+        ? { emailSource: "web_discovery" as const, licenseStatus: "Unverified — from web search result" }
+        : { emailSource: "gc" as const, emailConfirmedFor: opts.email ?? BIDDER }),
     });
   });
   return { t, f };
@@ -220,9 +222,10 @@ describe("RFQ recipients must be reviewed and confirmed", () => {
   test("recipient states for placeholders and already-sent bidders", () => {
     const allowAll = () => true;
     const base = { licenseStatus: "Active", contactEmail: BIDDER };
-    expect(rfqRecipientState({ ...base, contactEmail: "not-published@verify-required.invalid" }, allowAll)).toBe("no_email");
-    expect(rfqRecipientState({ ...base, rfqEmailStatus: "sent", rfqEmailTo: BIDDER }, allowAll)).toBe("already_sent");
-    expect(rfqRecipientState({ ...base, rfqEmailStatus: "failed", rfqEmailTo: BIDDER }, allowAll)).toBe("ready");
+    expect(rfqRecipientState({ ...base, contactEmail: "not-published@verify-required.invalid" }, allowAll, true)).toBe("no_email");
+    expect(rfqRecipientState({ ...base, rfqEmailStatus: "sent", rfqEmailTo: BIDDER }, allowAll, true)).toBe("already_sent");
+    expect(rfqRecipientState({ ...base, rfqEmailStatus: "failed", rfqEmailTo: BIDDER }, allowAll, true)).toBe("ready");
+    expect(rfqRecipientState({ ...base, rfqEmailStatus: "failed", rfqEmailTo: BIDDER }, allowAll, false)).toBe("email_unconfirmed");
   });
 });
 
@@ -462,7 +465,7 @@ describe("inbound replies route to the right bidder and never leak", () => {
     expect(row?.rfqOutboxId).toBeDefined();
 
     // A reply to an earlier address does not hide the outcome of an RFQ to a new address.
-    await t.run((ctx) => ctx.db.patch(f.gcA.project.contractorId, { contactEmail: "new-estimator@maxxspace.com" }));
+    await t.run((ctx) => ctx.db.patch(f.gcA.project.contractorId, { contactEmail: "new-estimator@maxxspace.com", emailConfirmedFor: "new-estimator@maxxspace.com" }));
     agentmailStub(() => new Response(JSON.stringify({ name: "ValidationError", message: "Recipient is blocked" }), { status: 403 }));
     const second: any = await sendRfq(f, "new-estimator@maxxspace.com");
     expect(second.deliveryResults).toMatchObject([{ status: "failed" }]);

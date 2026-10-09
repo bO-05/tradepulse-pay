@@ -13,9 +13,9 @@ import {
   inactiveVendorError,
   insertDirectoryVendor,
   packageBidders,
-  vendorEmailUnconfirmed,
   vendorForNewBidder,
 } from "./lib/vendorDirectory";
+import { gcConfirmedEmail } from "./lib/rfqEmail";
 
 export const listByPackage = query({
   args: { tradePackageId: v.id("tradePackages") },
@@ -62,13 +62,15 @@ export const createContractor = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    const { doc: pkg } = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"], write: true });
+    const access = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"], write: true });
+    const pkg = access.doc;
     const fields = {
       ...args,
       companyName: validateProjectText(args.companyName, "Company name"),
       contactEmail: validateEmail(args.contactEmail),
     };
-    const resolved = await vendorForNewBidder(ctx, pkg, { ...fields, emailSource: "gc" });
+    const confirmation = { ...gcConfirmedEmail(fields.contactEmail), emailConfirmedByUserId: access.user._id };
+    const resolved = await vendorForNewBidder(ctx, pkg, { ...fields, emailSource: "gc", ...confirmation });
     if (resolved !== null) {
       if (resolved.vendor.status !== "active") throw inactiveVendorError(resolved.vendor.name);
       if (resolved.existingBidder !== null) throw alreadyBidderError(resolved.vendor.name);
@@ -78,6 +80,7 @@ export const createContractor = mutation({
       ...(resolved !== null ? { vendorId: resolved.vendor._id } : {}),
       dispatchedAt: args.rfqStatus === "invited" ? Date.now() : undefined,
       emailSource: "gc",
+      ...confirmation,
       updatedAt: Date.now(),
     });
   },
@@ -206,7 +209,7 @@ export const updateContractor = mutation({
       ...fields,
       companyName: validateProjectText(args.companyName, "Company name"),
       contactEmail,
-      ...(emailEdited ? { emailConfirmedAt: Date.now(), emailConfirmedByUserId: access.user._id } : {}),
+      ...(emailEdited ? { ...gcConfirmedEmail(contactEmail), emailConfirmedByUserId: access.user._id } : {}),
       updatedAt: Date.now(),
     });
     if (emailEdited) await confirmVendorEmail(ctx, contractor.vendorId, contactEmail);
@@ -379,8 +382,8 @@ async function insertVendorBidder(
       : "No license on file",
     sourceUrl: "",
     rfqStatus: "discovered",
-    // A directory entry built from web discovery still carries an address nobody confirmed.
-    emailSource: (await vendorEmailUnconfirmed(ctx, vendor)) ? "web_discovery" : "directory",
+    // RFQ email to this address is allowed only while the vendor's confirmation covers it (rfqAddressConfirmed).
+    emailSource: vendor.discoveredEmail !== undefined && vendor.discoveredEmail === vendor.email ? "web_discovery" : "directory",
     vendorId: vendor._id,
     ...(linkedCompanyId !== undefined ? { linkedCompanyId } : {}),
     updatedAt: Date.now(),

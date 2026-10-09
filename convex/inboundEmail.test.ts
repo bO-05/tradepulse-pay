@@ -121,8 +121,8 @@ describe("inbound routing", () => {
     await addThread(t, f.gcB.project, "SONORAN1", "thread-sonoran");
     // The sender bids on Bayview, not on Sonoran.
     await t.run(async (ctx) => {
-      await ctx.db.patch(f.gcA.project.contractorId, { contactEmail: "bayview-bidder@example.test" });
-      await ctx.db.patch(f.gcB.project.contractorId, { contactEmail: "sonoran-bidder@example.test" });
+      await ctx.db.patch(f.gcA.project.contractorId, { contactEmail: "bayview-bidder@example.test", emailConfirmedFor: "bayview-bidder@example.test" });
+      await ctx.db.patch(f.gcB.project.contractorId, { contactEmail: "sonoran-bidder@example.test", emailConfirmedFor: "sonoran-bidder@example.test" });
     });
     const before = await counts(t);
     const res = await t.mutation(internal.inboundEmail.ingestReceived, {
@@ -255,7 +255,7 @@ describe("every recognized RFQ thread keeps routing", () => {
     const f = await buildTenancyFixture(t);
     await addThread(t, f.gcA.project, "BAYVIEW1", "thread-bayview");
     await t.run(async (ctx) => {
-      await ctx.db.patch(f.gcA.project.contractorId, { contactEmail: "bidder@example.test" });
+      await ctx.db.patch(f.gcA.project.contractorId, { contactEmail: "bidder@example.test", emailConfirmedFor: "bidder@example.test" });
     });
     const res = await t.mutation(internal.inboundEmail.ingestReceived, {
       eventId: "evt-tri",
@@ -280,7 +280,7 @@ describe("RFQ dispatch through the mailer", () => {
     const t = newTest();
     const f = await buildTenancyFixture(t);
     await t.run(async (ctx) => {
-      await ctx.db.patch(f.gcA.project.contractorId, { contactEmail: "Bidder@Example.test", rfqStatus: "discovered" });
+      await ctx.db.patch(f.gcA.project.contractorId, { contactEmail: "Bidder@Example.test", emailConfirmedFor: "bidder@example.test", rfqStatus: "discovered" });
     });
     const calls: Array<{ url: string; body: any; key: string }> = [];
     vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {

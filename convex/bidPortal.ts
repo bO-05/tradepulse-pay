@@ -11,6 +11,7 @@ import { formatCents } from "./lib/money";
 import { biddingClosedReason } from "./lib/biddingClosed";
 import { isBidDocumentForPackage } from "./lib/bidDocuments";
 import { keptPlugFields } from "./lib/levelingPlugs";
+import { reconcileBidderExclusions } from "./lib/exclusionOwnership";
 import { contractorCanBidOnPackage } from "./lib/packageContractors";
 import { auditActor, requireDocOfProject, requireDocScope } from "./lib/projectScope";
 import { formatBidDue } from "./lib/rfqEmail";
@@ -127,9 +128,13 @@ function historyView(revisions: Doc<"bidRevisions">[]) {
   });
 }
 
-/** Keeps the GC's plug on an exclusion the bidder still lists; new exclusions start with no plug. */
-function syncIdentifiedExclusions(current: Doc<"bids">["identifiedExclusions"], exclusions: string[]): Doc<"bids">["identifiedExclusions"] {
-  return exclusions.map((description) => {
+/**
+ * Keeps the GC's plug on an exclusion the bidder still lists; new exclusions start with no plug.
+ * Exclusions the GC added while leveling are kept with their plugs whatever the bidder lists.
+ */
+function syncIdentifiedExclusions(existing: Doc<"bids"> | null, exclusions: string[]): Doc<"bids">["identifiedExclusions"] {
+  const current = existing?.identifiedExclusions ?? [];
+  const bidderRows = exclusions.map((description): Doc<"bids">["identifiedExclusions"][number] => {
     const kept = current.find((e) => e.description === description);
     if (kept) {
       return {
@@ -142,6 +147,7 @@ function syncIdentifiedExclusions(current: Doc<"bids">["identifiedExclusions"], 
     }
     return { description, costImpactCents: 0, severity: "moderate" };
   });
+  return reconcileBidderExclusions(existing, bidderRows);
 }
 
 type Submitter = {
@@ -172,7 +178,7 @@ async function writeBidRevision(
     throw new ConvexError({ code: "CLOSED" as const, message: reason ?? "Bidding on this package is closed: it has been awarded." });
   }
   const current = existing ? bidCents(existing) : { leadTimePenaltyCents: 0, coiPenaltyCents: 0 };
-  const identifiedExclusions = syncIdentifiedExclusions(existing?.identifiedExclusions ?? [], terms.exclusions);
+  const identifiedExclusions = syncIdentifiedExclusions(existing, terms.exclusions);
   const valueEngineeringAlternates = (existing?.valueEngineeringAlternates ?? []).map((a) => ({
     description: a.description,
     costDeductCents: a.costDeductCents ?? 0,

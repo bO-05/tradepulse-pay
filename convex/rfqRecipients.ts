@@ -1,25 +1,32 @@
 /**
  * RFQ recipient review and per-bidder RFQ email status. The GC reviews the exact recipient list
  * (previewRfqRecipients) and confirms it; rfqActions only emails the bidders and addresses confirmed
- * there. Web-discovered addresses are never emailed until a GC member confirms or edits them.
+ * there. Only addresses a GC member typed, edited or confirmed (on the bidder or its directory vendor)
+ * are emailed; web-discovered and unknown-provenance addresses wait for confirmation.
  */
 import { ConvexError, v } from "convex/values";
-import { internalMutation, mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query, type QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { auditActor, requireDocScope } from "./lib/projectScope";
 import { recipientAllowed } from "./lib/recipientAllowlist";
 import { RFQ_INBOX } from "./lib/mailer";
 import { generalContractorNameFor } from "./lib/gcCompanyName";
-import { RFQ_PRE_REPLY_STATUSES, rfqRecipientState, rfqSubject, type RfqRecipientState } from "./lib/rfqEmail";
+import { RFQ_PRE_REPLY_STATUSES, gcConfirmedEmail, rfqRecipientState, rfqSubject, type RfqRecipientState } from "./lib/rfqEmail";
 import { ensureRfqThreadRow } from "./inboundEmail";
 import { validateEmail } from "./validation";
-import { confirmVendorEmail } from "./lib/vendorDirectory";
+import { confirmVendorEmail, rfqAddressConfirmed } from "./lib/vendorDirectory";
+
+/** Same rule as emailOutbox.projectMailContext: projects without a company predate tenancy and are demo data. */
+async function projectIsDemo(ctx: QueryCtx, project: Doc<"projects">): Promise<boolean> {
+  const company = project.gcCompanyId ? await ctx.db.get(project.gcCompanyId) : null;
+  return company ? company.isDemo === true : Boolean(project.isDemoProject) || !project.gcCompanyId;
+}
 
 const RECIPIENT_NOTES: Record<RfqRecipientState, string> = {
   ready: "Will be emailed.",
   already_sent: "RFQ already sent to this address; it will not be emailed again.",
   no_email: "No email address on file. Add one before sending.",
-  email_unconfirmed: "Email not confirmed: this address came from web discovery. Confirm or edit it before sending.",
+  email_unconfirmed: "Email not confirmed: no one at your company has confirmed this address. Confirm or edit it before sending.",
   blocked_recipient: "Not on this test deployment's recipient allowlist; the mailer will refuse it.",
 };
 
@@ -35,27 +42,30 @@ export const previewRfqRecipients = query({
     const wanted = args.contractorIds ? new Set(args.contractorIds) : null;
     const rows = wanted ? all.filter((c) => wanted.has(c._id)) : all;
     const gcName = await generalContractorNameFor(ctx, project);
+    const demo = await projectIsDemo(ctx, project);
+    const recipients = [];
+    for (const c of rows) {
+      const state = rfqRecipientState(c, (email) => recipientAllowed(email), await rfqAddressConfirmed(ctx, c, demo));
+      recipients.push({
+        contractorId: c._id,
+        companyName: c.companyName,
+        email: c.contactEmail.trim().toLowerCase(),
+        state,
+        note: RECIPIENT_NOTES[state],
+        rfqEmailStatus: c.rfqEmailStatus ?? null,
+      });
+    }
     return {
       fromInbox: RFQ_INBOX,
       isDemo: company?.isDemo === true,
       gcName,
       subjectPreview: rfqSubject({ gcName, projectTitle: project.title, csiDivision: pkg.csiDivision, tradeName: pkg.tradeName, ref: "XXXXXXXX" }),
-      recipients: rows.map((c) => {
-        const state = rfqRecipientState(c, (email) => recipientAllowed(email));
-        return {
-          contractorId: c._id,
-          companyName: c.companyName,
-          email: c.contactEmail.trim().toLowerCase(),
-          state,
-          note: RECIPIENT_NOTES[state],
-          rfqEmailStatus: c.rfqEmailStatus ?? null,
-        };
-      }),
+      recipients,
     };
   },
 });
 
-/** GC confirms a bidder's RFQ email (optionally correcting it). Required for web-discovered addresses. */
+/** GC confirms a bidder's RFQ email (optionally correcting it). Required for any address no GC member entered. */
 export const confirmBidderEmail = mutation({
   args: { contractorId: v.id("contractors"), email: v.string() },
   handler: async (ctx, args) => {
@@ -66,7 +76,7 @@ export const confirmBidderEmail = mutation({
     const now = Date.now();
     await ctx.db.patch(contractor._id, {
       contactEmail: email,
-      emailConfirmedAt: now,
+      ...gcConfirmedEmail(email, now),
       emailConfirmedByUserId: access.user._id,
       updatedAt: now,
     });
@@ -160,7 +170,7 @@ export const prepareRfqSend = internalMutation({
       return { action: "skip", status: "email_changed", reason: "The email changed after you reviewed the list; review and confirm again." };
     }
     // The allowlist is enforced by the mailer so the refusal is recorded in emailOutbox.
-    const state = rfqRecipientState(contractor, () => true);
+    const state = rfqRecipientState(contractor, () => true, await rfqAddressConfirmed(ctx, contractor, await projectIsDemo(ctx, project)));
     if (state !== "ready") return { action: "skip", status: state, reason: RECIPIENT_NOTES[state] };
 
     const thread = await ensureRfqThreadRow(ctx, { projectId: project._id, tradePackageId: pkg._id, contractorId: contractor._id });

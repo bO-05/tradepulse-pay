@@ -71,7 +71,7 @@ async function setupWithInboundRfi() {
   await t.run(async (ctx) => {
     await ctx.db.patch(f.gcA.project.projectId, { state: "CA", location: "Oakland, CA", title: "Harbor Point Dental Office TI" });
     await ctx.db.patch(f.gcA.project.tradePackageId, { status: "draft", bidDeadline: "2026-10-30T14:00" });
-    await ctx.db.patch(f.gcA.project.contractorId, { companyName: "Oakland Power & Light", contactEmail: BIDDER, rfqStatus: "discovered" });
+    await ctx.db.patch(f.gcA.project.contractorId, { companyName: "Oakland Power & Light", contactEmail: BIDDER, emailConfirmedFor: BIDDER, rfqStatus: "discovered" });
   });
   const calls = stubFetch();
   await f.gcA.admin.as.action(api.rfqActions.dispatchRfqsWithNotification, {

@@ -306,11 +306,12 @@ export default defineSchema({
     trades: v.array(v.string()), // CSI divisions, e.g. "26 00 00"
     contactName: v.string(),
     email: v.string(), // lowercased
-    // Set while `email` is a web-discovered address no GC member has confirmed or edited; bidders made from
-    // this vendor are then emailed only after confirmation (lib/vendorDirectory.ts vendorEmailUnconfirmed).
+    // Set while `email` is a web-discovered address no GC member has confirmed or edited.
     discoveredEmail: v.optional(v.string()),
-    // When a GC member last confirmed or entered `email` for RFQ use.
+    // When a GC member last confirmed or entered an address for RFQ use, and which one (lowercased).
+    // Bidders reusing this vendor are emailed only while `email` equals it (lib/vendorDirectory.ts rfqAddressConfirmed).
     emailConfirmedAt: v.optional(v.number()),
+    emailConfirmedFor: v.optional(v.string()),
     phone: v.optional(v.string()),
     licenseNumber: v.optional(v.string()),
     licenseState: v.optional(v.string()),
@@ -806,6 +807,8 @@ export default defineSchema({
     // Where contactEmail came from. Web-discovered addresses belong to real businesses and are not emailed until a GC confirms them.
     emailSource: v.optional(v.union(v.literal("web_discovery"), v.literal("gc"), v.literal("directory"), v.literal("document"))),
     emailConfirmedAt: v.optional(v.number()),
+    // The exact lowercased address a GC member typed, edited or confirmed; RFQs go only to it.
+    emailConfirmedFor: v.optional(v.string()),
     emailConfirmedByUserId: v.optional(v.id("users")),
     /** A14-02: optimistic-concurrency marker for concurrent edits. */
     updatedAt: v.optional(v.number()),

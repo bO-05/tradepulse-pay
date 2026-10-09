@@ -85,6 +85,7 @@ export interface ScopeExclusion {
   costImpactCents: number;
   severity: "critical" | "moderate" | "minor";
   isWaived?: boolean;
+  source?: "gc" | "bidder";
 }
 
 export interface ValueEngineeringAlternate {

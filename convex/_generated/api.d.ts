@@ -73,6 +73,7 @@ import type * as lib_companyProfile from "../lib/companyProfile.js";
 import type * as lib_demoPayees from "../lib/demoPayees.js";
 import type * as lib_demoPlugs from "../lib/demoPlugs.js";
 import type * as lib_demoTenancy from "../lib/demoTenancy.js";
+import type * as lib_exclusionOwnership from "../lib/exclusionOwnership.js";
 import type * as lib_gcCompanyName from "../lib/gcCompanyName.js";
 import type * as lib_inviteRules from "../lib/inviteRules.js";
 import type * as lib_levelingPlugs from "../lib/levelingPlugs.js";
@@ -257,6 +258,7 @@ declare const fullApi: ApiFromModules<{
   "lib/demoPayees": typeof lib_demoPayees;
   "lib/demoPlugs": typeof lib_demoPlugs;
   "lib/demoTenancy": typeof lib_demoTenancy;
+  "lib/exclusionOwnership": typeof lib_exclusionOwnership;
   "lib/gcCompanyName": typeof lib_gcCompanyName;
   "lib/inviteRules": typeof lib_inviteRules;
   "lib/levelingPlugs": typeof lib_levelingPlugs;

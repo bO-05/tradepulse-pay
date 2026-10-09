@@ -105,7 +105,43 @@ type ContractorEmailFields = {
   licenseStatus: string;
   emailSource?: "web_discovery" | "gc" | "directory" | "document";
   emailConfirmedAt?: number;
+  emailConfirmedFor?: string;
 };
+
+type VendorEmailFields = {
+  email: string;
+  discoveredEmail?: string;
+  emailConfirmedAt?: number;
+  emailConfirmedFor?: string;
+};
+
+const normalized = (email: string) => email.trim().toLowerCase();
+
+/**
+ * True only when a GC member typed, edited or confirmed this bidder's current address.
+ * `emailConfirmedFor` names the exact address; rows written before it existed count only when they
+ * carry a GC confirmation or were GC-typed, because every write that changes the address of such a
+ * row also records a fresh confirmation.
+ */
+export function bidderAddressConfirmed(c: ContractorEmailFields): boolean {
+  const email = normalized(c.contactEmail);
+  if (c.emailConfirmedFor !== undefined) return normalized(c.emailConfirmedFor) === email;
+  return c.emailConfirmedAt !== undefined || c.emailSource === "gc";
+}
+
+/** True only when the directory entry's current email is `address` and a GC member entered or confirmed it. */
+export function vendorAddressConfirmed(vendor: VendorEmailFields, address: string): boolean {
+  const email = normalized(address);
+  if (normalized(vendor.email) !== email) return false;
+  if (vendor.discoveredEmail !== undefined && normalized(vendor.discoveredEmail) === email) return false;
+  if (vendor.emailConfirmedFor !== undefined) return normalized(vendor.emailConfirmedFor) === email;
+  return vendor.emailConfirmedAt !== undefined;
+}
+
+/** Fields recording that a GC member entered or confirmed `email` just now. */
+export function gcConfirmedEmail(email: string, now = Date.now()): { emailConfirmedAt: number; emailConfirmedFor: string } {
+  return { emailConfirmedAt: now, emailConfirmedFor: normalized(email) };
+}
 
 /** Web discovery stores this when a page publishes no address. */
 export function isUnpublishedPlaceholder(email: string): boolean {
@@ -115,7 +151,11 @@ export function isUnpublishedPlaceholder(email: string): boolean {
 /** Rows from before `emailSource` existed are recognised by the license text web discovery writes. */
 const LEGACY_DISCOVERY_LICENSE = /from web search result|Verified in listing \(registry page\)/i;
 
-/** True when the address came from web discovery and no GC member has confirmed or edited it. */
+/**
+ * True when the address is known to come from web discovery and no GC member has confirmed or
+ * edited it. Real companies use the stricter bidderAddressConfirmed rule; this one remains for the
+ * Demo company, whose seeded bidders carry no confirmation and are never emailed.
+ */
 export function emailNeedsConfirmation(c: ContractorEmailFields): boolean {
   if (c.emailConfirmedAt !== undefined) return false;
   if (c.emailSource === "web_discovery") return true;
@@ -124,13 +164,15 @@ export function emailNeedsConfirmation(c: ContractorEmailFields): boolean {
 
 export type RfqRecipientState = "ready" | "already_sent" | "no_email" | "email_unconfirmed" | "blocked_recipient";
 
+/** `addressConfirmed`: a GC confirmation exists for this exact address (see lib/vendorDirectory.ts rfqAddressConfirmed). */
 export function rfqRecipientState(
   c: ContractorEmailFields & { rfqEmailStatus?: string; rfqEmailTo?: string },
   allowed: (email: string) => boolean,
+  addressConfirmed: boolean,
 ): RfqRecipientState {
   const email = c.contactEmail.trim().toLowerCase();
   if (!email.includes("@") || isUnpublishedPlaceholder(email)) return "no_email";
-  if (emailNeedsConfirmation(c)) return "email_unconfirmed";
+  if (!addressConfirmed) return "email_unconfirmed";
   if (!allowed(email)) return "blocked_recipient";
   if ((c.rfqEmailStatus === "sent" || c.rfqEmailStatus === "replied") && c.rfqEmailTo === email) return "already_sent";
   return "ready";

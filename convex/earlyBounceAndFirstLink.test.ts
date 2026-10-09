@@ -17,7 +17,7 @@ test("a rejection recorded before the send's ids are stored never becomes an RFQ
   vi.stubEnv("EMAIL_DAILY_BUDGET", "60");
   const t = convexTest(schema, modules);
   const f = await buildTenancyFixture(t);
-  await t.run((ctx) => ctx.db.patch(f.gcA.project.contractorId, { contactEmail: "bidder@example.test" }));
+  await t.run((ctx) => ctx.db.patch(f.gcA.project.contractorId, { contactEmail: "bidder@example.test", emailConfirmedFor: "bidder@example.test" }));
   vi.stubGlobal("fetch", async () => {
     await t.mutation(internal.emailOutbox.recordDeliveryEvent, {
       agentmailMessageId: "<early@example.test>",
