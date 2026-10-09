@@ -127,6 +127,7 @@ export const STATUS_LABELS = {
   rfqs_dispatched: { label: "RFQs sent", tone: "info" },
   leveling: { label: "Leveling", tone: "progress" },
   awarded: { label: "Awarded", tone: "success" },
+  not_awarded: { label: "Not awarded", tone: "neutral" },
   discovered: { label: "Discovered", tone: "neutral" },
   invited: { label: "Invited", tone: "info" },
   rfi_submitted: { label: "RFI submitted", tone: "info" },

@@ -9,6 +9,7 @@ import { describeTermChanges, recordBidRevision, termsOfBid, type BidTerms, type
 import { firstBidTermError, validateBidTerms, type CleanBidTerms } from "./lib/bidTerms";
 import { formatCents } from "./lib/money";
 import { isBidDocumentForPackage } from "./lib/bidDocuments";
+import { keptPlugFields } from "./lib/levelingPlugs";
 import { contractorCanBidOnPackage } from "./lib/packageContractors";
 import { auditActor, requireDocOfProject, requireDocScope } from "./lib/projectScope";
 import { formatBidDue } from "./lib/rfqEmail";
@@ -139,7 +140,7 @@ function syncIdentifiedExclusions(current: Doc<"bids">["identifiedExclusions"], 
       return {
         ...(kept.canonicalCode ? { canonicalCode: kept.canonicalCode } : {}),
         description,
-        costImpactCents: kept.costImpactCents ?? 0,
+        ...keptPlugFields(kept),
         severity: kept.severity,
         ...(kept.isWaived !== undefined ? { isWaived: kept.isWaived } : {}),
       };
@@ -567,6 +568,7 @@ export const listPackageBidsWithHistory = query({
       const message = bid.sourceInboundEmailId ? await ctx.db.get(bid.sourceInboundEmailId) : null;
       out.push({
         ...bidderTermsView(bid),
+        packageAwarded: access.doc.status === "awarded",
         contractorId: bid.contractorId,
         subcontractorName: bid.subcontractorName,
         leveledTotalCents: bidCents(bid).leveledTotalCents,

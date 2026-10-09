@@ -23,6 +23,12 @@ export const bidExclusionValidator = v.object({
   costImpact: v.optional(v.number()),
   severity: v.string(), // "critical" | "moderate" | "minor"
   isWaived: v.optional(v.boolean()),
+  // costImpactCents is the leveling plug: comparison only, never contract sum or SOV. The
+  // attribution is set by the server from the session; client-sent values are ignored.
+  plugNote: v.optional(v.string()),
+  plugEnteredByUserId: v.optional(v.id("users")),
+  plugEnteredByName: v.optional(v.string()),
+  plugEnteredAt: v.optional(v.number()),
 });
 
 export const bidVeAlternateValidator = v.object({

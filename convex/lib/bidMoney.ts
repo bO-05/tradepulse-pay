@@ -13,6 +13,7 @@ export type BidExclusionCents = {
   costImpactCents: number;
   severity: string;
   isWaived?: boolean;
+  plugNote?: string;
 };
 export type BidVeAlternateCents = { description: string; costDeductCents: number; isAccepted: boolean };
 

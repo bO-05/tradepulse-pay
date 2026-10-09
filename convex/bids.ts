@@ -21,6 +21,9 @@ import {
   type BidVeAlternateCents,
 } from "./lib/bidMoney";
 import { recordBidRevision, termsOfBid } from "./lib/bidRevisions";
+import { attributePlugs, cleanPlugNote, exclusionScopeText, keptPlugFields, type PlugActor } from "./lib/levelingPlugs";
+import { buildLevelingRows } from "./lib/levelingSummary";
+import type { ProjectAccess } from "./lib/tenancy";
 
 const MAX_BID_CENTS = 100_000_000_000; // $1,000,000,000.00
 
@@ -132,7 +135,13 @@ function normalizeExclusions(items: ReadonlyArray<Doc<"bids">["identifiedExclusi
     costImpactCents: e.costImpactCents ?? 0,
     severity: e.severity,
     ...(e.isWaived !== undefined ? { isWaived: e.isWaived } : {}),
+    ...(e.plugNote !== undefined ? { plugNote: e.plugNote } : {}),
   }));
+}
+
+function plugActor(access: Pick<ProjectAccess, "user" | "viewer" | "company">): PlugActor {
+  const a = auditActor(access);
+  return { userId: a.actorUserId, name: a.actor };
 }
 
 function normalizeVe(items: ReadonlyArray<NonNullable<Doc<"bids">["valueEngineeringAlternates"]>[number]>): BidVeAlternateCents[] {
@@ -176,6 +185,87 @@ export const listAllProjectBids = query({
       }
     }
     return allBids;
+  },
+});
+
+/** GC leveling view: apparent low vs leveled low, plugs with who entered them, and award status per bidder. */
+export const getLevelingSummary = query({
+  args: { tradePackageId: v.id("tradePackages") },
+  handler: async (ctx, args) => {
+    const access = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"] });
+    const pkg = access.doc;
+    const bids = await ctx.db
+      .query("bids")
+      .withIndex("by_package", (q) => q.eq("tradePackageId", args.tradePackageId))
+      .take(200);
+    const rows = buildLevelingRows(pkg, bids);
+    const awarded = rows.find((r) => r.status === "awarded") ?? null;
+    return {
+      packageStatus: pkg.status,
+      csiDivision: pkg.csiDivision,
+      tradeName: pkg.tradeName,
+      awardedTo: awarded ? awarded.subcontractorName : null,
+      apparentLowBidId: rows.find((r) => r.isApparentLow)?.bidId ?? null,
+      leveledLowBidId: rows.find((r) => r.isLeveledLow)?.bidId ?? null,
+      rows,
+    };
+  },
+});
+
+/**
+ * Sets (or clears, with 0) the GC's comparison plug on one bid exclusion. The plug changes only the
+ * leveled total; the bid's base, the contract sum and the SOV never include it.
+ */
+export const setExclusionPlug = mutation({
+  args: {
+    bidId: v.id("bids"),
+    exclusionIndex: v.number(),
+    amountCents: v.number(),
+    note: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const access = await requireDocScope(ctx, "bids", args.bidId, { roles: ["gc"], write: true });
+    const bid = access.doc;
+    if (bid.isAwarded) {
+      throw new ConvexError({ code: "CLOSED", message: "This bid is awarded; plugs are locked. Unaward it first to change leveling." });
+    }
+    const exclusion = Number.isInteger(args.exclusionIndex) ? bid.identifiedExclusions[args.exclusionIndex] : undefined;
+    if (!exclusion) throw new ConvexError({ code: "INVALID", message: "That exclusion is not on this bid." });
+    if (!Number.isSafeInteger(args.amountCents) || args.amountCents < 0 || args.amountCents > MAX_BID_CENTS) {
+      throw new ConvexError({
+        code: "INVALID",
+        field: "amount",
+        message: "Enter the plug as a dollar amount of $0.00 or more (whole cents).",
+      });
+    }
+    const note = cleanPlugNote(args.note);
+    const next = bid.identifiedExclusions.map((e, i) =>
+      i === args.exclusionIndex ? { ...e, costImpactCents: args.amountCents, plugNote: note, isWaived: false } : e,
+    );
+    const exclusions = attributePlugs(bid.identifiedExclusions, next, plugActor(access), Date.now());
+    const c = bidCents(bid);
+    const leveledTotalCents = computeLeveledTotalCents({
+      baseAmountCents: c.baseAmountCents,
+      exclusions,
+      veAlternates: bid.valueEngineeringAlternates ?? [],
+      leadTimePenaltyCents: c.leadTimePenaltyCents,
+      coiPenaltyCents: c.coiPenaltyCents,
+    });
+    await ctx.db.patch(bid._id, { ...CLEAR_LEGACY_BID_DOLLARS, ...c, identifiedExclusions: exclusions, leveledTotalCents });
+    const pkg = await ctx.db.get(bid.tradePackageId);
+    await ctx.db.insert("auditLogs", {
+      projectId: access.project._id,
+      tradePackageId: bid.tradePackageId,
+      eventType: "bid_leveled",
+      title: `Leveling plug ${args.amountCents > 0 ? "set" : "cleared"}: ${bid.subcontractorName}`,
+      description:
+        args.amountCents > 0
+          ? `Comparison-only plug of ${formatCents(args.amountCents)} on "${exclusion.description}"${pkg ? ` (Division ${pkg.csiDivision})` : ""}. Base bid stays ${formatCents(c.baseAmountCents)}; leveled total ${formatCents(leveledTotalCents)}. Plugs never enter the contract sum.`
+          : `Plug removed from "${exclusion.description}". Leveled total ${formatCents(leveledTotalCents)}.`,
+      ...auditActor(access),
+      timestamp: Date.now(),
+    });
+    return { leveledTotalCents };
   },
 });
 
@@ -241,7 +331,7 @@ export const awardContract = mutation({
       tradePackageId: tradePkg._id,
       eventType: "contract_awarded",
       title: `Subcontract Awarded: ${awardedBid.subcontractorName}`,
-      description: `Awarded Division ${tradePkg.csiDivision} to ${awardedBid.subcontractorName} at leveled cost of ${formatCents(bidCents(awardedBid).leveledTotalCents)}.`,
+      description: `Awarded Division ${tradePkg.csiDivision} to ${awardedBid.subcontractorName}; contract sum ${formatCents(existingAgreement.contractSumCents ?? fromDollars(existingAgreement.contractSum))} (base bid plus accepted alternates; leveling plugs excluded).`,
       ...auditActor(access),
       timestamp: Date.now(),
     });
@@ -381,7 +471,9 @@ async function applyLeveling(
   const bid = access.doc;
   const current = bidCents(bid);
   const baseAmountCents = centsArg(args.baseAmountCents ?? current.baseAmountCents, "Base bid amount", { positive: true });
-  const exclusions = normalizeExclusions(args.identifiedExclusions ?? bid.identifiedExclusions);
+  const exclusions = args.identifiedExclusions
+    ? attributePlugs(bid.identifiedExclusions, normalizeExclusions(args.identifiedExclusions), plugActor(access), Date.now())
+    : bid.identifiedExclusions;
   const veAlternates = normalizeVe(args.valueEngineeringAlternates ?? bid.valueEngineeringAlternates ?? []);
   assertBidLevelingInputs(exclusions, veAlternates, args.coiComplianceStatus);
   const leadTimePenaltyCents = centsArg(args.leadTimePenaltyCents ?? current.leadTimePenaltyCents, "Lead time penalty");
@@ -472,7 +564,16 @@ export const submitDirectBid = mutation({
     }
     const baseAmountCents = centsArg(args.baseAmountCents, "Base bid amount", { positive: true });
     assertBidAmountPlausible(tradePkg, baseAmountCents);
-    const exclusions = normalizeExclusions(args.identifiedExclusions ?? []);
+    const existingForPlugs = await ctx.db
+      .query("bids")
+      .withIndex("by_package_and_contractor", (q) => q.eq("tradePackageId", args.tradePackageId).eq("contractorId", args.contractorId))
+      .first();
+    const exclusions = attributePlugs(
+      existingForPlugs?.identifiedExclusions ?? [],
+      normalizeExclusions(args.identifiedExclusions ?? []),
+      plugActor(access),
+      Date.now(),
+    );
     const veAlternates = normalizeVe(args.valueEngineeringAlternates ?? []);
     assertBidLevelingInputs(exclusions, veAlternates, args.coiComplianceStatus);
     assertLineItemsNonNegative(args.lineItems);
@@ -669,10 +770,20 @@ export const insertParsedBid = internalMutation({
     // A7-03: normalize model output here so an invalid COI string or negative
     // impact can never reach storage even from the internal ingestion path.
     const safeCoiStatus = ALLOWED_COI_STATUSES.has(args.coiComplianceStatus) ? args.coiComplianceStatus : "compliant";
-    const safeExclusions = normalizeExclusions(args.identifiedExclusions).map((e) => ({
-      ...e,
-      costImpactCents: Number.isSafeInteger(e.costImpactCents) ? Math.max(0, e.costImpactCents) : 0,
-    }));
+    // Plugs are GC-entered (§15): for real companies the parser's benchmark or stated amounts are
+    // never stored as plugs. The Demo company keeps them so its seeded leveling scenarios still work.
+    const project = await ctx.db.get(tradePkg.projectId);
+    const gcCompany = project?.gcCompanyId ? await ctx.db.get(project.gcCompanyId) : null;
+    const keepParsedPlugs = gcCompany ? gcCompany.isDemo : true;
+    const safeExclusions = normalizeExclusions(args.identifiedExclusions).map(({ plugNote: _note, ...parsed }) => {
+      const e = keepParsedPlugs ? parsed : { ...parsed, description: exclusionScopeText(parsed.description) };
+      const gcPlug = existing?.identifiedExclusions.find((p) => p.description.trim() === e.description.trim() && p.plugEnteredAt !== undefined);
+      if (gcPlug) return { ...e, ...keptPlugFields(gcPlug) };
+      return {
+        ...e,
+        costImpactCents: keepParsedPlugs && Number.isSafeInteger(e.costImpactCents) ? Math.max(0, e.costImpactCents) : 0,
+      };
+    });
     const safeVeAlternates = normalizeVe(args.valueEngineeringAlternates ?? []).map((a) => ({
       ...a,
       costDeductCents: Number.isSafeInteger(a.costDeductCents) ? Math.max(0, a.costDeductCents) : 0,

@@ -144,7 +144,7 @@ test("F4: the leveling simulate control's label matches what it opens", () => {
   const levelingView = find("BidLevelingMatrixView.tsx", componentSources);
   expect(levelingView).not.toContain("Simulate Inbound Bid…");
   expect(levelingView).toContain("Open Demo Simulation…");
-  expect(levelingView).toContain("Scenario B (deceptive bid)");
+  expect(levelingView).toContain("Scenario B (exclusion-heavy bid)");
 });
 
 test("F6: the RFI form sends an explicit target trade package", () => {

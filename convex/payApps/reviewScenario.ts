@@ -20,6 +20,7 @@ import { attachProjectToDemo } from "../lib/demoTenancy";
 import { ensureSovAndMilestones } from "../payments/sov";
 import { RETAINAGE_PERCENT } from "../terms";
 import { bidRowFromDollars } from "../lib/bidMoney";
+import { fromDollars } from "../lib/money";
 
 export const REVIEW_SCENARIO_AGREEMENT_NUMBER = "A401-DEMO-PAYREVIEW-01";
 const AGREEMENT_PREFIX = "A401-DEMO-PAYREVIEW-";
@@ -61,7 +62,9 @@ export const seedReviewScenario = internalMutation({
     if (!contractorId) throw new ConvexError(`Demo contractor ${contractorName} not found; run demoAccounts:seedDemo first.`);
     const now = Date.now();
     const baseBid = LINE_ITEMS.reduce((a, l) => a + l.totalCost, 0);
-    const contractSum = baseBid + SEISMIC_EXCLUSION.costImpact;
+    // The seismic plug is comparison-only: it sits in the leveled total, never in the contract sum.
+    const leveledTotal = baseBid + SEISMIC_EXCLUSION.costImpact;
+    const contractSum = baseBid;
 
     const projectId = await ctx.db.insert("projects", {
       title: "Demo · Pay-app review scenario",
@@ -98,7 +101,7 @@ export const seedReviewScenario = internalMutation({
       leadTimePenalty: 0,
       coiComplianceStatus: "compliant",
       coiPenalty: 0,
-      leveledTotalCost: contractSum,
+      leveledTotalCost: leveledTotal,
       isAwarded: true,
       receivedAt: now,
     }));
@@ -116,6 +119,12 @@ export const seedReviewScenario = internalMutation({
       csiDivision: "26 00 00",
       tradeName: "Electrical & Lighting Systems",
       contractSum,
+      contractSumCents: fromDollars(contractSum),
+      baseBidCents: fromDollars(baseBid),
+      acceptedAlternates: [],
+      declinedAlternates: [],
+      veDeducts: [],
+      excludedScopeNotes: [SEISMIC_EXCLUSION.description],
       retainagePercent: RETAINAGE_PERCENT,
       liquidatedDamagesDaily: 0,
       scopeSummary: "Div 26 distribution, feeders, grounding and closeout. Seismic bracing is excluded scope (by others).",

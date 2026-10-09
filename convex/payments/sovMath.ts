@@ -25,12 +25,7 @@ export function allocateCents(totalCents: number, weights: readonly number[]): n
 }
 
 export type BidLineItemInput = { item: string; totalCostCents?: number };
-export type BidExclusionInput = {
-  description: string;
-  costImpactCents?: number;
-  isWaived?: boolean;
-  canonicalCode?: string;
-};
+export type AcceptedAlternateInput = { description: string; amountCents: number };
 
 export type SovLineDraft = {
   lineNo: number;
@@ -46,18 +41,16 @@ function nonNegativeCents(cents: number | undefined): number {
 }
 
 /**
- * Builds SOV lines from a leveled bid: one line per bid line item, then one
- * excluded-scope line per leveled exclusion. Un-waived exclusions carry their
- * leveling plug (it is part of the leveled contract sum); waived ones carry $0.
- * The base-scope lines share the rest of the contract sum (base bid plus any
- * leveling penalties less accepted VE) in proportion to their bid totals, with
- * the rounding remainder on the last base-scope line. If the plugs alone exceed
- * the contract sum, every line is scaled proportionally instead.
+ * Builds SOV lines from an award: one line per bid line item, then one line per accepted add
+ * alternate at its own amount. The base-scope lines share the rest of the contract sum in
+ * proportion to their bid totals (rounding remainder on the last base line); accepted deduct
+ * alternates and VE deducts are already netted into that rest. Leveling plugs and bid exclusions
+ * never become lines: exclusions live on the agreement as excluded-scope notes (§15, §22).
  */
 export function buildSovLines(input: {
   contractSumCents: number;
   lineItems: readonly BidLineItemInput[];
-  exclusions: readonly BidExclusionInput[];
+  acceptedAlternates?: readonly AcceptedAlternateInput[];
   csiDivision?: string;
   tradeName: string;
 }): SovLineDraft[] {
@@ -72,23 +65,20 @@ export function buildSovLines(input: {
       }))
     : [{ description: `${input.tradeName} — base scope`, weight: 1, ref: "baseAmountCents" }];
 
-  const excluded = input.exclusions.map((ex, i) => ({
-    description: `Excluded scope${ex.isWaived ? " (waived)" : ""}: ${ex.description.trim() || `exclusion ${i + 1}`}`,
-    plugCents: ex.isWaived ? 0 : nonNegativeCents(ex.costImpactCents),
-    csiCode: ex.canonicalCode,
-    ref: `identifiedExclusions[${i}]`,
-  }));
+  const adds = (input.acceptedAlternates ?? [])
+    .map((a, i) => ({ description: a.description.trim() || `Alternate ${i + 1}`, cents: nonNegativeCents(a.amountCents), ref: `alternates[${i}]` }))
+    .filter((a) => a.cents > 0);
+  const addTotal = adds.reduce((s, a) => s + a.cents, 0);
 
-  const plugTotal = excluded.reduce((a, e) => a + e.plugCents, 0);
   let baseValues: number[];
-  let excludedValues: number[];
-  if (plugTotal <= contractSumCents) {
-    excludedValues = excluded.map((e) => e.plugCents);
-    baseValues = allocateCents(contractSumCents - plugTotal, base.map((b) => b.weight));
+  let addValues: number[];
+  if (addTotal < contractSumCents) {
+    addValues = adds.map((a) => a.cents);
+    baseValues = allocateCents(contractSumCents - addTotal, base.map((b) => b.weight));
   } else {
-    const all = allocateCents(contractSumCents, [...base.map((b) => b.weight), ...excluded.map((e) => e.plugCents)]);
+    const all = allocateCents(contractSumCents, [...base.map((b) => b.weight), ...adds.map((a) => a.cents)]);
     baseValues = all.slice(0, base.length);
-    excludedValues = all.slice(base.length);
+    addValues = all.slice(base.length);
   }
 
   const lines: SovLineDraft[] = base.map((b, i) => ({
@@ -99,42 +89,37 @@ export function buildSovLines(input: {
     excludedScope: false,
     sourceBidLineRef: b.ref,
   }));
-  excluded.forEach((e, i) => {
+  adds.forEach((a, i) => {
     lines.push({
       lineNo: lines.length + 1,
-      description: e.description,
-      csiCode: e.csiCode ?? input.csiDivision,
-      scheduledValueCents: excludedValues[i],
-      excludedScope: true,
-      sourceBidLineRef: e.ref,
+      description: a.description,
+      csiCode: input.csiDivision,
+      scheduledValueCents: addValues[i],
+      excludedScope: false,
+      sourceBidLineRef: a.ref,
     });
   });
   return lines;
 }
 
 /**
- * Canonical description of everything the SOV and milestones are derived from
- * (awarded bid, contract sum, bid lines, leveled exclusions and their plugs,
- * lead weeks). Two awards with the same total but different scope differ here.
+ * Canonical description of everything the SOV and milestones are derived from (awarded bid,
+ * contract sum, bid lines, accepted alternates, lead weeks). Two awards with the same total but
+ * different scope differ here.
  */
 export function sovSourceFingerprint(input: {
   bidId: string;
   contractSumCents: number;
   lineItems: readonly BidLineItemInput[];
-  exclusions: readonly BidExclusionInput[];
+  acceptedAlternates?: readonly AcceptedAlternateInput[];
   leadWeeks: number;
 }): string {
   return JSON.stringify({
-    v: 1,
+    v: 2,
     bid: input.bidId,
     sum: input.contractSumCents,
     lines: input.lineItems.map((li) => [li.item.trim(), nonNegativeCents(li.totalCostCents)]),
-    excl: input.exclusions.map((ex) => [
-      ex.canonicalCode ?? null,
-      ex.description.trim(),
-      ex.isWaived ? 0 : nonNegativeCents(ex.costImpactCents),
-      ex.isWaived === true,
-    ]),
+    alts: (input.acceptedAlternates ?? []).map((a) => [a.description.trim(), a.amountCents]),
     lead: Number.isFinite(input.leadWeeks) && input.leadWeeks > 0 ? input.leadWeeks : 0,
   });
 }

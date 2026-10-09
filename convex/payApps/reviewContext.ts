@@ -36,6 +36,7 @@ export function buildReviewContext(input: {
       retainagePercent: retainagePercentFor(agreement),
       scopeSummary: agreement.scopeSummary,
       mandatoryInclusions: agreement.mandatoryInclusions,
+      excludedScopeNotes: agreement.excludedScopeNotes ?? [],
     },
     milestones: milestones.map((m) => ({ name: m.name, order: m.order, status: m.status, amountCents: m.amountCents })),
     priorPayApps: earlier.map((p) => ({

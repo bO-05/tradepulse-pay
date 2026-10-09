@@ -640,7 +640,7 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleAwardContract = async (bidId: string, tradePackageId: string) => {
+  const handleAwardContract = async (bidId: string, tradePackageId: string, acceptedAlternateIndexes: number[] = []) => {
     try {
       const canAwardConvex =
         isRealConvexProject &&
@@ -652,6 +652,7 @@ export const App: React.FC = () => {
         await generateAgreementMutation({
           bidId: bidId as any,
           tradePackageId: tradePackageId as any,
+          acceptedAlternateIndexes,
         });
       } else {
         throw new Error(NO_PROJECT_MESSAGE);

@@ -286,7 +286,7 @@ describe("GC review access", () => {
 });
 
 describe("review scenario seed", () => {
-  test("creates one executed sub1 agreement with an excluded seismic line and a 30% milestone ceiling", async () => {
+  test("creates one executed sub1 agreement with seismic bracing as excluded-scope notes and a 30% milestone ceiling", async () => {
     const t = convexTest(schema, modules);
     await t.mutation(internal.projects.seedInitialDataInternal, { force: false });
     const first = await t.mutation(internal.payApps.reviewScenario.seedReviewScenario, {});
@@ -298,9 +298,10 @@ describe("review scenario seed", () => {
     expect(second.agreementId).not.toBe(first.agreementId);
     await expect(t.mutation(internal.payApps.reviewScenario.seedReviewScenario, { suffix: "a b" })).rejects.toThrow(/suffix/);
     const d = await t.query(internal.payApps.reviewScenario.describeReviewScenario, { agreementId: first.agreementId });
-    expect(d.sov.filter((s) => s.excludedScope).map((s) => s.description)).toEqual([
-      expect.stringMatching(/seismic bracing/i),
-    ]);
+    // Excluded scope lives on the agreement as notes for the review, never as an SOV line.
+    expect(d.sov.filter((s) => s.excludedScope)).toEqual([]);
+    const seeded = (await t.run(async (ctx) => ctx.db.get(first.agreementId)))!;
+    expect(seeded.excludedScopeNotes).toEqual([expect.stringMatching(/seismic bracing/i)]);
     expect(d.milestones.map((m) => m.status)).toEqual(["complete", "in_progress", "planned", "planned"]);
     const conduit = d.sov.find((s) => /conduit/i.test(s.description))!;
     const sub1 = await signInAs(t, "sub", {

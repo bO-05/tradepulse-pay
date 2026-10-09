@@ -47,7 +47,7 @@ For every submitted line return exactly one entry with the line's sovLineId, a v
 Never output dollar amounts; code computes all money from your fractions.
 
 Verdicts, checked in this order:
-- "excluded_scope": the line has excludedScope true (scope the subcontractor excluded in the leveled bid). Recommend 0.
+- "excluded_scope": the line has excludedScope true, or its description or the pay-app notes claim work listed in agreement.excludedScopeNotes ("Excluded scope (not in contract)": scope the subcontractor excluded in its bid). Recommend 0.
 - "out_of_sequence": closeout-phase work (closeout, testing, commissioning, O&M manuals, as-builts, punch list, training, start-up) billed this period while the milestones before Closeout are not complete (closeoutWorkBeforeEarlierMilestones true), or other work that clearly belongs to a later milestone than the ones under way. Recommend the previous percent to date (no new progress).
 - "overbilled": claimed percent to date exceeds milestoneCeilingPctToDate, the most progress the milestone statuses support. Recommend at most milestoneCeilingPctToDate.
 - "front_loaded": within the ceiling, but the claim is at least double otherLinesProgressPct (the progress of the rest of the job) and at least 15 percentage points above it, with otherLinesProgressPct above 0. Recommend about otherLinesProgressPct (never below the previous percent to date).

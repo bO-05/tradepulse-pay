@@ -68,6 +68,8 @@ export type ReviewContext = {
     retainagePercent: number;
     scopeSummary: string;
     mandatoryInclusions: readonly string[];
+    /** The awarded bid's exclusions: "Excluded scope (not in contract)". Never SOV lines. */
+    excludedScopeNotes?: readonly string[];
   };
   milestones: readonly { name: string; order: number; status: string; amountCents: number }[];
   priorPayApps: readonly {

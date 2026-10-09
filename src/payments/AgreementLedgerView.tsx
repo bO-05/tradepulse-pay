@@ -150,6 +150,17 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
             </tfoot>
           </table>
         )}
+        {agreement.excludedScopeNotes.length > 0 && (
+          <div className="mt-4" data-testid="ledger-excluded-scope">
+            <h4 className="text-sm font-semibold">Excluded scope (not in contract)</h4>
+            <p className="text-xs text-slate-400">Excluded in the bid; not billable and not part of the schedule of values.</p>
+            <ul className="mt-1 list-disc pl-5 text-sm text-slate-300">
+              {agreement.excludedScopeNotes.map((note) => (
+                <li key={note}>{note}</li>
+              ))}
+            </ul>
+          </div>
+        )}
       </section>
 
       <section aria-labelledby="ledger-milestones" className="bg-slate-900 border border-slate-800 rounded-2xl p-5">

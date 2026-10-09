@@ -7,6 +7,7 @@ import { callerProjects, findSubcontractDocScope, requireDocScope, subContractor
 import { ownerChangeOrdersOfProject } from "./lib/ownerView";
 import { changeOrderView } from "./payments/changeOrderDb";
 import { loadMilestoneFunding } from "./payments/milestoneFundingState";
+import { agreementContractSumCents } from "./payments/sov";
 import { WITHDRAWABLE_PAY_APP_STATUSES } from "./payApps/validation";
 
 function agreementSummary(a: Doc<"agreements">) {
@@ -195,7 +196,16 @@ export const getAgreementSummary = query({
     const scope = await findSubcontractDocScope(ctx, "agreements", args.agreementId);
     if (scope === null) return null;
     const agreement = scope.doc;
-    return { ...agreementSummary(agreement), milestones: await loadMilestoneFunding(ctx, agreement._id) };
+    return {
+      ...agreementSummary(agreement),
+      contractSumCents: agreementContractSumCents(agreement),
+      baseBidCents: agreement.baseBidCents ?? null,
+      acceptedAlternates: agreement.acceptedAlternates ?? [],
+      declinedAlternates: agreement.declinedAlternates ?? [],
+      veDeducts: agreement.veDeducts ?? [],
+      excludedScopeNotes: agreement.excludedScopeNotes ?? [],
+      milestones: await loadMilestoneFunding(ctx, agreement._id),
+    };
   },
 });
 

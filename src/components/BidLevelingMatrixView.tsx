@@ -29,10 +29,13 @@ import {
 } from "lucide-react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../convex/_generated/api.js";
+import type { Id } from "../../convex/_generated/dataModel";
 import { Bid, TradePackage, Agreement, Contractor, ScopeExclusion, ValueEngineeringAlternate } from "../types.ts";
 import { extractTextFromPdfStream } from "../lib/documentText.ts";
 import { getDeceptiveBidIds, getSuspiciouslyLowBidIds, leadPenaltyArithmetic, leadTargetWeeksFor } from "../leveling.ts";
 import { ConfirmDialog } from "./ConfirmDialog.tsx";
+import { ConfirmDialog as UiConfirmDialog } from "../ui/ConfirmDialog.tsx";
+import { LevelingAwardPanel, PLUGS_NOT_INCLUDED } from "../bids/LevelingAwardPanel.tsx";
 import { centsToDollarsForDisplay, formatCents, fromDollars, toDollarString } from "../../convex/lib/money.ts";
 
 // The adjustment modal edits dollars in number inputs; blank or invalid input counts as $0.
@@ -47,7 +50,7 @@ interface BidLevelingMatrixViewProps {
   tradePackages?: TradePackage[];
   onSelectPackage?: (id: string) => void;
   bids: Bid[];
-  onAwardContract: (bidId: string, tradePackageId: string) => Promise<void>;
+  onAwardContract: (bidId: string, tradePackageId: string, acceptedAlternateIndexes: number[]) => Promise<void>;
   /** Demo companies only; real companies get no simulation controls or copy. */
   onOpenSimulation?: () => void;
   contractors?: Contractor[];
@@ -260,6 +263,7 @@ const [scannedPdfWarning, setScannedPdfWarning] = useState<string | null>(null);
   const [adjustmentError, setAdjustmentError] = useState<string | null>(null);
   const [bidToDelete, setBidToDelete] = useState<Bid | null>(null);
   const [bidToUnaward, setBidToUnaward] = useState<Bid | null>(null);
+  const [bidToAward, setBidToAward] = useState<Bid | null>(null);
   const [agreementToExecute, setAgreementToExecute] = useState<string | null>(null);
 
   const executeAgreementMutation = useMutation(api.agreements.executeAgreement);
@@ -293,10 +297,18 @@ const [scannedPdfWarning, setScannedPdfWarning] = useState<string | null>(null);
     );
   }
 
-  const handleAwardAndGenerate = async (bidId: string) => {
+  // Every award goes through the confirmation dialog; nothing awards on a single click.
+  const handleAwardAndGenerate = (bidId: string) => {
+    setBidToAward(bids.find((bid) => bid._id === bidId) || null);
+  };
+
+  const confirmAward = async () => {
+    if (!bidToAward) return;
+    const bidId = bidToAward._id;
     setAwardingId(bidId);
     try {
-      await onAwardContract(bidId, currentPackage._id);
+      await onAwardContract(bidId, currentPackage._id, []);
+      setBidToAward(null);
       setViewingAgreementBidId(bidId);
     } finally {
       setAwardingId(null);
@@ -521,7 +533,7 @@ const [scannedPdfWarning, setScannedPdfWarning] = useState<string | null>(null);
     if (csi.startsWith("23")) {
       // Division 23 HVAC Mechanical
       if (type === "deceptive") {
-        setIngestFileName("Deceptive_Low_HVAC_Bid.pdf");
+        setIngestFileName("Exclusion_Heavy_HVAC_Bid.pdf");
         setIngestQuoteText(`PROPOSAL AND QUOTATION\nProject: Commercial HVAC & Mechanical Scope\nBase Bid Price: $1,320,000.00\nEXCLUSIONS:\n- Crane hoisting & rigging for 350-ton rooftop chillers excluded (GC to furnish crane & street closure permits)\n- Vibration isolation springs & seismic engineering excluded (By others)\n- NEBB certified air balancing and TAB commissioning excluded\n- Overtime and weekend premium hours excluded from base rate\nLead time on chillers: 22 weeks.\nInsurance: Standard statutory limits (Umbrella endorsement fee not included).`);
         setNewContractorName("Breeze Air Mechanical (Low Bidder)");
         setIngestContractorId("new_contractor");
@@ -534,7 +546,7 @@ const [scannedPdfWarning, setScannedPdfWarning] = useState<string | null>(null);
     } else if (csi.startsWith("22")) {
       // Division 22 Plumbing
       if (type === "deceptive") {
-        setIngestFileName("Deceptive_Low_Plumbing_Bid.pdf");
+        setIngestFileName("Exclusion_Heavy_Plumbing_Bid.pdf");
         setIngestQuoteText(`PROPOSAL AND QUOTATION\nProject: Commercial Plumbing Scope\nBase Bid Price: $660,000.00\nEXCLUSIONS:\n- Core drilling through post-tensioned concrete slab excluded (By GC/others)\n- Gas piping from meter manifold to rooftop mechanical equipment excluded\n- Grease interceptor excavation and backfill excluded\nLead time on booster pumps: 16 weeks.\nInsurance: Standard statutory limits (Umbrella endorsement fee not included).`);
         setNewContractorName("QuickFlow Plumbing (Low Bidder)");
         setIngestContractorId("new_contractor");
@@ -547,7 +559,7 @@ const [scannedPdfWarning, setScannedPdfWarning] = useState<string | null>(null);
     } else if (csi.startsWith("03")) {
       // Division 03 Concrete
       if (type === "deceptive") {
-        setIngestFileName("Deceptive_Low_Concrete_Bid.pdf");
+        setIngestFileName("Exclusion_Heavy_Concrete_Bid.pdf");
         setIngestQuoteText(`PROPOSAL AND QUOTATION\nProject: Commercial Structural Concrete Scope\nBase Bid Price: $1,890,000.00\nEXCLUSIONS:\n- Concrete pump truck hoisting and staging excluded (GC to furnish pump)\n- Winter weather heating, blankets, and curing accelerators excluded\n- Vapor retarder barrier membrane under slab on grade excluded (By GC)\nLead time on post-tensioning steel: 14 weeks.\nInsurance: Standard statutory limits (Umbrella endorsement fee not included).`);
         setNewContractorName("Rapid Pour Concrete (Low Bidder)");
         setIngestContractorId("new_contractor");
@@ -560,7 +572,7 @@ const [scannedPdfWarning, setScannedPdfWarning] = useState<string | null>(null);
     } else {
       // Division 26 Electrical or Default
       if (type === "deceptive") {
-        setIngestFileName("Deceptive_Low_Electrical_Bid.pdf");
+        setIngestFileName("Exclusion_Heavy_Electrical_Bid.pdf");
         setIngestQuoteText(`PROPOSAL AND QUOTATION\nProject: Commercial MEP\nBase Bid Price: $1,080,000.00\nEXCLUSIONS:\n- Crane hoisting & rigging to penthouse mechanical floor excluded (GC to furnish)\n- UL 1479 firestop floor penetrations excluded (By drywall trade)\n- Seismic engineered structural bracing excluded (By others)\n- Overtime/weekend acceleration excluded from base rate\nLead time on switchgear: 16 weeks.\nInsurance: Standard statutory limits (Umbrella endorsement fee not included).`);
         setNewContractorName("Apex Electric (Low Bidder)");
         setIngestContractorId("new_contractor");
@@ -668,7 +680,7 @@ const [scannedPdfWarning, setScannedPdfWarning] = useState<string | null>(null);
   const sortedBids = [...bids].sort((a, b) => a.leveledTotalCents - b.leveledTotalCents);
   const rank1Cost = sortedBids[0]?.leveledTotalCents ?? 0;
 
-  // Check if there is a deceptive low bidder
+  // Is the apparent low (lowest base) different from the leveled low?
   const lowestBaseBid = bids.reduce<Bid | null>(
     (min, b) => (!min || b.baseAmountCents < min.baseAmountCents ? b : min),
     null
@@ -809,7 +821,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
             <button
               onClick={onOpenSimulation}
               className="bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-slate-950 font-bold text-xs px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition shadow-sm"
-              title="Opens the 60-second demo dock. Scenario B (deceptive bid) and Scenario C (compliant bid) ingest a simulated proposal for the active package."
+              title="Opens the 60-second demo dock. Scenario B (exclusion-heavy bid) and Scenario C (compliant bid) ingest a simulated proposal for the active package."
             >
               <Zap className="w-3.5 h-3.5 fill-slate-950" />
               Open Demo Simulation…
@@ -822,10 +834,14 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
         {showWhyCare && (
           <div className="mt-3 pt-3 border-t border-slate-800 text-xs text-slate-300 leading-relaxed bg-slate-950/60 rounded-lg p-3 border animate-in fade-in">
             <span className="font-semibold text-emerald-400">The $186,000 Scope Exclusion Trap: </span>
-            Subcontractors submit deceptively low base prices on paper, but bury exclusions for crane hoisting, UL firestopping, and seismic bracing in proposal fine print. TradePulse Pay's ADR-0003 engine parses proposal exclusions, applies lead-time delay penalties ($6,000/wk schedule-impact rate, distinct from the contract's $1,200/day liquidated damages), adds COI insurance penalties, and subtracts accepted Value Engineering (VE) alternates—to deliver apples-to-apples procurement.
+            Subcontractors can submit low base prices on paper but bury exclusions for crane hoisting, UL firestopping, and seismic bracing in proposal fine print. TradePulse Pay's ADR-0003 engine parses proposal exclusions, applies lead-time delay penalties ($6,000/wk schedule-impact rate, distinct from the contract's $1,200/day liquidated damages), adds COI insurance penalties, and subtracts accepted Value Engineering (VE) alternates—to deliver apples-to-apples procurement.
           </div>
         )}
       </div>
+
+      {bids.length > 0 && !currentPackage._id.startsWith("pkg_") && (
+        <LevelingAwardPanel tradePackageId={currentPackage._id as Id<"tradePackages">} />
+      )}
 
       {/* Post-Award Celebratory Guidance Banner */}
       {awardedBid && (
@@ -895,7 +911,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
         </div>
       )}
 
-      {/* Deceptive Bid Warning Banner */}
+      {/* Apparent low vs leveled low banner */}
       {isDeceptiveGap && lowestBaseBid && lowestLeveledBid && (
         <div className="bg-gradient-to-r from-amber-950/70 via-slate-900 to-amber-950/70 border border-amber-500/60 rounded-xl p-2.5 sm:px-4 sm:py-2 flex flex-wrap items-center justify-between gap-3 shadow-md animate-in fade-in">
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -904,9 +920,9 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
             </div>
             <div className="text-xs">
               <div className="font-bold text-amber-300 flex items-center gap-2">
-                <span>Deceptive Low Bid Flagged</span>
+                <span>Apparent low is not the leveled low</span>
                 <span className="text-[10px] font-mono bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.2 rounded font-bold">
-                  +{formatCents(lowestBaseBid.leveledTotalCents - lowestLeveledBid.leveledTotalCents)} True Variance
+                  +{formatCents(lowestBaseBid.leveledTotalCents - lowestLeveledBid.leveledTotalCents)} leveled difference
                 </span>
               </div>
               <p className="text-slate-300 text-[11px] leading-tight">
@@ -1730,7 +1746,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                     onClick={() => populateSampleQuote("deceptive")}
                     className="bg-amber-950/40 hover:bg-amber-950/80 text-amber-300 border border-amber-800/80 px-2.5 py-1.5 rounded text-[11px] font-semibold transition"
                   >
-                    ⚠️ Load Deceptive Low Bid Sample
+                    Load exclusion-heavy bid sample
                   </button>
                   <button
                     type="button"
@@ -2316,6 +2332,32 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
         confirmLabel="Record execution"
         onCancel={() => setAgreementToExecute(null)}
         onConfirm={confirmExecuteAgreement}
+      />
+      <UiConfirmDialog
+        open={Boolean(bidToAward)}
+        title={bidToAward ? `Award to ${bidToAward.subcontractorName}?` : "Award"}
+        payee={bidToAward?.subcontractorName}
+        payeeLabel="Bidder"
+        amountCents={bidToAward ? bidToAward.baseAmountCents : undefined}
+        amountLabel="Contract sum"
+        details={
+          bidToAward
+            ? [
+                { label: "Base bid", value: formatCents(bidToAward.baseAmountCents) },
+                { label: "Accepted alternates", value: "None (accept alternates in Leveling and award above)" },
+                { label: "Leveling plugs", value: "Not included" },
+              ]
+            : undefined
+        }
+        effect={
+          <>
+            {PLUGS_NOT_INCLUDED} The contract sum is the base bid plus the accepted alternates. Awarding generates the
+            subcontract draft and marks the other bidders as not awarded.
+          </>
+        }
+        confirmLabel="Award and generate subcontract"
+        onCancel={() => setBidToAward(null)}
+        onConfirm={confirmAward}
       />
     </div>
   );

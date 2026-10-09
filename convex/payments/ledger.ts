@@ -26,6 +26,7 @@ function ledgerAgreementSummary(a: Doc<"agreements">) {
     status: a.status,
     retainagePercent: retainagePercentFor(a),
     contractSumCents: agreementContractSumCents(a),
+    excludedScopeNotes: a.excludedScopeNotes ?? [],
     executedAt: a.executedAt ?? null,
   };
 }

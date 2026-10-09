@@ -107,6 +107,7 @@ const CASES: Case[] = [
   m("bids:deleteBid", api.bids.deleteBid, (i) => ({ bidId: i.bidId })),
   m("bids:updateBidLeveling", api.bids.updateBidLeveling, (i) => ({ bidId: i.bidId, baseAmountCents: 100 })),
   m("bids:updateBidAdjustments", api.bids.updateBidAdjustments, (i) => ({ bidId: i.bidId, identifiedExclusions: [] })),
+  m("bids:setExclusionPlug", api.bids.setExclusionPlug, (i) => ({ bidId: i.bidId, exclusionIndex: 0, amountCents: 1_500_000 })),
   m("bids:submitDirectBid", api.bids.submitDirectBid, (i) => ({
     tradePackageId: i.packageId,
     contractorId: i.contractorId,

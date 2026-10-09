@@ -72,7 +72,7 @@ export function buildDemoScenes(ctx: TourLiveContext): DemoScene[] {
     : `"No proposals have been leveled for ${ctx.projectTitle} yet. Scope the packages, ingest the trade quotes, and this scene will narrate the live ADR-0003 variance."`;
 
   const levelingMetric = ctx.hasBids
-    ? `${money(ctx.variance)} True Variance vs Budget • ${ctx.deceptiveBidsCount} Deceptive Bid${ctx.deceptiveBidsCount === 1 ? "" : "s"} Caught`
+    ? `${money(ctx.variance)} True Variance vs Budget • ${ctx.deceptiveBidsCount} apparent-low bid${ctx.deceptiveBidsCount === 1 ? "" : "s"} not leveled low`
     : `No bids leveled yet • ${ctx.packagesCount} package${ctx.packagesCount === 1 ? "" : "s"} awaiting proposals`;
 
   const contractsMetric =
@@ -136,7 +136,7 @@ export function buildDemoScenes(ctx: TourLiveContext): DemoScene[] {
       tabId: "leveling",
       stepNumber: "04",
       category: "Forensic Bid Leveling",
-      title: "ADR-0003 Normalization & Deceptive Low Bid Flagging",
+      title: "ADR-0003 Normalization: Apparent Low vs Leveled Low",
       problemStatement:
         "A low paper bid can hide crane hoisting, firestopping and seismic exclusions that surface as change orders after award.",
       talkTrack: levelingTalk,

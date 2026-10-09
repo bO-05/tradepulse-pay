@@ -142,7 +142,8 @@ export function currentDraftTerms(agreement: Doc<"agreements">, project: Doc<"pr
   return reconcileDraftGoverningState(agreement, project, resolveAgreementTerms(agreement, project));
 }
 
-export function contractSumCentsOf(agreement: Pick<Doc<"agreements">, "contractSum">): number {
+export function contractSumCentsOf(agreement: Pick<Doc<"agreements">, "contractSum" | "contractSumCents">): number {
+  if (typeof agreement.contractSumCents === "number" && Number.isSafeInteger(agreement.contractSumCents)) return Math.max(0, agreement.contractSumCents);
   return fromDollars(Math.max(0, agreement.contractSum));
 }
 
@@ -214,6 +215,17 @@ export async function renderAgreementText(
     scopeSummary: agreement.scopeSummary,
     mandatoryInclusions: agreement.mandatoryInclusions,
     contractSumCents: contractSumCentsOf(agreement),
+    ...(agreement.baseBidCents !== undefined
+      ? {
+          award: {
+            baseBidCents: agreement.baseBidCents,
+            acceptedAlternates: agreement.acceptedAlternates ?? [],
+            declinedAlternates: agreement.declinedAlternates ?? [],
+            veDeducts: agreement.veDeducts ?? [],
+          },
+        }
+      : {}),
+    ...(agreement.excludedScopeNotes !== undefined ? { excludedScopeNotes: agreement.excludedScopeNotes } : {}),
     terms,
     venue: venueFor(place.city, place.state),
   });

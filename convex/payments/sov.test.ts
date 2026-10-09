@@ -101,7 +101,7 @@ describe("SOV and milestone generation on execution", () => {
     expect(rows.milestones).toHaveLength(4);
   });
 
-  test("leveled exclusions are flagged as excluded scope", async () => {
+  test("plugs and exclusions never become SOV lines; the SOV sums to the contract sum", async () => {
     const t = newTest();
     const demo = await seedDemo(t);
     await t.run(async (ctx) => {
@@ -110,22 +110,19 @@ describe("SOV and milestone generation on execution", () => {
           { description: "Crane hoisting excluded", costImpactCents: 4500000, severity: "critical", isWaived: false },
         ],
       });
-      await ctx.db.patch(demo.agreement._id, { contractSum: demo.agreement.contractSum + 45000.37 });
     });
     const gc = await signInAs(t, "gc");
     await gc.as.mutation(api.agreements.executeAgreement, { agreementId: demo.agreement._id });
     const { sov } = await rowsFor(t, demo.agreement._id);
-    const excluded = sov.filter((r) => r.excludedScope);
-    expect(excluded).toHaveLength(1);
-    expect(excluded[0].scheduledValueCents).toBe(4_500_000);
-    expect(sov.reduce((a, r) => a + r.scheduledValueCents, 0)).toBe(
-      fromDollars(demo.agreement.contractSum) + 4_500_037,
-    );
+    expect(sov.length).toBeGreaterThan(0);
+    expect(sov.some((r) => r.excludedScope || /excluded/i.test(r.description))).toBe(false);
+    expect(sov.some((r) => r.scheduledValueCents === 4_500_000)).toBe(false);
+    expect(sov.reduce((a, r) => a + r.scheduledValueCents, 0)).toBe(fromDollars(demo.agreement.contractSum));
   });
 });
 
 const VOID_REASON = "Executed against the wrong bid revision";
-const CRANE = { description: "Crane hoisting excluded", costImpactCents: 4500000, severity: "critical", isWaived: false };
+const ALT_1 = { description: "Alt 1 – LED troffer upgrade", amountCents: 625_000 };
 
 async function auditTitles(t: ReturnType<typeof newTest>, agreementId: string) {
   return await t.run(async (ctx) => {
@@ -135,42 +132,44 @@ async function auditTitles(t: ReturnType<typeof newTest>, agreementId: string) {
 }
 
 describe("SOV regeneration when the award changes", () => {
-  test("a same-total re-award with different exclusions and lead weeks regenerates SOV and milestone dates", async () => {
+  test("a re-award with an accepted alternate and different lead weeks regenerates SOV and milestone dates", async () => {
     const t = newTest();
     const demo = await seedDemo(t);
     const gc = await signInAs(t, "gc");
     await gc.as.mutation(api.agreements.executeAgreement, { agreementId: demo.agreement._id });
     const before = await rowsFor(t, demo.agreement._id);
-    expect(before.sov.some((r) => r.excludedScope)).toBe(false);
 
     await gc.as.mutation(api.agreements.voidExecutedAgreement, { agreementId: demo.agreement._id, reason: VOID_REASON });
     const bid = await t.run(async (ctx) => (await ctx.db.get(demo.agreement.bidId))!);
     await t.run(async (ctx) => {
       await ctx.db.patch(bid._id, {
-        identifiedExclusions: [CRANE],
+        alternates: [ALT_1],
+        identifiedExclusions: [{ description: "Crane hoisting excluded", costImpactCents: 4500000, severity: "critical", isWaived: false }],
         longLeadEquipmentWeeks: bid.longLeadEquipmentWeeks + 6,
       });
     });
     await gc.as.mutation(api.agreements.generateAgreement, {
       bidId: demo.agreement.bidId,
       tradePackageId: demo.agreement.tradePackageId,
+      acceptedAlternateIndexes: [0],
     });
     const reAwarded = await t.run(async (ctx) => (await ctx.db.get(demo.agreement._id))!);
     expect(reAwarded.status).toBe("generated");
-    expect(reAwarded.contractSum).toBe(demo.agreement.contractSum);
+    const expectedSum = (bid.baseAmountCents ?? 0) + 625_000;
+    expect(reAwarded.contractSumCents).toBe(expectedSum);
+    expect(reAwarded.acceptedAlternates).toEqual([ALT_1]);
+    expect(reAwarded.excludedScopeNotes).toEqual(["Crane hoisting excluded"]);
 
     await gc.as.mutation(api.agreements.executeAgreement, { agreementId: demo.agreement._id });
     const after = await rowsFor(t, demo.agreement._id);
-    const excluded = after.sov.filter((r) => r.excludedScope);
-    expect(excluded).toHaveLength(1);
-    expect(excluded[0].scheduledValueCents).toBe(4_500_000);
-    expect(after.sov.reduce((a, r) => a + r.scheduledValueCents, 0)).toBe(fromDollars(demo.agreement.contractSum));
+    expect(after.sov.some((r) => r.excludedScope)).toBe(false);
+    expect(after.sov.find((r) => r.description === ALT_1.description)?.scheduledValueCents).toBe(625_000);
+    expect(after.sov.reduce((a, r) => a + r.scheduledValueCents, 0)).toBe(expectedSum);
     const rough = (rows: typeof after) => rows.milestones.find((m) => m.name === "Rough-in")!;
     const mob = (rows: typeof after) => rows.milestones.find((m) => m.name === "Mobilization")!;
     expect(rough(after).plannedDate - mob(after).plannedDate).toBe(
       rough(before).plannedDate - mob(before).plannedDate + 6 * 7 * 86_400_000,
     );
-    expect(after.milestones.every((m) => m.sovLineIds.every((id) => !excluded.some((e) => e._id === id)))).toBe(true);
   });
 
   test("execute regenerates rows whose recorded source no longer matches the award", async () => {
@@ -182,11 +181,13 @@ describe("SOV regeneration when the award changes", () => {
     // Rows left behind by a status change that bypassed cleanup.
     await t.run(async (ctx) => {
       await ctx.db.patch(demo.agreement._id, { status: "generated" });
-      await ctx.db.patch(demo.agreement.bidId, { identifiedExclusions: [CRANE] });
+      const bid = (await ctx.db.get(demo.agreement.bidId))!;
+      await ctx.db.patch(bid._id, { lineItems: bid.lineItems.map((li, i) => (i === 0 ? { ...li, item: `${li.item} (revised)` } : li)) });
     });
     await gc.as.mutation(api.agreements.executeAgreement, { agreementId: demo.agreement._id });
     const after = await rowsFor(t, demo.agreement._id);
-    expect(after.sov.filter((r) => r.excludedScope)).toHaveLength(1);
+    expect(after.sov.some((r) => r.excludedScope)).toBe(false);
+    expect(after.sov[0].description).toMatch(/\(revised\)$/);
     expect(after.sov.some((r) => before.sov.some((b) => b._id === r._id))).toBe(false);
     expect(after.milestones).toHaveLength(4);
     expect(after.sov.reduce((a, r) => a + r.scheduledValueCents, 0)).toBe(fromDollars(demo.agreement.contractSum));
@@ -253,7 +254,8 @@ describe("SOV regeneration when the award changes", () => {
         idempotencyKey: "test-funding-1",
         createdAt: Date.now(),
       });
-      await ctx.db.patch(demo.agreement.bidId, { identifiedExclusions: [CRANE] });
+      const bid = (await ctx.db.get(demo.agreement.bidId))!;
+      await ctx.db.patch(bid._id, { lineItems: bid.lineItems.map((li, i) => (i === 0 ? { ...li, item: `${li.item} (revised)` } : li)) });
     });
     await gc.as.mutation(api.agreements.executeAgreement, { agreementId: demo.agreement._id });
     const after = await rowsFor(t, demo.agreement._id);

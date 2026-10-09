@@ -9,7 +9,8 @@ import {
   splitMilestoneAmounts,
 } from "./sovMath";
 
-export function agreementContractSumCents(agreement: { contractSum: number }): number {
+export function agreementContractSumCents(agreement: { contractSum: number; contractSumCents?: number }): number {
+  if (typeof agreement.contractSumCents === "number" && Number.isSafeInteger(agreement.contractSumCents)) return Math.max(0, agreement.contractSumCents);
   return fromDollars(Math.max(0, agreement.contractSum));
 }
 
@@ -83,13 +84,13 @@ export async function ensureSovAndMilestones(
   const contractSumCents = agreementContractSumCents(agreement);
   const bid = await ctx.db.get(agreement.bidId);
   const lineItems = bid?.lineItems ?? [];
-  const exclusions = bid?.identifiedExclusions ?? [];
+  const acceptedAlternates = agreement.acceptedAlternates ?? [];
   const leadWeeks = bid?.longLeadEquipmentWeeks ?? 0;
   const fingerprint = sovSourceFingerprint({
     bidId: agreement.bidId,
     contractSumCents,
     lineItems,
-    exclusions,
+    acceptedAlternates,
     leadWeeks,
   });
 
@@ -102,7 +103,7 @@ export async function ensureSovAndMilestones(
         await auditKeptRows(
           ctx,
           agreement,
-          `The award behind ${agreement.agreementNumber} changed (bid, scope, exclusions or lead time) after its schedule of values was generated.`,
+          `The award behind ${agreement.agreementNumber} changed (bid, scope, accepted alternates or lead time) after its schedule of values was generated.`,
         );
       }
     } else {
@@ -117,7 +118,7 @@ export async function ensureSovAndMilestones(
     const drafts = buildSovLines({
       contractSumCents,
       lineItems,
-      exclusions,
+      acceptedAlternates,
       csiDivision: agreement.csiDivision,
       tradeName: agreement.tradeName,
     });

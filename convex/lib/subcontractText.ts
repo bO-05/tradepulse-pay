@@ -31,9 +31,31 @@ export type SubcontractTextInput = {
   scopeSummary: string;
   mandatoryInclusions: string[];
   contractSumCents: number;
+  /** How the sum was built at award; absent on agreements awarded before the breakdown was stored. */
+  award?: {
+    baseBidCents: number;
+    acceptedAlternates: { description: string; amountCents: number }[];
+    declinedAlternates: { description: string; amountCents: number }[];
+    veDeducts: { description: string; amountCents: number }[];
+  };
+  excludedScopeNotes?: string[];
   terms: AgreementTerms;
   venue: Venue;
 };
+
+function signedCents(cents: number): string {
+  return cents < 0 ? `-${formatCents(-cents)} (deduct)` : formatCents(cents);
+}
+
+function sumBreakdown(award: NonNullable<SubcontractTextInput["award"]>): string {
+  const lines = [`  Base bid: ${formatCents(award.baseBidCents)}`];
+  if (award.acceptedAlternates.length === 0) lines.push("  Accepted alternates: none");
+  for (const a of award.acceptedAlternates) lines.push(`  Accepted alternate: ${a.description} ${signedCents(a.amountCents)}`);
+  for (const a of award.veDeducts) lines.push(`  Accepted value-engineering deduct: ${a.description} -${formatCents(a.amountCents)}`);
+  for (const a of award.declinedAlternates) lines.push(`  Alternate not accepted (not included): ${a.description} ${signedCents(a.amountCents)}`);
+  lines.push("  Leveling plugs used to compare bids are not part of the Subcontract Sum.");
+  return lines.join("\n");
+}
 
 export function numberToWords(num: number): string {
   num = Math.round(num);
@@ -175,7 +197,15 @@ ${p.scopeSummary}
 4.2 Scope inclusions. The Subcontract Sum includes:
 ${inclusions}
 
-4.3 Exclusions or substitutions are recognized only when approved in an executed
+${
+    p.excludedScopeNotes === undefined
+      ? ""
+      : `4.3 Excluded scope (not in contract). The Subcontractor's bid excluded the
+following; it is not part of the Work or the Subcontract Sum:
+${p.excludedScopeNotes.length ? p.excludedScopeNotes.map((n) => `  - ${n}`).join("\n") : "  (none listed in the bid)"}
+
+`
+  }4.${p.excludedScopeNotes === undefined ? "3" : "4"} Exclusions or substitutions are recognized only when approved in an executed
 Change Order.
 
 --------------------------------------------------------------------------------
@@ -189,7 +219,7 @@ ARTICLE 6 - SUBCONTRACT SUM, RETAINAGE AND PROGRESS PAYMENTS
 --------------------------------------------------------------------------------
 6.1 The Contractor shall pay the Subcontractor the Subcontract Sum of
   ${formatCents(p.contractSumCents)} (${amountInWords(p.contractSumCents)}),
-  subject to additions and deductions by Change Order.
+  subject to additions and deductions by Change Order.${p.award ? `\n${sumBreakdown(p.award)}` : ""}
 
 6.2 Progress payments are made monthly on the approved schedule of values.
 Retainage withheld from each progress payment: ${retainageText(t)}.

@@ -349,6 +349,8 @@ const GC_ONLY: Case[] = [
   a("contractorDiscovery:discoverSubcontractors", api.contractorDiscovery.discoverSubcontractors, (i) => ({ tradePackageId: i.tradePackageId })),
   q("bids:listByPackage", api.bids.listByPackage, (i) => ({ tradePackageId: i.tradePackageId })),
   q("bids:listAllProjectBids", api.bids.listAllProjectBids, (i) => ({ projectId: i.projectId })),
+  q("bids:getLevelingSummary", api.bids.getLevelingSummary, (i) => ({ tradePackageId: i.tradePackageId })),
+  m("bids:setExclusionPlug", api.bids.setExclusionPlug, (i) => ({ bidId: i.bidId, exclusionIndex: 0, amountCents: 1_500_000 })),
   m("bids:awardContract", api.bids.awardContract, (i) => ({ bidId: i.bidId, tradePackageId: i.tradePackageId })),
   m("bids:unawardContract", api.bids.unawardContract, (i) => ({ bidId: i.bidId, tradePackageId: i.tradePackageId })),
   m("bids:deleteBid", api.bids.deleteBid, (i) => ({ bidId: i.bidId })),
@@ -361,6 +363,11 @@ const GC_ONLY: Case[] = [
     baseAmountCents: 100_000,
   })),
   m("agreements:generateAgreement", api.agreements.generateAgreement, (i) => ({ bidId: i.bidId, tradePackageId: i.tradePackageId })),
+  m("agreements:generateAgreement (with alternates)", api.agreements.generateAgreement, (i) => ({
+    bidId: i.bidId,
+    tradePackageId: i.tradePackageId,
+    acceptedAlternateIndexes: [0],
+  })),
   m("agreements:executeAgreement", api.agreements.executeAgreement, (i) => ({ agreementId: i.agreementId })),
   m("agreements:voidExecutedAgreement", api.agreements.voidExecutedAgreement, (i) => ({
     agreementId: i.agreementId,

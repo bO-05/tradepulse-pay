@@ -1,5 +1,4 @@
 import { describe, expect, test } from "vitest";
-import { fromDollars } from "../lib/money";
 import { computeLedgerTotals } from "./ledgerTotals";
 import {
   DEFAULT_MILESTONES,
@@ -50,7 +49,6 @@ describe("buildSovLines", () => {
     const lines = buildSovLines({
       contractSumCents: 122_500_000,
       lineItems: rosendinItems,
-      exclusions: [],
       csiDivision: "26 00 00",
       tradeName: "Electrical",
     });
@@ -62,27 +60,38 @@ describe("buildSovLines", () => {
     expect(lines.every((l) => !l.excludedScope)).toBe(true);
   });
 
-  test("leveled exclusions become excluded-scope lines carrying their plug", () => {
+  test("a $172,400.00 award with no alternates is one base line; no plug or exclusion lines exist", () => {
     const lines = buildSovLines({
-      contractSumCents: fromDollars(1_100_000 + 45_000 + 22_000 + 15_000),
-      lineItems: [
-        { item: "Switchboard", totalCostCents: 42000000 },
-        { item: "Lighting", totalCostCents: 17000000 },
-        { item: "Feeders", totalCostCents: 40800000 },
-        { item: "Site", totalCostCents: 10200000 },
-      ],
-      exclusions: [
-        { description: "Crane hoisting excluded", costImpactCents: 4500000, isWaived: false },
-        { description: "Firestop excluded", costImpactCents: 2200000 },
-        { description: "Temp power excluded", costImpactCents: 900000, isWaived: true },
-      ],
+      contractSumCents: 17_240_000,
+      lineItems: [{ item: "Base bid", totalCostCents: 17_240_000 }],
       tradeName: "Electrical",
     });
-    const excluded = lines.filter((l) => l.excludedScope);
-    expect(excluded.map((l) => l.scheduledValueCents)).toEqual([4_500_000, 2_200_000, 0]);
-    expect(excluded[0].description).toMatch(/^Excluded scope: Crane/);
-    expect(excluded[2].description).toMatch(/waived/);
-    expect(sum(lines.map((l) => l.scheduledValueCents))).toBe(fromDollars(1_182_000));
+    expect(lines).toEqual([expect.objectContaining({ description: "Base bid", scheduledValueCents: 17_240_000, excludedScope: false })]);
+    expect(lines.some((l) => l.scheduledValueCents === 1_500_000 || /excluded/i.test(l.description))).toBe(false);
+  });
+
+  test("accepted add alternates become their own lines at their exact amounts", () => {
+    const lines = buildSovLines({
+      contractSumCents: 17_865_000,
+      lineItems: [{ item: "Base bid", totalCostCents: 17_240_000 }],
+      acceptedAlternates: [{ description: "Alt 1 – LED troffer upgrade", amountCents: 625_000 }],
+      tradeName: "Electrical",
+    });
+    expect(lines.map((l) => [l.description, l.scheduledValueCents])).toEqual([
+      ["Base bid", 17_240_000],
+      ["Alt 1 – LED troffer upgrade", 625_000],
+    ]);
+    expect(sum(lines.map((l) => l.scheduledValueCents))).toBe(17_865_000);
+  });
+
+  test("an accepted deduct alternate is netted into the base lines, not a negative line", () => {
+    const lines = buildSovLines({
+      contractSumCents: 17_090_000,
+      lineItems: [{ item: "Base bid", totalCostCents: 17_240_000 }],
+      acceptedAlternates: [{ description: "Deduct – owner-furnished fixtures", amountCents: -150_000 }],
+      tradeName: "Electrical",
+    });
+    expect(lines).toEqual([expect.objectContaining({ scheduledValueCents: 17_090_000 })]);
   });
 
   test("odd-cent contract sums put the rounding remainder on the last base-scope line", () => {
@@ -93,50 +102,25 @@ describe("buildSovLines", () => {
         { item: "B", totalCostCents: 100 },
         { item: "C", totalCostCents: 100 },
       ],
-      exclusions: [{ description: "X", costImpactCents: 1000 }],
+      acceptedAlternates: [{ description: "X", amountCents: 1000 }],
       tradeName: "T",
     });
     expect(lines.map((l) => l.scheduledValueCents)).toEqual([33_000, 33_000, 33_001, 1_000]);
     expect(sum(lines.map((l) => l.scheduledValueCents))).toBe(100_001);
   });
 
-  test("the remainder lands on the last base-scope line while exclusions keep their exact plugs", () => {
-    const lines = buildSovLines({
-      contractSumCents: 1_000_000_07,
-      lineItems: [
-        { item: "A", totalCostCents: 30000 },
-        { item: "B", totalCostCents: 30000 },
-        { item: "C", totalCostCents: 30000 },
-      ],
-      exclusions: [
-        { description: "X", costImpactCents: 123457 },
-        { description: "Y", costImpactCents: 9999 },
-      ],
-      tradeName: "T",
-    });
-    const base = lines.filter((l) => !l.excludedScope);
-    const excluded = lines.filter((l) => l.excludedScope);
-    expect(excluded.map((l) => l.scheduledValueCents)).toEqual([123_457, 9_999]);
-    const baseTotal = 1_000_000_07 - 123_457 - 9_999;
-    const floor = Math.floor(baseTotal / 3);
-    expect(base.map((l) => l.scheduledValueCents)).toEqual([floor, floor, baseTotal - 2 * floor]);
-    expect(baseTotal % 3).not.toBe(0);
-    expect(lines[lines.length - 1].excludedScope).toBe(true);
-    expect(sum(lines.map((l) => l.scheduledValueCents))).toBe(1_000_000_07);
-  });
-
-  test("plugs larger than the contract sum are scaled so the total still matches", () => {
+  test("alternates larger than the contract sum are scaled so the total still matches", () => {
     const lines = buildSovLines({
       contractSumCents: 5_000,
       lineItems: [{ item: "A", totalCostCents: 10000 }],
-      exclusions: [{ description: "X", costImpactCents: 10000 }],
+      acceptedAlternates: [{ description: "X", amountCents: 10000 }],
       tradeName: "T",
     });
     expect(sum(lines.map((l) => l.scheduledValueCents))).toBe(5_000);
   });
 
   test("a bid without line items gets a single base-scope line", () => {
-    const lines = buildSovLines({ contractSumCents: 12_345, lineItems: [], exclusions: [], tradeName: "HVAC" });
+    const lines = buildSovLines({ contractSumCents: 12_345, lineItems: [], tradeName: "HVAC" });
     expect(lines).toEqual([
       expect.objectContaining({ lineNo: 1, scheduledValueCents: 12_345, excludedScope: false }),
     ]);
@@ -148,16 +132,13 @@ describe("sovSourceFingerprint", () => {
     bidId: "bid1",
     contractSumCents: 100_000,
     lineItems: [{ item: "A", totalCostCents: 100000 }],
-    exclusions: [{ description: "Crane", costImpactCents: 45000 }],
+    acceptedAlternates: [{ description: "Alt 1", amountCents: 45000 }],
     leadWeeks: 8,
   };
 
   test("is stable for the same inputs and changes when scope or lead time changes at the same total", () => {
     expect(sovSourceFingerprint(base)).toBe(sovSourceFingerprint({ ...base }));
-    expect(sovSourceFingerprint({ ...base, exclusions: [] })).not.toBe(sovSourceFingerprint(base));
-    expect(
-      sovSourceFingerprint({ ...base, exclusions: [{ description: "Crane", costImpactCents: 45000, isWaived: true }] }),
-    ).not.toBe(sovSourceFingerprint(base));
+    expect(sovSourceFingerprint({ ...base, acceptedAlternates: [] })).not.toBe(sovSourceFingerprint(base));
     expect(sovSourceFingerprint({ ...base, leadWeeks: 12 })).not.toBe(sovSourceFingerprint(base));
     expect(sovSourceFingerprint({ ...base, bidId: "bid2" })).not.toBe(sovSourceFingerprint(base));
   });

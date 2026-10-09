@@ -273,7 +273,7 @@ export const JudgeSimulationDock: React.FC<JudgeSimulationDockProps> = ({
               <div>
                 <div className="flex items-center gap-2 mb-1.5 text-amber-400 font-semibold text-xs">
                   <AlertTriangle className="w-4 h-4" />
-                  Scenario B: Deceptive Low Bidder
+                  Scenario B: Exclusion-Heavy Low Bidder
                 </div>
                 <p className="text-xs text-slate-300 mb-2 leading-relaxed">
                   Simulate a bidder submitting a deceptively low base bid ($1.08M) with hidden exclusions for crane hoisting and firestopping.
@@ -292,7 +292,7 @@ export const JudgeSimulationDock: React.FC<JudgeSimulationDockProps> = ({
                 ) : (
                   <Play className="w-3.5 h-3.5 fill-current" />
                 )}
-                Simulate Deceptive Bid
+                Simulate Exclusion-Heavy Bid
               </button>
             </div>
 

@@ -72,6 +72,7 @@ export function PackageBidsPanel({
                     <StatusPill status={b.source} label={bidSourceLabel(b.source)} tone={AI_SOURCES.has(b.source) ? "warning" : "info"} />
                     {needsReview && <StatusPill status="pending_review" label="Needs GC review" />}
                     {b.isAwarded && <StatusPill status="awarded" />}
+                    {!b.isAwarded && b.packageAwarded && <StatusPill status="not_awarded" />}
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-subtle">

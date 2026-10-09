@@ -11,19 +11,22 @@ import {
   termsContextFor,
 } from "./lib/agreementDocument";
 import { draftFromTerms, firstTermsError, validateAgreementTerms } from "./lib/agreementTerms";
-import { centsToDollarsForDisplay, fromDollars } from "./lib/money";
-import { bidCents } from "./lib/bidMoney";
+import { formatCents } from "./lib/money";
+import { acceptedIndexesFor, agreementAwardFields, computeAwardSum, excludedScopeNotesFor } from "./lib/awardMath";
 import { ensureSovAndMilestones, removeSovAndMilestonesIfUnbilled } from "./payments/sov";
 import { contractorCanBidOnPackage } from "./lib/packageContractors";
 
 /**
  * Awards a bid and generates its subcontract draft (AIA-style terms, not an AIA form). Terms default
  * from the project and the GC company and stay editable until execution (agreementTerms.ts).
+ * Contract sum = the bid's base + the alternates the GC accepts (indexes into `bid.alternates`)
+ * − accepted VE deducts; leveling plugs and penalties are never included.
  */
 export const generateAgreement = mutation({
   args: {
     bidId: v.id("bids"),
     tradePackageId: v.id("tradePackages"),
+    acceptedAlternateIndexes: v.optional(v.array(v.number())),
   },
   handler: async (ctx, args) => {
     const access = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"], write: true });
@@ -52,7 +55,11 @@ export const generateAgreement = mutation({
       );
     }
 
-    const contractSum = centsToDollarsForDisplay(bidCents(bid).leveledTotalCents);
+    const sum = computeAwardSum(bid, args.acceptedAlternateIndexes ?? []);
+    const awardFields = agreementAwardFields(sum, excludedScopeNotesFor(bid));
+    const sumText = `${formatCents(sum.contractSumCents)} (base bid ${formatCents(sum.baseBidCents)}${
+      sum.acceptedAlternates.length > 0 ? ` + ${sum.acceptedAlternates.length} accepted alternate${sum.acceptedAlternates.length === 1 ? "" : "s"}` : ", no alternates accepted"
+    }${sum.veDeducts.length > 0 ? " − accepted VE deducts" : ""}; leveling plugs excluded)`;
     const contractor = await ctx.db.get(bid.contractorId);
     if (!contractor || !contractorCanBidOnPackage(contractor, tradePkg)) {
       throw new Error("The selected bid is not linked to a valid contractor in this trade package.");
@@ -93,7 +100,7 @@ export const generateAgreement = mutation({
         subcontractorName: subName,
         subcontractorEmail: contractor.contactEmail,
         generalContractorName: generalContractor,
-        contractSum,
+        ...awardFields,
         scopeSummary: tradePkg.scopeSummary,
         mandatoryInclusions: tradePkg.mandatoryInclusions,
       });
@@ -105,7 +112,7 @@ export const generateAgreement = mutation({
         tradePackageId: tradePkg._id,
         eventType: "contract_awarded",
         title: `Subcontract Agreement Re-Awarded: ${subName}`,
-        description: `Re-activated subcontract agreement ${existing.agreementNumber} for CSI Division ${tradePkg.csiDivision} (${tradePkg.tradeName}) in the amount of $${contractSum.toLocaleString("en-US")}.`,
+        description: `Re-activated subcontract agreement ${existing.agreementNumber} for CSI Division ${tradePkg.csiDivision} (${tradePkg.tradeName}) in the amount of ${sumText}.`,
         ...auditActor(access),
         timestamp: Date.now(),
       });
@@ -113,7 +120,7 @@ export const generateAgreement = mutation({
     }
 
     const agreementNumber = `SC-${tradePkg.csiDivision.replace(/\s+/g, "").slice(0, 4)}-${Date.now().toString().slice(-6)}`;
-    const terms = await defaultTermsForProject(ctx, project, fromDollars(contractSum));
+    const terms = await defaultTermsForProject(ctx, project, sum.contractSumCents);
 
     const agreementId = await ctx.db.insert("agreements", {
       projectId: project._id,
@@ -129,7 +136,7 @@ export const generateAgreement = mutation({
       projectLocation: project.location,
       csiDivision: tradePkg.csiDivision,
       tradeName: tradePkg.tradeName,
-      contractSum,
+      ...awardFields,
       ...legacyTermFields(terms),
       terms,
       scopeSummary: tradePkg.scopeSummary,
@@ -174,7 +181,7 @@ export const generateAgreement = mutation({
       tradePackageId: tradePkg._id,
       eventType: "contract_awarded",
       title: `Subcontract Agreement Awarded: ${subName}`,
-      description: `Subcontract agreement ${agreementNumber} generated for CSI Division ${tradePkg.csiDivision} (${tradePkg.tradeName}) in the amount of $${contractSum.toLocaleString("en-US")} — pending external execution.`,
+      description: `Subcontract agreement ${agreementNumber} generated for CSI Division ${tradePkg.csiDivision} (${tradePkg.tradeName}) in the amount of ${sumText} — pending external execution.`,
       ...auditActor(access),
       timestamp: Date.now(),
     });
@@ -474,13 +481,13 @@ export async function syncAgreementForBid(ctx: any, bidId: any): Promise<any> {
   const subcontractorName = contractor.companyName.trim();
   const generalContractorName = await generalContractorNameFor(ctx, project);
 
-  const contractSum = centsToDollarsForDisplay(bidCents(bid).leveledTotalCents);
+  const sum = computeAwardSum(bid, acceptedIndexesFor(bid, existingAgreement.acceptedAlternates));
   await ctx.db.patch(existingAgreement._id, {
     contractorId: bid.contractorId,
     subcontractorName,
     subcontractorEmail: contractor.contactEmail,
     generalContractorName,
-    contractSum,
+    ...agreementAwardFields(sum, excludedScopeNotesFor(bid)),
     scopeSummary: tradePkg.scopeSummary,
     mandatoryInclusions: tradePkg.mandatoryInclusions,
   });

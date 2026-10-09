@@ -937,6 +937,15 @@ export default defineSchema({
     csiDivision: v.string(),
     tradeName: v.string(),
     contractSum: v.number(),
+    // Award breakdown (§15): contractSumCents = baseBidCents + accepted alternates − accepted VE deducts.
+    // Leveling plugs and penalties never enter it. Optional only for rows written before the award fix.
+    contractSumCents: v.optional(v.number()),
+    baseBidCents: v.optional(v.number()),
+    acceptedAlternates: v.optional(v.array(v.object({ description: v.string(), amountCents: v.number() }))),
+    declinedAlternates: v.optional(v.array(v.object({ description: v.string(), amountCents: v.number() }))),
+    veDeducts: v.optional(v.array(v.object({ description: v.string(), amountCents: v.number() }))),
+    // "Excluded scope (not in contract)": the awarded bid's exclusions, passed to the pay-app review as notes.
+    excludedScopeNotes: v.optional(v.array(v.string())),
     // Mirrors of terms.retainageBps / terms.liquidatedDamagesCentsPerDay for legacy readers.
     retainagePercent: v.number(),
     liquidatedDamagesDaily: v.number(),
