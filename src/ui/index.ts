@@ -12,6 +12,14 @@ export { TextInput, MoneyInput, PercentInput, DateInput } from "./Inputs";
 export { ConfirmDialog, type ConfirmDialogProps, type ConfirmDetail } from "./ConfirmDialog";
 export { Dialog, type DialogProps } from "./Dialog";
 export { EmptyState, type EmptyStateProps } from "./EmptyState";
+export {
+  NotFoundState,
+  NotFoundHomeContext,
+  NOT_FOUND_MESSAGE,
+  NOT_FOUND_TITLE,
+  type NotFoundHome,
+  type NotFoundStateProps,
+} from "./NotFoundState";
 export { ToastProvider, useToast, type ToastApi } from "./Toast";
 export { STATUS_LABELS, statusLabel, statusMeta, type StatusTone } from "./statusLabels";
 export { formatCents, formatDate, formatDateTime, formatBps } from "./format";

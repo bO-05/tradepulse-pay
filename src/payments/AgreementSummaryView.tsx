@@ -1,5 +1,6 @@
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import { NotFoundState } from "../ui/NotFoundState";
 import { ledgerHash } from "../auth/navigation";
 import { formatDate, formatDollars } from "./format";
 import { MilestoneFundingTable } from "./MilestoneFundingSummary";
@@ -11,19 +12,7 @@ export function AgreementSummaryView({ agreementId, backHash }: { agreementId: s
     return <p className="text-sm text-slate-400" role="status">Loading agreement…</p>;
   }
 
-  if (agreement === null) {
-    return (
-      <div className="max-w-xl bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-3" role="alert">
-        <h2 className="text-base font-semibold">Agreement not found</h2>
-        <p className="text-sm text-slate-400">
-          This agreement does not exist or your account does not have access to it.
-        </p>
-        <a href={backHash} className="inline-block text-sm text-emerald-400 hover:text-emerald-300">
-          Back
-        </a>
-      </div>
-    );
-  }
+  if (agreement === null) return <NotFoundState />;
 
   return (
     <div className="max-w-3xl bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">

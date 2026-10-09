@@ -1,4 +1,3 @@
-import { useAuthActions } from "@convex-dev/auth/react";
 import { useConvexAuth, useQuery } from "convex/react";
 import { useEffect, type ReactNode } from "react";
 import { api } from "../../convex/_generated/api";
@@ -6,6 +5,7 @@ import { pendingInviteToken } from "../invites/inviteSession";
 import { SetUpCompanyPage } from "../onboarding/SetUpCompanyPage";
 import { AgentNotAuthorized } from "./AgentNotAuthorized";
 import { RoleShell } from "./RoleShell";
+import { useSignOutAndReset } from "./signOutAndReset";
 import { SignInPage } from "./SignInPage";
 
 function FullScreenStatus({ children }: { children: ReactNode }) {
@@ -20,7 +20,7 @@ function FullScreenStatus({ children }: { children: ReactNode }) {
 export function AuthGate({ procurementApp }: { procurementApp: ReactNode }) {
   const { isLoading, isAuthenticated } = useConvexAuth();
   const me = useQuery(api.profiles.me, isAuthenticated ? {} : "skip");
-  const { signOut } = useAuthActions();
+  const signOut = useSignOutAndReset();
   const needsCompany = me !== undefined && me !== null && me.actorType !== "agent" && me.company === null;
   // The token still verifies but the server no longer has its session (e.g. a password reset
   // elsewhere ended it), so drop the token and go back to sign-in.

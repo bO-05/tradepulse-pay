@@ -1,4 +1,3 @@
-import { useAuthActions } from "@convex-dev/auth/react";
 import { lazy, Suspense, type ReactNode } from "react";
 import { AgreementLedgerView } from "../payments/AgreementLedgerView";
 import { AgreementSummaryView } from "../payments/AgreementSummaryView";
@@ -10,11 +9,13 @@ import { BillingAgentsView } from "./BillingAgentsView";
 import { JudgeDemoPage } from "../payments/judgeDemo/JudgeDemoPage";
 import { CompanySettingsPage } from "../company/CompanySettingsPage";
 import { QueryBoundary } from "../lib/QueryBoundary";
+import { NotFoundHomeContext, NotFoundState } from "../ui/NotFoundState";
 import { PeoplePage } from "../people/PeoplePage";
 import { MyProjectsPage } from "../projects/MyProjectsPage";
 import { ActiveCompanyContext } from "./companyContext";
 import { ConnectionBanner } from "./ConnectionBanner";
 import { COMPANY_HASH, DEMO_ONLY_AREAS, navFor, resolveRoute, type Role } from "./navigation";
+import { useSignOutAndReset } from "./signOutAndReset";
 import { useHash } from "./useHash";
 
 const PaymentsDashboard = lazy(() => import("../dashboard/PaymentsDashboard"));
@@ -32,17 +33,17 @@ export type ShellIdentity = {
 };
 
 export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procurementApp: ReactNode }) {
-  const { signOut } = useAuthActions();
+  const signOutAndReset = useSignOutAndReset();
   const hash = useHash();
   const isDemo = me.isDemo === true;
-  const route = resolveRoute(me.role, hash, isDemo);
+  const route = resolveRoute(me.role, hash, isDemo, window.location.search);
   const nav = navFor(me.role, isDemo);
   const homeHash = nav[0].hash;
 
   let content: ReactNode;
   if (route.area === "procurement") content = procurementApp;
   else if (route.area === "sub-portal") content = <SubPortal />;
-  else if (route.area === "owner-portal") content = <OwnerPortal />;
+  else if (route.area === "owner-portal") content = <OwnerPortal role={me.role} />;
   else if (route.area === "payments") content = <PaymentsWorkspace />;
   else if (route.area === "billing-agents") content = <BillingAgentsView />;
   else if (route.area === "inbox") content = <ApprovalInbox />;
@@ -56,30 +57,7 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
         <PaymentsDashboard />
       </Suspense>
     );
-  else if (route.area === "access-denied")
-    content = (
-      <div role="alert" className="max-w-xl rounded-2xl border border-rose-800 bg-rose-950/40 p-6" data-testid="access-denied">
-        <h1 className="text-lg font-semibold text-rose-200">Access denied</h1>
-        <p className="mt-2 text-sm text-slate-300">
-          This area is not available to your role.{" "}
-          <a href={homeHash} className="text-emerald-300 underline">
-            Back to {nav[0].label}
-          </a>
-        </p>
-      </div>
-    );
-  else if (route.area === "not-found")
-    content = (
-      <div role="alert" className="max-w-xl rounded-2xl border border-slate-700 bg-slate-900/60 p-6" data-testid="not-found">
-        <h1 className="text-lg font-semibold text-slate-100">Not found</h1>
-        <p className="mt-2 text-sm text-slate-300">
-          This page does not exist.{" "}
-          <a href={homeHash} className="text-emerald-300 underline">
-            Back to {nav[0].label}
-          </a>
-        </p>
-      </div>
-    );
+  else if (route.area === "not-found") content = <NotFoundState />;
   else if (route.area === "ledger") {
     const backHash = nav.find((item) => item.area === "payments")?.hash ?? homeHash;
     content = <AgreementLedgerView agreementId={route.agreementId ?? ""} backHash={backHash} />;
@@ -89,6 +67,7 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
 
   return (
     <ActiveCompanyContext.Provider value={{ name: me.companyName ?? null, isDemo }}>
+    <NotFoundHomeContext.Provider value={{ href: homeHash, label: nav[0].label }}>
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans">
       <ConnectionBanner />
       <nav
@@ -159,7 +138,7 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
           ) : null}
           <button
             type="button"
-            onClick={() => void signOut()}
+            onClick={() => void signOutAndReset()}
             className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs hover:bg-slate-800"
           >
             Sign out
@@ -170,10 +149,28 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
         content
       ) : (
         <main className="p-4 sm:p-6">
-          <QueryBoundary resetKey={hash}>{content}</QueryBoundary>
+          <QueryBoundary
+            resetKey={hash}
+            fallback={(message) => (isNotFoundMessage(message) ? <NotFoundState /> : <QueryErrorAlert message={message} />)}
+          >
+            {content}
+          </QueryBoundary>
         </main>
       )}
     </div>
+    </NotFoundHomeContext.Provider>
     </ActiveCompanyContext.Provider>
+  );
+}
+
+function isNotFoundMessage(message: string): boolean {
+  return /(^|\s)not found\.?$/i.test(message.trim());
+}
+
+function QueryErrorAlert({ message }: { message: string }) {
+  return (
+    <div role="alert" className="max-w-xl rounded-2xl border border-rose-800 bg-rose-950/40 p-6 text-sm text-rose-100">
+      {message}
+    </div>
   );
 }

@@ -3,7 +3,8 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../convex/_generated/api.js";
 import { Header, OPEN_NEW_PROJECT_EVENT } from "./components/Header.tsx";
-import { Button, EmptyState } from "./ui";
+import { Button, EmptyState, NotFoundState } from "./ui";
+import { resolveRequestedProject } from "./projects/requestedProject";
 import { ExecutiveKpiBar } from "./components/ExecutiveKpiBar.tsx";
 import { TradePackagesView } from "./components/TradePackagesView.tsx";
 import { SubcontractorDiscoveryView } from "./components/SubcontractorDiscoveryView.tsx";
@@ -108,6 +109,8 @@ export const App: React.FC = () => {
   const [selectedProjectId, setSelectedProjectId] = useState<string>(
     () => readUrlState("project") || readStoredSelection("tradepulse.selectedProjectId")
   );
+  // Set while the selection comes from the URL and has not yet been confirmed against this account's projects.
+  const [requestedProjectId, setRequestedProjectId] = useState<string | null>(() => readUrlState("project") || null);
   const [selectedPackageId, setSelectedPackageId] = useState<string>(() => readStoredSelection("tradepulse.selectedPackageId"));
   const [isSimulationOpen, setIsSimulationOpen] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -128,21 +131,32 @@ export const App: React.FC = () => {
   const isProjectsLoading = projectsData === undefined;
   const projects: Project[] = (projectsData as Project[] | undefined) ?? [];
 
-  const currentProject: Project | null =
-    projects.find((p) => p._id === selectedProjectId) ?? projects[0] ?? null;
+  const projectSelection = resolveRequestedProject({
+    requestedId: requestedProjectId,
+    selectedId: selectedProjectId,
+    projects: projectsData as Project[] | undefined,
+  });
+  const projectNotFound = projectSelection.kind === "not-found";
+
+  const currentProject: Project | null = projectNotFound
+    ? null
+    : projects.find((p) => p._id === selectedProjectId) ?? projects[0] ?? null;
 
   const isRealConvexProject = Boolean(currentProject);
 
-  // A project id from the URL or storage that is not in this account's list (another account's
-  // project, or a deleted one) is dropped instead of lingering in the address bar.
   useEffect(() => {
-    if (isProjectsLoading) return;
-    if (projects.some((project) => project._id === selectedProjectId)) return;
-    const preferred = projects.find((project) => (project as any).isDemoProject) ?? projects[0];
-    setSelectedProjectId(preferred?._id ?? "");
-  }, [projects, selectedProjectId, isProjectsLoading]);
+    if (projectSelection.kind === "confirmed") setRequestedProjectId(null);
+    else if (projectSelection.kind === "fallback") setSelectedProjectId(projectSelection.projectId);
+  }, [projectSelection.kind, projectSelection.kind === "fallback" ? projectSelection.projectId : ""]);
+
+  const selectProject = (id: string) => {
+    setRequestedProjectId(null);
+    setSelectedProjectId(id);
+    setSelectedPackageId("");
+  };
 
   useEffect(() => {
+    if (requestedProjectId !== null) return;
     try {
       if (selectedProjectId) window.localStorage.setItem("tradepulse.selectedProjectId", selectedProjectId);
       else window.localStorage.removeItem("tradepulse.selectedProjectId");
@@ -151,12 +165,12 @@ export const App: React.FC = () => {
     } catch {
       // Local persistence is best-effort in restricted browser contexts.
     }
-  }, [selectedProjectId, selectedPackageId]);
+  }, [selectedProjectId, selectedPackageId, requestedProjectId]);
 
   // Deep-link/history sync: project + tab live in the URL so selections are shareable
   // and the browser Back/Forward buttons navigate between them.
   useEffect(() => {
-    if (isProjectsLoading) return;
+    if (isProjectsLoading || projectNotFound) return;
     try {
       const params = new URLSearchParams(window.location.search);
       const urlProject = params.get("project");
@@ -173,12 +187,13 @@ export const App: React.FC = () => {
     } catch {
       // URL sync is best-effort in restricted browser contexts.
     }
-  }, [selectedProjectId, activeTab, isProjectsLoading, projects]);
+  }, [selectedProjectId, activeTab, isProjectsLoading, projects, projectNotFound]);
 
   useEffect(() => {
     const handlePopState = () => {
       const urlProject = readUrlState("project");
       const urlTab = readUrlState("tab");
+      setRequestedProjectId(urlProject || null);
       setSelectedProjectId((prev) => urlProject || prev);
       if (urlTab) setActiveTab(urlTab);
     };
@@ -704,7 +719,7 @@ export const App: React.FC = () => {
     try {
       const canDeductConvex =
         isRealConvexProject &&
-        Boolean(currentProject) &&
+        currentProject !== null &&
         !currentProject._id.startsWith("proj_") &&
         Boolean(tradePackageId) &&
         !tradePackageId.startsWith("pkg_");
@@ -731,7 +746,7 @@ export const App: React.FC = () => {
     try {
       const canReverseConvex =
         isRealConvexProject &&
-        Boolean(currentProject) &&
+        currentProject !== null &&
         !currentProject._id.startsWith("proj_") &&
         Boolean(tradePackageId) &&
         !tradePackageId.startsWith("pkg_");
@@ -760,7 +775,7 @@ export const App: React.FC = () => {
       const pkg = tradePackages.find((p) => p._id === tradePackageId);
       const canAssignConvex =
         isRealConvexProject &&
-        Boolean(currentProject) &&
+        currentProject !== null &&
         !currentProject._id.startsWith("proj_") &&
         Boolean(tradePackageId) &&
         !tradePackageId.startsWith("pkg_");
@@ -1165,10 +1180,7 @@ export const App: React.FC = () => {
         companyName={company.name}
         projects={projects}
         currentProject={currentProject}
-            onSelectProject={(id) => {
-              setSelectedProjectId(id);
-              setSelectedPackageId("");
-            }}
+        onSelectProject={selectProject}
         onCreateProject={handleCreateProject}
         onDeleteProject={handleDeleteProject}
         onOpenSimulation={() => setIsSimulationOpen(true)}
@@ -1213,7 +1225,16 @@ export const App: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-5 lg:p-6 space-y-4">
-        {projects.length === 0 && (
+        {projectNotFound && (
+          <NotFoundState
+            onHome={() => {
+              const preferred = projects.find((project) => project.isDemoProject) ?? projects[0];
+              selectProject(preferred?._id ?? "");
+              setActiveTab("packages");
+            }}
+          />
+        )}
+        {!projectNotFound && projects.length === 0 && (
           <EmptyState
             title="No projects yet"
             description={`Create your first project${company.name ? ` for ${company.name}` : ""} to set up trade packages, invite bidders and manage contracts. Nothing is added for you automatically.`}
@@ -1222,7 +1243,7 @@ export const App: React.FC = () => {
             }
           />
         )}
-        {projects.length > 0 && (
+        {!projectNotFound && projects.length > 0 && (
         <>
         {/* Executive Financial Procurement KPI Bar */}
         <ExecutiveKpiBar
@@ -1357,13 +1378,7 @@ export const App: React.FC = () => {
         )}
 
         {showDiagnostics && <SponsorDiagnosticsView />}
-        {activeTab === "diagnostics" && !isDemo && (
-          <EmptyState
-            title="Not found"
-            description="This page does not exist."
-            action={<Button onClick={() => setActiveTab("packages")}>Back to trade packages</Button>}
-          />
-        )}
+        {activeTab === "diagnostics" && !isDemo && <NotFoundState onHome={() => setActiveTab("packages")} />}
         </>
         )}
       </main>

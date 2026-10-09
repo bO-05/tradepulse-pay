@@ -1,4 +1,3 @@
-import { useAuthActions } from "@convex-dev/auth/react";
 import { useMutation, useQuery } from "convex/react";
 import { FormEvent, useRef, useState } from "react";
 import { api } from "../../convex/_generated/api";
@@ -11,6 +10,7 @@ import {
 import { FormAlert } from "../auth/AuthLayout";
 import { describeAuthError } from "../auth/authErrors";
 import { myProjectHash } from "../auth/navigation";
+import { useSignOutAndReset } from "../auth/signOutAndReset";
 import { INVITE_KIND_LABEL } from "../../convex/lib/inviteRules";
 import { getErrorMessage } from "../lib/errors";
 import { Button, DateText, Field, focusFirstInvalid, TextInput } from "../ui";
@@ -39,7 +39,7 @@ export function SetUpCompanyPage({ email, wasRemoved = false }: { email: string 
     }
   };
   const createCompany = useMutation(api.onboarding.createCompany);
-  const { signOut } = useAuthActions();
+  const signOut = useSignOutAndReset();
   const formRef = useRef<HTMLFormElement>(null);
   const [name, setName] = useState("");
   const [line1, setLine1] = useState("");

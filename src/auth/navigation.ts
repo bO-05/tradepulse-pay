@@ -14,19 +14,15 @@ export type AreaId =
   | "company"
   | "agreement"
   | "ledger"
-  | "access-denied"
   | "not-found";
 
 export type NavItem = {
-  area: Exclude<AreaId, "agreement" | "ledger" | "access-denied" | "not-found" | "company">;
+  area: Exclude<AreaId, "agreement" | "ledger" | "not-found" | "company">;
   label: string;
   hash: string;
 };
 
 export type Route = { area: AreaId; agreementId?: string; projectId?: string };
-
-/** Areas whose direct route shows an access-denied page (instead of the role home) to roles without them. */
-const DENY_WHEN_DISALLOWED = new Set<AreaId>(["dashboard"]);
 
 /** Areas that exist only for Demo companies; everyone else gets "Not found" on the direct route. */
 export const DEMO_ONLY_AREAS = new Set<AreaId>(["judge-demo"]);
@@ -110,13 +106,29 @@ export function navFor(role: Role, isDemo = false): NavItem[] {
   return NAV_BY_ROLE[role].filter((item) => isDemo || !DEMO_ONLY_AREAS.has(item.area));
 }
 
-/** The route the role actually gets: unknown or disallowed areas fall back to the role's home. */
-export function resolveRoute(role: Role, hash: string, isDemo = false): Route {
+/** `?project=` / `?tab=` only mean something to the GC procurement workspace. */
+function hasProcurementQuery(search: string): boolean {
+  const params = new URLSearchParams(search);
+  return params.has("project") || params.has("tab");
+}
+
+/**
+ * The route the role actually gets. An empty hash is the role's home; every route the role or
+ * company cannot open, and every unknown route, is the single "Not found" page (never a silent
+ * fallback to another screen).
+ */
+export function resolveRoute(role: Role, hash: string, isDemo = false, search = ""): Route {
   const nav = navFor(role, isDemo);
+  const isHome = hash === "" || hash === "#" || hash === "#/";
+  if (isHome) {
+    const ownsProcurementQuery = nav.some((item) => item.area === "procurement");
+    if (!ownsProcurementQuery && hasProcurementQuery(search)) return { area: "not-found" };
+    return { area: nav[0].area };
+  }
   const parsed = parseHash(hash);
-  if (parsed && DEMO_ONLY_AREAS.has(parsed.area) && !isDemo) return { area: "not-found" };
-  if (parsed?.area === "agreement" || parsed?.area === "ledger" || parsed?.area === "company") return parsed;
-  if (parsed && nav.some((item) => item.area === parsed.area)) return parsed;
-  if (parsed && DENY_WHEN_DISALLOWED.has(parsed.area)) return { area: "access-denied" };
-  return { area: nav[0].area };
+  if (!parsed) return { area: "not-found" };
+  if (DEMO_ONLY_AREAS.has(parsed.area) && !isDemo) return { area: "not-found" };
+  if (parsed.area === "agreement" || parsed.area === "ledger" || parsed.area === "company") return parsed;
+  if (nav.some((item) => item.area === parsed.area)) return parsed;
+  return { area: "not-found" };
 }

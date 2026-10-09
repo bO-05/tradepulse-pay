@@ -3,7 +3,7 @@ import { useState } from "react";
 import { api } from "../../convex/_generated/api";
 import { COMPANY_KIND_LABEL, tradeName } from "../../convex/lib/inviteRules";
 import { peopleHash } from "../auth/navigation";
-import { Button, Card, ConfirmDialog, EmptyState, PageHeader, useToast } from "../ui";
+import { Button, Card, ConfirmDialog, EmptyState, NotFoundState, PageHeader, useToast } from "../ui";
 import { inputClass } from "../ui/Field";
 import { InviteDialog, type InviteDialogMode } from "./InviteDialog";
 import { InviteList } from "./InviteList";
@@ -35,14 +35,7 @@ export function PeoplePage({ projectId }: { projectId?: string }) {
       </div>
     );
   }
-  if (selected === undefined) {
-    return (
-      <div className="max-w-4xl">
-        <PageHeader title="Not found" back={{ href: "#/people", label: "All projects" }} />
-        <p className="text-sm text-ink-subtle">This project doesn't exist or you don't have access to it.</p>
-      </div>
-    );
-  }
+  if (selected === undefined) return <NotFoundState />;
   return <ProjectPeople key={selected._id} projectId={selected._id} projects={projects} />;
 }
 

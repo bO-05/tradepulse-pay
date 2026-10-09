@@ -1,6 +1,7 @@
 import { useQuery } from "convex/react";
 import type { ReactNode } from "react";
 import { api } from "../../convex/_generated/api";
+import { NotFoundState } from "../ui/NotFoundState";
 import { milestoneFundingLabel, milestoneFundingState } from "../../convex/payments/milestoneFundingState";
 import { AgreementChangeOrders } from "./ChangeOrders";
 import { formatCents, formatDate } from "./format";
@@ -42,19 +43,7 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
     return <p className="text-sm text-slate-400" role="status">Loading ledger…</p>;
   }
 
-  if (ledger === null) {
-    return (
-      <div className="max-w-xl bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-3" role="alert">
-        <h2 className="text-base font-semibold">Agreement not found</h2>
-        <p className="text-sm text-slate-400">
-          This agreement does not exist or your account does not have access to it.
-        </p>
-        <a href={backHash} className="inline-block text-sm text-emerald-400 hover:text-emerald-300">
-          Back to payments
-        </a>
-      </div>
-    );
-  }
+  if (ledger === null) return <NotFoundState />;
 
   const { agreement, sov, milestones, totals, canFund, canRelease, retainageLedger, canReleaseRetainage, retainageReleases } = ledger;
 

@@ -1,18 +1,29 @@
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { agreementHash } from "../auth/navigation";
+import { agreementHash, type Role } from "../auth/navigation";
+import { requestNewProject } from "../projects/newProjectRequest";
+import { Button, EmptyState } from "../ui";
 import { ChangeOrderList } from "./ChangeOrders";
 import { formatDollars } from "./format";
 
 /** Read-only projects view for owners (and GC). No approve, fund or award controls live here. */
-export function OwnerPortal() {
+export function OwnerPortal({ role }: { role?: Role }) {
   const projects = useQuery(api.portal.ownerOverview, {});
 
   if (projects === undefined) {
     return <p className="text-sm text-slate-400" role="status">Loading projects…</p>;
   }
   if (projects.length === 0) {
-    return <p className="text-sm text-slate-400">No projects yet.</p>;
+    return role === "gc" ? (
+      <EmptyState
+        title="No projects yet"
+        description="Create your first project to set up trade packages, invite bidders and manage contracts. Nothing is added for you automatically."
+        action={<Button onClick={() => requestNewProject()}>Create your first project</Button>}
+        className="max-w-3xl"
+      />
+    ) : (
+      <EmptyState title="No projects yet" description="Projects you are invited to will appear here." className="max-w-3xl" />
+    );
   }
 
   return (

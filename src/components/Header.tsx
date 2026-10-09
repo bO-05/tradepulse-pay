@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { Project } from "../types.ts";
 import { ConfirmDialog } from "./ConfirmDialog.tsx";
+import { consumeNewProjectRequest } from "../projects/newProjectRequest";
 
 export const OPEN_NEW_PROJECT_EVENT = "tradepulse:open-new-project";
 
@@ -129,6 +130,13 @@ export const Header: React.FC<HeaderProps> = ({
     window.addEventListener(OPEN_NEW_PROJECT_EVENT, open);
     return () => window.removeEventListener(OPEN_NEW_PROJECT_EVENT, open);
   }, [companyName]);
+
+  // "Create your first project" on another screen leaves a one-shot request and navigates here.
+  useEffect(() => {
+    if (!consumeNewProjectRequest()) return;
+    setNewGeneralContractor((prev) => prev || companyName || "");
+    setIsNewProjectModalOpen(true);
+  }, []);
 
   useEffect(() => {
     if (!isNewProjectModalOpen) return;
@@ -311,6 +319,11 @@ export const Header: React.FC<HeaderProps> = ({
                 className="bg-slate-850 border border-slate-700 hover:border-slate-600 text-slate-200 text-xs rounded-lg pl-3 pr-8 py-1.5 focus:outline-none focus:border-emerald-500 font-medium appearance-none cursor-pointer max-w-[130px] sm:max-w-xs truncate"
                 title={projects.map((p) => `${p.title} (${p.location})`).join("\n")}
               >
+                {!currentProject && (
+                  <option value="" disabled className="bg-slate-900 text-slate-400">
+                    Select a project
+                  </option>
+                )}
                 {projects.map((p) => (
                   <option key={p._id} value={p._id} className="bg-slate-900 text-white">
                     {p.title} ({p.location})
