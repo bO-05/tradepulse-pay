@@ -1,5 +1,6 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
+import { exclusionOwner } from "./exclusionOwnership";
 import { formatCents } from "./money";
 
 export type BidTerms = {
@@ -19,7 +20,7 @@ export function termsOfBid(bid: Doc<"bids">): BidTerms {
   return {
     baseAmountCents: bid.baseAmountCents ?? 0,
     alternates: bid.alternates ?? [],
-    exclusions: bid.exclusions ?? bid.identifiedExclusions.map((e) => e.description),
+    exclusions: bid.exclusions ?? bid.identifiedExclusions.filter((e) => exclusionOwner(e, undefined) === "bidder").map((e) => e.description),
     inclusions: bid.inclusions ?? [],
     unitPrices: bid.unitPrices ?? [],
     ...(bid.qualifications !== undefined ? { qualifications: bid.qualifications } : {}),

@@ -524,6 +524,146 @@ describe("award", () => {
     expect(revised.identifiedExclusions.map((e) => [e.description, e.source, e.costImpactCents])).toEqual([["Trenching by others", "gc", 250_000]]);
   });
 
+  async function legacyMissingListBid(s: Awaited<ReturnType<typeof setup>>) {
+    await s.t.run(async (ctx) => {
+      await ctx.db.patch(s.eastbay, {
+        exclusions: undefined,
+        identifiedExclusions: [
+          { description: "Low-voltage cabling (27 00 00)", costImpactCents: 0, severity: "major", isWaived: false },
+          {
+            description: "Seismic bracing of conduit",
+            costImpactCents: 800_000,
+            severity: "moderate",
+            isWaived: false,
+            plugNote: "GC estimate",
+            plugEnteredByName: "Dana",
+            plugEnteredAt: 5,
+          },
+        ],
+        leveledTotalCents: 18_040_000,
+      });
+    });
+  }
+
+  async function expectGcExclusionAwarded(s: Awaited<ReturnType<typeof setup>>, baseAmountCents: number) {
+    const dana = s.fx.gcA.admin.as;
+    const summary = await dana.query(api.bids.getLevelingSummary, { tradePackageId: s.tradePackageId });
+    const row = summary.rows.find((r) => r.bidId === s.eastbay)!;
+    expect(row).toMatchObject({ baseAmountCents, plugTotalCents: 800_000, leveledTotalCents: baseAmountCents + 800_000 });
+    expect(row.exclusions.find((e) => e.description === "Seismic bracing of conduit")).toMatchObject({ amountCents: 800_000 });
+
+    await dana.mutation(api.agreements.generateAgreement, { bidId: s.eastbay, tradePackageId: s.tradePackageId, acceptedAlternateIndexes: [] });
+    const agreement = (await dana.query(api.agreements.getAgreementByBid, { bidId: s.eastbay }))!;
+    expect(agreement.contractSumCents).toBe(baseAmountCents);
+    expect(agreement.excludedScopeNotes).toEqual(["Seismic bracing of conduit"]);
+    expect(agreement.contractText).toContain("  - Seismic bracing of conduit");
+    expect(agreement.contractText).not.toContain("Low-voltage cabling");
+    const stored = (await s.t.run((ctx) => ctx.db.get(agreement._id)))!;
+    const context = buildReviewContext({
+      payApp: { _id: "p1", _creationTime: 1, createdAt: 1, periodLabel: "Oct 2026", notes: "", lines: [], requestedTotalCents: 0 } as never,
+      agreement: stored,
+      sov: [],
+      milestones: [],
+      agreementPayApps: [],
+      license: null,
+    });
+    expect(context.agreement.excludedScopeNotes).toContain("Seismic bracing of conduit");
+    expect(buildReviewPrompt(context)).toContain("Seismic bracing of conduit");
+  }
+
+  test("legacy bid without an exclusions list: an attributed GC row and its plug survive a parsed and a portal revision to award (PROC-SCRUTINY-005)", async () => {
+    const s = await setup();
+    const kim = s.fx.sub.admin.as;
+    await legacyMissingListBid(s);
+
+    await s.t.mutation(internal.bids.insertParsedBid, {
+      tradePackageId: s.tradePackageId,
+      contractorId: (await s.t.run((ctx) => ctx.db.get(s.eastbay)))!.contractorId,
+      subcontractorName: "Eastbay Electric",
+      baseAmountCents: 17_100_000,
+      lineItems: [],
+      identifiedExclusions: [{ description: "Low-voltage cabling (27 00 00)", costImpactCents: 0, severity: "major", isWaived: false }],
+      longLeadEquipmentWeeks: 4,
+      coiComplianceStatus: "compliant",
+      coiPenaltyCents: 0,
+    });
+    const parsed = (await s.t.run((ctx) => ctx.db.get(s.eastbay)))!;
+    expect(parsed.exclusions).toEqual(["Low-voltage cabling (27 00 00)"]);
+    expect(parsed.identifiedExclusions.map((e) => [e.description, e.source, e.costImpactCents])).toEqual([
+      ["Low-voltage cabling (27 00 00)", "bidder", 0],
+      ["Seismic bracing of conduit", "gc", 800_000],
+    ]);
+
+    // The bidder drops its own parser-created exclusion through the portal.
+    await kim.mutation(api.bidPortal.submitPortalBid, {
+      tradePackageId: s.tradePackageId,
+      baseAmountCents: 17_000_000,
+      alternates: [],
+      inclusions: [],
+      unitPrices: [],
+      exclusions: [],
+    });
+    const revised = (await s.t.run((ctx) => ctx.db.get(s.eastbay)))!;
+    expect(revised.exclusions).toEqual([]);
+    expect(revised.identifiedExclusions.map((e) => [e.description, e.source])).toEqual([["Seismic bracing of conduit", "gc"]]);
+    expect(revised.identifiedExclusions[0]).toMatchObject({ costImpactCents: 800_000, plugNote: "GC estimate", plugEnteredByName: "Dana" });
+    await expectGcExclusionAwarded(s, 17_000_000);
+  });
+
+  test("legacy bid without an exclusions list: the portal prefill lists only the bidder's rows and the GC row survives portal revisions (PROC-SCRUTINY-005)", async () => {
+    const s = await setup();
+    const kim = s.fx.sub.admin.as;
+    await legacyMissingListBid(s);
+
+    const view = await kim.query(api.bidPortal.getPackageForBidder, { tradePackageId: s.tradePackageId });
+    const prefill = view.myBid!.exclusions;
+    expect(prefill).toEqual(["Low-voltage cabling (27 00 00)"]);
+    const terms = { alternates: [], inclusions: [], unitPrices: [] };
+    await kim.mutation(api.bidPortal.submitPortalBid, { tradePackageId: s.tradePackageId, baseAmountCents: 17_100_000, ...terms, exclusions: prefill });
+    const first = (await s.t.run((ctx) => ctx.db.get(s.eastbay)))!;
+    expect(first.identifiedExclusions.map((e) => [e.description, e.source])).toEqual([
+      ["Low-voltage cabling (27 00 00)", "bidder"],
+      ["Seismic bracing of conduit", "gc"],
+    ]);
+    await kim.mutation(api.bidPortal.submitPortalBid, { tradePackageId: s.tradePackageId, baseAmountCents: 17_000_000, ...terms, exclusions: [] });
+    const revised = (await s.t.run((ctx) => ctx.db.get(s.eastbay)))!;
+    expect(revised.identifiedExclusions.map((e) => [e.description, e.source, e.costImpactCents])).toEqual([["Seismic bracing of conduit", "gc", 800_000]]);
+    await expectGcExclusionAwarded(s, 17_000_000);
+  });
+
+  test("the ownership backfill tags untagged rows, fills a missing exclusions list and is idempotent", async () => {
+    const s = await setup();
+    await legacyMissingListBid(s);
+    await s.t.run(async (ctx) => {
+      const oakland = (await ctx.db.get(s.oakland))!;
+      await ctx.db.patch(s.oakland, {
+        identifiedExclusions: [...oakland.identifiedExclusions, { description: "Trenching by others", costImpactCents: 0, severity: "moderate", isWaived: false }],
+      });
+    });
+    const dry = await s.t.mutation(internal.exclusionOwnershipMigration.tagExclusionOwners, { dryRun: true });
+    expect(dry.fixed.find((f) => f.bidId === s.eastbay)).toEqual({ bidId: s.eastbay, gcRows: 1, bidderRows: 1, filledExclusions: true });
+    expect((await s.t.run((ctx) => ctx.db.get(s.eastbay)))!.exclusions).toBeUndefined();
+
+    let cursor: string | null = null;
+    for (;;) {
+      const r: { isDone: boolean; continueCursor: string } = await s.t.mutation(internal.exclusionOwnershipMigration.tagExclusionOwners, { cursor });
+      if (r.isDone) break;
+      cursor = r.continueCursor;
+    }
+    const eastbay = (await s.t.run((ctx) => ctx.db.get(s.eastbay)))!;
+    expect(eastbay.exclusions).toEqual(["Low-voltage cabling (27 00 00)"]);
+    expect(eastbay.identifiedExclusions.map((e) => [e.description, e.source, e.costImpactCents])).toEqual([
+      ["Low-voltage cabling (27 00 00)", "bidder", 0],
+      ["Seismic bracing of conduit", "gc", 800_000],
+    ]);
+    const oakland = (await s.t.run((ctx) => ctx.db.get(s.oakland)))!;
+    expect(oakland.exclusions).toEqual(["Fire alarm rough-in", "Permit fees"]);
+    expect(oakland.identifiedExclusions.map((e) => e.source)).toEqual(["bidder", "bidder", "gc"]);
+
+    const again = await s.t.mutation(internal.exclusionOwnershipMigration.tagExclusionOwners, {});
+    expect(again.fixed).toEqual([]);
+  });
+
   test("the legacy award dialog confirms the same sum the agreement stores, VE deduct included (PROC-SCRUTINY-006)", async () => {
     const s = await setup();
     const dana = s.fx.gcA.admin.as;

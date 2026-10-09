@@ -41,6 +41,7 @@ import type * as devFixtures from "../devFixtures.js";
 import type * as emailActions from "../emailActions.js";
 import type * as emailOutbox from "../emailOutbox.js";
 import type * as evals from "../evals.js";
+import type * as exclusionOwnershipMigration from "../exclusionOwnershipMigration.js";
 import type * as files from "../files.js";
 import type * as http from "../http.js";
 import type * as inboundEmail from "../inboundEmail.js";
@@ -226,6 +227,7 @@ declare const fullApi: ApiFromModules<{
   emailActions: typeof emailActions;
   emailOutbox: typeof emailOutbox;
   evals: typeof evals;
+  exclusionOwnershipMigration: typeof exclusionOwnershipMigration;
   files: typeof files;
   http: typeof http;
   inboundEmail: typeof inboundEmail;

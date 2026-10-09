@@ -11,13 +11,20 @@ export type ExclusionOwner = "gc" | "bidder";
 
 const sameScope = (a: string, b: string) => a.trim() === b.trim();
 
+/** Plug attribution is written only by GC leveling writes (Adjust Leveling, setExclusionPlug). */
+function hasGcAttribution(e: BidExclusion): boolean {
+  return e.plugEnteredAt !== undefined || e.plugEnteredByUserId !== undefined || e.plugEnteredByName !== undefined;
+}
+
 /**
- * Rows stored before ownership existed are judged by the bidder's own exclusion list: a row the
- * bidder never listed can only have been added by the GC. Older bids without a bidder list (parsed
- * before `exclusions` was stored) treat every row as the bidder's.
+ * Rows stored before ownership existed: a row carrying GC plug attribution is the GC's. Otherwise
+ * the bidder's own exclusion list decides, since a row the bidder never listed can only have been
+ * added by the GC. Older bids without a bidder list (parsed before `exclusions` was stored) treat
+ * unattributed rows as the parser's, so the bidder's.
  */
 export function exclusionOwner(e: BidExclusion, bidderList: readonly string[] | undefined): ExclusionOwner {
   if (e.source !== undefined) return e.source;
+  if (hasGcAttribution(e)) return "gc";
   if (bidderList === undefined) return "bidder";
   return bidderList.some((d) => sameScope(d, e.description)) ? "bidder" : "gc";
 }
