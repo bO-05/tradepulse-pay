@@ -53,12 +53,20 @@ function containsPhrase(tokens: readonly string[], phrase: readonly string[]): b
   return false;
 }
 
-/** The first exclusion note that one of the texts claims, or null. */
-export function matchExcludedScope(texts: readonly (string | null | undefined)[], notes: readonly string[]): string | null {
+/**
+ * The first exclusion note that one of the texts claims, or null. Phrases that also appear in one of
+ * the contractScope texts (approved SOV line descriptions) are contract work and never count.
+ */
+export function matchExcludedScope(
+  texts: readonly (string | null | undefined)[],
+  notes: readonly string[],
+  contractScope: readonly string[] = [],
+): string | null {
   const tokenized = texts.filter((t): t is string => typeof t === "string" && t.trim() !== "").map(significantTokens);
   if (tokenized.length === 0) return null;
+  const contractTokens = contractScope.map(significantTokens);
   for (const note of notes) {
-    const phrases = exclusionPhrases(note);
+    const phrases = exclusionPhrases(note).filter((p) => !contractTokens.some((tokens) => containsPhrase(tokens, p)));
     if (phrases.some((p) => tokenized.some((tokens) => containsPhrase(tokens, p)))) return note;
   }
   return null;
@@ -84,10 +92,16 @@ export type ExcludedScopeClaims = {
 const LINE_REF = /\b(?:line|item)\s*(?:no\.?\s*)?#?\s*(\d{1,4})\b/gi;
 
 /**
- * Lines that claim excluded scope: through their own description or note, or through a pay-app note
- * clause that names the line ("line 3"), shares a word with its description, or, when only one line is
- * billed this period, through any clause. Clauses that cannot be tied to a line are reported apart and
- * never zero a line.
+ * Lines that claim excluded scope: through the sub's own work-this-period note on the line, or through
+ * a pay-app note clause that names the line ("line 3"), shares a word with its description, or, when
+ * only one line is billed this period, through any clause. Clauses that cannot be tied to a line are
+ * reported apart and never zero a line.
+ *
+ * The SOV line description itself is never matched: the GC approved that line into the schedule of
+ * values, so it is contract scope even when it reads like an exclusion note (for example "Low-voltage &
+ * data" next to the exclusion "Low-voltage cabling"). A note that only restates a line's description
+ * ("low-voltage pulled on level 2" on that line) is therefore not a claim either. The description is
+ * otherwise used only to attribute a pay-app clause to a line.
  */
 export function excludedScopeClaims(input: {
   lines: readonly ExclusionLine[];
@@ -99,12 +113,13 @@ export function excludedScopeClaims(input: {
   const notes = input.excludedScopeNotes.filter((n) => n.trim() !== "");
   if (notes.length === 0) return { byLine, unattributed };
   for (const l of input.lines) {
-    const hit = matchExcludedScope([l.description, l.note], notes);
+    const hit = matchExcludedScope([l.note], notes, [l.description]);
     if (hit !== null) byLine.set(l.sovLineId, hit);
   }
   const billed = input.lines.filter((l) => l.requestedCents > 0);
+  const allDescriptions = input.lines.map((l) => l.description);
   for (const clause of noteClauses(input.payAppNotes)) {
-    const hit = matchExcludedScope([clause], notes);
+    const hit = matchExcludedScope([clause], notes, allDescriptions);
     if (hit === null) continue;
     const referenced = new Set<number>();
     for (const m of clause.matchAll(LINE_REF)) referenced.add(Number(m[1]));

@@ -113,6 +113,35 @@ describe("rules engine on the eval fixtures", () => {
     expect(review.lines[1].approvedCents).toBe(0);
     expect(review.flags.lienWaiverMissing).toBe(true);
   });
+
+  test("an approved SOV line whose description resembles an exclusion note stays ok", () => {
+    const f = fixture("payapp_honest");
+    const sov = [
+      { _id: "a", lineNo: 1, description: "Switchgear", excludedScope: false, scheduledValueCents: 1_000_000 },
+      { _id: "lv", lineNo: 5, description: "Low-voltage & data 27 10 00", excludedScope: false, scheduledValueCents: 1_000_000 },
+    ];
+    const contextWith = (lvNote: string | undefined, notes: string) => ({
+      ...f.context,
+      agreement: { ...f.context.agreement, excludedScopeNotes: ["Low-voltage cabling (27 00 00)"] },
+      payApp: { ...f.context.payApp, notes },
+      lines: buildReviewLines({
+        sov,
+        milestones: [],
+        prior: new Map(),
+        lines: [
+          { sovLineId: "a", pctCompleteThisPeriod: 10, pctCompleteToDate: 10, requestedCents: 100_000 },
+          { sovLineId: "lv", pctCompleteThisPeriod: 10, pctCompleteToDate: 10, requestedCents: 100_000, note: lvNote },
+        ],
+      }),
+    });
+    const cleanCtx = contextWith(undefined, "Switchgear set; low-voltage and data rough-in.");
+    const clean = finalizeReview(cleanCtx, rulesEngineJudgement(cleanCtx));
+    expect(clean.lines.map((l) => l.verdict)).toEqual(["ok", "ok"]);
+    const claimedCtx = contextWith("Low-voltage & data plus low-voltage cabling for the owner's AV system", "");
+    const claimed = finalizeReview(claimedCtx, rulesEngineJudgement(claimedCtx));
+    expect(claimed.lines.map((l) => l.verdict)).toEqual(["ok", "excluded_scope"]);
+    expect(claimed.lines[1].approvedCents).toBe(0);
+  });
 });
 
 describe("finalizeReview applies code policy to model output", () => {

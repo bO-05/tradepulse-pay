@@ -279,7 +279,7 @@ export function licenseStatusText(status: ReviewLicenseStatus): string {
   return LICENSE_STATUS_TEXT[status];
 }
 
-/** Lines whose description, note or the pay-app notes claim work in the agreement's excluded-scope notes. */
+/** Lines whose own note or the pay-app notes claim work in the agreement's excluded-scope notes. */
 export function contextExcludedScopeClaims(context: ReviewContext): ExcludedScopeClaims {
   return excludedScopeClaims({
     lines: context.lines.map((l) => ({
