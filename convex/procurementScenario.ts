@@ -2,6 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { internalMutation } from "./_generated/server";
 import { sub1Account } from "./judgeDemo/runs";
 import { attachProjectToDemo } from "./lib/demoTenancy";
+import { attachBidderVendor } from "./lib/vendorDirectory";
 
 /**
  * Internal fixture: a fresh project with one Div 26 trade package in bid leveling, where sub1's
@@ -128,6 +129,7 @@ export const seedProcurementScenario = internalMutation({
       sourceUrl: "https://example.invalid/procurement-scenario",
       rfqStatus: "bid_received",
     });
+    await attachBidderVendor(ctx, competingContractorId);
     const bidBase = {
       tradePackageId,
       valueEngineeringAlternates: [],

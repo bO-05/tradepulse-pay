@@ -10,6 +10,7 @@ describe("role navigation", () => {
       "inbox",
       "owner-portal",
       "people",
+      "vendors",
       "billing-agents",
       "dashboard",
       "judge-demo",
@@ -21,6 +22,9 @@ describe("role navigation", () => {
   test("People is GC-only; project switcher for subs and owners; Company settings for every role", () => {
     expect(resolveRoute("gc", "#/people/k97p")).toEqual({ area: "people", projectId: "k97p" });
     expect(resolveRoute("sub", "#/people/k97p")).toEqual({ area: "not-found" });
+    expect(resolveRoute("gc", "#/vendors")).toEqual({ area: "vendors" });
+    expect(resolveRoute("sub", "#/vendors")).toEqual({ area: "not-found" });
+    expect(resolveRoute("owner", "#/vendors")).toEqual({ area: "not-found" });
     expect(resolveRoute("sub", "#/my-projects/k97p")).toEqual({ area: "my-projects", projectId: "k97p" });
     expect(resolveRoute("owner", "#/my-projects")).toEqual({ area: "my-projects" });
     expect(resolveRoute("gc", "#/my-projects")).toEqual({ area: "not-found" });

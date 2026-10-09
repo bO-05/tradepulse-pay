@@ -3,6 +3,9 @@ import { auditActor, requireDocScope, requireProjectScope } from "./lib/projectS
 import { v, ConvexError } from "convex/values";
 import { deleteContractorCascade } from "./payments/cascade";
 import { validateEmail, validateProjectText } from "./validation";
+import type { Doc, Id } from "./_generated/dataModel";
+import type { MutationCtx } from "./_generated/server";
+import { attachBidderVendor, insertDirectoryVendor, packageBidders } from "./lib/vendorDirectory";
 
 export const listByPackage = query({
   args: { tradePackageId: v.id("tradePackages") },
@@ -50,13 +53,15 @@ export const createContractor = mutation({
   },
   handler: async (ctx, args) => {
     await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"], write: true });
-    return await ctx.db.insert("contractors", {
+    const contractorId = await ctx.db.insert("contractors", {
       ...args,
       companyName: validateProjectText(args.companyName, "Company name"),
       contactEmail: validateEmail(args.contactEmail),
       dispatchedAt: args.rfqStatus === "invited" ? Date.now() : undefined,
       updatedAt: Date.now(),
     });
+    await attachBidderVendor(ctx, contractorId);
+    return contractorId;
   },
 });
 
@@ -79,13 +84,15 @@ export const createContractorInternal = internalMutation({
   handler: async (ctx, args) => {
     const tradePackage = await ctx.db.get(args.tradePackageId);
     if (!tradePackage) throw new Error("Trade package not found");
-    return await ctx.db.insert("contractors", {
+    const contractorId = await ctx.db.insert("contractors", {
       ...args,
       companyName: validateProjectText(args.companyName, "Company name"),
       contactEmail: validateEmail(args.contactEmail),
       dispatchedAt: args.rfqStatus === "invited" ? Date.now() : undefined,
       updatedAt: Date.now(),
     });
+    await attachBidderVendor(ctx, contractorId);
+    return contractorId;
   },
 });
 
@@ -297,9 +304,96 @@ export const batchInsertContractors = internalMutation({
           tradePackageId: args.tradePackageId,
           rfqStatus: "discovered",
         });
+        await attachBidderVendor(ctx, id);
         ids.push(id);
       }
     }
     return ids;
+  },
+});
+
+/** A new bidder row for a directory vendor, linked to the vendor's sub company when it is already on the project. */
+async function insertVendorBidder(
+  ctx: MutationCtx,
+  pkg: Doc<"tradePackages">,
+  vendor: Doc<"vendors">,
+): Promise<Id<"contractors">> {
+  let linkedCompanyId: Id<"companies"> | undefined;
+  if (vendor.linkedCompanyId !== undefined) {
+    const companyId = vendor.linkedCompanyId;
+    const member = await ctx.db
+      .query("projectMembers")
+      .withIndex("by_project_company_and_status", (q) =>
+        q.eq("projectId", pkg.projectId).eq("companyId", companyId).eq("status", "active"),
+      )
+      .first();
+    if (member !== null) linkedCompanyId = companyId;
+  }
+  return await ctx.db.insert("contractors", {
+    tradePackageId: pkg._id,
+    companyName: vendor.name,
+    contactEmail: vendor.email,
+    ...(vendor.phone ? { phone: vendor.phone } : {}),
+    licenseNumber: vendor.licenseNumber ?? "",
+    licenseStatus: vendor.licenseNumber
+      ? `Not checked — ${vendor.licenseState ? `${vendor.licenseState} ` : ""}license on file in the vendor directory`
+      : "No license on file",
+    sourceUrl: "",
+    rfqStatus: "discovered",
+    vendorId: vendor._id,
+    ...(linkedCompanyId !== undefined ? { linkedCompanyId } : {}),
+    updatedAt: Date.now(),
+  });
+}
+
+function alreadyBidder(name: string) {
+  return new ConvexError({ code: "INVALID" as const, message: `${name} is already a bidder on this package.`, field: "vendor" });
+}
+
+/** "Add bidders from directory": active vendors of the project's GC company become bidders with vendorId. */
+export const addBiddersFromDirectory = mutation({
+  args: { tradePackageId: v.id("tradePackages"), vendorIds: v.array(v.string()) },
+  handler: async (ctx, args) => {
+    const { doc: pkg, project } = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"], write: true });
+    if (args.vendorIds.length === 0) throw new ConvexError({ code: "INVALID" as const, message: "Choose at least one vendor.", field: "vendor" });
+    if (args.vendorIds.length > 50) throw new ConvexError({ code: "INVALID" as const, message: "Add at most 50 bidders at a time.", field: "vendor" });
+    const existing = await packageBidders(ctx, pkg);
+    const vendors: Doc<"vendors">[] = [];
+    for (const raw of args.vendorIds) {
+      const id = ctx.db.normalizeId("vendors", raw);
+      const vendor = id === null ? null : await ctx.db.get(id);
+      if (vendor === null || vendor.companyId !== project.gcCompanyId) throw new ConvexError({ code: "NOT_FOUND" as const, message: "Not found." });
+      if (vendor.status !== "active") {
+        throw new ConvexError({ code: "INVALID" as const, message: `${vendor.name} is inactive in the vendor directory. Reactivate it first.`, field: "vendor" });
+      }
+      if (existing.some((c) => c.vendorId === vendor._id) || vendors.some((x) => x._id === vendor._id)) throw alreadyBidder(vendor.name);
+      vendors.push(vendor);
+    }
+    const contractorIds = [];
+    for (const vendor of vendors) contractorIds.push(await insertVendorBidder(ctx, pkg, vendor));
+    return { contractorIds };
+  },
+});
+
+/** "New vendor" in the bidder dialog: creates the vendor in the GC directory and adds it as a bidder. */
+export const createVendorBidder = mutation({
+  args: {
+    tradePackageId: v.id("tradePackages"),
+    name: v.string(),
+    trades: v.array(v.string()),
+    contactName: v.optional(v.string()),
+    email: v.string(),
+    phone: v.optional(v.string()),
+    licenseNumber: v.optional(v.string()),
+    licenseState: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { doc: pkg, project } = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"], write: true });
+    if (project.gcCompanyId === undefined) throw new ConvexError({ code: "NOT_FOUND" as const, message: "Not found." });
+    const { tradePackageId: _pkg, ...fields } = args;
+    const trades = fields.trades.length > 0 ? fields.trades : [pkg.csiDivision];
+    const vendor = await insertDirectoryVendor(ctx, project.gcCompanyId, { ...fields, trades });
+    const contractorId = await insertVendorBidder(ctx, pkg, vendor);
+    return { vendorId: vendor._id, contractorId };
   },
 });

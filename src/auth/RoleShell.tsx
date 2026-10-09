@@ -11,6 +11,7 @@ import { CompanySettingsPage } from "../company/CompanySettingsPage";
 import { QueryBoundary } from "../lib/QueryBoundary";
 import { NotFoundHomeContext, NotFoundState } from "../ui/NotFoundState";
 import { PeoplePage } from "../people/PeoplePage";
+import { VendorsPage } from "../vendors/VendorsPage";
 import { MyProjectsPage } from "../projects/MyProjectsPage";
 import { NewProjectWizard } from "../projects/gc/NewProjectWizard";
 import { ProjectPage } from "../projects/gc/ProjectPage";
@@ -66,6 +67,7 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
   else if (route.area === "inbox") content = <ApprovalInbox />;
   else if (route.area === "judge-demo") content = <JudgeDemoPage />;
   else if (route.area === "people") content = <PeoplePage projectId={route.projectId} />;
+  else if (route.area === "vendors") content = <VendorsPage />;
   else if (route.area === "my-projects") content = <MyProjectsPage projectId={route.projectId} />;
   else if (route.area === "company") content = <CompanySettingsPage />;
   else if (route.area === "gc-projects") {

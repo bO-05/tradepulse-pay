@@ -275,7 +275,8 @@ describe("legacy public mutations and actions are GC-only", () => {
     // for verified users without a company, covered in onboarding.test.ts. Invites, People and
     // Company settings have their permission and cross-company tests in invites.test.ts. Project
     // settings, archive/restore and company defaults have theirs in projectSetup.test.ts. Agreement
-    // terms edits have their party, lock and cross-company tests in agreementTerms.test.ts.
+    // terms edits have their party, lock and cross-company tests in agreementTerms.test.ts. Vendor
+    // directory writes and directory bidders have theirs in vendors.test.ts.
     const covered = new Set([
       ...CASES.map((c) => c.name),
       "agentLinks:addAgentLink",
@@ -295,6 +296,12 @@ describe("legacy public mutations and actions are GC-only", () => {
       "projects:restoreProject",
       "companies:updateDefaults",
       "agreementTerms:updateAgreementTerms",
+      "vendors:createVendor",
+      "vendors:updateVendor",
+      "vendors:setVendorStatus",
+      "vendors:importVendors",
+      "contractors:addBiddersFromDirectory",
+      "contractors:createVendorBidder",
     ]);
     expect(exported.filter((name) => !covered.has(name))).toEqual([]);
   });

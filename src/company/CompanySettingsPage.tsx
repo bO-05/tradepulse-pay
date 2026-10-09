@@ -9,6 +9,7 @@ import { InviteList } from "../people/InviteList";
 import { formatRetainagePercent } from "../../convex/lib/retainageRules";
 import { Button, Card, ConfirmDialog, PageHeader, PercentInput, TextInput, useToast } from "../ui";
 import { inputClass } from "../ui/Field";
+import { GcRelationshipsCard } from "../vendors/GcRelationshipsCard";
 
 type Company = FunctionReturnType<typeof api.companies.myCompany>;
 
@@ -24,6 +25,7 @@ export function CompanySettingsPage() {
       />
       <ProfileCard key={`${data.company._id}-${data.company.name}-${data.company.phone}-${data.company.website}`} data={data} />
       {data.company.kind === "gc" && <DefaultsCard key={`defaults-${data.company.defaultRetainageBps}`} data={data} />}
+      {data.company.kind === "sub" && <GcRelationshipsCard />}
       <MembersCard data={data} />
     </div>
   );

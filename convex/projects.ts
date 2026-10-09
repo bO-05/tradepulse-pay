@@ -4,7 +4,8 @@ import { requireCompanyMember } from "./lib/tenancy";
 import { auditActor, callerProjects, requireDemoCompany, requireProjectScope } from "./lib/projectScope";
 import type { Doc } from "./_generated/dataModel";
 import { linkDemoProfiles } from "./demoAccounts";
-import { attachProjectToDemo, ensureDemoCompanies, type DemoCompanyIds } from "./lib/demoTenancy";
+import { attachProjectToDemo, ensureDemoCompanies, findDemoGcCompanyId, type DemoCompanyIds } from "./lib/demoTenancy";
+import { backfillVendorsForCompany } from "./lib/vendorDirectory";
 import { applyDemoLicenseNumbers } from "./kernel/demoLicenses";
 import { remapAgentLinks, snapshotActiveAgentLinks } from "./lib/agentLinkRemap";
 import { v, ConvexError } from "convex/values";
@@ -1021,6 +1022,8 @@ async function reseedAndRelink(ctx: MutationCtx, args: { force?: boolean }) {
   await applyDemoLicenseNumbers(ctx);
   await linkDemoProfiles(ctx);
   await remapAgentLinks(ctx, links);
+  const demoGcId = await findDemoGcCompanyId(ctx);
+  if (demoGcId !== null) await backfillVendorsForCompany(ctx, demoGcId);
   return result;
 }
 

@@ -4,6 +4,7 @@ import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { getErrorMessage } from "../../lib/errors";
 import { Button, Card, DateInput, EmptyState, MoneyInput, StatusPill, TextInput, useToast } from "../../ui";
+import { PackageBidders } from "../../vendors/PackageBidders";
 import { openProcurementPackages, openSpecBreakdown } from "./specBreakdownRequest";
 
 const CSI_FORMAT = /^\d{2} \d{2} \d{2}$/;
@@ -139,6 +140,7 @@ export function TradePackagesSection({
 }) {
   const packages = useQuery(api.tradePackages.listByProject, { projectId });
   const [adding, setAdding] = useState(false);
+  const [biddersOf, setBiddersOf] = useState<string | null>(null);
   const addButtons = readOnly ? null : (
     <>
       <Button onClick={() => setAdding(true)}>Add trade package</Button>
@@ -173,22 +175,33 @@ export function TradePackagesSection({
           {packages.length > 0 && (
             <ul className="divide-y divide-line text-sm">
               {packages.map((p) => (
-                <li key={p._id} className="flex flex-wrap items-center justify-between gap-2 py-2">
-                  <span>
-                    <span className="font-mono text-ink-subtle">{p.csiDivision}</span> <span className="font-semibold">{p.tradeName}</span>
-                  </span>
-                  <span className="flex items-center gap-2">
-                    <StatusPill status={p.status} />
-                    {!readOnly && (
+                <li key={p._id} className="py-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span>
+                      <span className="font-mono text-ink-subtle">{p.csiDivision}</span> <span className="font-semibold">{p.tradeName}</span>
+                    </span>
+                    <span className="flex items-center gap-2">
+                      <StatusPill status={p.status} />
                       <button
                         type="button"
+                        aria-expanded={biddersOf === p._id}
                         className="text-sm text-emerald-300 underline-offset-2 hover:underline"
-                        onClick={() => openProcurementPackages(projectId)}
+                        onClick={() => setBiddersOf(biddersOf === p._id ? null : p._id)}
                       >
-                        Open in Procurement
+                        Bidders
                       </button>
-                    )}
-                  </span>
+                      {!readOnly && (
+                        <button
+                          type="button"
+                          className="text-sm text-emerald-300 underline-offset-2 hover:underline"
+                          onClick={() => openProcurementPackages(projectId)}
+                        >
+                          Open in Procurement
+                        </button>
+                      )}
+                    </span>
+                  </div>
+                  {biddersOf === p._id && <PackageBidders pkg={p} readOnly={readOnly} />}
                 </li>
               ))}
             </ul>

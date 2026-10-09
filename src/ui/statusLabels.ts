@@ -18,6 +18,7 @@ export const STATUS_LABELS = {
   created: { label: "Created", tone: "neutral" },
   active: { label: "Active", tone: "success" },
   inactive: { label: "Inactive", tone: "muted" },
+  linked: { label: "Linked", tone: "info" },
   removed: { label: "Removed", tone: "muted" },
   archived: { label: "Archived", tone: "muted" },
   closed: { label: "Closed", tone: "muted" },

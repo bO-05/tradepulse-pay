@@ -288,6 +288,7 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_companyId", ["companyId"])
+    .index("by_companyId_and_email", ["companyId", "email"])
     .index("by_linkedCompanyId", ["linkedCompanyId"]),
 
   // One row per send attempt key, written only by convex/lib/mailer.ts. Never stores codes or invite tokens.
@@ -721,7 +722,8 @@ export default defineSchema({
     vendorId: v.optional(v.id("vendors")),
   })
     .index("by_package", ["tradePackageId"])
-    .index("by_linkedCompanyId", ["linkedCompanyId"]),
+    .index("by_linkedCompanyId", ["linkedCompanyId"])
+    .index("by_vendorId", ["vendorId"]),
 
   // Two-way Pre-Bid RFIs and Clarifications
   conversations: defineTable({

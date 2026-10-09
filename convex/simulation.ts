@@ -7,6 +7,7 @@ import { internal } from "./_generated/api";
 import { defaultTermsForProject, legacyTermFields, refreshAgreementDocument } from "./lib/agreementDocument";
 import { persistPendingRfi } from "./rfq";
 import { fromDollars } from "./lib/money";
+import { attachBidderVendor } from "./lib/vendorDirectory";
 
 /**
  * Demo simulation (Demo company only; everyone else gets "Not found."): inserts simulated
@@ -252,7 +253,7 @@ export const createSimulatedContractor = internalMutation({
       if (stateMatch) statePrefix = stateMatch[1];
     }
 
-    return await ctx.db.insert("contractors", {
+    const contractorId = await ctx.db.insert("contractors", {
       tradePackageId: args.tradePackageId,
       companyName,
       contactEmail: args.fromEmail,
@@ -263,6 +264,8 @@ export const createSimulatedContractor = internalMutation({
       rfqStatus: "invited",
       dispatchedAt: Date.now(),
     });
+    await attachBidderVendor(ctx, contractorId);
+    return contractorId;
   },
 });
 
@@ -495,6 +498,7 @@ export const runFullProcurementCycle = mutation({
         sourceUrl: c1Url,
         rfqStatus: "discovered",
       });
+      await attachBidderVendor(ctx, c1Id);
       c1 = await ctx.db.get(c1Id);
     }
 
@@ -514,6 +518,7 @@ export const runFullProcurementCycle = mutation({
         sourceUrl: c2Url,
         rfqStatus: "discovered",
       });
+      await attachBidderVendor(ctx, c2Id);
       c2 = await ctx.db.get(c2Id);
     }
 

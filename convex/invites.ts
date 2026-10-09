@@ -22,6 +22,7 @@ import { deliveryFailureMessage } from "./emailOutbox";
 import { getLiveAuthUserId } from "./lib/session";
 import { requireCompanyMemberInAction } from "./lib/tenancyAction";
 import { findActiveMembership, notFound, requireCompanyMember, requireVerifiedUser } from "./lib/tenancy";
+import { findVendorByEmail } from "./lib/vendorDirectory";
 
 /**
  * Invites (architecture §13): a GC company invites teammates, a vendor's sub contact for a project,
@@ -171,6 +172,10 @@ export const prepareCreate = internalMutation({
         if (name.length < 2 || name.length > 120) throw invalid("Enter the subcontractor's company name (2–120 characters).", "vendorName");
         if (trade.length === 0) throw invalid("Choose the trade.", "trade");
         if (contactName.length === 0 || contactName.length > 120) throw invalid("Enter the contact's name.", "contactName");
+        const sameEmailVendor = await findVendorByEmail(ctx, company._id, email);
+        if (sameEmailVendor !== null) {
+          throw invalid(`${sameEmailVendor.name} already uses this email in your vendor directory. Choose it from the vendor list.`, "vendor");
+        }
         const vendorId = await ctx.db.insert("vendors", {
           companyId: company._id,
           name,
