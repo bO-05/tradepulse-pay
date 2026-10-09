@@ -8,6 +8,7 @@ import { formatCents } from "../lib/money";
 import { payAppReviewValidator } from "../schema";
 import { latestCompletedCheck } from "../kernel/licenseChecks";
 import { billingPayAppHistory } from "./billingHistory";
+import { projectGcCompanyName } from "../lib/gcCompanyName";
 import { buildReviewContext } from "./reviewContext";
 import type { ReviewContext } from "./reviewMath";
 import { runPayAppReview, type ReviewRun } from "./reviewModel";
@@ -43,8 +44,10 @@ export const loadReviewInputs = internalQuery({
       .take(50);
     const agreementPayApps = await billingPayAppHistory(ctx, agreement._id);
     const license = await latestCompletedCheck(ctx, agreement.contractorId);
+    const project = await ctx.db.get(agreement.projectId);
+    const gcCompanyName = project ? await projectGcCompanyName(ctx, project) : null;
     return {
-      context: buildReviewContext({ payApp, agreement, sov, milestones, agreementPayApps, license }),
+      context: buildReviewContext({ payApp, agreement, sov, milestones, agreementPayApps, license, gcCompanyName }),
       meta: {
         payAppId: payApp._id,
         agreementId: agreement._id,

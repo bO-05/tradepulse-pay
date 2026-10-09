@@ -5,6 +5,7 @@ import { formatCents } from "../lib/money";
 import { submitterAuditFields } from "../lib/agentAudit";
 import { retainagePercentFor } from "../payments/payoutMath";
 import { latestCompletedCheck } from "../kernel/licenseChecks";
+import { projectGcCompanyName } from "../lib/gcCompanyName";
 import { planProposals, requiredKinds, type PlanLicenseStatus, type PlanMilestone, type ProposalPlan } from "./proposalMath";
 
 /**
@@ -90,7 +91,9 @@ export const loadAgentInputs = internalQuery({
     const reviewLines = new Map(payApp.review.lines.map((l) => [l.sovLineId as string, l]));
     const latest = await latestCompletedCheck(ctx, agreement.contractorId);
     const milestones = await milestonePlanRows(ctx, agreement._id);
+    const project = await ctx.db.get(agreement.projectId);
     return {
+      gcCompanyName: project ? await projectGcCompanyName(ctx, project) : null,
       payApp: {
         _id: payApp._id,
         status: payApp.status,

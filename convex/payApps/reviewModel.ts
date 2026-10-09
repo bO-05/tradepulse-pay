@@ -7,6 +7,7 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { generateText, Output } from "ai";
 import { z } from "zod";
 import { formatCents } from "../lib/money";
+import { workingOnBehalfOf } from "../lib/gcCompanyName";
 import {
   finalizeReview,
   LINE_VERDICTS,
@@ -36,7 +37,12 @@ export const reviewJudgementSchema = z.object({
   notes: z.string().describe("Short overall note for the general contractor."),
 });
 
-export const REVIEW_SYSTEM_PROMPT = `You review construction subcontractor pay applications (AIA G702/G703 style) for the general contractor.
+export function reviewSystemPrompt(gcCompanyName: string | null | undefined): string {
+  return `You are the pay-app reviewer of ${workingOnBehalfOf(gcCompanyName)}, the general contractor.
+${REVIEW_INSTRUCTIONS}`;
+}
+
+const REVIEW_INSTRUCTIONS = `You review construction subcontractor pay applications (AIA G702/G703 style) for the general contractor.
 For every submitted line return exactly one entry with the line's sovLineId, a verdict, a recommended cumulative percent complete to date as a FRACTION between 0 and 1, and a short reason that cites the numbers.
 Never output dollar amounts; code computes all money from your fractions.
 
@@ -177,11 +183,12 @@ export async function runPayAppReview(
   const now = deps.now ?? Date.now;
   const callModel = deps.callModel ?? callAnthropic;
   const prompt = buildReviewPrompt(context);
+  const system = reviewSystemPrompt(context.gcCompanyName);
   const started = now();
   let fallbackReason = "No AI provider is configured.";
   if (env.apiKey && env.modelId) {
     try {
-      const res = await callModel({ system: REVIEW_SYSTEM_PROMPT, prompt, apiKey: env.apiKey, modelId: env.modelId });
+      const res = await callModel({ system, prompt, apiKey: env.apiKey, modelId: env.modelId });
       const review = finalizeReview(context, res.judgement);
       return {
         review,
@@ -189,7 +196,7 @@ export async function runPayAppReview(
         provider: "Anthropic",
         model: res.modelId,
         engine: `Anthropic ${res.modelId}`,
-        systemPrompt: REVIEW_SYSTEM_PROMPT,
+        systemPrompt: system,
         prompt,
         rawResponse: res.rawResponse,
         inputTokens: res.inputTokens,

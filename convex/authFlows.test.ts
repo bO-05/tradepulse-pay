@@ -108,6 +108,26 @@ describe("sign-up and email verification", () => {
     expect(JSON.stringify(rows[0])).not.toContain(lastCode());
   });
 
+  test("sign-up and password sign-in for an unverified account issue no session", async () => {
+    const t = setup();
+    advance(60_000);
+    const sessionsFor = async (userId: string) =>
+      await t.run(async (ctx) => (await ctx.db.query("authSessions").withIndex("userId", (q) => q.eq("userId", userId as any)).collect()).length);
+
+    const signUp: any = await signIn(t, { flow: "signUp", email: DANA, password: STRONG, name: "Dana" });
+    expect(signUp.tokens ?? null).toBeNull();
+    const user = (await userByEmail(t, DANA))!;
+    expect(user.emailVerificationTime).toBeUndefined();
+    expect(await sessionsFor(user._id)).toBe(0);
+
+    advance(31_000);
+    const again: any = await signIn(t, { flow: "signIn", email: DANA, password: STRONG });
+    expect(again.tokens ?? null).toBeNull();
+    expect(await sessionsFor(user._id)).toBe(0);
+    expect(await t.run(async (ctx) => (await ctx.db.query("authSessions").collect()).length)).toBe(0);
+    expect((await userByEmail(t, DANA))?.emailVerificationTime).toBeUndefined();
+  });
+
   test("wrong, superseded and other-address codes are rejected with a readable message", async () => {
     const t = setup();
     advance(60_000);

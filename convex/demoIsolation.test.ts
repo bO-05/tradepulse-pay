@@ -169,6 +169,41 @@ describe("demo-only simulation and diagnostics", () => {
       openai: expect.any(Boolean),
     });
   });
+
+  test("non-demo callers cannot run model diagnostics or the eval suite", async () => {
+    // With a provider configured, a missing guard would reach the network and write traces.
+    vi.stubEnv("ANTHROPIC_API_KEY", "test-anthropic-key");
+    vi.stubEnv("ANTHROPIC_MODEL", "claude-test");
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    try {
+      const t = newTest();
+      const f = await buildTenancyFixture(t);
+      const counts = () =>
+        t.run(async (ctx) => ({
+          evalRuns: (await ctx.db.query("evalRuns").collect()).length,
+          agentTraces: (await ctx.db.query("agentTraces").collect()).length,
+        }));
+      const before = await counts();
+      const callers = [
+        { name: "gcA", as: f.gcA.admin.as, expected: NOT_FOUND },
+        { name: "gcB", as: f.gcB.admin.as, expected: NOT_FOUND },
+        { name: "sub", as: f.sub.admin.as, expected: { code: expect.stringMatching(/NOT_FOUND|FORBIDDEN/) } },
+        { name: "owner", as: f.owner.admin.as, expected: { code: expect.stringMatching(/NOT_FOUND|FORBIDDEN/) } },
+        { name: "noCompany", as: f.noCompany.as, expected: { code: expect.stringMatching(/NOT_FOUND|FORBIDDEN/) } },
+      ];
+      for (const c of callers) {
+        const diag = await errorOf(c.as.action(api.llmRouter.runModelDiagnostic, { model: "claude", promptType: "spec_div26" }));
+        expect(diag, `${c.name} runModelDiagnostic`).toMatchObject(c.expected);
+        const evals = await errorOf(c.as.action(api.evals.executeEvalSuite, { targetEnvironment: "dev", triggeredBy: "cli_benchmark" }));
+        expect(evals, `${c.name} executeEvalSuite`).toMatchObject(c.expected);
+      }
+      expect(await counts()).toEqual(before);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+      vi.unstubAllEnvs();
+    }
+  });
 });
 
 describe("the Demo company never sends external email", () => {

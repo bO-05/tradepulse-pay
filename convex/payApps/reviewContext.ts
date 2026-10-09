@@ -16,6 +16,7 @@ export function buildReviewContext(input: {
   milestones: readonly Doc<"milestones">[];
   agreementPayApps: readonly Doc<"payApplications">[];
   license: Doc<"licenseChecks"> | null;
+  gcCompanyName?: string | null;
 }): ReviewContext {
   const { payApp, agreement } = input;
   const earlier = input.agreementPayApps.filter(
@@ -24,6 +25,7 @@ export function buildReviewContext(input: {
   const prior = sovBaselineByLine(earlier, input.sov);
   const milestones = [...input.milestones].sort((a, b) => a.order - b.order);
   return {
+    gcCompanyName: input.gcCompanyName ?? null,
     agreement: {
       agreementNumber: agreement.agreementNumber,
       subcontractorName: agreement.subcontractorName,

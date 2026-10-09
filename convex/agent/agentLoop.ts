@@ -3,14 +3,21 @@ import { generateText, stepCountIs, type ToolSet } from "ai";
 import { formatCents } from "../lib/money";
 import { OFFLINE_RULES_ENGINE } from "../lib/aiLabels";
 import { describeProviderFailure } from "../payApps/reviewModel";
+import { workingOnBehalfOf } from "../lib/gcCompanyName";
 import type { ProposeKind } from "./tools";
 
 /** Upper bound on model steps (tool round-trips) in one pay agent run. */
 export const MAX_AGENT_STEPS = 8;
 const MODEL_TIMEOUT_MS = 120_000;
 
-export const PAY_AGENT_SYSTEM_PROMPT = [
-  "You are the TradePulse pay agent for a general contractor. A subcontractor pay application has already been reviewed line by line; dollar amounts were computed by code.",
+export function payAgentSystemPrompt(gcCompanyName: string | null | undefined): string {
+  return [
+    `You are the pay agent of ${workingOnBehalfOf(gcCompanyName)}, the general contractor (GC). A subcontractor pay application has already been reviewed line by line; dollar amounts were computed by code.`,
+    ...PAY_AGENT_INSTRUCTIONS,
+  ].join("\n");
+}
+
+const PAY_AGENT_INSTRUCTIONS = [
   "Your job is to prepare proposals for the GC. You cannot move money: every propose tool only creates a pending proposal that the GC approves, edits or rejects.",
   "Steps:",
   "1. Call checkLicense with the contractor name and license number.",
@@ -20,9 +27,10 @@ export const PAY_AGENT_SYSTEM_PROMPT = [
   "5. If the approved total is $0.00, call proposeHold.",
   "You may call the read-only PayPal tools (get_order, list_transactions, list_invoices, get_invoice) to cross-check, but they are optional.",
   "Never state dollar amounts of your own in a rationale. Finish with a short summary for the GC.",
-].join("\n");
+];
 
 export type AgentInputs = {
+  gcCompanyName: string | null;
   payApp: { periodLabel: string; requestedTotalCents: number; lienWaiver: boolean; notes: string };
   review: { provider: string; model: string; approvedTotalCents: number; flags: { lienWaiverMissing: boolean; notes: string } };
   lines: readonly {

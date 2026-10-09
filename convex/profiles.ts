@@ -8,7 +8,7 @@ import { findActiveMembership } from "./lib/tenancy";
 
 /**
  * The signed-in identity for the app shell. Returns null when signed out, and
- * `role: null` for a signed-in account that has no TradePulse profile.
+ * `role: null` for a signed-in account that has no app profile.
  */
 export const me = query({
   args: {},

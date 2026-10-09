@@ -1,7 +1,8 @@
 import { mutation, query } from "./_generated/server";
 import { auditActor, partyMaySeeContractor, requireDocOfProject, requireDocScope, requireProjectScope } from "./lib/projectScope";
 import { v, ConvexError } from "convex/values";
-import { DEFAULT_GENERAL_CONTRACTOR, validateProjectText } from "./validation";
+import { validateProjectText } from "./validation";
+import { generalContractorNameFor } from "./lib/gcCompanyName";
 import { LIQUIDATED_DAMAGES_PER_DAY, RETAINAGE_PERCENT } from "./terms";
 import { ensureSovAndMilestones, removeSovAndMilestonesIfUnbilled } from "./payments/sov";
 import { contractorCanBidOnPackage } from "./lib/packageContractors";
@@ -63,7 +64,7 @@ export const generateAgreement = mutation({
 
     const contractLocation = project.location || "Austin, Texas";
     const { city: gcCity, state: gcState, stateAbbr } = parseCityAndState(contractLocation);
-    const generalContractor = project.generalContractorName?.trim() || DEFAULT_GENERAL_CONTRACTOR;
+    const generalContractor = await generalContractorNameFor(ctx, project);
     const contractor = await ctx.db.get(bid.contractorId);
     if (!contractor || !contractorCanBidOnPackage(contractor, tradePkg)) {
       throw new Error("The selected bid is not linked to a valid contractor in this trade package.");
@@ -526,7 +527,7 @@ export async function syncAgreementForBid(ctx: any, bidId: any): Promise<any> {
     throw new Error("The awarded bid is not linked to a valid contractor in this trade package.");
   }
   const subcontractorName = contractor.companyName.trim();
-  const generalContractorName = project.generalContractorName?.trim() || DEFAULT_GENERAL_CONTRACTOR;
+  const generalContractorName = await generalContractorNameFor(ctx, project);
 
   const acceptedVeTotal = (bid.valueEngineeringAlternates || []).reduce(
     (sum: number, ve: any) => (ve.isAccepted ? sum + (ve.costDeduct || 0) : sum),

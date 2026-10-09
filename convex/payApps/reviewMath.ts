@@ -56,6 +56,8 @@ export type ReviewLine = {
 };
 
 export type ReviewContext = {
+  /** Company the reviewer works for; prompts fall back to "the general contractor" when absent. */
+  gcCompanyName?: string | null;
   agreement: {
     agreementNumber: string;
     subcontractorName: string;

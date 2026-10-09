@@ -84,9 +84,9 @@ export function InviteList({
                     </>
                   ) : null}
                 </p>
-                {(i.emailStatus === "failed" || i.emailStatus === "bounced") && i.emailError && pending ? (
+                {(i.emailStatus === "failed" || i.emailStatus === "bounced") && pending ? (
                   <p className="text-xs text-amber-200">
-                    Email {i.emailStatus === "bounced" ? "bounced" : "failed"} — copy the link or resend ({i.emailError})
+                    Email {i.emailStatus === "bounced" ? "bounced" : "failed"} — copy the link or resend{i.emailError ? ` (${i.emailError})` : ""}
                   </p>
                 ) : null}
               </div>

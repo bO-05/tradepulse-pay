@@ -177,7 +177,61 @@ describe("creating invites", () => {
     });
     expect((await inviteRow(t, ok.inviteId)).kind).toBe("sub");
   });
+
+  test("a GC admin whose email is not verified cannot create teammate or sub invites, and nothing is sent", async () => {
+    const { t, fx, fresh } = await setup();
+    const calls = stubAgentmail();
+    await t.run(async (ctx) => ctx.db.patch(fx.gcA.admin.userId, { emailVerificationTime: undefined }));
+    const counts = () =>
+      t.run(async (ctx) => ({
+        invites: (await ctx.db.query("invites").collect()).length,
+        emailOutbox: (await ctx.db.query("emailOutbox").collect()).length,
+        companies: (await ctx.db.query("companies").collect()).length,
+      }));
+    const before = await counts();
+    expect(await errorData(fx.gcA.admin.as.action(api.invites.create, { kind: "teammate", email: "luis.v@mail-test.com" }))).toMatchObject({
+      code: "EMAIL_UNVERIFIED",
+    });
+    expect(
+      await errorData(
+        fx.gcA.admin.as.action(api.invites.create, {
+          kind: "sub",
+          email: "kim.v@mail-test.com",
+          projectId: fresh.projectId,
+          newVendor: { name: "Eastbay Electric", trade: "26 00 00", contactName: "Kim" },
+        }),
+      ),
+    ).toMatchObject({ code: "EMAIL_UNVERIFIED" });
+    expect(await counts()).toEqual(before);
+    expect(calls).toHaveLength(0);
+  });
+
+  test("an unverified user with no company cannot create invites, and nothing is created", async () => {
+    const { t, fresh } = await setup();
+    const calls = stubAgentmail();
+    const stranger = await newHuman(t, "unverified@mail-test.com", "Una Verified", false);
+    const before = await dump(t);
+    // The action's company check refuses before any email-verification check is reached.
+    const noCompany = { code: "NO_COMPANY", message: "Create or join a company first." };
+    expect(await errorData(stranger.as.action(api.invites.create, { kind: "teammate", email: "someone@mail-test.com" }))).toEqual(noCompany);
+    expect(
+      await errorData(stranger.as.action(api.invites.create, { kind: "owner", email: "someone@mail-test.com", projectId: fresh.projectId })),
+    ).toEqual(noCompany);
+    expect(await dump(t)).toBe(before);
+    expect(calls).toHaveLength(0);
+  });
 });
+
+async function errorData(p: Promise<unknown>): Promise<{ code?: string; message?: string }> {
+  try {
+    await p;
+  } catch (e) {
+    const data = (e as { data?: unknown }).data;
+    if (data && typeof data === "object") return data as { code?: string };
+    return { message: (e as Error).message };
+  }
+  throw new Error("expected the call to fail");
+}
 
 describe("accepting invites", () => {
   test("teammate joins the inviter company as a member and sees its projects", async () => {

@@ -97,7 +97,9 @@ export const createProject = mutation({
     const specDocumentText = args.specDocumentText.trim() || `Project Scope for ${title}.`;
     const generalContractorName = args.generalContractorName?.trim()
       ? validateProjectText(args.generalContractorName, "General contractor name")
-      : DEFAULT_GENERAL_CONTRACTOR;
+      : company.isDemo
+        ? DEFAULT_GENERAL_CONTRACTOR
+        : company.name;
 
     const projectId = await ctx.db.insert("projects", {
       title,
