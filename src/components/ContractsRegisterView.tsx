@@ -22,6 +22,10 @@ import { printContractText } from "../lib/printContract.ts";
 import { formatCents, fromDollars } from "../../convex/lib/money";
 import { AgreementTermsPanel } from "../contracts/AgreementTermsPanel.tsx";
 
+function contractSumToDateCents(a: Agreement): number {
+  return a.contractSumToDateCents ?? fromDollars(a.contractSum || 0);
+}
+
 interface ContractsRegisterViewProps {
   currentProject: Project | null;
   onNavigateToLeveling?: () => void;
@@ -116,7 +120,7 @@ const handlePrint = (agr: Agreement) => {
     return matchesSearch && matchesStatus;
   });
 
-  const totalContractedSum = activeAgreements.reduce((sum, a) => sum + (a.contractSum || 0), 0);
+  const totalContractedSumCents = activeAgreements.reduce((sum, a) => sum + contractSumToDateCents(a), 0);
   const executedCount = agreements.filter((a) => a.status === "executed").length;
   const supersededCount = agreements.filter((a) => a.status === "superseded").length;
 
@@ -162,7 +166,7 @@ const handlePrint = (agr: Agreement) => {
             <div className="bg-slate-950 border border-slate-800 px-3.5 py-2 rounded-lg text-right">
               <span className="text-[10px] text-slate-400 block uppercase">Active Contracted Sum</span>
               <span className="text-sm font-bold font-mono text-emerald-400">
-                ${totalContractedSum.toLocaleString("en-US")}
+                {formatCents(totalContractedSumCents)}
               </span>
             </div>
 
@@ -251,7 +255,7 @@ const handlePrint = (agr: Agreement) => {
                   <th className="px-4 py-3">Agreement No.</th>
                   <th className="px-4 py-3">Subcontractor</th>
                   <th className="px-4 py-3">Trade Scope</th>
-                  <th className="px-4 py-3 font-mono">Contract Sum</th>
+                  <th className="px-4 py-3 font-mono">Contract Sum to Date</th>
                   <th className="px-4 py-3">Terms</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3 text-right">Actions</th>
@@ -278,8 +282,13 @@ const handlePrint = (agr: Agreement) => {
                       {agr.tradeName}
                     </td>
 
-                    <td className="px-4 py-3.5 font-mono font-bold text-white text-sm">
-                      {formatCents(fromDollars(agr.contractSum))}
+                    <td className="px-4 py-3.5 font-mono font-bold text-white text-sm" data-testid="register-contract-sum-to-date">
+                      {formatCents(contractSumToDateCents(agr))}
+                      {contractSumToDateCents(agr) !== fromDollars(agr.contractSum) ? (
+                        <div className="text-[11px] font-normal text-slate-400" data-testid="register-original-contract-sum">
+                          Original {formatCents(agr.originalContractSumCents ?? fromDollars(agr.contractSum))}
+                        </div>
+                      ) : null}
                     </td>
 
                     <td className="px-4 py-3.5 text-slate-400 font-mono text-[11px]">

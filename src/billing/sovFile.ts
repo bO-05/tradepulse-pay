@@ -47,7 +47,8 @@ function normalizeHeader(cell: unknown): string {
 
 /**
  * Turns parsed spreadsheet rows (header first) into SOV lines. Every defective row is reported by
- * its data row number (the first row under the header is row 1); any defect refuses the whole file.
+ * its spreadsheet row number, the same row Excel shows and cell references use (with the header in
+ * row 1, the first SOV row is row 2); any defect refuses the whole file.
  */
 export function rowsToSovLines(raw: RawRow[], formulaRows: Map<number, string[]> = new Map()): SovImportResult {
   const nonEmpty = raw.filter((r) => r.cells.some((c) => cellText(c).trim() !== ""));
@@ -69,7 +70,7 @@ export function rowsToSovLines(raw: RawRow[], formulaRows: Map<number, string[]>
   const errors: string[] = [];
   const rows: SovLineInput[] = [];
   for (const row of dataRows) {
-    const label = `Row ${row.rowNumber - headerRow.rowNumber}`;
+    const label = `Row ${row.rowNumber}`;
     const formulaCells = formulaRows.get(row.rowNumber);
     if (formulaCells && formulaCells.length > 0) {
       errors.push(`${label}: ${SOV_FORMULA_MESSAGE} (${formulaCellList(formulaCells)}).`);
@@ -91,7 +92,7 @@ export function rowsToSovLines(raw: RawRow[], formulaRows: Map<number, string[]>
   const checkedRows = new Set(dataRows.map((r) => r.rowNumber));
   for (const [rowNumber, cells] of [...formulaRows].sort((a, b) => a[0] - b[0])) {
     if (checkedRows.has(rowNumber) || cells.length === 0) continue;
-    const label = rowNumber === headerRow.rowNumber ? "Header row" : `Row ${rowNumber - headerRow.rowNumber}`;
+    const label = rowNumber === headerRow.rowNumber ? "Header row" : `Row ${rowNumber}`;
     errors.push(`${label}: ${SOV_FORMULA_MESSAGE} (${formulaCellList(cells)}).`);
   }
   if (errors.length > 0) {
@@ -134,7 +135,7 @@ function csvStructureProblems(raw: RawRow[], parseErrors: { code: string; messag
   const isBlank = (r: RawRow) => r.cells.every((c) => cellText(c).trim() === "");
   const headerRow = raw.find((r) => !isBlank(r));
   if (!headerRow) return null;
-  const label = (rowNumber: number) => (rowNumber === headerRow.rowNumber ? "Header row" : `Row ${rowNumber - headerRow.rowNumber}`);
+  const label = (rowNumber: number) => (rowNumber === headerRow.rowNumber ? "Header row" : `Row ${rowNumber}`);
   const byRow = new Map<number, string[]>();
   const add = (rowNumber: number, problem: string) => byRow.set(rowNumber, [...(byRow.get(rowNumber) ?? []), problem]);
   for (const e of parseErrors) {

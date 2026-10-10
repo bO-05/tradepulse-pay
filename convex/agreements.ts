@@ -24,6 +24,7 @@ import {
 } from "./payments/sov";
 import { contractorCanBidOnPackage } from "./lib/packageContractors";
 import { loadSovRows } from "./lib/sovLines";
+import { agreementContractSum } from "./billing/changeOrderView";
 
 /**
  * Awards a bid and generates its subcontract draft (AIA-style terms, not an AIA form). Terms default
@@ -288,7 +289,13 @@ export const listAgreements = query({
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
       .order("desc")
       .collect();
-    return agreements.filter((a) => partyMaySeeContractor(access, a.contractorId));
+    const visible = agreements.filter((a) => partyMaySeeContractor(access, a.contractorId));
+    return await Promise.all(
+      visible.map(async (a) => {
+        const sum = await agreementContractSum(ctx, a);
+        return { ...a, originalContractSumCents: sum.originalCents, contractSumToDateCents: sum.toDateCents };
+      }),
+    );
   },
 });
 

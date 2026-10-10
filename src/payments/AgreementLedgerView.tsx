@@ -12,7 +12,7 @@ import { RetainageReleaseControl, RetainageReleaseList } from "./RetainageReleas
 import { DocumentDownloadButton } from "../documents/DocumentDownload";
 
 const TOTALS: { key: "contractSumCents" | "billedCents" | "paidCents" | "retainageHeldCents" | "balanceCents"; label: string }[] = [
-  { key: "contractSumCents", label: "Contract sum" },
+  { key: "contractSumCents", label: "Contract sum to date" },
   { key: "billedCents", label: "Billed" },
   { key: "paidCents", label: "Paid" },
   { key: "retainageHeldCents", label: "Retainage held" },
@@ -82,6 +82,11 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
               <dd className="font-semibold tabular-nums" data-testid={`ledger-${t.key}`}>
                 {formatCents(totals[t.key])}
               </dd>
+              {t.key === "contractSumCents" && agreement.netChangeOrdersCents !== 0 ? (
+                <dd className="text-xs text-slate-400" data-testid="ledger-original-contract-sum">
+                  Original contract sum <span className="tabular-nums">{formatCents(agreement.originalContractSumCents)}</span>
+                </dd>
+              ) : null}
             </div>
           ))}
         </dl>

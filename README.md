@@ -212,7 +212,7 @@ The ledger (`#/payments/<agreementId>`) shows these totals, all in integer cents
 
 - **Paid** = net of successful payouts plus successful retainage releases.
 - **Retainage held** = balance of the retainage ledger (credits on accepted payouts, debits on releases).
-- **Balance** = contract sum − (paid + retainage held). The same formula is printed under the totals.
+- **Balance** = contract sum to date (original contract sum plus approved change orders) − (paid + retainage held). The same formula is printed under the totals.
 - Reconciliation row: funded but not captured, captured, captured but not paid out (for example a failed payout waiting for "Retry payout"), retainage released, and change orders invoiced and paid.
 
 Funded authorizations are watched hourly (`convex/crons.ts`): after the 3-day honor period they are reauthorized once, and an authorization that reaches its expiry marks the milestone "Funding expired" so it can be funded again.

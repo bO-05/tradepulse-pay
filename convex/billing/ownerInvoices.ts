@@ -3,6 +3,7 @@ import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { action, env, internalAction, type ActionCtx } from "../_generated/server";
 import { toPayPalString } from "../lib/money";
+import { invoiceFailureMessage, payPalDebugIdOf } from "../payments/invoiceSendError";
 import { requireProjectScopeInAction } from "../lib/tenancyAction";
 import { invoiceIdFromCreateResponse, payerViewUrlFor, type PayPalInvoice } from "../payments/changeOrderMath";
 import { payPalClientForAction, type PayPalClient } from "../payments/paypalClient";
@@ -35,13 +36,6 @@ const refreshResult = v.object({
   changed: v.boolean(),
 });
 type RefreshResult = Infer<typeof refreshResult>;
-
-function errorMessage(e: unknown): string {
-  if (e instanceof ConvexError && typeof e.data === "object" && e.data !== null && typeof e.data.message === "string") {
-    return e.data.message;
-  }
-  return e instanceof Error ? e.message : "Unknown error.";
-}
 
 async function getInvoice(paypal: PayPalClient, invoiceId: string): Promise<PayPalInvoice> {
   const { data } = await paypal.request<PayPalInvoice>({ method: "GET", path: `/v2/invoicing/invoices/${encodeURIComponent(invoiceId)}` });
@@ -93,9 +87,9 @@ async function invoiceOwnerPayApp(ctx: ActionCtx, ownerPayAppId: Id<"ownerPayApp
     });
     return { ownerPayAppId, status: recorded.status, paypalInvoiceId: invoiceId, payerViewUrl, alreadyInvoiced: false };
   } catch (e) {
-    const message = `Invoice not sent: ${errorMessage(e)}`;
+    const message = invoiceFailureMessage(e);
     await ctx.runMutation(internal.billing.ownerPayAppDb.recordInvoiceError, { ownerPayAppId, error: message });
-    throw new ConvexError({ code: "INVOICE_FAILED", message, paypalInvoiceId: invoiceId ?? null });
+    throw new ConvexError({ code: "INVOICE_FAILED", message, paypalInvoiceId: invoiceId ?? null, paypalDebugId: payPalDebugIdOf(e) });
   }
 }
 

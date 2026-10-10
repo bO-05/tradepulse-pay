@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "convex/react";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { FunctionReturnType } from "convex/server";
 import { payAppHash } from "../auth/navigation";
@@ -41,6 +41,7 @@ function AgreementPayApps({ row }: { row: AgreementRow }) {
   const [busy, setBusy] = useState(false);
   const open = row.openPayApp;
   const next = row.nextApplication;
+  const reasonId = useId();
 
   const onNew = async () => {
     setBusy(true);
@@ -68,10 +69,18 @@ function AgreementPayApps({ row }: { row: AgreementRow }) {
           <Button onClick={() => void onNew()} loading={busy} data-testid="new-pay-app">
             New pay app
           </Button>
+        ) : row.blockedReason ? (
+          <Button disabled aria-describedby={reasonId} data-testid="new-pay-app">
+            New pay app
+          </Button>
         ) : null
       }
     >
-      {row.blockedReason ? <p className="text-sm text-amber-200">{row.blockedReason}</p> : null}
+      {row.blockedReason ? (
+        <p id={reasonId} className="text-sm text-amber-200" data-testid="new-pay-app-blocked-reason">
+          {row.blockedReason}
+        </p>
+      ) : null}
       {!open && next ? (
         <p className="text-sm text-ink-muted" data-testid="next-pay-app">
           Next: Application No. {next.applicationNo}, period {formatDate(next.periodStart)} – {formatDate(next.periodEnd)}, due{" "}

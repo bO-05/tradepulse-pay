@@ -11,11 +11,13 @@ import { BALANCE_FORMULA, computeLedgerTotals } from "./ledgerTotals";
 import { attemptsFor, checkRetry } from "./payoutRetryMath";
 import { retainagePercentFor } from "./payoutMath";
 import { releasableRetainageCents } from "./retainageMath";
-import { agreementContractSumCents } from "./sov";
+import { agreementContractSum } from "../billing/changeOrderView";
+import type { ContractSumBreakdown } from "./changeOrderMath";
 import { loadSovRows } from "../lib/sovLines";
 import { loadTranches } from "../lib/trancheRows";
 
-function ledgerAgreementSummary(a: Doc<"agreements">) {
+/** contractSumCents is the contract sum to date (original plus approved change orders). */
+function ledgerAgreementSummary(a: Doc<"agreements">, sum: ContractSumBreakdown) {
   return {
     _id: a._id,
     agreementNumber: a.agreementNumber,
@@ -27,7 +29,9 @@ function ledgerAgreementSummary(a: Doc<"agreements">) {
     tradeName: a.tradeName,
     status: a.status,
     retainagePercent: retainagePercentFor(a),
-    contractSumCents: agreementContractSumCents(a),
+    contractSumCents: sum.toDateCents,
+    originalContractSumCents: sum.originalCents,
+    netChangeOrdersCents: sum.netChangeCents,
     excludedScopeNotes: a.excludedScopeNotes ?? [],
     executedAt: a.executedAt ?? null,
   };
@@ -77,7 +81,8 @@ export const listLedgerAgreements = query({
   handler: async (ctx) => {
     await requireRole(ctx, ["gc", "sub"]);
     const { rows } = await scopedAgreements(ctx, { parties: ["gc", "sub"], limit: 200 });
-    return rows.filter((r) => r.agreement.status !== "superseded").map((r) => ledgerAgreementSummary(r.agreement));
+    const live = rows.filter((r) => r.agreement.status !== "superseded");
+    return await Promise.all(live.map(async (r) => ledgerAgreementSummary(r.agreement, await agreementContractSum(ctx, r.agreement))));
   },
 });
 
@@ -101,7 +106,7 @@ export const getAgreementLedger = query({
     const history = await loadAgreementHistory(ctx, id);
     const { payments, retainage, changeOrders } = history;
 
-    const summary = ledgerAgreementSummary(agreement);
+    const summary = ledgerAgreementSummary(agreement, await agreementContractSum(ctx, agreement));
     // Latest funding attempt per milestone (payments come back in creation order).
     const latestFunding = new Map<string, Doc<"payments">>();
     for (const p of payments) if (p.kind === "funding" && p.milestoneId) latestFunding.set(p.milestoneId, p);

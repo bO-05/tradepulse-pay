@@ -3,6 +3,7 @@ import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { action, env, internalAction, type ActionCtx } from "../_generated/server";
 import { toPayPalString } from "../lib/money";
+import { invoiceFailureMessage, payPalDebugIdOf } from "./invoiceSendError";
 import { requireProjectScopeInAction } from "../lib/tenancyAction";
 import { buildInvoiceBody, invoiceIdFromCreateResponse, payerViewUrlFor, type PayPalInvoice } from "./changeOrderMath";
 import type { BeginInvoice } from "./changeOrderDb";
@@ -34,13 +35,6 @@ const refreshResult = v.object({
   changed: v.boolean(),
 });
 type RefreshResult = Infer<typeof refreshResult>;
-
-function errorMessage(e: unknown): string {
-  if (e instanceof ConvexError && typeof e.data === "object" && e.data !== null && typeof e.data.message === "string") {
-    return e.data.message;
-  }
-  return e instanceof Error ? e.message : "Unknown error.";
-}
 
 async function getInvoice(paypal: PayPalClient, invoiceId: string): Promise<PayPalInvoice> {
   const { data } = await paypal.request<PayPalInvoice>({
@@ -109,9 +103,9 @@ async function invoiceChangeOrder(ctx: ActionCtx, changeOrderId: Id<"changeOrder
     });
     return { changeOrderId, status: recorded.status, paypalInvoiceId: invoiceId, payerViewUrl, alreadyInvoiced: false };
   } catch (e) {
-    const message = `Invoice not sent: ${errorMessage(e)}`;
+    const message = invoiceFailureMessage(e);
     await ctx.runMutation(internal.payments.changeOrderDb.recordInvoiceError, { changeOrderId, error: message });
-    throw new ConvexError({ code: "INVOICE_FAILED", message, paypalInvoiceId: invoiceId ?? null });
+    throw new ConvexError({ code: "INVOICE_FAILED", message, paypalInvoiceId: invoiceId ?? null, paypalDebugId: payPalDebugIdOf(e) });
   }
 }
 

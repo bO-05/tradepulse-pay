@@ -7,6 +7,7 @@ import type { Id } from "../_generated/dataModel";
 import schema from "../schema";
 import { signInAs } from "../lib/testIdentity";
 import { clearPayPalTokenCache } from "./paypalClient";
+import { INVOICE_AUTH_FLOW_MESSAGE } from "./invoiceSendError";
 
 const modules = import.meta.glob("/convex/**/*.ts");
 const OWNER_EMAIL = "owner-sandbox@paypal.test";
@@ -18,9 +19,9 @@ function fakeInvoicing() {
   const calls: Call[] = [];
   const invoices = new Map<string, { id: string; status: string; body: any }>();
   const byRequestId = new Map<string, string>();
-  const state = { n: 0, failSend: false, failCreate: false };
-  const json = (status: number, body: unknown) =>
-    new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+  const state = { n: 0, failSend: false, failCreate: false, authFlowSends: 0 };
+  const json = (status: number, body: unknown, headers: Record<string, string> = {}) =>
+    new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...headers } });
   const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
     const req = new Request(input, init);
     const url = new URL(req.url);
@@ -48,6 +49,14 @@ function fakeInvoicing() {
     if (req.method === "POST" && send) {
       const inv = invoices.get(send[1]);
       if (!inv) return json(404, { name: "RESOURCE_NOT_FOUND" });
+      if (state.authFlowSends > 0) {
+        state.authFlowSends -= 1;
+        return json(
+          422,
+          { name: "UNPROCESSABLE_ENTITY", details: [{ issue: "AUTH_FLOW_REQUIRED" }], debug_id: "dbg-authflow" },
+          { "paypal-debug-id": "dbg-authflow" },
+        );
+      }
       if (state.failSend) {
         state.failSend = false;
         return json(422, {
@@ -275,6 +284,30 @@ describe("change order invoices (legacy Invoice now on approved prime change ord
     const again = await gc.as.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId });
     expect(again.alreadyInvoiced).toBe(true);
     expect(fake.posts(/\/send$/)).toHaveLength(2);
+  });
+
+  test("AUTH_FLOW_REQUIRED on send: clear message, CO stays approved with its draft invoice, retry reuses that invoice", async () => {
+    const su = await setup();
+    const { t, gc } = su;
+    const changeOrderId = await approvedPrime(su, { title: "Lobby sconces", amountCents: 4_884_197 });
+    fake.state.authFlowSends = 2;
+    for (let i = 0; i < 2; i++) {
+      const err = await errorOf(gc.as.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId }));
+      expect(err.data.code).toBe("INVOICE_FAILED");
+      expect(err.data.message).toBe(INVOICE_AUTH_FLOW_MESSAGE);
+      expect((err.data as { paypalDebugId?: string }).paypalDebugId).toBe("dbg-authflow");
+      const [co] = await changeOrders(t);
+      expect(co).toMatchObject({ status: "approved", paypalInvoiceId: "INV2-TEST-1", error: INVOICE_AUTH_FLOW_MESSAGE });
+      expect(fake.invoices.get("INV2-TEST-1")!.status).toBe("DRAFT");
+    }
+    const audits = await t.run(async (ctx) => (await ctx.db.query("auditLogs").collect()).filter((a) => a.operation === "paypal.invoices.send"));
+    expect(audits).toHaveLength(2);
+    expect(audits.every((a) => a.paypalDebugId === "dbg-authflow")).toBe(true);
+
+    const retry = await gc.as.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId });
+    expect(retry).toMatchObject({ status: "invoiced", paypalInvoiceId: "INV2-TEST-1" });
+    expect(fake.posts(/^\/v2\/invoicing\/invoices$/)).toHaveLength(1);
+    expect(fake.invoices.size).toBe(1);
   });
 
   test("retry after the owner was removed is refused with the disabled reason; nothing goes to PayPal", async () => {

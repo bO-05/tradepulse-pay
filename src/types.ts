@@ -163,6 +163,9 @@ export interface Agreement {
   csiDivision: string;
   tradeName: string;
   contractSum: number;
+  /** Original contract sum and contract sum to date (original plus approved change orders), from listAgreements. */
+  originalContractSumCents?: number;
+  contractSumToDateCents?: number;
   retainagePercent: number;
   liquidatedDamagesDaily: number;
   scopeSummary: string;

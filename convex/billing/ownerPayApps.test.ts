@@ -7,6 +7,7 @@ import schema from "../schema";
 import { buildTenancyFixture } from "../lib/tenancyFixtures";
 import { insertTestSession } from "../lib/testIdentity";
 import { clearPayPalTokenCache } from "../payments/paypalClient";
+import { INVOICE_AUTH_FLOW_MESSAGE } from "../payments/invoiceSendError";
 
 const modules = import.meta.glob("/convex/**/*.ts");
 const NOT_FOUND = /Not found/;
@@ -22,7 +23,9 @@ function fakeInvoicing() {
   const invoices = new Map<string, { id: string; status: string; body: any }>();
   const byRequestId = new Map<string, string>();
   let n = 0;
-  const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+  const state = { authFlowSends: 0 };
+  const json = (status: number, body: unknown, headers: Record<string, string> = {}) =>
+    new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...headers } });
   const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
     const req = new Request(input, init);
     const url = new URL(req.url);
@@ -42,6 +45,14 @@ function fakeInvoicing() {
     }
     const send = url.pathname.match(/^\/v2\/invoicing\/invoices\/([^/]+)\/send$/);
     if (req.method === "POST" && send) {
+      if (state.authFlowSends > 0) {
+        state.authFlowSends -= 1;
+        return json(
+          422,
+          { name: "UNPROCESSABLE_ENTITY", details: [{ issue: "AUTH_FLOW_REQUIRED" }], debug_id: "dbg-opa-authflow" },
+          { "paypal-debug-id": "dbg-opa-authflow" },
+        );
+      }
       invoices.get(send[1])!.status = "SENT";
       return json(200, { href: `https://www.sandbox.paypal.com/invoice/p/#${send[1]}`, rel: "payer-view", method: "GET" });
     }
@@ -64,7 +75,7 @@ function fakeInvoicing() {
     return json(404, { name: "RESOURCE_NOT_FOUND" });
   });
   const posts = (re: RegExp) => calls.filter((c) => c.method === "POST" && re.test(c.path));
-  return { fetchImpl, calls, posts, invoices };
+  return { fetchImpl, calls, posts, invoices, state };
 }
 
 let fake: ReturnType<typeof fakeInvoicing>;
@@ -333,6 +344,27 @@ describe("owner pay app roll-up", () => {
     expect(replay).toMatchObject({ duplicate: true, changed: false });
     expect((await s.mendez.query(api.billing.ownerPayApps.getOwnerPayApp, { ownerPayAppId })).status).toBe("paid");
     expect((await notificationTitles(s, s.f.gcA.companyId)).filter((t) => t.startsWith("Owner paid"))).toHaveLength(2); // one per Bayview member
+  });
+
+  test("AUTH_FLOW_REQUIRED on send shows the clear message, keeps the app approved and not sent, and the GC retry reuses the draft invoice", async () => {
+    const s = await setup();
+    const { ownerPayAppId } = await ownerPayApp1(s);
+    const id = ownerPayAppId as Id<"ownerPayApps">;
+    await s.dana.mutation(api.billing.ownerPayApps.submitOwnerPayApp, { ownerPayAppId });
+    fake.state.authFlowSends = 2;
+    await expect(s.mendez.action(api.billing.ownerInvoices.approveOwnerPayApp, { ownerPayAppId: id })).rejects.toThrow(INVOICE_AUTH_FLOW_MESSAGE);
+    await expect(s.dana.action(api.billing.ownerInvoices.sendOwnerPayAppInvoice, { ownerPayAppId: id })).rejects.toThrow(INVOICE_AUTH_FLOW_MESSAGE);
+    const failed = await s.dana.query(api.billing.ownerPayApps.getOwnerPayApp, { ownerPayAppId });
+    expect(failed).toMatchObject({ status: "approved", paypalInvoiceId: "INV2-OPA-1", error: INVOICE_AUTH_FLOW_MESSAGE });
+    expect(failed.payerViewUrl ?? null).toBeNull();
+    expect(fake.invoices.get("INV2-OPA-1")!.status).toBe("DRAFT");
+    const sendAudits = await s.t.run(async (ctx) => (await ctx.db.query("auditLogs").collect()).filter((a) => a.operation === "paypal.invoices.send"));
+    expect(sendAudits.map((a) => a.paypalDebugId)).toEqual(["dbg-opa-authflow", "dbg-opa-authflow"]);
+
+    const retry = await s.dana.action(api.billing.ownerInvoices.sendOwnerPayAppInvoice, { ownerPayAppId: id });
+    expect(retry).toMatchObject({ status: "approved_invoiced", paypalInvoiceId: "INV2-OPA-1", alreadyInvoiced: false });
+    expect(fake.posts(/^\/v2\/invoicing\/invoices$/)).toHaveLength(1);
+    expect(fake.invoices.size).toBe(1);
   });
 
   test("the sandbox record-payment fallback moves it to Paid through refresh", async () => {

@@ -155,6 +155,18 @@ describe("subcontract change orders", () => {
     list = await s.kim.query(api.billing.changeOrders.listForAgreement, { agreementId: s.agreementId });
     expect(list!.contractSum).toMatchObject({ originalCents: 17_240_000, toDateCents: 18_115_000 });
     expect(list!.changeOrders[0]).toMatchObject({ status: "approved", sovLineNo: 9, canEdit: false });
+
+    // The ledger header, the payments list and the contracts register all show the contract sum to date.
+    for (const who of [s.dana, s.kim]) {
+      const ledger = await who.query(api.payments.ledger.getAgreementLedger, { agreementId: s.agreementId });
+      expect(ledger!.agreement).toMatchObject({ contractSumCents: 18_115_000, originalContractSumCents: 17_240_000, netChangeOrdersCents: 875_000 });
+      expect(ledger!.totals.contractSumCents).toBe(18_115_000);
+      expect(ledger!.totals.balanceCents).toBe(18_115_000 - ledger!.totals.paidCents - ledger!.totals.retainageHeldCents);
+      const rows = await who.query(api.payments.ledger.listLedgerAgreements, {});
+      expect(rows.find((r) => r._id === s.agreementId)).toMatchObject({ contractSumCents: 18_115_000, originalContractSumCents: 17_240_000 });
+    }
+    const register = await s.dana.query(api.agreements.listAgreements, { projectId: s.projectId });
+    expect(register.find((a) => a._id === s.agreementId)).toMatchObject({ originalContractSumCents: 17_240_000, contractSumToDateCents: 18_115_000 });
   });
 
   test("the next pay app carries the CO line and the G702 shows the net change", async () => {

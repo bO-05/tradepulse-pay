@@ -504,7 +504,7 @@ export class PayPalClient {
         ok: response.ok,
         attempts,
         paypalRequestId: requestId,
-        paypalDebugId: debugId,
+        paypalDebugId: debugId ?? error?.data.debugId,
         resourceId: response.ok ? resourceIdFrom(body) : undefined,
         errorName: error?.data.name,
         outcome: response.ok ? "succeeded" : "failed",

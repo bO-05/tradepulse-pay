@@ -59,12 +59,12 @@ describe("SOV CSV import", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.errors).toHaveLength(6);
-    expect(result.errors[0]).toMatch(/^Row 3: description is required/);
-    expect(result.errors[1]).toBe("Row 4: scheduled value is not a number.");
-    expect(result.errors[2]).toMatch(/^Row 5: scheduled value can't be negative/);
-    expect(result.errors[3]).toMatch(/^Row 6: description is longer than 200 characters/);
-    expect(result.errors[4]).toMatch(/^Row 7: CSI code is longer than 32 characters/);
-    expect(result.errors[5]).toMatch(/^Row 8: scheduled value has more than two decimals/);
+    expect(result.errors[0]).toMatch(/^Row 4: description is required/);
+    expect(result.errors[1]).toBe("Row 5: scheduled value is not a number.");
+    expect(result.errors[2]).toMatch(/^Row 6: scheduled value can't be negative/);
+    expect(result.errors[3]).toMatch(/^Row 7: description is longer than 200 characters/);
+    expect(result.errors[4]).toMatch(/^Row 8: CSI code is longer than 32 characters/);
+    expect(result.errors[5]).toMatch(/^Row 9: scheduled value has more than two decimals/);
   });
 
   test("rejects files over 2 MB before reading them", async () => {
@@ -86,21 +86,21 @@ describe("SOV CSV import", () => {
     const result = await parseSovCsvText(text);
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.errors).toEqual(["Row 2: has 5 columns but the header has 4 (quote amounts that contain commas)."]);
+    expect(result.errors).toEqual(["Row 3: has 5 columns but the header has 4 (quote amounts that contain commas)."]);
     expect(result.message).toMatch(/^Nothing was imported/);
   });
 
   test("refuses a row with fewer cells than the header", async () => {
     const result = await parseSovCsvText([HEADER, "1,Mobilization,26 01 00,8500.00", "2,Lighting,100.00"].join("\n"));
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errors).toEqual(["Row 2: has 3 columns but the header has 4."]);
+    if (!result.ok) expect(result.errors).toEqual(["Row 3: has 3 columns but the header has 4."]);
   });
 
   test("refuses an unterminated quoted amount", async () => {
     const result = await parseSovCsvText([HEADER, "1,Mobilization,26 01 00,8500.00", '2,Lighting,26 51 00,"38200.00'].join("\n"));
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.errors.some((e) => /^Row 2: .*quote/i.test(e))).toBe(true);
+    expect(result.errors.some((e) => /^Row 3: .*quote/i.test(e))).toBe(true);
   });
 
   test("requires the header", async () => {
@@ -159,9 +159,21 @@ describe("SOV XLSX import", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.errors).toEqual([
-      "Row 3: formula cells are not allowed (cell B4).",
-      "Row 5: formula cells are not allowed (cell D6).",
+      "Row 4: formula cells are not allowed (cell B4).",
+      "Row 6: formula cells are not allowed (cell D6).",
     ]);
+  });
+
+  test("the first SOV row under the header is spreadsheet row 2, matching its cell reference", async () => {
+    const data = sovXlsxSheetData(EXAMPLE);
+    data[1][1] = { value: "1+1", type: "Formula" };
+    const result = await parseSovXlsxBytes(await xlsxBytes(data));
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors).toEqual(["Row 2: formula cells are not allowed (cell B2)."]);
+    const csv = await parseSovCsvText([HEADER, "1,,26 01 00,8500.00"].join("\n"));
+    expect(csv.ok).toBe(false);
+    if (!csv.ok) expect(csv.errors[0]).toMatch(/^Row 2: description is required/);
   });
 
   test("rejects formula cells written with a SpreadsheetML namespace prefix", async () => {
@@ -183,7 +195,7 @@ describe("SOV XLSX import", () => {
     const result = await parseSovXlsxBytes(zipSync(files));
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.errors).toEqual(["Row 5: formula cells are not allowed (cell D6)."]);
+    expect(result.errors).toEqual(["Row 6: formula cells are not allowed (cell D6)."]);
   });
 
   test("rejects a formula in a cell without an r attribute", async () => {
