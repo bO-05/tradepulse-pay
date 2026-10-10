@@ -16,6 +16,7 @@ import {
   projectStartMs,
   type TrancheCheck,
 } from "./trancheRules";
+import { loadSovRows } from "../lib/sovLines";
 
 /**
  * GC-defined funding tranches (architecture §16), stored as `milestones` rows. The GC adds, renames,
@@ -50,10 +51,7 @@ export async function isTrancheLocked(ctx: QueryCtx, tranche: Doc<"milestones">)
 
 /** Contract sum to date: the schedule of values total, which approved change orders add lines to. */
 export async function contractSumToDateCents(ctx: QueryCtx, agreementId: Id<"agreements">): Promise<number> {
-  const lines = await ctx.db
-    .query("scheduleOfValues")
-    .withIndex("by_agreementId_and_lineNo", (q) => q.eq("agreementId", agreementId))
-    .take(500);
+  const lines = await loadSovRows(ctx, agreementId);
   return lines.reduce((acc, l) => acc + l.scheduledValueCents, 0);
 }
 

@@ -15,6 +15,7 @@ import {
 } from "../lib/sovRules";
 import { agreementContractSumCents, sovIsApproved } from "../payments/sov";
 import { buildSovLines, sovSourceFingerprint } from "../payments/sovMath";
+import { assertBaseLineCapacity, loadSovRows } from "../lib/sovLines";
 
 /**
  * The GC's schedule-of-values editor (§16). Draft lines are prefilled from the award and edited,
@@ -23,10 +24,7 @@ import { buildSovLines, sovSourceFingerprint } from "../payments/sovMath";
  */
 
 async function loadLines(ctx: QueryCtx, agreementId: Id<"agreements">): Promise<Doc<"scheduleOfValues">[]> {
-  const rows = await ctx.db
-    .query("scheduleOfValues")
-    .withIndex("by_agreementId_and_lineNo", (q) => q.eq("agreementId", agreementId))
-    .take(SOV_MAX_ROWS + 100);
+  const rows = await loadSovRows(ctx, agreementId);
   return rows.sort((a, b) => a.lineNo - b.lineNo || a._creationTime - b._creationTime);
 }
 
@@ -314,6 +312,7 @@ export const resetSovFromBid = mutation({
       csiDivision: agreement.csiDivision,
       tradeName: agreement.tradeName,
     });
+    assertBaseLineCapacity(drafts.length);
     await replaceLines(
       ctx,
       agreement,

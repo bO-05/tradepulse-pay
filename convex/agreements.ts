@@ -1,6 +1,6 @@
 import { mutation, query, type MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import { SOV_MAX_ROWS, sumSovCents } from "./lib/sovRules";
+import { sumSovCents } from "./lib/sovRules";
 import { auditActor, partyMaySeeContractor, requireDocOfProject, requireDocScope, requireProjectScope } from "./lib/projectScope";
 import { v, ConvexError } from "convex/values";
 import { validateProjectText } from "./validation";
@@ -15,8 +15,15 @@ import {
 import { draftFromTerms, firstTermsError, validateAgreementTerms } from "./lib/agreementTerms";
 import { formatCents } from "./lib/money";
 import { acceptedIndexesFor, agreementAwardFields, computeAwardSum, excludedScopeNotesFor } from "./lib/awardMath";
-import { agreementContractSumCents, ensureSovAndMilestones, hasMoneyActivity, removeSovAndMilestonesIfUnbilled } from "./payments/sov";
+import {
+  agreementContractSumCents,
+  ensureSovAndMilestones,
+  hasMoneyActivity,
+  removeSovAndMilestonesIfUnbilled,
+  sovIsApproved,
+} from "./payments/sov";
 import { contractorCanBidOnPackage } from "./lib/packageContractors";
+import { loadSovRows } from "./lib/sovLines";
 
 /**
  * Awards a bid and generates its subcontract draft (AIA-style terms, not an AIA form). Terms default
@@ -107,9 +114,15 @@ export const generateAgreement = mutation({
         mandatoryInclusions: tradePkg.mandatoryInclusions,
       });
       await refreshAgreementDocument(ctx, existing._id);
-      await removeSovAndMilestonesIfUnbilled(ctx, existing._id);
-      // A re-award starts a fresh draft SOV prefilled from the newly selected bid.
-      if (!(await hasMoneyActivity(ctx, existing._id))) await ctx.db.patch(existing._id, { sov: { status: "draft" } });
+      if (sovIsApproved(existing)) {
+        // The approval lock covers regeneration too: approved lines are kept, and only a contract sum
+        // that no longer matches them sends the SOV back to draft (lines intact) for the GC to reconcile.
+        await reopenSovIfSumChanged(ctx, existing._id);
+      } else {
+        await removeSovAndMilestonesIfUnbilled(ctx, existing._id);
+        // A re-award starts a fresh draft SOV prefilled from the newly selected bid.
+        if (!(await hasMoneyActivity(ctx, existing._id))) await ctx.db.patch(existing._id, { sov: { status: "draft" } });
+      }
       await ensureSovAndMilestones(ctx, existing._id);
 
       await ctx.db.insert("auditLogs", {
@@ -219,7 +232,9 @@ export const voidExecutedAgreement = mutation({
     }
 
     await ctx.db.patch(args.agreementId, { status: "superseded" });
-    await removeSovAndMilestonesIfUnbilled(ctx, args.agreementId);
+    const { removed } = await removeSovAndMilestonesIfUnbilled(ctx, args.agreementId);
+    // With its lines gone, no approval is left to honour; a later re-award prefills a fresh draft.
+    if (removed) await ctx.db.patch(args.agreementId, { sov: { status: "draft" } });
     const bid = await ctx.db.get(agreement.bidId);
     if (bid) await ctx.db.patch(bid._id, { isAwarded: false });
     const pkg = await ctx.db.get(agreement.tradePackageId);
@@ -511,10 +526,7 @@ export async function syncAgreementForBid(ctx: any, bidId: any): Promise<any> {
 async function reopenSovIfSumChanged(ctx: MutationCtx, agreementId: Id<"agreements">): Promise<void> {
   const agreement = await ctx.db.get(agreementId);
   if (agreement === null || agreement.sov?.status !== "approved" || agreement.status === "executed") return;
-  const rows = await ctx.db
-    .query("scheduleOfValues")
-    .withIndex("by_agreementId_and_lineNo", (q) => q.eq("agreementId", agreementId))
-    .take(SOV_MAX_ROWS + 50);
+  const rows = await loadSovRows(ctx, agreementId);
   if (sumSovCents(rows) === agreementContractSumCents(agreement)) return;
   await ctx.db.patch(agreementId, {
     sov: { status: "draft", ...(agreement.sov.editedAt !== undefined ? { editedAt: agreement.sov.editedAt } : {}) },

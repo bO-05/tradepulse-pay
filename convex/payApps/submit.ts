@@ -16,6 +16,7 @@ import { billingPayAppHistory } from "./billingHistory";
 import { sovIsApproved } from "../payments/sov";
 import { SOV_NOT_APPROVED_MESSAGE } from "../lib/sovRules";
 import { notifyPayAppSubmitted } from "./g703";
+import { loadSovRows } from "../lib/sovLines";
 
 function assertSovApproved(agreement: Doc<"agreements">): void {
   if (!sovIsApproved(agreement)) {
@@ -24,10 +25,7 @@ function assertSovApproved(agreement: Doc<"agreements">): void {
 }
 
 async function sovContext(ctx: QueryCtx, agreementId: Id<"agreements">) {
-  const sov = await ctx.db
-    .query("scheduleOfValues")
-    .withIndex("by_agreementId_and_lineNo", (q) => q.eq("agreementId", agreementId))
-    .take(500);
+  const sov = await loadSovRows(ctx, agreementId);
   const baseline = sovBaselineByLine(await billingPayAppHistory(ctx, agreementId), sov);
   return sov.map((s) => {
     const b = baseline.get(s._id)!;

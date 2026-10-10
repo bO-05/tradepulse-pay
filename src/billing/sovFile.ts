@@ -114,7 +114,42 @@ export async function parseSovCsvText(text: string): Promise<SovImportResult> {
   const Papa = (await import("papaparse")).default;
   const result = Papa.parse<string[]>(text.replace(/^\uFEFF/, ""), { skipEmptyLines: false });
   const raw = result.data.map((cells, i) => ({ rowNumber: i + 1, cells }));
+  const problems = csvStructureProblems(raw, result.errors);
+  if (problems) return problems;
   return rowsToSovLines(raw);
+}
+
+const CSV_ERROR_TEXT: Record<string, string> = {
+  MissingQuotes: "a quoted value is missing its closing quote",
+  InvalidQuotes: "a quoted value has a stray quote",
+  UndetectableDelimiter: "the column separator could not be detected",
+};
+
+/**
+ * CSV-only checks that run before any value is read: parser errors and rows whose cell count
+ * differs from the header. Either refuses the whole file, so a misplaced comma (an unquoted
+ * `38,200.00`) can never shift an amount into a different column.
+ */
+function csvStructureProblems(raw: RawRow[], parseErrors: { code: string; message: string; row?: number }[]): SovImportResult | null {
+  const isBlank = (r: RawRow) => r.cells.every((c) => cellText(c).trim() === "");
+  const headerRow = raw.find((r) => !isBlank(r));
+  if (!headerRow) return null;
+  const label = (rowNumber: number) => (rowNumber === headerRow.rowNumber ? "Header row" : `Row ${rowNumber - headerRow.rowNumber}`);
+  const byRow = new Map<number, string[]>();
+  const add = (rowNumber: number, problem: string) => byRow.set(rowNumber, [...(byRow.get(rowNumber) ?? []), problem]);
+  for (const e of parseErrors) {
+    const rowNumber = typeof e.row === "number" ? e.row + 1 : headerRow.rowNumber;
+    add(rowNumber, CSV_ERROR_TEXT[e.code] ?? e.message);
+  }
+  const width = headerRow.cells.length;
+  for (const row of raw) {
+    if (row === headerRow || isBlank(row) || row.cells.length === width) continue;
+    const hint = row.cells.length > width ? " (quote amounts that contain commas)" : "";
+    add(row.rowNumber, `has ${row.cells.length} columns but the header has ${width}${hint}`);
+  }
+  if (byRow.size === 0) return null;
+  const errors = [...byRow].sort((a, b) => a[0] - b[0]).map(([rowNumber, list]) => `${label(rowNumber)}: ${list.join("; ")}.`);
+  return fail(`Nothing was imported. Fix ${errors.length === 1 ? "this row" : `these ${errors.length} rows`} and try again.`, errors);
 }
 
 export async function parseSovCsv(file: File): Promise<SovImportResult> {
@@ -123,13 +158,32 @@ export async function parseSovCsv(file: File): Promise<SovImportResult> {
   return parseSovCsvText(await file.text());
 }
 
-function columnLetters(ref: string): string {
-  return ref.replace(/\d+$/, "");
+function columnIndex(letters: string): number {
+  let n = 0;
+  for (const ch of letters) n = n * 26 + (ch.charCodeAt(0) - 64);
+  return n;
+}
+
+function columnName(index: number): string {
+  let name = "";
+  for (let n = index; n > 0; n = Math.floor((n - 1) / 26)) name = String.fromCharCode(65 + ((n - 1) % 26)) + name;
+  return name;
+}
+
+/**
+ * Element tags by local name, whatever namespace prefix they carry (`<c>`, `<x:c>`, `</x:f>`).
+ * read-excel-file drops prefixes too, so any prefix is treated as SpreadsheetML.
+ */
+const XML_TAG = /<(\/?)(?:[A-Za-z_][\w.-]*:)?([A-Za-z_][\w.-]*)((?:\s[^>]*?)?)(\/?)>/g;
+
+function xmlAttr(attrs: string, name: string): string | undefined {
+  return new RegExp(`(?:^|\\s)(?:[A-Za-z_][\\w.-]*:)?${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`).exec(attrs)?.slice(1).find((v) => v !== undefined);
 }
 
 /**
  * Row number -> cell refs holding a formula in the first worksheet. read-excel-file returns a
- * formula's cached result, so formulas are found by reading the sheet XML directly.
+ * formula's cached result, so formulas are found by reading the sheet XML directly. Cells and rows
+ * without an `r` attribute take the position after the previous one, as spreadsheet readers do.
  */
 export async function findXlsxFormulaCells(bytes: Uint8Array): Promise<Map<number, string[]>> {
   const { unzipSync, strFromU8 } = await import("fflate");
@@ -137,26 +191,50 @@ export async function findXlsxFormulaCells(bytes: Uint8Array): Promise<Map<numbe
   const workbook = files["xl/workbook.xml"] ? strFromU8(files["xl/workbook.xml"]) : "";
   const rels = files["xl/_rels/workbook.xml.rels"] ? strFromU8(files["xl/_rels/workbook.xml.rels"]) : "";
   let sheetPath = "xl/worksheets/sheet1.xml";
-  const firstSheetRid = /<sheet\b[^>]*\br:id="([^"]+)"/.exec(workbook)?.[1];
+  let firstSheetRid: string | undefined;
+  for (const m of workbook.matchAll(XML_TAG)) {
+    if (m[1] === "" && m[2] === "sheet") {
+      firstSheetRid = xmlAttr(m[3], "id");
+      break;
+    }
+  }
   if (firstSheetRid) {
-    const relRe = /<Relationship\b[^>]*>/g;
-    for (const rel of rels.match(relRe) ?? []) {
-      if (rel.includes(`Id="${firstSheetRid}"`)) {
-        const target = /Target="([^"]+)"/.exec(rel)?.[1];
-        if (target) sheetPath = target.startsWith("/") ? target.slice(1) : `xl/${target.replace(/^\.\//, "")}`;
-      }
+    for (const m of rels.matchAll(XML_TAG)) {
+      if (m[1] !== "" || m[2] !== "Relationship" || xmlAttr(m[3], "Id") !== firstSheetRid) continue;
+      const target = xmlAttr(m[3], "Target");
+      if (target) sheetPath = target.startsWith("/") ? target.slice(1) : `xl/${target.replace(/^\.\//, "")}`;
     }
   }
   const sheet = files[sheetPath] ? strFromU8(files[sheetPath]) : "";
   const found = new Map<number, string[]>();
-  const cellRe = /<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g;
-  for (const match of sheet.matchAll(cellRe)) {
-    const body = match[2] ?? "";
-    if (!/<f\b/.test(body)) continue;
-    const ref = /\br="([A-Z]+)(\d+)"/.exec(match[1]);
-    if (!ref) continue;
-    const rowNumber = Number(ref[2]);
-    found.set(rowNumber, [...(found.get(rowNumber) ?? []), `${columnLetters(ref[1])}${rowNumber}`]);
+  let inSheetData = false;
+  let rowNumber = 0;
+  let colNumber = 0;
+  let cell: { row: number; col: number } | null = null;
+  let cellHasFormula = false;
+  for (const m of sheet.matchAll(XML_TAG)) {
+    const [, closing, local, attrs, selfClosing] = m;
+    if (local === "sheetData") {
+      inSheetData = closing === "" && selfClosing === "";
+      continue;
+    }
+    if (!inSheetData) continue;
+    if (local === "row" && closing === "") {
+      const r = Number(xmlAttr(attrs, "r"));
+      rowNumber = Number.isInteger(r) && r > 0 ? r : rowNumber + 1;
+      colNumber = 0;
+    } else if (local === "c" && closing === "") {
+      const ref = /^([A-Za-z]+)(\d+)$/.exec(xmlAttr(attrs, "r") ?? "");
+      colNumber = ref ? columnIndex(ref[1].toUpperCase()) : colNumber + 1;
+      cell = { row: ref ? Number(ref[2]) : rowNumber, col: colNumber };
+      cellHasFormula = false;
+      if (selfClosing) cell = null;
+    } else if (local === "f" && closing === "" && cell) {
+      cellHasFormula = true;
+    } else if (local === "c" && closing === "/" && cell) {
+      if (cellHasFormula) found.set(cell.row, [...(found.get(cell.row) ?? []), `${columnName(cell.col)}${cell.row}`]);
+      cell = null;
+    }
   }
   return found;
 }

@@ -427,6 +427,44 @@ describe("document access", () => {
     await expect(s.dana.mutation(api.documents.documents.requestDocument, { kind: "sub_pay_app_pdf", relatedId: payAppId })).rejects.toThrow(NOT_FOUND);
   });
 
+  test("a draft SOV CSV stays with the GC: the sub cannot generate, list, get or download it", async () => {
+    const s = await setup();
+    await s.t.run(async (ctx) => {
+      await ctx.db.patch(s.agreementId, { sov: { status: "draft" } });
+      await ctx.db.patch(s.sov[7], { scheduledValueCents: 499_900, description: "Draft-only closeout" });
+    });
+    const draft = await documentFor(s, s.dana, "sov_csv", s.agreementId);
+    expect(new TextDecoder().decode(await bytesOf(s.t, draft._id))).toContain("Draft-only closeout");
+    const subRefusals = [
+      () => s.kim.mutation(api.documents.documents.requestDocument, { kind: "sov_csv", relatedId: s.agreementId }),
+      () => s.kim.query(api.documents.documents.getDocument, { documentId: draft._id }),
+    ];
+    for (const call of subRefusals) await expect(call()).rejects.toThrow(NOT_FOUND);
+    expect((await s.kim.query(api.documents.documents.listDocuments, { projectId: s.projectId })).documents.map((d) => d.kind)).not.toContain("sov_csv");
+    const res = await s.kim.fetch(draft.downloadPath, { method: "GET" });
+    expect(res.status).toBe(404);
+    expect(await res.text()).toBe("Not found.");
+    expect((await s.kim.query(api.payApps.g703.mySubPayAppAgreements, {}))[0].sovApproved).toBe(false);
+
+    // After approval of different lines, the earlier draft file is still the GC's alone; the sub gets the approved one.
+    await s.t.run(async (ctx) => {
+      await ctx.db.patch(s.sov[7], { scheduledValueCents: 500_000, description: "Testing, closeout & as-builts" });
+      await ctx.db.patch(s.agreementId, { sov: { status: "approved", approvedAt: Date.now(), approvedByName: "Dana" } });
+    });
+    await expect(s.kim.query(api.documents.documents.getDocument, { documentId: draft._id })).rejects.toThrow(NOT_FOUND);
+    expect((await s.kim.fetch(draft.downloadPath, { method: "GET" })).status).toBe(404);
+    expect((await s.kim.query(api.documents.documents.listDocuments, { projectId: s.projectId })).documents).toEqual([]);
+    expect((await s.dana.fetch(draft.downloadPath, { method: "GET" })).status).toBe(200);
+    const approved = await documentFor(s, s.kim, "sov_csv", s.agreementId);
+    expect(approved._id).not.toBe(draft._id);
+    const approvedRes = await s.kim.fetch(approved.downloadPath, { method: "GET" });
+    expect(approvedRes.status).toBe(200);
+    const text = await approvedRes.text();
+    expect(text).not.toContain("Draft-only");
+    expect(text).toContain("Testing, closeout & as-builts");
+    expect((await s.kim.query(api.payApps.g703.mySubPayAppAgreements, {}))[0].sovApproved).toBe(true);
+  });
+
   test("document lists and gets return ids and metadata, never a storage URL", async () => {
     const s = await workedExample();
     await documentFor(s, s.dana, "sub_pay_app_pdf", s.app2);

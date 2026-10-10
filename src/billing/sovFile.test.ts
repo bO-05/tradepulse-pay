@@ -1,8 +1,8 @@
 import { describe, expect, test } from "vitest";
 import writeXlsxFile, { type SheetData } from "write-excel-file/universal";
-import { unzipSync, strFromU8 } from "fflate";
+import { unzipSync, strFromU8, strToU8, zipSync } from "fflate";
 import { SOV_FILE_TOO_LARGE, SOV_MAX_FILE_BYTES } from "../../convex/lib/sovRules";
-import { parseSovCsv, parseSovCsvText, parseSovFile, parseSovXlsxBytes, sovToCsv, sovXlsxSheetData, type SovExportLine } from "./sovFile";
+import { findXlsxFormulaCells, parseSovCsv, parseSovCsvText, parseSovFile, parseSovXlsxBytes, sovToCsv, sovXlsxSheetData, type SovExportLine } from "./sovFile";
 
 const EXAMPLE: SovExportLine[] = [
   { lineNo: 1, description: "Mobilization & submittals", csiCode: "26 01 00", scheduledValueCents: 850_000 },
@@ -81,6 +81,28 @@ describe("SOV CSV import", () => {
     if (!result.ok) expect(result.message).toContain("1,000 rows");
   });
 
+  test("refuses a row with more cells than the header (unquoted 1,000 amount) and imports nothing", async () => {
+    const text = [HEADER, "1,Mobilization,26 01 00,8500.00", "2,Lighting,26 51 00,38,200.00", "3,Trim,26 27 26,100.00"].join("\n");
+    const result = await parseSovCsvText(text);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors).toEqual(["Row 2: has 5 columns but the header has 4 (quote amounts that contain commas)."]);
+    expect(result.message).toMatch(/^Nothing was imported/);
+  });
+
+  test("refuses a row with fewer cells than the header", async () => {
+    const result = await parseSovCsvText([HEADER, "1,Mobilization,26 01 00,8500.00", "2,Lighting,100.00"].join("\n"));
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors).toEqual(["Row 2: has 3 columns but the header has 4."]);
+  });
+
+  test("refuses an unterminated quoted amount", async () => {
+    const result = await parseSovCsvText([HEADER, "1,Mobilization,26 01 00,8500.00", '2,Lighting,26 51 00,"38200.00'].join("\n"));
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors.some((e) => /^Row 2: .*quote/i.test(e))).toBe(true);
+  });
+
   test("requires the header", async () => {
     const result = await parseSovCsvText("1,Mobilization,26 01 00,8500.00");
     expect(result.ok).toBe(false);
@@ -140,6 +162,39 @@ describe("SOV XLSX import", () => {
       "Row 3: formula cells are not allowed (cell B4).",
       "Row 5: formula cells are not allowed (cell D6).",
     ]);
+  });
+
+  test("rejects formula cells written with a SpreadsheetML namespace prefix", async () => {
+    const data = sovXlsxSheetData(EXAMPLE);
+    data[5][3] = { value: "1000*2", type: "Formula" };
+    const files = unzipSync(await xlsxBytes(data));
+    const plain = strFromU8(files["xl/worksheets/sheet1.xml"]);
+    expect(plain).toMatch(/<f>/);
+    const prefixed = plain
+      .replace(/<(\/?)(worksheet|sheetData|row|c|f|v|is|t|cols|col|sheetViews|sheetView|sheetFormatPr|pageMargins)\b/g, "<$1x:$2")
+      .replace(/<x:worksheet\b([^>]*?)\sxmlns="([^"]+)"/, '<x:worksheet$1 xmlns:x="$2"');
+    expect(prefixed).toMatch(/<x:f>1000\*2<\/x:f>/);
+    expect(prefixed).not.toMatch(/<f>/);
+    const workbook = strFromU8(files["xl/workbook.xml"])
+      .replace(/<(\/?)(workbook|sheets|sheet|bookViews|workbookView|workbookPr)\b/g, "<$1x:$2")
+      .replace(/<x:workbook\b([^>]*?)\sxmlns="([^"]+)"/, '<x:workbook$1 xmlns:x="$2"');
+    files["xl/worksheets/sheet1.xml"] = strToU8(prefixed);
+    files["xl/workbook.xml"] = strToU8(workbook);
+    const result = await parseSovXlsxBytes(zipSync(files));
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors).toEqual(["Row 5: formula cells are not allowed (cell D6)."]);
+  });
+
+  test("rejects a formula in a cell without an r attribute", async () => {
+    const data = sovXlsxSheetData(EXAMPLE);
+    data[5][3] = { value: "1000*2", type: "Formula" };
+    const files = unzipSync(await xlsxBytes(data));
+    files["xl/worksheets/sheet1.xml"] = strToU8(strFromU8(files["xl/worksheets/sheet1.xml"]).replace(/<c r="D6"/, "<c"));
+    const bytes = zipSync(files);
+    expect(await findXlsxFormulaCells(bytes)).toEqual(new Map([[6, ["D6"]]]));
+    const result = await parseSovXlsxBytes(bytes);
+    expect(result.ok).toBe(false);
   });
 
   test("a non-workbook file is refused without crashing", async () => {

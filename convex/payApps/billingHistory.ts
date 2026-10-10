@@ -4,6 +4,7 @@ import type { QueryCtx } from "../_generated/server";
 import { effectiveAmount } from "../agent/proposalMath";
 import { allocateApprovedTotal, type AllocationResult } from "./approvalAllocation";
 import { APPROVED_PAY_APP_STATUSES, BILLING_PAY_APP_STATUSES, committedCents, priorBillingByLine } from "./validation";
+import { loadSovRows } from "../lib/sovLines";
 
 /**
  * Upper bound on billing pay apps read for one agreement. Past it the history is refused rather
@@ -141,10 +142,7 @@ export async function billingPayAppHistory(ctx: QueryCtx, agreementId: Id<"agree
 }
 
 async function agreementSov(ctx: QueryCtx, agreementId: Id<"agreements">) {
-  return await ctx.db
-    .query("scheduleOfValues")
-    .withIndex("by_agreementId_and_lineNo", (q) => q.eq("agreementId", agreementId))
-    .take(500);
+  return await loadSovRows(ctx, agreementId);
 }
 
 /**

@@ -128,6 +128,7 @@ import type * as lib_rfiAnswerEmail from "../lib/rfiAnswerEmail.js";
 import type * as lib_rfqEmail from "../lib/rfqEmail.js";
 import type * as lib_roles from "../lib/roles.js";
 import type * as lib_session from "../lib/session.js";
+import type * as lib_sovLines from "../lib/sovLines.js";
 import type * as lib_sovRules from "../lib/sovRules.js";
 import type * as lib_subcontractText from "../lib/subcontractText.js";
 import type * as lib_teammateInvites from "../lib/teammateInvites.js";
@@ -352,6 +353,7 @@ declare const fullApi: ApiFromModules<{
   "lib/rfqEmail": typeof lib_rfqEmail;
   "lib/roles": typeof lib_roles;
   "lib/session": typeof lib_session;
+  "lib/sovLines": typeof lib_sovLines;
   "lib/sovRules": typeof lib_sovRules;
   "lib/subcontractText": typeof lib_subcontractText;
   "lib/teammateInvites": typeof lib_teammateInvites;

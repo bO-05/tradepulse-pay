@@ -5,6 +5,8 @@ import { formatCents } from "../lib/money";
 import { notify } from "../lib/notify";
 import { auditActor, callerProjects, findDocScope, requireDocScope, requireProjectScope } from "../lib/projectScope";
 import { requireRole } from "../lib/roles";
+import { loadSovRows } from "../lib/sovLines";
+import { SOV_CAPACITY_MESSAGE, SOV_MAX_TOTAL_LINES } from "../lib/sovRules";
 import { notFound, type ProjectAccess } from "../lib/tenancy";
 import { g703Context } from "../payApps/g703";
 import {
@@ -506,6 +508,9 @@ export async function approveSubcontract(ctx: MutationCtx, access: ProjectAccess
   const preview = await approvalPreviewFor(ctx, agreement, co);
   if (preview.floorProblem !== null) throw new ConvexError({ code: "DEDUCTIVE_FLOOR", message: preview.floorProblem });
   const label = labelOf(co);
+  if ((await loadSovRows(ctx, agreement._id)).length >= SOV_MAX_TOTAL_LINES) {
+    throw new ConvexError({ code: "SOV_CAPACITY", message: `${SOV_CAPACITY_MESSAGE} ${label} cannot add another line.` });
+  }
   const title = co.title ?? co.description;
   const sovLineId = await ctx.db.insert("scheduleOfValues", {
     agreementId: agreement._id,

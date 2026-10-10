@@ -6,6 +6,16 @@ import { formatCents } from "./money";
 
 export const SOV_MAX_FILE_BYTES = 2 * 1024 * 1024;
 export const SOV_MAX_ROWS = 1000;
+/**
+ * Supported SOV capacity per agreement: up to SOV_MAX_ROWS base lines (editor, import, bid prefill)
+ * plus up to SOV_MAX_CHANGE_ORDER_LINES lines appended by approved change orders. Every billing,
+ * funding, cleanup and export read loads the whole SOV within this capacity or refuses; none truncates.
+ */
+export const SOV_MAX_CHANGE_ORDER_LINES = 200;
+export const SOV_MAX_TOTAL_LINES = SOV_MAX_ROWS + SOV_MAX_CHANGE_ORDER_LINES;
+export const SOV_CAPACITY_MESSAGE = `A schedule of values can have at most ${SOV_MAX_TOTAL_LINES.toLocaleString("en-US")} lines (${SOV_MAX_ROWS.toLocaleString(
+  "en-US",
+)} base lines plus ${SOV_MAX_CHANGE_ORDER_LINES} change-order lines).`;
 export const SOV_MAX_DESCRIPTION = 200;
 export const SOV_MAX_CSI = 32;
 /** $1,000,000,000.00 per line. */

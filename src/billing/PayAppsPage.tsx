@@ -125,7 +125,7 @@ function AgreementPayApps({ row }: { row: AgreementRow }) {
       ) : null}
       <div className="mt-3 flex flex-wrap items-start gap-2 border-t border-line pt-3" data-testid="sub-agreement-documents">
         <DocumentDownloadButton kind="subcontract_pdf" relatedId={row.agreementId} label="Subcontract PDF" variant="ghost" />
-        <DocumentDownloadButton kind="sov_csv" relatedId={row.agreementId} label="SOV CSV" variant="ghost" />
+        {row.sovApproved ? <DocumentDownloadButton kind="sov_csv" relatedId={row.agreementId} label="SOV CSV" variant="ghost" /> : null}
         <DocumentDownloadButton kind="retainage_ledger_csv" relatedId={row.agreementId} label="Retainage CSV" variant="ghost" />
       </div>
     </Card>

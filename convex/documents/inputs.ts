@@ -11,6 +11,7 @@ import { formatIsoDate, formatPercentHundredths, g703Line, isoDate, percentHundr
 import { DOCUMENT_KINDS, type DocumentKind } from "./kinds";
 import type { G702Figures, LoadedDocument, SheetLine, SheetTotals } from "./inputTypes";
 import { fileSlug } from "./pdfText";
+import { loadSovRows } from "../lib/sovLines";
 
 /**
  * Loads the plain-data input of a document from the database (no authorization here: callers
@@ -298,10 +299,7 @@ async function subcontractDocument(ctx: QueryCtx, agreement: Doc<"agreements">):
 }
 
 async function sovDocument(ctx: QueryCtx, agreement: Doc<"agreements">): Promise<LoadedDocument> {
-  const rows = await ctx.db
-    .query("scheduleOfValues")
-    .withIndex("by_agreementId_and_lineNo", (q) => q.eq("agreementId", agreement._id))
-    .take(1000);
+  const rows = await loadSovRows(ctx, agreement._id);
   return {
     projectId: agreement.projectId,
     fileName: `${fileSlug(agreement.agreementNumber)}-sov.csv`,

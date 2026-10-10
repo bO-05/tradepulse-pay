@@ -12,6 +12,7 @@ import { projectGcCompanyName } from "../lib/gcCompanyName";
 import { buildReviewContext } from "./reviewContext";
 import type { ReviewContext } from "./reviewMath";
 import { runPayAppReview, type ReviewRun } from "./reviewModel";
+import { loadSovRows } from "../lib/sovLines";
 
 type ReviewInputs = {
   context: ReviewContext;
@@ -34,10 +35,7 @@ export const loadReviewInputs = internalQuery({
     if (payApp === null) return null;
     const agreement = await ctx.db.get(payApp.agreementId);
     if (agreement === null) return null;
-    const sov = await ctx.db
-      .query("scheduleOfValues")
-      .withIndex("by_agreementId_and_lineNo", (q) => q.eq("agreementId", agreement._id))
-      .take(500);
+    const sov = await loadSovRows(ctx, agreement._id);
     const milestones = await ctx.db
       .query("milestones")
       .withIndex("by_agreementId_and_order", (q) => q.eq("agreementId", agreement._id))
@@ -284,10 +282,7 @@ export async function payAppView(ctx: QueryCtx, p: Doc<"payApplications">, sovBy
 }
 
 export async function sovMapFor(ctx: QueryCtx, agreementId: Id<"agreements">) {
-  const sov = await ctx.db
-    .query("scheduleOfValues")
-    .withIndex("by_agreementId_and_lineNo", (q) => q.eq("agreementId", agreementId))
-    .take(500);
+  const sov = await loadSovRows(ctx, agreementId);
   return new Map(sov.map((s) => [s._id as string, s]));
 }
 

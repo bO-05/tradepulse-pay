@@ -9,6 +9,7 @@ import {
   sovSourceFingerprint,
   splitMilestoneAmounts,
 } from "./sovMath";
+import { assertBaseLineCapacity, loadSovRows } from "../lib/sovLines";
 
 /**
  * Demo and Phase-1 seed projects (flagged demo, owned by the Demo company, or created by seeds before
@@ -46,10 +47,7 @@ export async function hasMoneyActivity(ctx: MutationCtx, agreementId: Id<"agreem
 }
 
 async function loadRows(ctx: MutationCtx, agreementId: Id<"agreements">) {
-  const sovRows = await ctx.db
-    .query("scheduleOfValues")
-    .withIndex("by_agreementId_and_lineNo", (q) => q.eq("agreementId", agreementId))
-    .take(500);
+  const sovRows = await loadSovRows(ctx, agreementId);
   const milestoneRows = await ctx.db
     .query("milestones")
     .withIndex("by_agreementId_and_order", (q) => q.eq("agreementId", agreementId))
@@ -153,6 +151,7 @@ export async function ensureSovAndMilestones(
       csiDivision: agreement.csiDivision,
       tradeName: agreement.tradeName,
     });
+    assertBaseLineCapacity(drafts.length);
     for (const line of drafts) {
       await ctx.db.insert("scheduleOfValues", { agreementId, ...line, sourceFingerprint: fingerprint });
     }

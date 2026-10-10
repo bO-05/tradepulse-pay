@@ -36,6 +36,7 @@ import {
   type BillingPeriod,
   type G702Summary,
 } from "./g703Math";
+import { loadSovRows } from "../lib/sovLines";
 
 /**
  * G702/G703 pay applications (architecture §16). A sub opens one application per billing period as a
@@ -73,10 +74,7 @@ export function agreementRetainageBps(agreement: Doc<"agreements">): number {
 }
 
 async function sovRows(ctx: QueryCtx, agreementId: Id<"agreements">) {
-  return await ctx.db
-    .query("scheduleOfValues")
-    .withIndex("by_agreementId_and_lineNo", (q) => q.eq("agreementId", agreementId))
-    .take(500);
+  return await loadSovRows(ctx, agreementId);
 }
 
 function approvedIncrementOf(p: Doc<"payApplications">, sovLineId: string): number {
@@ -626,6 +624,7 @@ export const mySubPayAppAgreements = query({
         projectTitle: agreement.projectTitle,
         tradeName: agreement.tradeName,
         contractSumCents: agreementContractSumCents(agreement),
+        sovApproved: sovIsApproved(agreement),
         blockedReason,
         openPayApp: open ? listRow(open) : null,
         nextApplication: next,

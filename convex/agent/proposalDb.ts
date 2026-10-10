@@ -7,6 +7,7 @@ import { retainagePercentFor } from "../payments/payoutMath";
 import { latestCompletedCheck } from "../kernel/licenseChecks";
 import { projectGcCompanyName } from "../lib/gcCompanyName";
 import { planProposals, requiredKinds, type PlanLicenseStatus, type PlanMilestone, type ProposalPlan } from "./proposalMath";
+import { loadSovRows } from "../lib/sovLines";
 
 /**
  * Database side of the pay agent. The agent's propose* tools end here, and this file only ever inserts
@@ -83,10 +84,7 @@ export const loadAgentInputs = internalQuery({
     const agreement = await ctx.db.get(payApp.agreementId);
     if (agreement === null) return null;
     const contractor = await ctx.db.get(agreement.contractorId);
-    const sov = await ctx.db
-      .query("scheduleOfValues")
-      .withIndex("by_agreementId_and_lineNo", (q) => q.eq("agreementId", agreement._id))
-      .take(500);
+    const sov = await loadSovRows(ctx, agreement._id);
     const sovById = new Map(sov.map((s) => [s._id as string, s]));
     const reviewLines = new Map(payApp.review.lines.map((l) => [l.sovLineId as string, l]));
     const latest = await latestCompletedCheck(ctx, agreement.contractorId);

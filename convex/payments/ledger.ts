@@ -12,6 +12,7 @@ import { attemptsFor, checkRetry } from "./payoutRetryMath";
 import { retainagePercentFor } from "./payoutMath";
 import { releasableRetainageCents } from "./retainageMath";
 import { agreementContractSumCents } from "./sov";
+import { loadSovRows } from "../lib/sovLines";
 
 function ledgerAgreementSummary(a: Doc<"agreements">) {
   return {
@@ -93,10 +94,7 @@ export const getAgreementLedger = query({
     const id = agreement._id;
     const viewer = scope.viewer;
 
-    const sov = await ctx.db
-      .query("scheduleOfValues")
-      .withIndex("by_agreementId_and_lineNo", (q) => q.eq("agreementId", id))
-      .take(500);
+    const sov = await loadSovRows(ctx, id);
     const milestones = await ctx.db
       .query("milestones")
       .withIndex("by_agreementId_and_order", (q) => q.eq("agreementId", id))

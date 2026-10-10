@@ -23,6 +23,7 @@ import { DEMO_SOV_APPROVER } from "../lib/demoBilling";
 import { RETAINAGE_PERCENT } from "../terms";
 import { seededProposalBidRow } from "../lib/bidMoney";
 import { fromDollars } from "../lib/money";
+import { loadSovRows } from "../lib/sovLines";
 
 export const REVIEW_SCENARIO_AGREEMENT_NUMBER = "A401-DEMO-PAYREVIEW-01";
 const AGREEMENT_PREFIX = "A401-DEMO-PAYREVIEW-";
@@ -163,10 +164,7 @@ export const seedReviewScenario = internalMutation({
 export const describeReviewScenario = internalQuery({
   args: { agreementId: v.id("agreements") },
   handler: async (ctx, args) => {
-    const sov = await ctx.db
-      .query("scheduleOfValues")
-      .withIndex("by_agreementId_and_lineNo", (q) => q.eq("agreementId", args.agreementId))
-      .take(50);
+    const sov = await loadSovRows(ctx, args.agreementId);
     const milestones = await ctx.db
       .query("milestones")
       .withIndex("by_agreementId_and_order", (q) => q.eq("agreementId", args.agreementId))

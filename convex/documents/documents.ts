@@ -5,7 +5,7 @@ import { mutation, query, type QueryCtx } from "../_generated/server";
 import { isNotFoundError, requireDocScope, requireProjectScope } from "../lib/projectScope";
 import { requireRole } from "../lib/roles";
 import { notFound } from "../lib/tenancy";
-import { assertDocumentVisible } from "./access";
+import { assertDocumentVisible, assertStoredDocumentVisible } from "./access";
 import { inputsHashOf, loadDocument } from "./inputs";
 import { DOCUMENT_KINDS, documentDownloadPath, documentKindValidator, type DocumentKind } from "./kinds";
 
@@ -72,7 +72,9 @@ export const documentStatus = query({
     const scope = await requireDocScope(ctx, DOCUMENT_KINDS[args.kind].table, args.relatedId, { roles: DOCUMENT_KINDS[args.kind].roles });
     assertDocumentVisible(args.kind, scope);
     const row = await currentRow(ctx, args.kind, scope.doc._id, args.inputsHash);
-    return row === null ? null : documentView(row);
+    if (row === null) return null;
+    await assertStoredDocumentVisible(ctx, row, scope);
+    return documentView(row);
   },
 });
 
@@ -85,7 +87,7 @@ export const getDocument = query({
     const doc = id === null ? null : await ctx.db.get(id);
     if (doc === null || doc.relatedId === undefined) throw notFound();
     const scope = await requireDocScope(ctx, DOCUMENT_KINDS[doc.kind].table, doc.relatedId, { roles: DOCUMENT_KINDS[doc.kind].roles });
-    assertDocumentVisible(doc.kind, scope);
+    await assertStoredDocumentVisible(ctx, doc, scope);
     if (scope.project._id !== doc.projectId) throw notFound();
     return documentView(doc);
   },
@@ -115,7 +117,7 @@ export const listDocuments = query({
       seen.add(key);
       try {
         const scope = await requireDocScope(ctx, DOCUMENT_KINDS[doc.kind].table, doc.relatedId, { roles: DOCUMENT_KINDS[doc.kind].roles });
-        assertDocumentVisible(doc.kind, scope);
+        await assertStoredDocumentVisible(ctx, doc, scope);
         if (scope.project._id === access.project._id) out.push(documentView(doc));
       } catch (err) {
         if (!isNotFoundError(err)) throw err;

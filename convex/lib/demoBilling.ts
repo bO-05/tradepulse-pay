@@ -1,7 +1,8 @@
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { agreementContractSumCents, ensureSovAndMilestones, sovIsApproved } from "../payments/sov";
-import { SOV_MAX_ROWS, sumSovCents } from "./sovRules";
+import { sumSovCents } from "./sovRules";
+import { loadSovRows } from "./sovLines";
 
 export const DEMO_SOV_APPROVER = "Demo GC (seeded demo data)";
 
@@ -33,10 +34,7 @@ export async function approveDemoSovs(
       await ensureSovAndMilestones(ctx, a._id);
       const agreement = await ctx.db.get(a._id);
       if (agreement === null || sovIsApproved(agreement)) continue;
-      const lines = await ctx.db
-        .query("scheduleOfValues")
-        .withIndex("by_agreementId_and_lineNo", (q) => q.eq("agreementId", a._id))
-        .take(SOV_MAX_ROWS + 1);
+      const lines = await loadSovRows(ctx, a._id);
       if (lines.length === 0 || sumSovCents(lines) !== agreementContractSumCents(agreement)) continue;
       await ctx.db.patch(a._id, {
         sov: {

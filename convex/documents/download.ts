@@ -5,7 +5,7 @@ import { httpAction, internalQuery } from "../_generated/server";
 import { requireDocScope } from "../lib/projectScope";
 import { NOT_FOUND_MESSAGE } from "../lib/tenancy";
 import { corsHeaders, textResponse } from "../projectFileDownload";
-import { assertDocumentVisible } from "./access";
+import { assertStoredDocumentVisible } from "./access";
 import { DOCUMENT_DOWNLOAD_PREFIX, DOCUMENT_KINDS } from "./kinds";
 
 /**
@@ -23,7 +23,7 @@ export const authorizeDocument = internalQuery({
     try {
       const cfg = DOCUMENT_KINDS[doc.kind];
       const scope = await requireDocScope(ctx, cfg.table, doc.relatedId, { roles: cfg.roles });
-      assertDocumentVisible(doc.kind, scope);
+      await assertStoredDocumentVisible(ctx, doc, scope);
       if (scope.project._id !== doc.projectId) return null;
     } catch {
       // Every refusal (no access, wrong party, unverified account) answers like a missing document.
