@@ -184,7 +184,9 @@ export type ProjectScopedTable =
   | "agentProposals"
   | "payments"
   | "retainageLedger"
-  | "changeOrders";
+  | "changeOrders"
+  | "primeLines"
+  | "ownerPayApps";
 
 const VIA_AGREEMENT = new Set<TableNames>([
   "scheduleOfValues",

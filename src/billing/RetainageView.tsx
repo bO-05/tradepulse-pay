@@ -1,6 +1,6 @@
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { ledgerHash, payAppHash } from "../auth/navigation";
+import { OWNER_BILLING_HASH, ledgerHash, payAppHash } from "../auth/navigation";
 import { Card, EmptyState, formatCents } from "../ui";
 
 /** Billing → Retainage: per project, retainage the GC holds from each sub, kept apart from what the owner holds. */
@@ -28,12 +28,48 @@ export function RetainageView() {
             <div className="rounded-lg border border-line p-3" data-testid="retainage-prime">
               <p className="text-xs text-ink-subtle">Retainage held by owner</p>
               {p.prime.heldCents !== null ? (
-                <p className="text-lg font-semibold tabular-nums">{formatCents(p.prime.heldCents)}</p>
+                <>
+                  <p className="text-lg font-semibold tabular-nums">{formatCents(p.prime.heldCents)}</p>
+                  <a href={OWNER_BILLING_HASH} className="text-xs text-emerald-400 hover:text-emerald-300">
+                    {p.prime.note}
+                  </a>
+                </>
               ) : (
                 <p className="text-sm text-ink-subtle">{p.prime.note}</p>
               )}
             </div>
           </div>
+          {p.prime.tradeLines.length > 0 ? (
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full text-sm" data-testid="retainage-prime-trades">
+                <caption className="sr-only">Owner-level versus sub-level retainage per trade package</caption>
+                <thead className="text-left text-xs text-ink-subtle">
+                  <tr>
+                    <th scope="col" className="py-2 pr-3 font-medium">Trade package</th>
+                    <th scope="col" className="py-2 pr-3 text-right font-medium">Owner holds (prime line)</th>
+                    <th scope="col" className="py-2 pr-3 text-right font-medium">We hold (sub pay apps)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {p.prime.tradeLines.map((l) => (
+                    <tr key={l.description} className="border-t border-line" data-testid="retainage-prime-trade-row">
+                      <td className="py-2 pr-3">{l.description}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums">{formatCents(l.ownerRetainageCents)}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums">{l.subRetainageCents === null ? "–" : formatCents(l.subRetainageCents)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {p.prime.roundingNote ? (
+                <p className="mt-2 text-xs text-ink-subtle" data-testid="retainage-rounding-note">
+                  {p.prime.roundingNote}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+          {p.agreements.length === 0 ? (
+            <p className="mt-4 text-sm text-ink-muted">No subcontracts on this project yet.</p>
+          ) : (
           <div className="mt-4 overflow-x-auto">
             <table className="w-full text-sm" data-testid="retainage-agreements">
               <caption className="sr-only">Retainage held per subcontract</caption>
@@ -78,6 +114,7 @@ export function RetainageView() {
               </tbody>
             </table>
           </div>
+          )}
           <p className="mt-3 text-xs text-ink-subtle">
             Sub retainage is rounded per schedule-of-values line on each sub pay app; the owner's retainage is rounded per prime line, so the
             two can differ by a cent for the same work.

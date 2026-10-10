@@ -43,6 +43,9 @@ export const notificationKindValidator = v.union(
   v.literal("change_order_approved"),
   v.literal("change_order_rejected"),
   v.literal("owner_pay_app_ready"),
+  v.literal("owner_pay_app_approved"),
+  v.literal("owner_pay_app_changes_requested"),
+  v.literal("owner_pay_app_paid"),
 );
 
 export const agreementTermsValidator = v.object({
@@ -190,6 +193,34 @@ export const changeOrderStatusValidator = v.union(
 );
 
 export const changeOrderScopeValidator = v.union(v.literal("subcontract"), v.literal("prime"));
+
+/** Owner pay app lifecycle (§16): the GC drafts and submits, the owner approves (→ PayPal invoice) or requests changes. */
+export const ownerPayAppStatusValidator = v.union(
+  v.literal("draft"),
+  v.literal("submitted_to_owner"),
+  v.literal("changes_requested"),
+  v.literal("approved"),
+  v.literal("approved_invoiced"),
+  v.literal("paid"),
+);
+
+export const ownerPayAppLineValidator = v.object({
+  // Stable per prime line across applications: "trade:<agreementId>", "gc:<primeLineId>", "pco:<changeOrderId>".
+  key: v.string(),
+  kind: v.union(v.literal("trade"), v.literal("gc"), v.literal("change_order")),
+  agreementId: v.optional(v.id("agreements")),
+  primeLineId: v.optional(v.id("primeLines")),
+  changeOrderId: v.optional(v.id("changeOrders")),
+  description: v.string(),
+  scheduledValueCents: v.number(),
+  previousWorkCents: v.number(),
+  previousStoredCents: v.number(),
+  workThisPeriodCents: v.number(),
+  storedCents: v.number(),
+  retainageBps: v.number(),
+  // Trade lines: the sub's own retainage to date (rounded per SOV line), shown next to the owner-level figure.
+  subRetainageCents: v.optional(v.number()),
+});
 
 export const licenseStatusValidator = v.union(
   v.literal("active"),
@@ -804,6 +835,59 @@ export default defineSchema({
     .index("by_projectId_and_scope_and_number", ["projectId", "scope", "number"])
     .index("by_paypalInvoiceId", ["paypalInvoiceId"])
     .index("by_status", ["status"]),
+
+  // GC lines of the prime contract (general conditions, fee, insurance…), defined in project setup (§16).
+  // Trade packages enter the prime SOV from their agreements; these are the GC's own lines.
+  primeLines: defineTable({
+    projectId: v.id("projects"),
+    lineNo: v.number(),
+    description: v.string(),
+    scheduledValueCents: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  }).index("by_projectId_and_lineNo", ["projectId", "lineNo"]),
+
+  // Owner pay applications (§16): the GC's G702/G703 to the owner, rolled up from approved sub pay apps
+  // plus GC-entered lines. Lines and figures are a snapshot; retainage is rounded per prime line (§22).
+  ownerPayApps: defineTable({
+    projectId: v.id("projects"),
+    applicationNo: v.number(),
+    periodStart: v.string(), // YYYY-MM-DD
+    periodEnd: v.string(),
+    status: ownerPayAppStatusValidator,
+    lines: v.array(ownerPayAppLineValidator),
+    retainageBps: v.number(),
+    figures: g702FiguresValidator,
+    // Sub pay apps submitted for this period or earlier that the GC has not approved yet (contribute 0.00).
+    pendingSubPayApps: v.number(),
+    history: v.array(
+      v.object({
+        status: ownerPayAppStatusValidator,
+        at: v.number(),
+        byUserId: v.id("users"),
+        byName: v.string(),
+        comment: v.optional(v.string()),
+      }),
+    ),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    submittedAt: v.optional(v.number()),
+    approvedAt: v.optional(v.number()),
+    approvedBy: v.optional(v.id("users")),
+    changesRequestedComment: v.optional(v.string()),
+    paypalInvoiceId: v.optional(v.string()),
+    payerViewUrl: v.optional(v.string()),
+    recipientEmail: v.optional(v.string()),
+    paypalInvoiceStatus: v.optional(v.string()),
+    invoicedAt: v.optional(v.number()),
+    paidAt: v.optional(v.number()),
+    statusCheckedAt: v.optional(v.number()),
+    error: v.optional(v.string()),
+    auditRecorded: v.optional(v.boolean()),
+  })
+    .index("by_projectId_and_applicationNo", ["projectId", "applicationNo"])
+    .index("by_paypalInvoiceId", ["paypalInvoiceId"]),
 
   // eventId is unique by convention: writers must check by_eventId before insert.
   paypalEvents: defineTable({

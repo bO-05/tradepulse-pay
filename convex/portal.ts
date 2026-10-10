@@ -5,6 +5,7 @@ import { query, type QueryCtx } from "./_generated/server";
 import { requireRole } from "./lib/roles";
 import { callerProjects, findSubcontractDocScope, requireDocScope, subContractorScope } from "./lib/projectScope";
 import { primeChangeOrders, primeContractSum, recipientFor, rowViews } from "./billing/changeOrderView";
+import { primeRetainageHeld, projectOwnerPayApps } from "./billing/ownerRollup";
 import { loadMilestoneFunding } from "./payments/milestoneFundingState";
 import { agreementContractSumCents } from "./payments/sov";
 import { WITHDRAWABLE_PAY_APP_STATUSES } from "./payApps/validation";
@@ -242,6 +243,7 @@ export const ownerOverview = query({
         partyRole: access.partyRole,
         agreements: agreements.map(agreementSummary),
         primeContractSum: await primeContractSum(ctx, project),
+        primeRetainageHeldCents: primeRetainageHeld(await projectOwnerPayApps(ctx, project._id))?.cents ?? null,
         changeOrders,
       });
     }

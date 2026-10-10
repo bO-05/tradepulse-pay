@@ -18,7 +18,8 @@ describe("role navigation", () => {
       "judge-demo",
     ]);
     expect(NAV_BY_ROLE.sub.map((i) => i.area)).toEqual(["sub-portal", "pay-apps", "change-orders", "bid-invitations", "my-projects", "payments"]);
-    expect(NAV_BY_ROLE.owner.map((i) => i.area)).toEqual(["owner-portal", "my-projects", "change-orders", "dashboard"]);
+    expect(NAV_BY_ROLE.owner.map((i) => i.area)).toEqual(["owner-portal", "my-projects", "owner-pay-apps", "change-orders", "dashboard"]);
+    expect(NAV_BY_ROLE.owner.map((i) => i.label)).toEqual(["Home", "Projects", "Owner pay apps", "Change orders", "Reports"]);
   });
 
   test("People is GC-only; project switcher for subs and owners; Company settings for every role", () => {
@@ -141,6 +142,19 @@ describe("billing routes", () => {
     expect(resolveRoute("sub", hash)).toEqual({ area: "pay-app", payAppId: "k97app" });
     expect(resolveRoute("sub", hash, false, "", "agent")).toEqual({ area: "pay-app", payAppId: "k97app" });
     expect(resolveRoute("owner", hash)).toEqual({ area: "not-found" });
+  });
+
+  test("owner billing: the GC's Billing tab and the owner's Owner pay apps; subs get neither", () => {
+    expect(resolveRoute("gc", "#/billing/owner-billing")).toEqual({ area: "billing", tab: "owner-billing" });
+    expect(resolveRoute("gc", "#/billing/retainage")).toEqual({ area: "billing", tab: "retainage" });
+    expect(resolveRoute("gc", "#/billing/forged")).toEqual({ area: "not-found" });
+    expect(resolveRoute("owner", "#/owner-pay-apps")).toEqual({ area: "owner-pay-apps" });
+    for (const hash of ["#/owner-pay-apps", "#/billing/owner-billing"]) {
+      expect(resolveRoute("sub", hash)).toEqual({ area: "not-found" });
+      expect(resolveRoute("sub", hash, false, "", "agent")).toEqual({ area: "not-found" });
+    }
+    expect(resolveRoute("owner", "#/billing/owner-billing")).toEqual({ area: "not-found" });
+    expect(navFor("sub").some((i) => /owner/i.test(i.label))).toBe(false);
   });
 });
 

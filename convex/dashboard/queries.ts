@@ -4,6 +4,7 @@ import { query } from "../_generated/server";
 import { requireRole } from "../lib/roles";
 import { gcAgreementsAndOwnerProjects } from "../lib/agreementScope";
 import { ownerChangeOrdersOfProject } from "../lib/ownerView";
+import { primeChangeOrders } from "../billing/changeOrderView";
 import { percentageOfCents, sumCents } from "../lib/money";
 import {
   createReadBudget,
@@ -161,7 +162,7 @@ export const getDashboardData = query({
           changeOrderId: co._id,
           agreementId: a._id,
           number: co.number,
-          description: co.description,
+          description: co.title || co.description,
           status: co.status,
           amountCents: co.amountCents,
           createdAt: co.createdAt,
@@ -187,15 +188,34 @@ export const getDashboardData = query({
       }
     }
 
-    const ownerChangeOrders: Doc<"changeOrders">[] = [];
+    const projectChangeOrders: Doc<"changeOrders">[] = [];
     for (const project of scoped.ownerProjects) {
       for (const co of await ownerChangeOrdersOfProject(ctx, project._id)) {
-        ownerChangeOrders.push(co);
+        projectChangeOrders.push(co);
         changeOrders.push({
           changeOrderId: co._id,
           agreementId: co.agreementId ?? null,
           number: co.number,
-          description: co.description,
+          description: co.title || co.description,
+          status: co.status,
+          amountCents: co.amountCents,
+          createdAt: co.createdAt,
+          invoicedAt: co.invoicedAt ?? null,
+          paidAt: co.paidAt ?? null,
+        });
+      }
+    }
+    // Prime COs billed through an agreement are already in that agreement's history above; the rest
+    // belong to the project only.
+    for (const project of scoped.gcProjects) {
+      for (const co of await primeChangeOrders(ctx, project._id)) {
+        if (co.agreementId !== undefined) continue;
+        projectChangeOrders.push(co);
+        changeOrders.push({
+          changeOrderId: co._id,
+          agreementId: null,
+          number: co.number,
+          description: co.title || co.description,
           status: co.status,
           amountCents: co.amountCents,
           createdAt: co.createdAt,
@@ -209,11 +229,11 @@ export const getDashboardData = query({
       ...gcTotals,
       changeOrdersInvoicedCents: sumCents([
         gcTotals.changeOrdersInvoicedCents,
-        ...ownerChangeOrders.filter((c) => c.status === "invoiced").map((c) => c.amountCents),
+        ...projectChangeOrders.filter((c) => c.status === "invoiced").map((c) => c.amountCents),
       ]),
       changeOrdersPaidCents: sumCents([
         gcTotals.changeOrdersPaidCents,
-        ...ownerChangeOrders.filter((c) => c.status === "paid").map((c) => c.amountCents),
+        ...projectChangeOrders.filter((c) => c.status === "paid").map((c) => c.amountCents),
       ]),
       pendingPayAppCents: sumCents(
         payApps.filter((p) => PENDING_PAY_APP_STATUSES.has(p.status)).map((p) => p.requestedCents),

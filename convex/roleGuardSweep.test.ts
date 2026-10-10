@@ -143,7 +143,44 @@ async function setup() {
       createdAt: now,
     });
     const linkId = (await ctx.db.query("agentLinks").first())!._id;
+    const primeLineId = await ctx.db.insert("primeLines", {
+      projectId: base.agreement.projectId,
+      lineNo: 1,
+      description: "General conditions",
+      scheduledValueCents: 100_000,
+      createdAt: now,
+    });
+    const zero = {
+      originalContractSumCents: 0,
+      netChangeOrdersCents: 0,
+      contractSumToDateCents: 0,
+      completedAndStoredCents: 0,
+      retainageCents: 0,
+      retainageWorkCents: 0,
+      retainageStoredCents: 0,
+      earnedLessRetainageCents: 0,
+      previousCertificatesCents: 0,
+      currentPaymentDueCents: 10_000,
+      balanceToFinishInclRetainageCents: 0,
+    };
+    const ownerPayAppId = await ctx.db.insert("ownerPayApps", {
+      projectId: base.agreement.projectId,
+      applicationNo: 1,
+      periodStart: "2026-10-01",
+      periodEnd: "2026-10-25",
+      status: "submitted_to_owner",
+      lines: [],
+      retainageBps: 500,
+      figures: zero,
+      pendingSubPayApps: 0,
+      history: [{ status: "submitted_to_owner", at: now, byUserId: sub1.userId, byName: "GC" }],
+      createdBy: sub1.userId,
+      createdAt: now,
+      updatedAt: now,
+    });
     return {
+      primeLineId,
+      ownerPayAppId,
       milestoneId: milestone._id,
       fundingId,
       payoutId,
@@ -255,12 +292,31 @@ const GC_ONLY: Case[] = [
   m("billing/tranches:moveTranche", api.billing.tranches.moveTranche, (i) => ({ trancheId: i.milestoneId, direction: "down" })),
   a("billing/pay:payPayApp (capture + payout)", api.billing.pay.payPayApp, (i) => ({ payAppId: i.payAppId })),
   m("kernel/licenseChecks:requestLicenseCheck", api.kernel.licenseChecks.requestLicenseCheck, (i) => ({ contractorId: i.contractorId })),
+  m("billing/primeLines:addPrimeLine", api.billing.primeLines.addPrimeLine, (i) => ({ projectId: i.projectId, description: "Forged", scheduledValueCents: 100 })),
+  m("billing/primeLines:updatePrimeLine", api.billing.primeLines.updatePrimeLine, (i) => ({
+    primeLineId: i.primeLineId,
+    description: "Forged",
+    scheduledValueCents: 100,
+  })),
+  m("billing/primeLines:deletePrimeLine", api.billing.primeLines.deletePrimeLine, (i) => ({ primeLineId: i.primeLineId })),
+  m("billing/ownerPayApps:createOwnerPayApp", api.billing.ownerPayApps.createOwnerPayApp, (i) => ({ projectId: i.projectId })),
+  m("billing/ownerPayApps:saveOwnerPayApp", api.billing.ownerPayApps.saveOwnerPayApp, (i) => ({ ownerPayAppId: i.ownerPayAppId, entries: [] })),
+  m("billing/ownerPayApps:submitOwnerPayApp", api.billing.ownerPayApps.submitOwnerPayApp, (i) => ({ ownerPayAppId: i.ownerPayAppId })),
+  m("billing/ownerPayApps:deleteOwnerPayApp", api.billing.ownerPayApps.deleteOwnerPayApp, (i) => ({ ownerPayAppId: i.ownerPayAppId })),
+  a("billing/ownerInvoices:sendOwnerPayAppInvoice", api.billing.ownerInvoices.sendOwnerPayAppInvoice, (i) => ({ ownerPayAppId: i.ownerPayAppId })),
 ];
 
 /** Read-only at PayPal; the owner may refresh the invoice it pays. Everyone else is refused. */
 const GC_OR_OWNER: Case[] = [
   a("payments/invoices:refreshChangeOrderStatus", api.payments.invoices.refreshChangeOrderStatus, (i) => ({
     changeOrderId: i.changeOrderId,
+  })),
+  a("billing/ownerInvoices:refreshOwnerPayAppStatus", api.billing.ownerInvoices.refreshOwnerPayAppStatus, (i) => ({ ownerPayAppId: i.ownerPayAppId })),
+  // Owner-only decisions: no other caller in the sweep (and not the GC, see ownerPayApps.test.ts) gets through.
+  a("billing/ownerInvoices:approveOwnerPayApp", api.billing.ownerInvoices.approveOwnerPayApp, (i) => ({ ownerPayAppId: i.ownerPayAppId })),
+  m("billing/ownerPayApps:requestOwnerPayAppChanges", api.billing.ownerPayApps.requestOwnerPayAppChanges, (i) => ({
+    ownerPayAppId: i.ownerPayAppId,
+    comment: "Forged",
   })),
 ];
 
@@ -335,6 +391,10 @@ describe("agreement ledger and payment reads", () => {
     { name: "billing/tranches:listTranches", fn: api.billing.tranches.listTranches, args: (i) => ({ agreementId: i.agreementId }) },
     { name: "billing/tranches:ownerProjectTranches", fn: api.billing.tranches.ownerProjectTranches, args: (i) => ({ projectId: i.projectId }) },
     { name: "billing/retainage:projectRetainage", fn: api.billing.retainage.projectRetainage, args: () => ({}) },
+    { name: "billing/ownerPayApps:ownerBillingProjects", fn: api.billing.ownerPayApps.ownerBillingProjects, args: () => ({}) },
+    { name: "billing/ownerPayApps:listOwnerPayApps", fn: api.billing.ownerPayApps.listOwnerPayApps, args: (i) => ({ projectId: i.projectId }) },
+    { name: "billing/ownerPayApps:getOwnerPayApp", fn: api.billing.ownerPayApps.getOwnerPayApp, args: (i) => ({ ownerPayAppId: i.ownerPayAppId }) },
+    { name: "billing/primeLines:listPrimeLines", fn: api.billing.primeLines.listPrimeLines, args: (i) => ({ projectId: i.projectId }) },
     { name: "kernel/licenseChecks:getContractorLicense", fn: api.kernel.licenseChecks.getContractorLicense, args: (i) => ({ contractorId: i.contractorId }) },
   ];
 
@@ -505,6 +565,9 @@ describe("static guard sweep over convex/**", () => {
       "billing/canPay",
       "billing/pay",
       "billing/retainage",
+      "billing/ownerPayApps",
+      "billing/ownerInvoices",
+      "billing/primeLines",
       "payApps/review",
       "payApps/proposals",
       "payApps/reviewEvals",

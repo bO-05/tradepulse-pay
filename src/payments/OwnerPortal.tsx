@@ -1,6 +1,7 @@
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { agreementHash, type Role } from "../auth/navigation";
+import { OWNER_PAY_APPS_HASH } from "../billing/OwnerBilling";
 import { requestNewProject } from "../projects/newProjectRequest";
 import { Button, EmptyState } from "../ui";
 import { CHANGE_ORDERS_PAGE_HASH, ChangeOrderRows } from "./ChangeOrders";
@@ -72,6 +73,20 @@ export function OwnerPortal({ role }: { role?: Role }) {
               </table>
             )}
           </div>
+          )}
+
+          {project.partyRole === "owner" && (
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm" data-testid="portal-prime-retainage">
+              <p>
+                Retainage you hold on the prime contract:{" "}
+                <span className="font-semibold tabular-nums">
+                  {project.primeRetainageHeldCents === null ? "None yet" : formatCents(project.primeRetainageHeldCents)}
+                </span>
+              </p>
+              <a href={OWNER_PAY_APPS_HASH} className="text-xs text-emerald-400 hover:text-emerald-300">
+                Owner pay apps
+              </a>
+            </div>
           )}
 
           {project.partyRole === "owner" && <OwnerTrancheStatus projectId={project._id} />}

@@ -7,6 +7,7 @@ import { gcProjectHash, GC_PROJECTS_HASH } from "../../auth/navigation";
 import { getErrorMessage } from "../../lib/errors";
 import { Button, Card, ConfirmDialog, focusFirstInvalid, useToast } from "../../ui";
 import { ArchivedBanner, ProjectHeader } from "./ProjectPage";
+import { PrimeLinesCard } from "./PrimeLinesCard";
 import { ProjectSetupFields } from "./ProjectSetupFields";
 import {
   formStateFromProject,
@@ -41,6 +42,7 @@ export function ProjectSettingsPage({ projectId }: { projectId: string }) {
       <h2 className="text-lg font-semibold">Project settings</h2>
       {archived && <ArchivedBanner projectId={project._id} />}
       <SettingsForm key={project._id} project={project} companyDefaultBps={companyData.company.defaultRetainageBps} readOnly={archived} />
+      <PrimeLinesCard projectId={project._id} readOnly={archived} />
       {!archived && <ArchiveCard project={project} />}
     </div>
   );

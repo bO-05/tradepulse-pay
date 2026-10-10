@@ -2,7 +2,8 @@ import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { agreementHash, myProjectHash } from "../auth/navigation";
 import { formatDollars } from "../payments/format";
-import { Card, EmptyState, Money, PageHeader, StatusPill } from "../ui";
+import { OWNER_PAY_APPS_HASH } from "../billing/OwnerBilling";
+import { Card, EmptyState, Money, PageHeader, StatusPill, formatBps } from "../ui";
 
 /** Project switcher for subs and owners: each project is labeled with its general contractor. */
 export function MyProjectsPage({ projectId }: { projectId?: string }) {
@@ -66,6 +67,42 @@ function ProjectView({ projectId, projects }: { projectId: string; projects: Pro
         back={{ href: "#/my-projects", label: "All projects" }}
         meta={<span>{project.gcCompanyName ? `General contractor: ${project.gcCompanyName}` : null}{project.location ? ` · ${project.location}` : ""}</span>}
       />
+      {project.ownerSummary ? (
+        <Card title="Project summary">
+          <dl className="grid gap-3 text-sm sm:grid-cols-2" data-testid="owner-project-summary">
+            <div>
+              <dt className="text-xs text-ink-subtle">Project</dt>
+              <dd className="font-semibold">{project.title}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-ink-subtle">Address</dt>
+              <dd className="font-semibold">{project.ownerSummary.address || project.location || "Not set"}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-ink-subtle">Contract value</dt>
+              <dd className="font-semibold">{project.ownerSummary.contractValueCents === null ? "Not set" : <Money cents={project.ownerSummary.contractValueCents} />}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-ink-subtle">Retainage</dt>
+              <dd className="font-semibold">{project.ownerSummary.retainageBps === null ? "Not set" : formatBps(project.ownerSummary.retainageBps)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-ink-subtle">Retainage you hold</dt>
+              <dd className="font-semibold">
+                {project.ownerSummary.primeRetainageHeldCents === null ? "None yet" : <Money cents={project.ownerSummary.primeRetainageHeldCents} />}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-ink-subtle">Billing</dt>
+              <dd>
+                <a href={OWNER_PAY_APPS_HASH} className="text-emerald-300 hover:underline">
+                  Owner pay apps
+                </a>
+              </dd>
+            </div>
+          </dl>
+        </Card>
+      ) : null}
       {project.partyRole === "owner" ? (
         <Card title="Change orders">
           {project.changeOrders.length === 0 ? (

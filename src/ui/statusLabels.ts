@@ -101,6 +101,11 @@ export const STATUS_LABELS = {
   // Change orders
   invoiced: { label: "Invoiced", tone: "info" },
 
+  // Owner pay apps
+  submitted_to_owner: { label: "Submitted to owner", tone: "info" },
+  changes_requested: { label: "Changes requested", tone: "warning" },
+  approved_invoiced: { label: "Approved – invoiced", tone: "info" },
+
   // Licenses and compliance
   suspended: { label: "Suspended", tone: "danger" },
   not_found: { label: "Not found", tone: "danger" },

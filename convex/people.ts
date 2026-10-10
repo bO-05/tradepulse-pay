@@ -7,6 +7,7 @@ import { liveVendor } from "./lib/vendorRead";
 import { listTeammateInvites } from "./lib/teammateInvites";
 import { ownerChangeOrdersOfProject } from "./lib/ownerView";
 import { changeOrderLabel } from "./payments/changeOrderMath";
+import { primeRetainageHeld, projectOwnerPayApps } from "./billing/ownerRollup";
 
 /** Project People screen (architecture §13) and the project switcher for subs and owners. */
 
@@ -202,7 +203,20 @@ export const projectOverview = query({
             payerViewUrl: co.payerViewUrl ?? null,
           }))
         : [];
+    // Owner-safe project summary: the prime contract only, never subcontract sums.
+    const ownerSummary =
+      access.partyRole === "owner"
+        ? {
+            address: project.address
+              ? [project.address.line1, project.address.line2, `${project.address.city}, ${project.address.state} ${project.address.zip}`].filter(Boolean).join(", ")
+              : null,
+            contractValueCents: project.contractValueCents ?? null,
+            retainageBps: project.retainageBps ?? null,
+            primeRetainageHeldCents: primeRetainageHeld(await projectOwnerPayApps(ctx, project._id))?.cents ?? null,
+          }
+        : null;
     return {
+      ownerSummary,
       gcContacts: gcContacts.map((m) => ({ name: m.name, email: m.email })),
       yourCompanyName: access.company?.name ?? null,
       yourTeam: yourTeam.map((m) => ({ name: m.name, email: m.email, role: m.role })),

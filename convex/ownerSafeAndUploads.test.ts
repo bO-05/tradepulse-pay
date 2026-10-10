@@ -183,7 +183,8 @@ describe("owners get owner-safe projections only", () => {
     const { fx, a } = await ownerFixture();
     const dash = await fx.gcA.admin.as.query(api.dashboard.queries.getDashboardData, {});
     expect(dash.agreements.map((r) => r.contractSumCents)).toEqual([4_123_400]);
-    expect(dash.changeOrders.map((c) => c.amountCents).sort()).toEqual([66_600, 77_700]);
+    // The GC also sees its own draft prime CO, which has no agreement.
+    expect(dash.changeOrders.map((c) => c.amountCents).sort()).toEqual([66_600, 77_700, 88_800]);
     expect(await fx.gcA.admin.as.query(api.payments.ledger.getAgreementLedger, { agreementId: a.agreementId })).not.toBeNull();
     expect(await fx.sub.admin.as.query(api.payments.ledger.getAgreementLedger, { agreementId: a.agreementId })).not.toBeNull();
     const subOverview = await fx.sub.admin.as.query(api.people.projectOverview, { projectId: a.projectId });

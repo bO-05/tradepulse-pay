@@ -48,18 +48,20 @@ export async function scopedAgreements(
 export async function gcAgreementsAndOwnerProjects(
   ctx: QueryCtx,
   opts: { projectId?: Id<"projects"> | string; limit: number },
-): Promise<{ rows: ScopedAgreement[]; truncated: boolean; ownerProjects: Doc<"projects">[] }> {
+): Promise<{ rows: ScopedAgreement[]; truncated: boolean; ownerProjects: Doc<"projects">[]; gcProjects: Doc<"projects">[] }> {
   if (opts.projectId !== undefined) {
     const access = await requireProjectScope(ctx, opts.projectId, { roles: ["gc", "owner"] });
-    if (access.partyRole === "owner") return { rows: [], truncated: false, ownerProjects: [access.project] };
+    if (access.partyRole === "owner") return { rows: [], truncated: false, ownerProjects: [access.project], gcProjects: [] };
     const gc = await scopedAgreements(ctx, { parties: ["gc"], projectId: access.project._id, limit: opts.limit });
-    return { ...gc, ownerProjects: [] };
+    return { ...gc, ownerProjects: [], gcProjects: [access.project] };
   }
   const gc = await scopedAgreements(ctx, { parties: ["gc"], limit: opts.limit });
   const ownerProjects: Doc<"projects">[] = [];
+  const gcProjects: Doc<"projects">[] = [];
   for (const projectId of await accessibleProjectIds(ctx)) {
     const access = await requireProjectAccess(ctx, projectId);
     if (access.partyRole === "owner") ownerProjects.push(access.project);
+    else if (access.partyRole === "gc") gcProjects.push(access.project);
   }
-  return { ...gc, ownerProjects };
+  return { ...gc, ownerProjects, gcProjects };
 }

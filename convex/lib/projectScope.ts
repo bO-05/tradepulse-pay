@@ -90,6 +90,8 @@ async function assertVisibleToParty<T extends ProjectScopedTable>(
   doc: Doc<T>,
 ): Promise<void> {
   if (access.partyRole === "gc") return;
+  // The prime contract (its GC lines and owner pay apps) is between the GC and the owner only.
+  if ((table === "ownerPayApps" || table === "primeLines") && access.partyRole !== "owner") throw notFound();
   if (table === "changeOrders") {
     // Prime change orders are between the GC and the owner; subcontract ones between the GC and that sub.
     const prime = changeOrderScopeOf(doc as unknown as Doc<"changeOrders">) === "prime";

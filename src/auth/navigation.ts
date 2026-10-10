@@ -19,6 +19,7 @@ export type AreaId =
   | "billing"
   | "pay-apps"
   | "change-orders"
+  | "owner-pay-apps"
   | "pay-app"
   | "agreement"
   | "ledger"
@@ -38,7 +39,18 @@ export type Route = {
   tradePackageId?: string;
   payAppId?: string;
   view?: "new" | "settings" | "sov";
+  /** Billing tab for the GC: pay apps (default), owner billing or retainage. */
+  tab?: BillingTab;
 };
+
+export type BillingTab = "pay-apps" | "owner-billing" | "retainage";
+const BILLING_TABS: readonly BillingTab[] = ["pay-apps", "owner-billing", "retainage"];
+
+/** GC Billing tabs: `#/billing` is the pay apps worklist. */
+export function billingTabHash(tab: BillingTab): string {
+  return tab === "pay-apps" ? "#/billing" : `#/billing/${tab}`;
+}
+export const OWNER_BILLING_HASH = "#/billing/owner-billing";
 
 /** Areas that exist only for Demo companies; everyone else gets "Not found" on the direct route. */
 export const DEMO_ONLY_AREAS = new Set<AreaId>(["judge-demo"]);
@@ -63,6 +75,7 @@ const AREA_HASH: Record<NavItem["area"], string> = {
   billing: "#/billing",
   "pay-apps": "#/pay-apps",
   "change-orders": "#/change-orders",
+  "owner-pay-apps": "#/owner-pay-apps",
 };
 
 /** One pay app (G703 sheet and G702 summary): the GC and the filing sub; owners get Not found. */
@@ -114,10 +127,11 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { area: "payments", label: "Payments", hash: AREA_HASH.payments },
   ],
   owner: [
-    { area: "owner-portal", label: "Projects & change orders", hash: AREA_HASH["owner-portal"] },
-    { area: "my-projects", label: "My projects", hash: AREA_HASH["my-projects"] },
+    { area: "owner-portal", label: "Home", hash: AREA_HASH["owner-portal"] },
+    { area: "my-projects", label: "Projects", hash: AREA_HASH["my-projects"] },
+    { area: "owner-pay-apps", label: "Owner pay apps", hash: AREA_HASH["owner-pay-apps"] },
     { area: "change-orders", label: "Change orders", hash: AREA_HASH["change-orders"] },
-    { area: "dashboard", label: "Dashboard", hash: AREA_HASH.dashboard },
+    { area: "dashboard", label: "Reports", hash: AREA_HASH.dashboard },
   ],
 };
 
@@ -173,6 +187,11 @@ export function parseHash(hash: string): Route | null {
   if (agreementMatch) {
     const agreementId = decodeURIComponent(agreementMatch[1]);
     return agreementMatch[2] ? { area: "agreement", agreementId, view: "sov" } : { area: "agreement", agreementId };
+  }
+  const billingTab = path.match(/^\/billing\/([^/?#]+)$/);
+  if (billingTab) {
+    const tab = BILLING_TABS.find((t) => t === billingTab[1]);
+    return tab && tab !== "pay-apps" ? { area: "billing", tab } : null;
   }
   const payAppMatch = path.match(/^\/pay-apps\/([^/?#]+)$/);
   if (payAppMatch) return { area: "pay-app", payAppId: decodeURIComponent(payAppMatch[1]) };

@@ -3,6 +3,7 @@ import { AgreementLedgerView } from "../payments/AgreementLedgerView";
 import { AgreementSummaryView } from "../payments/AgreementSummaryView";
 import { SovPage } from "../billing/SovEditor";
 import { BillingWorklist } from "../billing/BillingWorklist";
+import { OwnerPayAppsPage } from "../billing/OwnerBilling";
 import { PayAppPage } from "../billing/PayAppPage";
 import { PayAppsPage } from "../billing/PayAppsPage";
 import { ChangeOrdersPage } from "../payments/ChangeOrders";
@@ -76,7 +77,8 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
   else if (route.area === "owner-portal") content = <OwnerPortal role={me.role} />;
   else if (route.area === "payments") content = <PaymentsWorkspace />;
   else if (route.area === "billing-agents") content = <BillingAgentsView />;
-  else if (route.area === "billing") content = <BillingWorklist />;
+  else if (route.area === "billing") content = <BillingWorklist tab={route.tab} />;
+  else if (route.area === "owner-pay-apps") content = <OwnerPayAppsPage />;
   else if (route.area === "pay-apps") content = <PayAppsPage />;
   else if (route.area === "change-orders") content = <ChangeOrdersPage />;
   else if (route.area === "pay-app") {

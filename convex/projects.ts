@@ -1136,6 +1136,19 @@ export const deleteProject = mutation({
       await ctx.db.delete(cr._id);
     }
 
+    for (const app of await ctx.db
+      .query("ownerPayApps")
+      .withIndex("by_projectId_and_applicationNo", (q) => q.eq("projectId", args.projectId))
+      .take(500)) {
+      await ctx.db.delete(app._id);
+    }
+    for (const line of await ctx.db
+      .query("primeLines")
+      .withIndex("by_projectId_and_lineNo", (q) => q.eq("projectId", args.projectId))
+      .take(100)) {
+      await ctx.db.delete(line._id);
+    }
+
     await ctx.db.delete(args.projectId);
     return { success: true };
   },

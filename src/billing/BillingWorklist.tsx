@@ -1,8 +1,9 @@
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { FunctionReturnType } from "convex/server";
-import { payAppHash } from "../auth/navigation";
+import { billingTabHash, payAppHash, type BillingTab } from "../auth/navigation";
 import { Card, EmptyState, PageHeader, StatusPill, Tabs, formatCents, formatDate } from "../ui";
+import { GcOwnerBilling } from "./OwnerBilling";
 import { RetainageView } from "./RetainageView";
 
 type Row = FunctionReturnType<typeof api.payApps.g703.gcBillingWorklist>["rows"][number];
@@ -13,8 +14,8 @@ function headline(r: Row): string {
   return `${r.subName} submitted pay app ${which} – ${formatCents(amount)}`;
 }
 
-/** GC: submitted sub pay apps across the company's projects. Drafts stay with the sub and are not listed. */
-export function BillingWorklist() {
+/** GC: submitted sub pay apps across the company's projects (drafts stay with the sub), owner billing and retainage. */
+export function BillingWorklist({ tab = "pay-apps" }: { tab?: BillingTab }) {
   const data = useQuery(api.payApps.g703.gcBillingWorklist, {});
   if (data === undefined) {
     return (
@@ -44,11 +45,16 @@ export function BillingWorklist() {
   );
   return (
     <div className="max-w-5xl space-y-4">
-      <PageHeader title="Billing" description="Sub pay applications and the retainage held on each project." />
+      <PageHeader title="Billing" description="Sub pay applications, owner billing and the retainage held on each project." />
       <Tabs
         label="Billing"
+        value={tab}
+        onChange={(id) => {
+          window.location.hash = billingTabHash(id as BillingTab);
+        }}
         tabs={[
           { id: "pay-apps", label: "Pay apps", content: payApps },
+          { id: "owner-billing", label: "Owner billing", content: <GcOwnerBilling /> },
           { id: "retainage", label: "Retainage", content: <RetainageView /> },
         ]}
       />
