@@ -5,7 +5,7 @@ import { formatCents } from "../lib/money";
 import { isCaptureCollected } from "./captureSettlement";
 import { attemptsFor, checkRetry, retryKey } from "./payoutRetryMath";
 import { payoutBlockedMessage, payoutReceiverForContractor } from "../lib/payee";
-import { CAPTURED_NOT_PAID_EFFECT, initiationRefusal } from "./resumeDb";
+import { CAPTURED_NOT_PAID_EFFECT, initiationCheck } from "./resumeDb";
 
 /**
  * Creates the retry payout row for a captured-but-unpaid release (see payoutRetryMath.ts). Runs in one
@@ -46,9 +46,11 @@ export const beginPayoutRetry = internalMutation({
         message: payoutBlockedMessage(agreement.subcontractorName, receiver.reason, "Nothing was paid."),
       });
     }
-    // A retry sends a new payout batch: a new money write, so the release's pay app must still pass canPay.
-    const refusal = await initiationRefusal(ctx, root, CAPTURED_NOT_PAID_EFFECT);
-    if (refusal !== null) throw new ConvexError(refusal);
+    // A retry sends a new payout batch: a new money write, so the release's pay app must still pass canPay,
+    // and it pays the approved G702 split, not the split stored on the failed attempt.
+    const initiation = await initiationCheck(ctx, root, CAPTURED_NOT_PAID_EFFECT);
+    if (initiation.refusal !== null) throw new ConvexError(initiation.refusal);
+    const { retainageCents, netCents } = initiation.figures;
     const receiverEmail = receiver.email;
     const idempotencyKey = retryKey(root.idempotencyKey, check.n);
     const now = Date.now();
@@ -60,8 +62,8 @@ export const beginPayoutRetry = internalMutation({
       kind: "payout",
       status: "created",
       grossCents: root.grossCents,
-      retainageCents: root.retainageCents,
-      netCents: root.netCents,
+      retainageCents,
+      netCents,
       fundingPaymentId: root.fundingPaymentId,
       receiverEmail,
       retryOfPaymentId: root._id,
@@ -74,7 +76,7 @@ export const beginPayoutRetry = internalMutation({
       agreementId: agreement._id,
       eventType: "payout_retry",
       title: `Payout retry ${check.n} for ${agreement.agreementNumber}`,
-      description: `${actor} retried the payout of a captured release (${formatCents(root.grossCents)} gross, ${formatCents(root.netCents)} net) after it ended ${attempts[attempts.length - 1]?.status ?? root.status}. New sender_batch_id ${idempotencyKey}; original ${root.idempotencyKey}.`,
+      description: `${actor} retried the payout of a captured release (${formatCents(root.grossCents)} gross, ${formatCents(netCents)} net) after it ended ${attempts[attempts.length - 1]?.status ?? root.status}. New sender_batch_id ${idempotencyKey}; original ${root.idempotencyKey}.`,
       actor,
       timestamp: now,
       operation: "payout.retry",

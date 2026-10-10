@@ -35,8 +35,13 @@ export function PaymentPanel({ payAppId }: { payAppId: string }) {
   return panel.viewerRole === "gc" ? <GcPaymentPanel panel={panel} payAppId={payAppId} /> : <SubPaymentPanel panel={panel} />;
 }
 
+/** What a payout of this payment pays: the approved split when it is still to be sent, else what was sent. */
+function payoutFigures(payment: Payment) {
+  return payment.nextPayout ?? payment;
+}
+
 function Figures({ panel }: { panel: Panel }) {
-  const f = panel.payment ?? panel.figures;
+  const f = panel.payment ? payoutFigures(panel.payment) : panel.figures;
   if (f === null) return null;
   return (
     <dl className="grid gap-3 text-sm sm:grid-cols-3" data-testid="payment-figures">
@@ -87,6 +92,7 @@ function GcPaymentPanel({ panel, payAppId }: { panel: Panel; payAppId: string })
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const payment = panel.payment;
+  const next = payment ? payoutFigures(payment) : null;
   const figures = panel.figures;
   const paid = payment?.status === "success";
   const now = useNow(payment?.status === "created");
@@ -206,21 +212,21 @@ function GcPaymentPanel({ panel, payAppId }: { panel: Panel; payAppId: string })
           }}
         />
       ) : null}
-      {payment ? (
+      {payment && next ? (
         <ConfirmDialog
           open={confirm === "retry"}
           title={`Retry the payout to ${panel.subcontractorName}?`}
-          amountCents={payment.netCents}
+          amountCents={next.netCents}
           amountLabel="Payout (net to sub)"
           payee={payee}
           payeeLabel="Payee (confirmed PayPal email)"
           details={[
-            { label: "Approved gross", value: formatCents(payment.grossCents) },
-            { label: "Retainage held", value: formatCents(payment.retainageCents) },
+            { label: "Approved gross", value: formatCents(next.grossCents) },
+            { label: "Retainage held", value: formatCents(next.retainageCents) },
             { label: "Funding", value: "Already captured; held in the platform account" },
           ]}
-          effect={`Sends a new PayPal payout of ${formatCents(payment.netCents)} to ${payee} from the amount already captured for this pay app. Nothing new is captured. The server re-checks canPay first and refuses if the pay app is no longer approved or the payee is not confirmed. This can't be undone.`}
-          confirmLabel={`Send ${formatCents(payment.netCents)} payout`}
+          effect={`Sends a new PayPal payout of ${formatCents(next.netCents)} to ${payee} from the amount already captured for this pay app. Nothing new is captured. The server re-checks canPay first and refuses if the pay app is no longer approved or the payee is not confirmed. This can't be undone.`}
+          confirmLabel={`Send ${formatCents(next.netCents)} payout`}
           onCancel={() => setConfirm(null)}
           onConfirm={async () => {
             await retry({ paymentId: payment.paymentId });
@@ -229,20 +235,20 @@ function GcPaymentPanel({ panel, payAppId }: { panel: Panel; payAppId: string })
           }}
         />
       ) : null}
-      {payment && stuck ? (
+      {payment && next && stuck ? (
         <ConfirmDialog
           open={confirm === "resume"}
           title={`Retry the payment to ${panel.subcontractorName}?`}
-          amountCents={payment.netCents}
+          amountCents={next.netCents}
           amountLabel="Payout (net to sub)"
           payee={payee}
           payeeLabel="Payee (confirmed PayPal email)"
           details={[
             { label: "Capture", value: payment.captured ? `${formatCents(payment.grossCents)} already captured` : `${formatCents(payment.grossCents)}${payment.trancheName ? ` from ${payment.trancheName}` : ""}` },
-            { label: "Retainage held", value: formatCents(payment.retainageCents) },
+            { label: "Retainage held", value: formatCents(next.retainageCents) },
           ]}
-          effect={`Finishes this interrupted payment: ${payment.captured ? "nothing new is captured" : `captures ${formatCents(payment.grossCents)}`} and sends a PayPal payout of ${formatCents(payment.netCents)} to ${payee}. A step PayPal may already have received is re-sent under the same request id, so it is never done twice; a step never sent needs the approved pay app to pass canPay again. This can't be undone.`}
-          confirmLabel={`Retry ${formatCents(payment.netCents)} payment`}
+          effect={`Finishes this interrupted payment: ${payment.captured ? "nothing new is captured" : `captures ${formatCents(payment.grossCents)}`} and sends a PayPal payout of ${formatCents(next.netCents)} to ${payee}. A step PayPal may already have received is re-sent under the same request id, so it is never done twice; a step never sent needs the approved pay app to pass canPay again. This can't be undone.`}
+          confirmLabel={`Retry ${formatCents(next.netCents)} payment`}
           onCancel={() => setConfirm(null)}
           onConfirm={async () => {
             await resume({ paymentId: payment.paymentId });
@@ -279,7 +285,7 @@ function SubPaymentPanel({ panel }: { panel: Panel }) {
             <p className="text-sm font-semibold" data-testid="sub-payment-summary">
               {payment.status === "success"
                 ? `Paid ${formatCents(payment.netCents)}`
-                : `${PAYMENT_LABEL[payment.status] ?? "Payment processing"}: ${formatCents(payment.netCents)}`}
+                : `${PAYMENT_LABEL[payment.status] ?? "Payment processing"}: ${formatCents(payoutFigures(payment).netCents)}`}
             </p>
             <PaymentDetail payment={payment} />
           </>
@@ -292,7 +298,7 @@ function SubPaymentPanel({ panel }: { panel: Panel }) {
           <div>
             <dt className="text-xs text-ink-subtle">Retainage held this period</dt>
             <dd className="font-semibold tabular-nums">
-              {payment ? formatCents(payment.retainageCents) : panel.retainageThisPeriodCents !== null ? formatCents(panel.retainageThisPeriodCents) : "—"}
+              {payment ? formatCents(payoutFigures(payment).retainageCents) : panel.retainageThisPeriodCents !== null ? formatCents(panel.retainageThisPeriodCents) : "—"}
             </dd>
           </div>
           <div>

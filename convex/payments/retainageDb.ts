@@ -2,12 +2,12 @@ import { ConvexError, v, type Infer } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
 import { payoutBlockedMessage, payoutReceiverForContractor } from "../lib/payee";
-import { isInterruptedRelease, releasableRetainageCents } from "./retainageMath";
+import { availableRetainageCents, isInterruptedRelease } from "./retainageMath";
 
 /**
  * Database side of the closeout retainage release (architecture §4 step 4). One agreement has one sub,
- * so a release pays that sub the agreement's releasable retainage (retainageMath.releasableRetainageCents)
- * through one retainage_release payment.
+ * so a release pays that sub the agreement's releasable retainage not reserved by a payment in flight
+ * (retainageMath.availableRetainageCents) through one retainage_release payment.
  * The matching negative ledger row is written when PayPal accepts the batch (payoutDb.recordPayoutCreated),
  * which takes the releasable amount to 0; that is what keeps a second release from paying anything.
  */
@@ -45,7 +45,7 @@ export const beginRetainageRelease = internalMutation({
     const inFlight = releases.find((p) => p.status === "created");
     if (inFlight) return { state: "in_flight", paymentId: inFlight._id, amountCents: inFlight.netCents };
 
-    const balanceCents = releasableRetainageCents(payments, await ledgerRows(ctx, agreementId));
+    const balanceCents = availableRetainageCents(payments, await ledgerRows(ctx, agreementId));
     if (balanceCents <= 0) return { state: "nothing_to_release", balanceCents };
 
     const receiver = await payoutReceiverForContractor(ctx, agreement.contractorId);

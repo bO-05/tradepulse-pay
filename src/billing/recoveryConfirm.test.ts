@@ -25,7 +25,8 @@ describe("recovery money writes are confirmed and tranche rows carry no pay cont
       const at = panel.indexOf(`open={confirm === "${kind}"}`);
       expect(at, kind).toBeGreaterThan(0);
       const dialog = panel.slice(at, panel.indexOf("/>", panel.indexOf("onConfirm", at)));
-      expect(dialog).toContain("amountCents={payment.netCents}");
+      // `next` is the split the server will send: the approved G702 figures for an unsent payout or a fresh retry.
+      expect(dialog).toContain("amountCents={next.netCents}");
       expect(dialog).toContain("payee={payee}");
       expect(dialog).toContain("effect={");
     }

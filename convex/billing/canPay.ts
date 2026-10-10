@@ -60,6 +60,11 @@ export const paymentPanel = query({
       const wasCaptured = captured.has(rootId);
       const attempts = attemptsFor(gate.payouts, rootId);
       const milestone = latest.milestoneId ? await ctx.db.get(latest.milestoneId) : null;
+      const canRetryPayout = isGc && checkRetry(attempts, rootId, wasCaptured).ok;
+      // A payout not yet sent (or a fresh retry batch) pays the approved G702 split; a sent one keeps its own.
+      const unsent = latest.status === "created" && latest.payoutSubmittedAt === undefined && latest.paypalPayoutBatchId === undefined;
+      const nextPayout =
+        (unsent || canRetryPayout) && gate.figures !== null && gate.figures.grossCents === latest.grossCents ? gate.figures : null;
       payment = {
         paymentId: latest._id,
         status: latest.status,
@@ -72,7 +77,8 @@ export const paymentPanel = query({
         paypalItemStatus: latest.paypalItemStatus ?? null,
         error: latest.error ?? null,
         captured: wasCaptured,
-        canRetryPayout: isGc && checkRetry(attempts, rootId, wasCaptured).ok,
+        canRetryPayout,
+        nextPayout,
         createdAt: latest.createdAt,
         updatedAt: latest.updatedAt ?? latest.createdAt,
       };

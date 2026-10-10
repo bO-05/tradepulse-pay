@@ -1,6 +1,7 @@
 import { ConvexError, v, type Infer } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
+import type { PayFigures } from "../billing/payGate";
 import { cannotPay, payGateForMutation } from "../billing/payGateDb";
 import { formatCents } from "../lib/money";
 import { syncProposalForPayment } from "../payApps/proposalSync";
@@ -20,40 +21,58 @@ export const CAPTURED_NOT_PAID_EFFECT = "The sub was not paid; the captured amou
 
 export type Refusal = { code: string; message: string };
 
+export type InitiationCheck = { refusal: Refusal; figures: null } | { refusal: null; figures: PayFigures };
+
 /**
- * Why a new capture or payout for `release` (the original release row) may not start now, or null when
- * its pay app is approved and passes canPay. A confirmed payee change is applied to `row` when given.
+ * Whether a new capture or payout for `release` (the original release row) may start now: refused unless
+ * its pay app is approved and passes canPay, else the approved G702 split it must pay. A confirmed
+ * payee change is applied to `row` when given.
  */
+export async function initiationCheck(
+  ctx: MutationCtx,
+  release: Doc<"payments">,
+  effect: string,
+  row?: Doc<"payments">,
+): Promise<InitiationCheck> {
+  const no = (refusal: Refusal): InitiationCheck => ({ refusal, figures: null });
+  const required = { code: "APPROVED_PAY_APP_REQUIRED", message: APPROVED_PAY_APP_REQUIRED_MESSAGE.replace(NOT_CAPTURED_EFFECT, effect) };
+  if (release.payAppId === undefined) return no(required);
+  const payApp = await ctx.db.get(release.payAppId);
+  const agreement = await ctx.db.get(release.agreementId);
+  if (payApp === null || agreement === null || payApp.agreementId !== agreement._id) return no(required);
+  const gate = await payGateForMutation(ctx, payApp, agreement, { continuingReleaseId: release._id });
+  if (!gate.ok || gate.figures === null || gate.payeeEmail === null) {
+    return no({ code: "CANNOT_PAY", message: `${cannotPay(gate.reasons).data.message}. ${effect}` });
+  }
+  if (gate.figures.grossCents !== release.grossCents) {
+    return no({
+      code: "CONFLICT",
+      message: `The approved amount is now ${formatCents(gate.figures.grossCents)}, not the ${formatCents(release.grossCents)} of this release. ${effect}`,
+    });
+  }
+  // Nothing was sent for this row yet, so it pays the payee confirmed now.
+  if (row !== undefined && row.receiverEmail !== gate.payeeEmail) await ctx.db.patch(row._id, { receiverEmail: gate.payeeEmail });
+  return { refusal: null, figures: gate.figures };
+}
+
 export async function initiationRefusal(
   ctx: MutationCtx,
   release: Doc<"payments">,
   effect: string,
   row?: Doc<"payments">,
 ): Promise<Refusal | null> {
-  const required = { code: "APPROVED_PAY_APP_REQUIRED", message: APPROVED_PAY_APP_REQUIRED_MESSAGE.replace(NOT_CAPTURED_EFFECT, effect) };
-  if (release.payAppId === undefined) return required;
-  const payApp = await ctx.db.get(release.payAppId);
-  const agreement = await ctx.db.get(release.agreementId);
-  if (payApp === null || agreement === null || payApp.agreementId !== agreement._id) return required;
-  const gate = await payGateForMutation(ctx, payApp, agreement, { continuingReleaseId: release._id });
-  if (!gate.ok || gate.figures === null || gate.payeeEmail === null) {
-    return { code: "CANNOT_PAY", message: `${cannotPay(gate.reasons).data.message}. ${effect}` };
-  }
-  if (gate.figures.grossCents !== release.grossCents) {
-    return {
-      code: "CONFLICT",
-      message: `The approved amount is now ${formatCents(gate.figures.grossCents)}, not the ${formatCents(release.grossCents)} of this release. ${effect}`,
-    };
-  }
-  // Nothing was sent for this row yet, so it pays the payee confirmed now.
-  if (row !== undefined && row.receiverEmail !== gate.payeeEmail) await ctx.db.patch(row._id, { receiverEmail: gate.payeeEmail });
-  return null;
+  return (await initiationCheck(ctx, release, effect, row)).refusal;
+}
+
+/** Closes a created payment none of whose refused step was sent to PayPal. */
+export async function closeUnsent(ctx: MutationCtx, row: Doc<"payments">, message: string): Promise<void> {
+  assertPaymentTransition(row.kind, "created", "failed");
+  await ctx.db.patch(row._id, { status: "failed", error: message, updatedAt: Date.now() });
+  await syncProposalForPayment(ctx, row._id);
 }
 
 async function refuse(ctx: MutationCtx, row: Doc<"payments">, refusal: Refusal) {
-  assertPaymentTransition("payout", "created", "failed");
-  await ctx.db.patch(row._id, { status: "failed", error: refusal.message, updatedAt: Date.now() });
-  await syncProposalForPayment(ctx, row._id);
+  await closeUnsent(ctx, row, refusal.message);
   return { state: "refused" as const, ...refusal };
 }
 

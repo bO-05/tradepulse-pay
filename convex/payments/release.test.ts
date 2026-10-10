@@ -1183,3 +1183,244 @@ describe("resume and retry separate reconciliation from new money writes", () =>
     expect((await rows(s.t, s.milestone._id)).payouts).toHaveLength(1);
   });
 });
+
+/** Gives a pay app approved G702 figures with this current payment due (net); gross stays the approved total. */
+async function setApprovedDue(t: Setup["t"], payAppId: Id<"payApplications">, dueCents: number) {
+  await t.run(async (ctx) => {
+    const zero = {
+      originalContractSumCents: 0,
+      netChangeOrdersCents: 0,
+      contractSumToDateCents: 0,
+      completedAndStoredCents: 0,
+      retainageCents: 0,
+      retainageWorkCents: 0,
+      retainageStoredCents: 0,
+      earnedLessRetainageCents: 0,
+      previousCertificatesCents: 0,
+      balanceToFinishInclRetainageCents: 0,
+    };
+    await ctx.db.patch(payAppId, {
+      g703: { lines: [], originalContractSumCents: 0, retainageBps: 0, previousCertificatesCents: 0, savedAt: Date.now(), approved: { ...zero, currentPaymentDueCents: dueCents } },
+    });
+  });
+}
+
+const payoutValues = () =>
+  fake.posts(/^\/v1\/payments\/payouts$/).map((c) => ({
+    sender: (c.body as { sender_batch_header: { sender_batch_id: string } }).sender_batch_header.sender_batch_id,
+    value: (c.body as { items: Array<{ amount: { value: string } }> }).items[0].amount.value,
+  }));
+
+describe("scheduled payout recovery goes through the reconcile-or-initiate gate", () => {
+  test("a legacy capture_pending release without a pay app never starts a payout when its capture completes", async () => {
+    const s = await setup({ authorizedCents: 1_000_000 });
+    const paymentId = await s.t.run(async (ctx) => {
+      const id = await ctx.db.insert("payments", {
+        agreementId: s.agreement._id,
+        milestoneId: s.milestone._id,
+        kind: "payout",
+        status: "capture_pending",
+        grossCents: 500_000,
+        retainageCents: 50_000,
+        netCents: 450_000,
+        fundingPaymentId: s.fundingId,
+        receiverEmail: SUB_EMAIL,
+        idempotencyKey: "pay_legacy-pending-key",
+        createdAt: Date.now() - 120_000,
+      });
+      await ctx.db.patch(s.fundingId, {
+        status: "partially_captured",
+        capturedCents: 500_000,
+        paypalCaptureId: "CAP-PEND",
+        captures: [
+          { captureId: "CAP-PEND", amountCents: 500_000, requestKey: "pay_legacy-pending-key", finalCapture: false, status: "PENDING", releasePaymentId: id, capturedAt: Date.now() },
+        ],
+      });
+      return id;
+    });
+    await s.t.mutation(internal.payments.captureSettlement.applyCaptureSettlement, { fundingPaymentId: s.fundingId, captureId: "CAP-PEND", status: "COMPLETED" });
+    await s.t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect(fake.posts(/^\/v1\/payments\/payouts$/)).toHaveLength(0);
+    const row = await s.t.run((ctx) => ctx.db.get(paymentId));
+    expect(row!.status).toBe("failed");
+    expect(row!.error).toMatch(/approved pay app/i);
+    expect(row!.error).toMatch(/captured amount stays/);
+    expect((await rows(s.t, s.milestone._id)).ledger).toHaveLength(0);
+  });
+
+  test("an INSUFFICIENT_FUNDS retry is a new payout: it is not sent once the pay app no longer passes canPay", async () => {
+    const { t, gc, milestone } = await setup({ authorizedCents: 1_000_000 });
+    fake.state.insufficientFunds = 1;
+    await payFromTranche(t, gc.as, { milestoneId: milestone._id, amountCents: 1_000_000, requestKey: key("ifgate") });
+    let r = await rows(t, milestone._id);
+    expect(r.payouts[0].status).toBe("created");
+    await t.run(async (ctx) => ctx.db.patch(r.payouts[0].payAppId!, { status: "rejected" }));
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    r = await rows(t, milestone._id);
+    expect(fake.posts(/^\/v1\/payments\/payouts$/)).toHaveLength(1);
+    expect(fake.batches.size).toBe(0);
+    expect(r.payouts[0].status).toBe("failed");
+    expect(r.payouts[0].error).toMatch(/Pay app is not approved/);
+    expect(r.ledger).toHaveLength(0);
+  });
+
+  test("a payout POST that may have reached PayPal is still reconciled under the same sender_batch_id", async () => {
+    const { t, gc, milestone } = await setup({ authorizedCents: 1_000_000 });
+    fake.state.insufficientFunds = 1;
+    await payFromTranche(t, gc.as, { milestoneId: milestone._id, amountCents: 1_000_000, requestKey: key("ifrec") });
+    const row = (await rows(t, milestone._id)).payouts[0];
+    // A later attempt reached PayPal, which created the batch, but the action died before recording it.
+    await t.mutation(internal.payments.payoutDb.markPayoutSending, { paymentId: row._id, receiverEmail: SUB_EMAIL });
+    fake.batches.set("BATCH-SENT", { id: "BATCH-SENT", senderBatchId: row.idempotencyKey, senderItemId: row._id, receiver: SUB_EMAIL, value: "9000.00" });
+    await t.run(async (ctx) => ctx.db.patch(row.payAppId!, { status: "rejected" }));
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const after = (await rows(t, milestone._id)).payouts[0];
+    expect(after.paypalPayoutBatchId).toBe("BATCH-SENT");
+    expect(fake.batches.size).toBe(1);
+    expect(new Set(fake.posts(/^\/v1\/payments\/payouts$/).map((c) => c.requestId))).toEqual(new Set([row.idempotencyKey]));
+  });
+});
+
+describe("held retainage is reserved between closeout releases and negative-retainage payouts", () => {
+  /** $500 of retainage held from a settled $5,000 payout, and a $500 closeout release created but never sent. */
+  async function heldWithUnsentRelease() {
+    const s = await setup({ authorizedCents: 2_000_000 });
+    await payFromTranche(s.t, s.gc.as, { milestoneId: s.milestone._id, amountCents: 500_000, requestKey: key("held") });
+    await s.t.finishAllScheduledFunctions(vi.runAllTimers);
+    const begun = await s.t.mutation(internal.payments.retainageDb.beginRetainageRelease, { agreementId: s.agreement._id });
+    if (begun.state !== "new") throw new Error("expected a new release");
+    expect(begun.amountCents).toBe(50_000);
+    return { ...s, releaseId: begun.paymentId };
+  }
+  /** An approved $1,000 pay app whose G702 payment due is $1,070: it releases $70 of held retainage. */
+  async function negativeRetainagePayApp(s: Setup) {
+    const { insertApprovedPayApp } = await import("../lib/testPayApp");
+    const payAppId = await insertApprovedPayApp(s.t, s.milestone._id, 100_000);
+    await setApprovedDue(s.t, payAppId, 107_000);
+    return payAppId;
+  }
+  async function balance(s: Setup) {
+    return await s.t.run(async (ctx) => {
+      const ledger = await ctx.db
+        .query("retainageLedger")
+        .withIndex("by_agreementId", (q) => q.eq("agreementId", s.agreement._id))
+        .collect();
+      let running = 0;
+      let lowest = 0;
+      for (const l of [...ledger].sort((a, b) => a._creationTime - b._creationTime)) {
+        running += l.deltaCents;
+        lowest = Math.min(lowest, running);
+      }
+      return { held: running, lowest };
+    });
+  }
+
+  test("a negative-retainage payout cannot use retainage an unsent closeout release already holds", async () => {
+    const s = await heldWithUnsentRelease();
+    const payAppId = await negativeRetainagePayApp(s);
+    const gate = await s.gc.as.query(api.billing.canPay.canPay, { payAppId });
+    expect(gate.reasons.map((r) => r.code)).toContain("RETAINAGE_SHORTFALL");
+    const err = await errorOf(s.gc.as.action(api.billing.pay.payPayApp, { payAppId, trancheId: s.milestone._id }));
+    expect(err.data.message).toMatch(/Not enough retainage held/);
+
+    vi.advanceTimersByTime(RESUME_RELEASE_AFTER_MS + 1_000);
+    const out = await s.gc.as.action(api.payments.retainage.resumeRetainageRelease, { paymentId: s.releaseId });
+    expect(out.amountCents).toBe(50_000);
+    await s.t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect(await balance(s)).toEqual({ held: 0, lowest: 0 });
+  });
+
+  test("a closeout release cannot take retainage an in-flight negative-retainage payout is about to pay out", async () => {
+    const s = await setup({ authorizedCents: 2_000_000 });
+    await payFromTranche(s.t, s.gc.as, { milestoneId: s.milestone._id, amountCents: 500_000, requestKey: key("held2") });
+    await s.t.finishAllScheduledFunctions(vi.runAllTimers);
+    const payAppId = await negativeRetainagePayApp(s);
+    // The progress payment is captured but its payout waits for PayPal funds.
+    fake.state.insufficientFunds = 1;
+    await s.gc.as.action(api.billing.pay.payPayApp, { payAppId, trancheId: s.milestone._id });
+    const begun = await s.t.mutation(internal.payments.retainageDb.beginRetainageRelease, { agreementId: s.agreement._id });
+    if (begun.state !== "new") throw new Error("expected a new release");
+    expect(begun.amountCents).toBe(43_000);
+    await s.t.finishAllScheduledFunctions(vi.runAllTimers);
+    await s.gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: s.agreement._id });
+    await s.t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect(await balance(s)).toEqual({ held: 0, lowest: 0 });
+  });
+
+  test("resuming a $500 release after a $70 debit lowered the held balance is refused and the ledger never goes negative", async () => {
+    const s = await heldWithUnsentRelease();
+    // A $70 negative-retainage debit recorded while the release sat unsent (e.g. a payout started before reservations).
+    await s.t.run(async (ctx) => {
+      await ctx.db.insert("retainageLedger", { agreementId: s.agreement._id, deltaCents: -7_000, reason: "Pay app: approved retainage to date went down by $70.00", createdAt: Date.now() });
+    });
+    vi.advanceTimersByTime(RESUME_RELEASE_AFTER_MS + 1_000);
+    const before = fake.posts(/^\/v1\/payments\/payouts$/).length;
+    const err = await errorOf(s.gc.as.action(api.payments.retainage.resumeRetainageRelease, { paymentId: s.releaseId }));
+    expect(err.data.message).toMatch(/\$430\.00 of retainage is now releasable, less than this \$500\.00 release/);
+    expect(fake.posts(/^\/v1\/payments\/payouts$/)).toHaveLength(before);
+    const release = await s.t.run((ctx) => ctx.db.get(s.releaseId));
+    expect(release!.status).toBe("failed");
+    expect(await balance(s)).toEqual({ held: 43_000, lowest: 0 });
+
+    // Releasing again pays the current balance.
+    const out = await s.gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: s.agreement._id });
+    expect(out.amountCents).toBe(43_000);
+    await s.t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect(await balance(s)).toEqual({ held: 0, lowest: 0 });
+  });
+});
+
+describe("never-sent payouts and fresh retries pay the approved G702 split", () => {
+  test("a retry of a failed mixed-rate payout with a stale split sends the approved $11,880.10 net", async () => {
+    const s = await setup({ authorizedCents: 1_280_010 });
+    fake.state.defaultItemStatus = "FAILED";
+    const { insertApprovedPayApp } = await import("../lib/testPayApp");
+    const payAppId = await insertApprovedPayApp(s.t, s.milestone._id, 1_280_010);
+    await setApprovedDue(s.t, payAppId, 1_188_010);
+    await s.gc.as.action(api.billing.pay.payPayApp, { payAppId, trancheId: s.milestone._id });
+    await s.t.finishAllScheduledFunctions(vi.runAllTimers);
+    fake.state.defaultItemStatus = "SUCCESS";
+    const original = (await rows(s.t, s.milestone._id)).payouts[0];
+    expect(original.status).toBe("failed");
+    // The failed attempt was stored with a pre-fix flat 5% split.
+    await s.t.run(async (ctx) => ctx.db.patch(original._id, { retainageCents: 64_001, netCents: 1_216_009 }));
+
+    const panel = (await s.gc.as.query(api.billing.canPay.paymentPanel, { payAppId }))!;
+    expect(panel.payment?.nextPayout).toEqual({ grossCents: 1_280_010, retainageCents: 92_000, netCents: 1_188_010 });
+
+    const out = await s.gc.as.action(api.payments.payoutRetry.retryPayout, { paymentId: original._id });
+    const sent = payoutValues().filter((p) => p.sender === out.idempotencyKey);
+    expect(sent.map((p) => p.value)).toEqual(["11880.10"]);
+    await s.t.finishAllScheduledFunctions(vi.runAllTimers);
+    const r = await rows(s.t, s.milestone._id);
+    const retry = r.payouts.find((p) => p.retryOfPaymentId === original._id)!;
+    expect(retry).toMatchObject({ status: "success", grossCents: 1_280_010, retainageCents: 92_000, netCents: 1_188_010 });
+    expect(r.ledger.reduce((a, l) => a + l.deltaCents, 0)).toBe(92_000);
+  });
+
+  test("resuming a never-sent release with a stale split captures the gross and pays the approved net", async () => {
+    const s = await setup({ authorizedCents: 1_000_000 });
+    fake.state.failOAuth = true;
+    const p = errorOf(payFromTranche(s.t, s.gc.as, { milestoneId: s.milestone._id, amountCents: 1_000_000, requestKey: key("stale") }));
+    await vi.advanceTimersByTimeAsync(10_000);
+    await p;
+    fake.state.failOAuth = false;
+    const release = (await rows(s.t, s.milestone._id)).payouts[0];
+    expect(release).toMatchObject({ status: "created", netCents: 900_000 });
+    // The approved G702 payment due is $9,500.00, not the stored flat split.
+    await setApprovedDue(s.t, release.payAppId!, 950_000);
+    vi.advanceTimersByTime(61_000);
+
+    const panel = (await s.gc.as.query(api.billing.canPay.paymentPanel, { payAppId: release.payAppId! }))!;
+    expect(panel.payment?.nextPayout).toEqual({ grossCents: 1_000_000, retainageCents: 50_000, netCents: 950_000 });
+
+    await s.gc.as.action(api.payments.release.resumeRelease, { paymentId: release._id });
+    expect(payoutValues().map((v) => v.value)).toEqual(["9500.00"]);
+    await s.t.finishAllScheduledFunctions(vi.runAllTimers);
+    const r = await rows(s.t, s.milestone._id);
+    expect(r.payouts[0]).toMatchObject({ status: "success", retainageCents: 50_000, netCents: 950_000 });
+    expect(r.ledger.map((l) => l.deltaCents)).toEqual([50_000]);
+  });
+});

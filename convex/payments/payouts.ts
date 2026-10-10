@@ -83,7 +83,7 @@ export async function payoutSub(
         items: [
           {
             recipient_type: "EMAIL",
-            amount: { value: toPayPalString(begun.netCents), currency: "USD" },
+            amount: { value: toPayPalString(gate.netCents), currency: "USD" },
             receiver: begun.receiverEmail,
             note: begun.note,
             sender_item_id: args.paymentId,

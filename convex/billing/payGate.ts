@@ -4,7 +4,7 @@ import { formatCents } from "../lib/money";
 import { PAYEE_REASON, type PayoutReceiver } from "../lib/payee";
 import { isCaptureCollected } from "../payments/captureSettlement";
 import { computePayoutSplit, remainingAuthorizedCents, retainagePercentFor } from "../payments/payoutMath";
-import { releasableRetainageCents } from "../payments/retainageMath";
+import { availableRetainageCents, releasableRetainageCents, reservedRetainageCents } from "../payments/retainageMath";
 import { complianceBlockers, waiverBlockers } from "./payGateHooks";
 import { loadTranches } from "../lib/trancheRows";
 
@@ -87,8 +87,15 @@ function nothingToPayMessage(payApp: Doc<"payApplications">): string {
     : "Nothing to pay: the approved amount is $0.00";
 }
 
-/** Retainage the agreement holds that a payout may release now (the closeout release's rule). */
-async function releasableHeldCents(ctx: QueryCtx, agreementId: Id<"agreements">): Promise<number> {
+/**
+ * Retainage the agreement holds that a payout may release now (the closeout release's rule), and how
+ * much of it other payments in flight have reserved. `exclude` is the release being continued.
+ */
+export async function releasableHeldCents(
+  ctx: QueryCtx,
+  agreementId: Id<"agreements">,
+  exclude?: Id<"payments">,
+): Promise<{ availableCents: number; reservedCents: number }> {
   const payments = await ctx.db
     .query("payments")
     .withIndex("by_agreementId", (q) => q.eq("agreementId", agreementId))
@@ -97,7 +104,10 @@ async function releasableHeldCents(ctx: QueryCtx, agreementId: Id<"agreements">)
     .query("retainageLedger")
     .withIndex("by_agreementId", (q) => q.eq("agreementId", agreementId))
     .take(1000);
-  return releasableRetainageCents(payments, ledger);
+  return {
+    availableCents: availableRetainageCents(payments, ledger, exclude),
+    reservedCents: Math.min(releasableRetainageCents(payments, ledger), reservedRetainageCents(payments, ledger, exclude)),
+  };
 }
 
 export function payeeReasonMessage(reason: string): string {
@@ -205,11 +215,12 @@ export async function evaluatePayGate(
     reasons.push({ code: "NOTHING_TO_PAY", message: nothingToPayMessage(payApp) });
   }
   if (!paid && figures !== null && figures.retainageCents < 0) {
-    const held = await releasableHeldCents(ctx, agreement._id);
-    if (held < -figures.retainageCents) {
+    const held = await releasableHeldCents(ctx, agreement._id, continuing);
+    if (held.availableCents < -figures.retainageCents) {
+      const reserved = held.reservedCents > 0 ? ` (${formatCents(held.reservedCents)} more is reserved for a retainage release or payment in progress)` : "";
       reasons.push({
         code: "RETAINAGE_SHORTFALL",
-        message: `Not enough retainage held: the payment due releases ${formatCents(-figures.retainageCents)} of retainage but ${formatCents(held)} is held`,
+        message: `Not enough retainage held: the payment due releases ${formatCents(-figures.retainageCents)} of retainage but ${formatCents(held.availableCents)} is held${reserved}`,
       });
     }
   }
