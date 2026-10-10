@@ -7,10 +7,12 @@ import { requireRole } from "../lib/roles";
 import { scopedAgreements } from "../lib/agreementScope";
 import { auditActor, findSubcontractDocScope, requireDocScope } from "../lib/projectScope";
 import { latestCompletedCheck } from "../kernel/licenseChecks";
-import { milestonePlanRows } from "../agent/proposalDb";
-import { checkEditedAmount, chooseCaptureMilestone, effectiveAmount } from "../agent/proposalMath";
+import { checkEditedAmount, effectiveAmount } from "../agent/proposalMath";
+import { chooseFundingSource } from "../billing/pay";
+import { cannotPay, payGateForMutation } from "../billing/payGateDb";
 import { startRelease } from "../payments/release";
-import { computePayoutSplit, isValidRequestKey, remainingAuthorizedCents, retainagePercentFor } from "../payments/payoutMath";
+import { isDemoBillingProject } from "../payments/sov";
+import { computePayoutSplit, retainagePercentFor } from "../payments/payoutMath";
 import { finishProposal, syncProposalForPayment } from "./proposalSync";
 import { allocateFinalApproval } from "./billingHistory";
 import { approvedG702Figures } from "./g703";
@@ -254,7 +256,7 @@ export const approveProposal = mutation({
     const payApp = p.payAppId ? await ctx.db.get(p.payAppId) : null;
     if (payApp === null) throw new ConvexError({ code: "NOT_FOUND", message: "Pay application not found." });
     // After the GC's per-line decision the approved total is fixed; the pair then pays exactly that.
-    const decided = DECIDED_STATUSES.has(payApp.status) && payApp.gcDecision !== undefined && payApp.finalApproval !== undefined;
+    const decided = DECIDED_STATUSES.has(payApp.status) && payApp.finalApproval !== undefined;
     if (payApp.status !== "reviewed" && !decided) {
       throw new ConvexError({ code: "INVALID_STATE", message: `The pay application is ${payApp.status}; only reviewed pay applications can be approved.` });
     }
@@ -274,6 +276,16 @@ export const approveProposal = mutation({
     if (payout === undefined) {
       throw new ConvexError({ code: "INVALID_STATE", message: "This capture has no matching payout proposal to approve with it." });
     }
+    const agreement = await ctx.db.get(payApp.agreementId);
+    if (agreement === null) throw new ConvexError({ code: "NOT_FOUND", message: "Not found." });
+    if (!decided) {
+      // Approving a proposal does not approve the pay app (§16), except for the Phase-1 demo pay apps
+      // (no G702), where the GC's approval of the pair is the pay app decision.
+      const project = await ctx.db.get(agreement.projectId);
+      if (project === null || !(await isDemoBillingProject(ctx, project)) || payApp.g703 !== undefined) {
+        throw cannotPay((await payGateForMutation(ctx, payApp, agreement)).reasons);
+      }
+    }
     if (payout.flags.includes("license_hold") && args.overrideLicenseHold !== true) {
       throw new ConvexError({
         code: "LICENSE_HOLD",
@@ -282,25 +294,21 @@ export const approveProposal = mutation({
     }
     const amountCents = decided ? payApp.finalApproval!.totalCents : (effectiveAmount(payout) ?? 0);
     if (amountCents <= 0) throw new ConvexError({ code: "INVALID_AMOUNT", message: "The proposal has no amount to pay." });
-    const finalLines = decided ? payApp.finalApproval!.lines : await finalAllocation(ctx, payApp, amountCents);
-
-    const rows = await milestonePlanRows(ctx, payApp.agreementId);
-    const preferred = rows.find(
-      (m) =>
-        m.milestoneId === (payout.milestoneId ?? capture?.milestoneId) &&
-        m.funding !== null &&
-        ["authorized", "partially_captured"].includes(m.funding.status) &&
-        remainingAuthorizedCents(m.funding) >= amountCents,
-    );
-    const billed = finalLines.filter((l) => l.approvedCents > 0).map((l) => l.sovLineId as string);
-    const milestone = preferred ?? chooseCaptureMilestone(rows, billed, amountCents);
-    if (milestone === null) {
-      throw new ConvexError({
-        code: "NOT_FUNDED",
-        message: `No funded milestone has ${formatCents(amountCents)} authorized and uncaptured. Fund a milestone (or edit the amount down) before approving.`,
+    if (!decided) {
+      const finalLines = await finalAllocation(ctx, payApp, amountCents);
+      const approvedFigures = await approvedG702Figures(ctx, payApp, finalLines);
+      await ctx.db.patch(payApp._id, {
+        status: "approved",
+        finalApproval: { totalCents: amountCents, lines: finalLines, approvedBy: viewer.userId, approvedAt: now },
+        ...(payApp.g703 && approvedFigures ? { g703: { ...payApp.g703, approved: approvedFigures } } : {}),
       });
     }
-    const milestoneId = milestone.milestoneId as Id<"milestones">;
+    const current = (await ctx.db.get(payApp._id))!;
+    const gate = await payGateForMutation(ctx, current, agreement);
+    if (!gate.ok) throw cannotPay(gate.reasons);
+    const milestone = chooseFundingSource(gate, payout.milestoneId ?? capture?.milestoneId);
+    if (milestone === null) throw cannotPay(gate.reasons);
+    const milestoneId = milestone.milestoneId;
     const decision = {
       status: "approved" as const,
       decidedBy: viewer.userId,
@@ -310,14 +318,6 @@ export const approveProposal = mutation({
     };
     await ctx.db.patch(payout._id, decision);
     if (capture) await ctx.db.patch(capture._id, decision);
-    if (!decided) {
-      const approvedFigures = await approvedG702Figures(ctx, payApp, finalLines);
-      await ctx.db.patch(payApp._id, {
-        status: "approved",
-        finalApproval: { totalCents: amountCents, lines: finalLines, approvedBy: viewer.userId, approvedAt: now },
-        ...(payApp.g703 && approvedFigures ? { g703: { ...payApp.g703, approved: approvedFigures } } : {}),
-      });
-    }
     await audit(
       ctx,
       payApp.agreementId,
@@ -501,43 +501,5 @@ export const settleProposalExecution = internalMutation({
       if (capture) await finishProposal(ctx, capture, "failed", { error });
     }
     return null;
-  },
-});
-
-/** The agreement ledger's "Release & pay" recorded as a GC-approved payout proposal. */
-export const ledgerReleaseProposal = internalMutation({
-  args: { milestoneId: v.id("milestones"), amountCents: v.number(), requestKey: v.string(), userId: v.id("users") },
-  returns: v.id("agentProposals"),
-  handler: async (ctx, args) => {
-    if (!isValidRequestKey(args.requestKey)) throw new ConvexError({ code: "INVALID_REQUEST", message: "Invalid release request key." });
-    const existing = await ctx.db
-      .query("payments")
-      .withIndex("by_idempotencyKey", (q) => q.eq("idempotencyKey", `pay_${args.requestKey}`))
-      .first();
-    if (existing?.proposalId) return existing.proposalId;
-    const milestone = await ctx.db.get(args.milestoneId);
-    if (milestone === null) throw new ConvexError({ code: "NOT_FOUND", message: "Milestone not found." });
-    const runId = `ledger_${args.requestKey}`;
-    const prior = await ctx.db
-      .query("agentProposals")
-      .withIndex("by_agreementId_and_status", (q) => q.eq("agreementId", milestone.agreementId).eq("status", "approved"))
-      .take(200);
-    const same = prior.find((p) => p.agentRunId === runId);
-    if (same) return same._id;
-    const now = Date.now();
-    return await ctx.db.insert("agentProposals", {
-      agreementId: milestone.agreementId,
-      milestoneId: milestone._id,
-      kind: "payout",
-      amountCents: args.amountCents,
-      rationale: `Released by the GC from the agreement ledger (${milestone.name}).`,
-      flags: [],
-      status: "approved",
-      source: "gc_ledger",
-      agentRunId: runId,
-      decidedBy: args.userId,
-      decidedAt: now,
-      createdAt: now,
-    });
   },
 });

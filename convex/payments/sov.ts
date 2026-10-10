@@ -1,5 +1,6 @@
 import type { Doc, Id } from "../_generated/dataModel";
-import type { MutationCtx } from "../_generated/server";
+import type { MutationCtx, QueryCtx } from "../_generated/server";
+import { projectStartMs } from "../billing/trancheRules";
 import { fromDollars } from "../lib/money";
 import {
   DEFAULT_MILESTONES,
@@ -8,6 +9,17 @@ import {
   sovSourceFingerprint,
   splitMilestoneAmounts,
 } from "./sovMath";
+
+/**
+ * Demo and Phase-1 seed projects (flagged demo, owned by the Demo company, or created by seeds before
+ * companies existed) keep the generated milestones and the legacy pay-agent approval path. Projects of
+ * real companies use GC-defined funding tranches and the pay-app decision.
+ */
+export async function isDemoBillingProject(ctx: QueryCtx, project: Doc<"projects">): Promise<boolean> {
+  if (project.isDemoProject) return true;
+  if (project.gcCompanyId === undefined) return true;
+  return (await ctx.db.get(project.gcCompanyId))?.isDemo === true;
+}
 
 export function agreementContractSumCents(agreement: { contractSum: number; contractSumCents?: number }): number {
   if (typeof agreement.contractSumCents === "number" && Number.isSafeInteger(agreement.contractSumCents)) return Math.max(0, agreement.contractSumCents);
@@ -85,7 +97,7 @@ export async function initialSovState(ctx: MutationCtx, agreementId: Id<"agreeme
 
 /**
  * Creates the draft schedule of values prefilled from the award (generated or executed
- * agreements) and, once executed, the default milestones. Re-running with the same award inputs
+ * agreements) and, once a demo agreement is executed, the default milestones. Re-running with the same award inputs
  * keeps the same rows. If the award inputs changed, untouched draft lines are regenerated unless
  * money has already moved against them (then they are kept and an audit warning is written).
  * Lines the GC edited or approved are never regenerated here.
@@ -150,10 +162,12 @@ export async function ensureSovAndMilestones(
   if (agreement.sov === undefined) await ctx.db.patch(agreementId, { sov: await initialSovState(ctx, agreementId) });
 
   let milestonesCreated = 0;
-  if (executed && rows.milestoneRows.length === 0) {
-    const project = await ctx.db.get(agreement.projectId);
+  const project = await ctx.db.get(agreement.projectId);
+  // Real projects get GC-defined funding tranches (billing/tranches.ts); only the Phase-1 demo keeps
+  // the four generated milestones its judge flow funds.
+  if (executed && rows.milestoneRows.length === 0 && project !== null && (await isDemoBillingProject(ctx, project))) {
     const dates = planMilestoneDates({
-      projectStartMs: project?.createdAt ?? agreement.createdAt,
+      projectStartMs: projectStartMs(project) ?? project.createdAt,
       executedAtMs: agreement.executedAt ?? Date.now(),
       leadWeeks,
       durationWeeks: project?.targetCompletionWeeks ?? 52,

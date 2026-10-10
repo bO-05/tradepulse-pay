@@ -6,12 +6,13 @@ import { requireProjectScopeInAction } from "../lib/tenancyAction";
 import { captureApproved, voidRemainder } from "./captures";
 import { payoutSub, refreshPayout } from "./payouts";
 import { payPalClientForAction } from "./paypalClient";
-import type { BeginRelease } from "./releaseDb";
+import { approvedPayAppRequired, type BeginRelease } from "./releaseDb";
 
 /**
- * "Release & pay" (architecture §4 steps 2–3): capture the released amount from the milestone's
- * authorization, then pay the sub the net of retainage. GC only. Each release has one payout payment
- * keyed by the client's requestKey, so retries and double clicks reuse it instead of paying twice.
+ * Paying an approved pay app (architecture §16): capture the approved gross from a funded tranche's
+ * authorization, then pay the sub the approved net. Each payment has one payout row keyed by its
+ * requestKey, so retries and double clicks reuse it instead of paying twice. beginRelease re-checks
+ * canPay before any money moves.
  */
 
 const releaseResult = v.object({
@@ -116,31 +117,16 @@ export async function startRelease(
   return await executeRelease(ctx, begun.paymentId, begun.actor);
 }
 
+/**
+ * The Phase-1 milestone "Release & pay" is gone: money moves only from an approved pay app through
+ * canPay (billing/pay:payPayApp). The function stays so old clients get a clear refusal.
+ */
 export const releaseAndPay = action({
   args: { milestoneId: v.id("milestones"), amountCents: v.number(), requestKey: v.string() },
   returns: releaseResult,
   handler: async (ctx, args): Promise<ReleaseResult> => {
-    const scope = await requireProjectScopeInAction(ctx, { docs: [{ table: "milestones", id: args.milestoneId }] }, { roles: ["gc"], write: true });
-    const actor = scope.actor;
-    // A ledger release is recorded as a GC-approved payout proposal, so every capture and payout
-    // goes through the proposal approve/execute path.
-    const proposalId: Id<"agentProposals"> = await ctx.runMutation(internal.payApps.proposals.ledgerReleaseProposal, {
-      ...args,
-      userId: scope.userId,
-    });
-    try {
-      const result = await startRelease(ctx, { ...args, actor, proposalId });
-      await ctx.runMutation(internal.payApps.proposals.settleProposalExecution, { proposalId, requestKey: args.requestKey });
-      return result;
-    } catch (e) {
-      const message = e instanceof ConvexError ? String((e.data as { message?: string }).message ?? "") : "";
-      await ctx.runMutation(internal.payApps.proposals.settleProposalExecution, {
-        proposalId,
-        requestKey: args.requestKey,
-        error: (message || "The release failed.").slice(0, 500),
-      });
-      throw e;
-    }
+    await requireProjectScopeInAction(ctx, { docs: [{ table: "milestones", id: args.milestoneId }] }, { roles: ["gc"], write: true });
+    throw approvedPayAppRequired();
   },
 });
 
@@ -197,14 +183,14 @@ export const refreshPayoutStatus = action({
   },
 });
 
-/** CLI entry point (`npx convex run payments/release:releaseAndPayInternal`), e.g. for odd-cent amounts. */
+/** CLI entry point (`npx convex run payments/release:releaseAndPayInternal`); still needs an approved pay app that passes canPay. */
 export const releaseAndPayInternal = internalAction({
   args: {
     milestoneId: v.id("milestones"),
     amountCents: v.number(),
     requestKey: v.string(),
     actor: v.optional(v.string()),
-    payAppId: v.optional(v.id("payApplications")),
+    payAppId: v.id("payApplications"),
     proposalId: v.optional(v.id("agentProposals")),
   },
   returns: releaseResult,

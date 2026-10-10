@@ -239,6 +239,11 @@ const GC_ONLY: Case[] = [
   m("payApps/proposals:rejectPayApp", api.payApps.proposals.rejectPayApp, (i) => ({ payAppId: i.payAppId })),
   a("payApps/review:rerunPayAppReview", api.payApps.review.rerunPayAppReview, (i) => ({ payAppId: i.payAppId })),
   a("payApps/reviewEvals:executePayAppReviewEvalSuite", api.payApps.reviewEvals.executePayAppReviewEvalSuite, () => ({})),
+  m("billing/tranches:createTranche", api.billing.tranches.createTranche, (i) => ({ agreementId: i.agreementId, name: "Forged", amountCents: 100 })),
+  m("billing/tranches:updateTranche", api.billing.tranches.updateTranche, (i) => ({ trancheId: i.milestoneId, amountCents: 100 })),
+  m("billing/tranches:deleteTranche", api.billing.tranches.deleteTranche, (i) => ({ trancheId: i.milestoneId })),
+  m("billing/tranches:moveTranche", api.billing.tranches.moveTranche, (i) => ({ trancheId: i.milestoneId, direction: "down" })),
+  a("billing/pay:payPayApp (capture + payout)", api.billing.pay.payPayApp, (i) => ({ payAppId: i.payAppId })),
   m("kernel/licenseChecks:requestLicenseCheck", api.kernel.licenseChecks.requestLicenseCheck, (i) => ({ contractorId: i.contractorId })),
 ];
 
@@ -313,6 +318,11 @@ describe("agreement ledger and payment reads", () => {
     { name: "payApps/g703:payAppLines", fn: api.payApps.g703.payAppLines, args: (i) => ({ payAppId: i.payAppId }) },
     { name: "payApps/g703:mySubPayAppAgreements", fn: api.payApps.g703.mySubPayAppAgreements, args: () => ({}) },
     { name: "payApps/g703:gcBillingWorklist", fn: api.payApps.g703.gcBillingWorklist, args: () => ({}) },
+    { name: "billing/canPay:canPay", fn: api.billing.canPay.canPay, args: (i) => ({ payAppId: i.payAppId }) },
+    { name: "billing/canPay:paymentPanel", fn: api.billing.canPay.paymentPanel, args: (i) => ({ payAppId: i.payAppId }) },
+    { name: "billing/tranches:listTranches", fn: api.billing.tranches.listTranches, args: (i) => ({ agreementId: i.agreementId }) },
+    { name: "billing/tranches:ownerProjectTranches", fn: api.billing.tranches.ownerProjectTranches, args: (i) => ({ projectId: i.projectId }) },
+    { name: "billing/retainage:projectRetainage", fn: api.billing.retainage.projectRetainage, args: () => ({}) },
     { name: "kernel/licenseChecks:getContractorLicense", fn: api.kernel.licenseChecks.getContractorLicense, args: (i) => ({ contractorId: i.contractorId }) },
   ];
 
@@ -479,6 +489,10 @@ describe("static guard sweep over convex/**", () => {
       "payApps/submit",
       "payApps/g703",
       "billing/sov",
+      "billing/tranches",
+      "billing/canPay",
+      "billing/pay",
+      "billing/retainage",
       "payApps/review",
       "payApps/proposals",
       "payApps/reviewEvals",

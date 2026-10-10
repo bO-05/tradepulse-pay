@@ -343,6 +343,12 @@ const GC_ONLY: Case[] = [
   m("payApps/proposals:editProposal", api.payApps.proposals.editProposal, (i) => ({ proposalId: i.proposalId, amountCents: 1 })),
   m("payApps/proposals:rejectProposal", api.payApps.proposals.rejectProposal, (i) => ({ proposalId: i.proposalId })),
   m("payApps/proposals:rejectPayApp", api.payApps.proposals.rejectPayApp, (i) => ({ payAppId: i.payAppId })),
+  m("billing/tranches:createTranche", api.billing.tranches.createTranche, (i) => ({ agreementId: i.agreementId, name: "Forged", amountCents: 100 })),
+  m("billing/tranches:updateTranche", api.billing.tranches.updateTranche, (i) => ({ trancheId: i.milestoneId, amountCents: 100 })),
+  m("billing/tranches:deleteTranche", api.billing.tranches.deleteTranche, (i) => ({ trancheId: i.milestoneId })),
+  m("billing/tranches:moveTranche", api.billing.tranches.moveTranche, (i) => ({ trancheId: i.milestoneId, direction: "down" })),
+  a("billing/pay:payPayApp", api.billing.pay.payPayApp, (i) => ({ payAppId: i.payAppId })),
+  q("billing/tranches:ownerProjectTranches (owner allowed)", api.billing.tranches.ownerProjectTranches, (i) => ({ projectId: i.projectId })),
   m("kernel/licenseChecks:requestLicenseCheck", api.kernel.licenseChecks.requestLicenseCheck, (i) => ({ contractorId: i.contractorId })),
   m("agentLinks:addAgentLink", api.agentLinks.addAgentLink, (i) => ({ agentEmail: "forged@agentmail.to", contractorId: i.contractorId })),
   q("dashboard/queries:getDashboardData (owner allowed)", api.dashboard.queries.getDashboardData, (i) => ({ projectId: i.projectId })),
@@ -357,6 +363,13 @@ const BLANK_READS: Case[] = [
   q("payApps/proposals:getAgentTrace", api.payApps.proposals.getAgentTrace, (i) => ({ payAppId: i.payAppId })),
   q("payApps/submit:payAppFormContext", api.payApps.submit.payAppFormContext, (i) => ({ agreementId: i.agreementId })),
   q("kernel/licenseChecks:getContractorLicense", api.kernel.licenseChecks.getContractorLicense, (i) => ({ contractorId: i.contractorId })),
+  q("billing/canPay:paymentPanel", api.billing.canPay.paymentPanel, (i) => ({ payAppId: i.payAppId })),
+  q("billing/tranches:listTranches", api.billing.tranches.listTranches, (i) => ({ agreementId: i.agreementId })),
+];
+
+/** Pay gate reads for the GC and the agreement's own sub; everyone else gets Not found. */
+const PAY_GATE_READS: Case[] = [
+  q("billing/canPay:canPay", api.billing.canPay.canPay, (i) => ({ payAppId: i.payAppId })),
 ];
 
 /** Eastbay's own pay-app writes: only Eastbay's sub (or its billing agent) may make them. */
@@ -401,6 +414,20 @@ describe("another company's payment ids read exactly like missing ids", () => {
       expect(forbidden, `${c.name} as ${label}`).toBe(await outcome(call(caller, c, missing)));
       expect(forbidden, `${c.name} as ${label}`).toMatch(/^RESOLVED:(null|\[\])$/);
     }
+    expect(await snapshot(t)).toBe(before);
+  });
+});
+
+describe("pay gate reads", () => {
+  test.each(PAY_GATE_READS)("$name", async (c) => {
+    const { t, fx, ray, bayview, missing } = await setup();
+    const before = await snapshot(t);
+    for (const [label, caller] of [...outsiders(fx), ["Lakeshore sub (Ray)", ray.as], ["owner (Harbor Point)", fx.owner.admin.as]] as [string, Caller][]) {
+      expect(await outcome(call(caller, c, bayview)), `${c.name} as ${label}`).toBe(NOT_FOUND);
+      expect(await outcome(call(caller, c, missing)), `${c.name} as ${label} (missing id)`).toBe(NOT_FOUND);
+    }
+    expect(await outcome(call(fx.gcA.admin.as, c, bayview))).toMatch(/^RESOLVED:/);
+    expect(await outcome(call(fx.sub.admin.as, c, bayview))).toMatch(/^RESOLVED:/);
     expect(await snapshot(t)).toBe(before);
   });
 });

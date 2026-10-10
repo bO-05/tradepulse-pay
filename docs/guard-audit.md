@@ -5,7 +5,7 @@ function calls a role guard before it reads or writes data, and a company-tenanc
 (`convex/lib/tenancy.ts`, `convex/lib/projectScope.ts`) unless it reads no project data.
 Internal functions (180 `internal*` exports) are not callable from clients and are not listed.
 
-Public functions: 202. Problems: 0. Without a tenancy guard: 0.
+Public functions: 212. Problems: 0. Without a tenancy guard: 0.
 
 | Function | Kind | Location | Guard | Tenancy |
 |---|---|---|---|---|
@@ -44,6 +44,10 @@ Public functions: 202. Problems: 0. Without a tenancy guard: 0.
 | `bids:updateBidLeveling` | mutation | `convex/bids.ts:528` | requireDocScope() at line 531 | requireDocScope() |
 | `bids:updateBidAdjustments` | mutation | `convex/bids.ts:537` | requireDocScope() at line 540 | requireDocScope() |
 | `bids:submitDirectBid` | mutation | `convex/bids.ts:546` | requireDocScope() at line 562 | requireDocScope() |
+| `billing/canPay:canPay` | query | `convex/billing/canPay.ts:23` | requireDocScope() at line 26 | requireDocScope() |
+| `billing/canPay:paymentPanel` | query | `convex/billing/canPay.ts:40` | findDocScope() at line 43 | findDocScope() |
+| `billing/pay:payPayApp` | action | `convex/billing/pay.ts:131` | requireProjectScopeInAction() at line 135 | requireProjectScopeInAction() |
+| `billing/retainage:projectRetainage` | query | `convex/billing/retainage.ts:16` | requireRole() at line 19 | scopedAgreements() |
 | `billing/sov:getSov` | query | `convex/billing/sov.ts:45` | requireDocScope() at line 48 | requireDocScope() |
 | `billing/sov:addSovLine` | mutation | `convex/billing/sov.ts:168` | requireDocScope() at line 171 | requireDocScope() |
 | `billing/sov:updateSovLine` | mutation | `convex/billing/sov.ts:192` | requireDocScope() at line 195 | requireDocScope() |
@@ -52,6 +56,12 @@ Public functions: 202. Problems: 0. Without a tenancy guard: 0.
 | `billing/sov:importSovLines` | mutation | `convex/billing/sov.ts:241` | requireDocScope() at line 247 | requireDocScope() |
 | `billing/sov:resetSovFromBid` | mutation | `convex/billing/sov.ts:280` | requireDocScope() at line 283 | requireDocScope() |
 | `billing/sov:approveSov` | mutation | `convex/billing/sov.ts:314` | requireDocScope() at line 317 | requireDocScope() |
+| `billing/tranches:createTranche` | mutation | `convex/billing/tranches.ts:126` | requireDocScope() at line 135 | requireDocScope() |
+| `billing/tranches:updateTranche` | mutation | `convex/billing/tranches.ts:168` | requireDocScope() at line 177 | requireDocScope() |
+| `billing/tranches:deleteTranche` | mutation | `convex/billing/tranches.ts:218` | requireDocScope() at line 221 | requireDocScope() |
+| `billing/tranches:moveTranche` | mutation | `convex/billing/tranches.ts:238` | requireDocScope() at line 241 | requireDocScope() |
+| `billing/tranches:listTranches` | query | `convex/billing/tranches.ts:283` | findSubcontractDocScope() at line 286 | findSubcontractDocScope() |
+| `billing/tranches:ownerProjectTranches` | query | `convex/billing/tranches.ts:314` | requireProjectScope() at line 317 | requireProjectScope() |
 | `companies:myCompany` | query | `convex/companies.ts:19` | requireCompanyMember() at line 22 | requireCompanyMember() |
 | `companies:updateProfile` | mutation | `convex/companies.ts:96` | requireCompanyMember() at line 106 | requireCompanyMember() |
 | `companies:updateDefaults` | mutation | `convex/companies.ts:145` | requireCompanyMember() at line 149 | requireCompanyMember() |
@@ -122,9 +132,9 @@ Public functions: 202. Problems: 0. Without a tenancy guard: 0.
 | `payApps/g703:saveDraft` | mutation | `convex/payApps/g703.ts:773` | requireDocScope() at line 778 | requireDocScope() |
 | `payApps/g703:submitPayApp` | mutation | `convex/payApps/g703.ts:807` | requireDocScope() at line 812 | requireDocScope() |
 | `payApps/g703:gcBillingWorklist` | query | `convex/payApps/g703.ts:921` | requireRole() at line 924 | scopedAgreements() |
-| `payApps/proposals:listInbox` | query | `convex/payApps/proposals.ts:117` | requireRole() at line 120 | scopedAgreements() |
-| `payApps/proposals:getAgentTrace` | query | `convex/payApps/proposals.ts:213` | findSubcontractDocScope() at line 216 | findSubcontractDocScope() |
-| `payApps/proposals:approveProposal` | mutation | `convex/payApps/proposals.ts:247` | requireDocScope() at line 250 | requireDocScope() |
+| `payApps/proposals:listInbox` | query | `convex/payApps/proposals.ts:119` | requireRole() at line 122 | scopedAgreements() |
+| `payApps/proposals:getAgentTrace` | query | `convex/payApps/proposals.ts:215` | findSubcontractDocScope() at line 218 | findSubcontractDocScope() |
+| `payApps/proposals:approveProposal` | mutation | `convex/payApps/proposals.ts:249` | requireDocScope() at line 252 | requireDocScope() |
 | `payApps/proposals:editProposal` | mutation | `convex/payApps/proposals.ts:342` | requireDocScope() at line 345 | requireDocScope() |
 | `payApps/proposals:rejectProposal` | mutation | `convex/payApps/proposals.ts:385` | requireDocScope() at line 388 | requireDocScope() |
 | `payApps/proposals:rejectPayApp` | mutation | `convex/payApps/proposals.ts:405` | requireDocScope() at line 408 | requireDocScope() |
@@ -148,11 +158,11 @@ Public functions: 202. Problems: 0. Without a tenancy guard: 0.
 | `payments/orders:createFundingOrder` | action | `convex/payments/orders.ts:38` | requireProjectScopeInAction() at line 42 | requireProjectScopeInAction() |
 | `payments/orders:authorizeFundingOrder` | action | `convex/payments/orders.ts:107` | requireRoleInAction() at line 111 | requireProjectScopeInAction() |
 | `payments/payoutRetry:retryPayout` | action | `convex/payments/payoutRetry.ts:38` | requireProjectScopeInAction() at line 42 | requireProjectScopeInAction() |
-| `payments/release:releaseAndPay` | action | `convex/payments/release.ts:119` | requireProjectScopeInAction() at line 123 | requireProjectScopeInAction() |
-| `payments/release:resumeRelease` | action | `convex/payments/release.ts:148` | requireProjectScopeInAction() at line 152 | requireProjectScopeInAction() |
-| `payments/release:closeMilestone` | action | `convex/payments/release.ts:158` | requireProjectScopeInAction() at line 162 | requireProjectScopeInAction() |
-| `payments/release:refreshCaptureStatus` | action | `convex/payments/release.ts:168` | requireProjectScopeInAction() at line 172 | requireProjectScopeInAction() |
-| `payments/release:refreshPayoutStatus` | action | `convex/payments/release.ts:191` | requireProjectScopeInAction() at line 195 | requireProjectScopeInAction() |
+| `payments/release:releaseAndPay` | action | `convex/payments/release.ts:124` | requireProjectScopeInAction() at line 128 | requireProjectScopeInAction() |
+| `payments/release:resumeRelease` | action | `convex/payments/release.ts:134` | requireProjectScopeInAction() at line 138 | requireProjectScopeInAction() |
+| `payments/release:closeMilestone` | action | `convex/payments/release.ts:144` | requireProjectScopeInAction() at line 148 | requireProjectScopeInAction() |
+| `payments/release:refreshCaptureStatus` | action | `convex/payments/release.ts:154` | requireProjectScopeInAction() at line 158 | requireProjectScopeInAction() |
+| `payments/release:refreshPayoutStatus` | action | `convex/payments/release.ts:177` | requireProjectScopeInAction() at line 181 | requireProjectScopeInAction() |
 | `payments/retainage:releaseRetainage` | action | `convex/payments/retainage.ts:59` | requireProjectScopeInAction() at line 63 | requireProjectScopeInAction() |
 | `payments/retainage:resumeRetainageRelease` | action | `convex/payments/retainage.ts:72` | requireProjectScopeInAction() at line 76 | requireProjectScopeInAction() |
 | `payments/sandboxTopUp:createTopUpOrder` | action | `convex/payments/sandboxTopUp.ts:26` | requireRoleInAction() at line 31 | requireDemoCompanyInAction() |

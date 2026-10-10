@@ -1,7 +1,7 @@
 import { ConvexError, v, type Infer } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
-import { toDollarString } from "../lib/money";
+import { formatCents, toDollarString } from "../lib/money";
 import { payoutBlockedMessage, stalePayeeReason } from "../lib/payee";
 import { syncProposalForPayment } from "../payApps/proposalSync";
 import { isCaptureCollected } from "./captureSettlement";
@@ -184,11 +184,15 @@ export const recordPayoutCreated = internalMutation({
     if (p.kind === "payout" && p.retainageCents > 0) {
       const rows = await ledgerRowsFor(ctx, p);
       if (!rows.some((r) => r.deltaCents > 0)) {
+        const payApp = p.payAppId ? await ctx.db.get(p.payAppId) : null;
         await ctx.db.insert("retainageLedger", {
           agreementId: p.agreementId,
           paymentId: p._id,
           deltaCents: p.retainageCents,
-          reason: `Retainage withheld from ${toDollarString(p.grossCents)} USD gross release (payout batch ${args.batchId})`,
+          reason:
+            payApp?.applicationNo !== undefined
+              ? `Pay app #${payApp.applicationNo}: retainage withheld from ${formatCents(p.grossCents)} approved (payout batch ${args.batchId})`
+              : `Retainage withheld from ${toDollarString(p.grossCents)} USD gross release (payout batch ${args.batchId})`,
           createdAt: now,
         });
       }

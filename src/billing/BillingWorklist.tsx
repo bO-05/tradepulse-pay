@@ -2,7 +2,8 @@ import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { FunctionReturnType } from "convex/server";
 import { payAppHash } from "../auth/navigation";
-import { Card, EmptyState, PageHeader, StatusPill, formatCents, formatDate } from "../ui";
+import { Card, EmptyState, PageHeader, StatusPill, Tabs, formatCents, formatDate } from "../ui";
+import { RetainageView } from "./RetainageView";
 
 type Row = FunctionReturnType<typeof api.payApps.g703.gcBillingWorklist>["rows"][number];
 
@@ -24,9 +25,8 @@ export function BillingWorklist() {
   }
   const awaiting = data.rows.filter((r) => r.awaitingReview);
   const others = data.rows.filter((r) => !r.awaitingReview);
-  return (
-    <div className="max-w-5xl space-y-4">
-      <PageHeader title="Billing" description="Sub pay applications. Open one to see its G703 continuation sheet and G702 summary." />
+  const payApps = (
+    <div className="space-y-4">
       <Card title="Awaiting review">
         {awaiting.length === 0 ? (
           <EmptyState title="Nothing to review" description="Submitted pay apps appear here." headingLevel={3} />
@@ -40,6 +40,18 @@ export function BillingWorklist() {
         </Card>
       ) : null}
       {data.truncated ? <p className="text-xs text-ink-subtle">Showing the newest pay apps only.</p> : null}
+    </div>
+  );
+  return (
+    <div className="max-w-5xl space-y-4">
+      <PageHeader title="Billing" description="Sub pay applications and the retainage held on each project." />
+      <Tabs
+        label="Billing"
+        tabs={[
+          { id: "pay-apps", label: "Pay apps", content: payApps },
+          { id: "retainage", label: "Retainage", content: <RetainageView /> },
+        ]}
+      />
     </div>
   );
 }

@@ -653,8 +653,8 @@ export default defineSchema({
     paymentId: v.optional(v.id("payments")),
     error: v.optional(v.string()),
     // Who wrote the proposal: the pay agent's model, the code policy filling a required proposal the
-    // model skipped, or a GC release started from the agreement ledger.
-    source: v.optional(v.union(v.literal("agent"), v.literal("code_policy"), v.literal("gc_ledger"))),
+    // model skipped, a GC release started from the agreement ledger (Phase 1), or the GC paying an approved pay app.
+    source: v.optional(v.union(v.literal("agent"), v.literal("code_policy"), v.literal("gc_ledger"), v.literal("gc_payapp"))),
     agentRunId: v.optional(v.string()),
     licenseStatus: v.optional(v.string()),
     licenseCheckId: v.optional(v.id("licenseChecks")),

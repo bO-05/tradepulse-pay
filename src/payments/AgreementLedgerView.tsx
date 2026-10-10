@@ -2,12 +2,12 @@ import { useQuery } from "convex/react";
 import type { ReactNode } from "react";
 import { api } from "../../convex/_generated/api";
 import { NotFoundState } from "../ui/NotFoundState";
-import { milestoneFundingLabel, milestoneFundingState } from "../../convex/payments/milestoneFundingState";
 import { AgreementChangeOrders } from "./ChangeOrders";
 import { formatCents, formatDate } from "./format";
-import { FundMilestoneControl, FundingProvider, FundingStatus } from "./FundMilestone";
+import { FundingProvider } from "./FundMilestone";
 import { AgreementPayAppReviews } from "./PayAppReviews";
-import { ReleaseControl, ReleaseList } from "./ReleaseMilestone";
+import { payAppHash } from "../auth/navigation";
+import { FundingTranches } from "../billing/FundingTranches";
 import { RetainageReleaseControl, RetainageReleaseList } from "./RetainageRelease";
 
 const TOTALS: { key: "contractSumCents" | "billedCents" | "paidCents" | "retainageHeldCents" | "balanceCents"; label: string }[] = [
@@ -45,7 +45,7 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
 
   if (ledger === null) return <NotFoundState />;
 
-  const { agreement, sov, milestones, totals, canFund, canRelease, retainageLedger, canReleaseRetainage, retainageReleases } = ledger;
+  const { agreement, sov, milestones, totals, canFund, retainageLedger, canReleaseRetainage, retainageReleases } = ledger;
 
   return (
     <div className="max-w-5xl space-y-6">
@@ -165,55 +165,11 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
 
       <section aria-labelledby="ledger-milestones" className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
         <h3 id="ledger-milestones" className="text-base font-semibold mb-3">
-          Milestones
+          Funding tranches
         </h3>
-        {milestones.length === 0 ? (
-          <p className="text-sm text-slate-400">
-            {agreement.status === "executed"
-              ? "No milestones yet."
-              : "Milestones are created when the agreement is executed."}
-          </p>
-        ) : (
-          <MaybeFundingProvider enabled={canFund}>
-            <table className="w-full text-sm" data-testid="ledger-milestones-table">
-              <thead className="text-xs text-slate-400 text-left">
-                <tr>
-                  <th className="py-2 pr-3 font-medium">Milestone</th>
-                  <th className="py-2 pr-3 font-medium">Planned date</th>
-                  <th className="py-2 pr-3 font-medium">Status</th>
-                  <th className="py-2 pr-3 font-medium text-right">Amount</th>
-                  <th className="py-2 pl-3 font-medium">Funding</th>
-                </tr>
-              </thead>
-              <tbody>
-                {milestones.map((m) => (
-                  <tr key={m._id} className="border-t border-slate-800" data-testid="milestone-row">
-                    <td className="py-2 pr-3">{m.name}</td>
-                    <td className="py-2 pr-3">{formatDate(m.plannedDate, { utc: true })}</td>
-                    <td className="py-2 pr-3">
-                      <span
-                        className="text-xs rounded-full px-2 py-0.5 bg-slate-800 border border-slate-700"
-                        data-testid="milestone-status"
-                      >
-                        {m.status}
-                      </span>
-                      <span className="block mt-1 text-xs text-slate-400" data-testid="milestone-funding-state">
-                        {milestoneFundingLabel(milestoneFundingState(m.status, m.funding))}
-                      </span>
-                    </td>
-                    <td className="py-2 pr-3 text-right tabular-nums">{formatCents(m.amountCents)}</td>
-                    <td className="py-2 pl-3 align-top space-y-1">
-                      <FundingStatus milestone={m} />
-                      {canFund && <FundMilestoneControl milestone={m} />}
-                      <ReleaseList milestone={m} canRelease={canRelease} />
-                      {canRelease && <ReleaseControl milestone={m} retainagePercent={agreement.retainagePercent} />}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </MaybeFundingProvider>
-        )}
+        <MaybeFundingProvider enabled={canFund}>
+          <FundingTranches agreementId={agreement._id} ledgerMilestones={milestones} isGc={canFund} />
+        </MaybeFundingProvider>
       </section>
 
       <section aria-labelledby="ledger-retainage" className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
@@ -245,7 +201,7 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
         )}
         <RetainageReleaseList releases={retainageReleases} canRefresh={canReleaseRetainage} />
         {retainageLedger.length === 0 ? (
-          <p className="text-sm text-slate-400">No retainage held yet. Each sub payout withholds {agreement.retainagePercent}%.</p>
+          <p className="text-sm text-slate-400">No retainage held yet. Each paid pay app withholds its approved retainage ({agreement.retainagePercent}% per line).</p>
         ) : (
           <table className="w-full text-sm" data-testid="retainage-ledger-table">
             <thead className="text-xs text-slate-400 text-left">
@@ -259,7 +215,15 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
               {retainageLedger.map((r) => (
                 <tr key={r._id} className="border-t border-slate-800" data-testid="retainage-row">
                   <td className="py-2 pr-3 text-slate-400">{formatDate(r.createdAt)}</td>
-                  <td className="py-2 pr-3">{r.reason}</td>
+                  <td className="py-2 pr-3">
+                    {r.payAppId ? (
+                      <a href={payAppHash(r.payAppId)} className="text-emerald-400 hover:text-emerald-300" data-testid="retainage-row-link">
+                        {r.reason}
+                      </a>
+                    ) : (
+                      r.reason
+                    )}
+                  </td>
                   <td className={`py-2 pr-3 text-right tabular-nums ${r.deltaCents < 0 ? "text-rose-300" : ""}`}>
                     {r.deltaCents > 0 ? "+" : ""}
                     {formatCents(r.deltaCents)}

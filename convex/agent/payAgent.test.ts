@@ -9,6 +9,7 @@ import { withSession, signInAs } from "../lib/testIdentity";
 import { clearPayPalTokenCache } from "../payments/paypalClient";
 import { CSLB_FIXTURES } from "../kernel/cslbFixtures";
 import { ANTHROPIC_KEY_PREFIX, CUSTOM_TOOL_NAMES, READ_ONLY_TOOLKIT_TOOLS } from "./tools";
+import { payFromTranche } from "../lib/testPayApp";
 
 const generateTextMock = vi.hoisted(() => vi.fn());
 vi.mock("ai", async (importOriginal) => {
@@ -438,7 +439,7 @@ describe("GC approval inbox", () => {
     const st = await state(s, payAppId);
     expect(st.byKind("capture")!.flags).toContain("milestone_not_funded");
     expect(await errorText(s.gc.as.mutation(api.payApps.proposals.approveProposal, { proposalId: st.byKind("payout")!._id }))).toMatch(
-      /No funded milestone/,
+      /No funded tranche/,
     );
     expect((await state(s, payAppId)).byKind("payout")!.status).toBe("pending");
   });
@@ -460,17 +461,21 @@ describe("GC approval inbox", () => {
     expect(portal.page[0]).toMatchObject({ status: "rejected" });
   });
 
-  test("the ledger Release & pay runs through a GC-approved proposal", async () => {
+  test("the ledger Release & pay is gone; paying an approved pay app records a GC-approved proposal", async () => {
     const s = await setup();
     const funding = (await s.t.run(async (ctx) => ctx.db.query("payments").collect())).find((p: Doc<"payments">) => p.kind === "funding")!;
-    await s.gc.as.action(api.payments.release.releaseAndPay, { milestoneId: funding.milestoneId!, amountCents: 50_000, requestKey: "ledger-key-1" });
+    expect(
+      await errorText(s.gc.as.action(api.payments.release.releaseAndPay, { milestoneId: funding.milestoneId!, amountCents: 50_000, requestKey: "ledger-key-0" })),
+    ).toMatch(/approved pay app is required/);
+    expect(fake.moneyCalls()).toHaveLength(0);
+    await payFromTranche(s.t, s.gc.as, { milestoneId: funding.milestoneId!, amountCents: 50_000, requestKey: "ledger-key-1" });
     const rows = await s.t.run(async (ctx) => ({
       proposals: await ctx.db.query("agentProposals").collect(),
       payouts: (await ctx.db.query("payments").collect()).filter((p) => p.kind === "payout"),
     }));
     expect(rows.payouts).toHaveLength(1);
     const proposal = rows.proposals.find((p) => p._id === rows.payouts[0].proposalId)!;
-    expect(proposal).toMatchObject({ source: "gc_ledger", kind: "payout", status: "executed", decidedBy: s.gc.userId, amountCents: 50_000 });
+    expect(proposal).toMatchObject({ source: "gc_payapp", kind: "payout", status: "executed", decidedBy: s.gc.userId, amountCents: 50_000 });
   });
 });
 

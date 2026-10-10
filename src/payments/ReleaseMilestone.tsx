@@ -1,8 +1,7 @@
 import { useAction } from "convex/react";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
-import { fromDollars, percentageOfCents, toDollarString } from "../../convex/lib/money";
 import { readableError } from "./FundMilestone";
 import { formatCents, formatDate } from "./format";
 
@@ -31,12 +30,6 @@ export type ReleasableMilestone = {
   funding: { status: string; grossCents: number; capturedCents: number; paypalAuthorizationId: string | null } | null;
   releases: MilestoneRelease[];
 };
-
-const CAPTURABLE = new Set(["authorized", "partially_captured"]);
-
-function newRequestKey(): string {
-  return `rel_${crypto.randomUUID().replace(/-/g, "")}`.slice(0, 40);
-}
 
 export const BADGE: Record<string, { label: string; cls: string }> = {
   created: { label: "Processing", cls: "bg-slate-800 text-slate-200 border-slate-600" },
@@ -156,118 +149,6 @@ export function ReleaseList({ milestone, canRelease }: { milestone: ReleasableMi
       })}
       {error && (
         <p className="text-xs text-rose-300" role="alert">
-          {error}
-        </p>
-      )}
-    </div>
-  );
-}
-
-/** GC-only "Release & pay": capture an amount from the milestone's authorization and pay the sub net of retainage. */
-export function ReleaseControl({ milestone, retainagePercent }: { milestone: ReleasableMilestone; retainagePercent: number }) {
-  const releaseAndPay = useAction(api.payments.release.releaseAndPay);
-  const closeMilestone = useAction(api.payments.release.closeMilestone);
-  const funding = milestone.funding;
-  const remainingCents = funding ? funding.grossCents - funding.capturedCents : 0;
-  const [amount, setAmount] = useState(() => toDollarString(remainingCents));
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const requestKey = useRef(newRequestKey());
-  const inFlight = busy || milestone.releases.some((r) => r.status === "created" || r.status === "capture_pending");
-
-  if (!funding || !funding.paypalAuthorizationId || !CAPTURABLE.has(funding.status)) return null;
-
-  let amountCents: number | null = null;
-  try {
-    amountCents = amount.trim() === "" ? null : fromDollars(amount);
-  } catch {
-    amountCents = null;
-  }
-  const valid = amountCents !== null && amountCents > 0 && amountCents <= remainingCents;
-  const retainageCents = valid ? percentageOfCents(amountCents!, retainagePercent) : 0;
-
-  async function release() {
-    if (!valid || busy) return;
-    setBusy(true);
-    setError(null);
-    setNotice(null);
-    try {
-      const out = await releaseAndPay({ milestoneId: milestone._id, amountCents: amountCents!, requestKey: requestKey.current });
-      if (out.state === "busy") setNotice("Already processing this release.");
-      else if (out.state === "already_processed") setNotice("Already processed.");
-      else setNotice(out.message ?? "Captured and sent to PayPal. The status updates here when PayPal settles the payout.");
-      if (out.state !== "busy") requestKey.current = newRequestKey();
-    } catch (e) {
-      setError(readableError(e));
-      requestKey.current = newRequestKey();
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function close() {
-    setBusy(true);
-    setError(null);
-    setNotice(null);
-    try {
-      await closeMilestone({ milestoneId: milestone._id });
-      setNotice("Milestone closed; the uncaptured remainder was voided.");
-    } catch (e) {
-      setError(readableError(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="space-y-1.5 pt-1" data-testid="release-control">
-      <div className="flex flex-wrap items-center gap-2">
-        <label className="text-xs text-slate-400" htmlFor={`release-amount-${milestone._id}`}>
-          Approved amount $
-        </label>
-        <input
-          id={`release-amount-${milestone._id}`}
-          data-testid="release-amount-input"
-          inputMode="decimal"
-          value={amount}
-          disabled={busy}
-          onChange={(e) => setAmount(e.target.value)}
-          className="w-32 rounded-md bg-slate-950 border border-slate-700 px-2 py-1 text-xs tabular-nums"
-        />
-        <button
-          type="button"
-          data-testid="release-pay-button"
-          disabled={!valid || inFlight}
-          onClick={() => void release()}
-          className="text-xs font-semibold rounded-lg px-3 py-1.5 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {busy ? "Releasing…" : "Release & pay"}
-        </button>
-        {funding.status === "partially_captured" && (
-          <button
-            type="button"
-            data-testid="close-milestone-button"
-            disabled={inFlight}
-            onClick={() => void close()}
-            className="text-xs rounded-lg px-3 py-1.5 border border-slate-600 text-slate-200 disabled:opacity-50"
-          >
-            Close milestone (void remainder)
-          </button>
-        )}
-      </div>
-      <p className="text-xs text-slate-400" data-testid="release-preview">
-        {valid
-          ? `Retainage ${retainagePercent}%: ${formatCents(retainageCents)} held · sub receives ${formatCents(amountCents! - retainageCents)}`
-          : `Enter an amount up to ${formatCents(remainingCents)} still authorized.`}
-      </p>
-      {notice && (
-        <p className="text-xs text-slate-300" role="status" data-testid="release-notice">
-          {notice}
-        </p>
-      )}
-      {error && (
-        <p className="text-xs text-rose-300 max-w-md" role="alert" data-testid="release-error-message">
           {error}
         </p>
       )}

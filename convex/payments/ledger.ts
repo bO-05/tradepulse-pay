@@ -128,6 +128,7 @@ export const getAgreementLedger = query({
       for (const c of p.captures ?? []) if (c.releasePaymentId && isCaptureCollected(c.status)) capturedReleaseIds.add(c.releasePaymentId);
     }
     const payouts = payments.filter((p) => p.kind === "payout");
+    const paymentById = new Map<string, Doc<"payments">>(payments.map((p) => [p._id, p]));
     const retryInfo = (p: Doc<"payments">) => {
       const rootId = p.retryOfPaymentId ?? p._id;
       const captured = capturedReleaseIds.has(rootId);
@@ -156,6 +157,7 @@ export const getAgreementLedger = query({
         deltaCents: r.deltaCents,
         reason: r.reason,
         paymentId: r.paymentId ?? null,
+        payAppId: (r.paymentId ? paymentById.get(r.paymentId)?.payAppId : undefined) ?? null,
         createdAt: r.createdAt,
       })),
       sov: sov.map((line) => ({

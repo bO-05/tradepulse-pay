@@ -4,7 +4,7 @@ import { agreementHash, type Role } from "../auth/navigation";
 import { requestNewProject } from "../projects/newProjectRequest";
 import { Button, EmptyState } from "../ui";
 import { ChangeOrderList } from "./ChangeOrders";
-import { formatDollars } from "./format";
+import { formatCents, formatDollars } from "./format";
 
 /** Read-only projects view for owners (and GC). No approve, fund or award controls live here. */
 export function OwnerPortal({ role }: { role?: Role }) {
@@ -74,12 +74,61 @@ export function OwnerPortal({ role }: { role?: Role }) {
           </div>
           )}
 
+          {project.partyRole === "owner" && <OwnerTrancheStatus projectId={project._id} />}
+
           <div>
             <h3 className="text-sm font-semibold mb-2">Change-order invoices</h3>
             <ChangeOrderList changeOrders={project.changeOrders} canRefresh canResend={false} showAgreement />
           </div>
         </section>
       ))}
+    </div>
+  );
+}
+
+const OWNER_TRANCHE_STATUS: Record<string, string> = {
+  planned: "Not funded",
+  funding: "Checkout started",
+  funded: "Funded",
+  in_progress: "Partly paid out",
+  complete: "Closed",
+  paid: "Paid out",
+  funding_expired: "Funding expired",
+};
+
+/** Owner: funding tranche status per trade on this project, read-only. */
+function OwnerTrancheStatus({ projectId }: { projectId: string }) {
+  const trades = useQuery(api.billing.tranches.ownerProjectTranches, { projectId });
+  if (trades === undefined) return null;
+  return (
+    <div data-testid="owner-tranches">
+      <h3 className="text-sm font-semibold mb-2">Funding tranches</h3>
+      {trades.length === 0 ? (
+        <p className="text-sm text-slate-400">No funding tranches yet.</p>
+      ) : (
+        <table className="w-full text-sm">
+          <thead className="text-xs text-slate-400 text-left">
+            <tr>
+              <th className="py-2 pr-3 font-medium">Trade</th>
+              <th className="py-2 pr-3 font-medium">Tranche</th>
+              <th className="py-2 pr-3 font-medium text-right">Amount</th>
+              <th className="py-2 pr-3 font-medium">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {trades.flatMap((t) =>
+              t.tranches.map((tr) => (
+                <tr key={tr._id} className="border-t border-slate-800" data-testid="owner-tranche-row">
+                  <td className="py-2 pr-3">{t.trade}</td>
+                  <td className="py-2 pr-3">{tr.name}</td>
+                  <td className="py-2 pr-3 text-right tabular-nums">{formatCents(tr.amountCents)}</td>
+                  <td className="py-2 pr-3">{OWNER_TRANCHE_STATUS[tr.status] ?? "Not funded"}</td>
+                </tr>
+              )),
+            )}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }

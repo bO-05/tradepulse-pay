@@ -7,6 +7,7 @@ import type { Id } from "../_generated/dataModel";
 import schema from "../schema";
 import { signInAs } from "../lib/testIdentity";
 import { clearPayPalTokenCache } from "./paypalClient";
+import { payFromTranche } from "../lib/testPayApp";
 
 /**
  * Capture settlement: PENDING captures hold the payout until COMPLETED, DENIED captures fail the release,
@@ -169,7 +170,7 @@ describe("PENDING captures hold the payout", () => {
   test("PENDING → no payout; a COMPLETED webhook pays exactly once", async () => {
     const { t, gc, milestoneId } = await setup();
     fake.state.captureStatus = "PENDING";
-    const out = await gc.as.action(api.payments.release.releaseAndPay, { milestoneId, amountCents: 600_000, requestKey: "test-key-pend1" });
+    const out = await payFromTranche(t, gc.as, { milestoneId, amountCents: 600_000, requestKey: "test-key-pend1" });
     expect(out).toMatchObject({ state: "pending", status: "capture_pending" });
     expect(out.message).toMatch(/Capture pending/);
     await t.finishAllScheduledFunctions(vi.runAllTimers);
@@ -198,7 +199,7 @@ describe("PENDING captures hold the payout", () => {
   test("PENDING → DENIED fails the release with no payout and no retainage credit", async () => {
     const { t, gc, milestoneId } = await setup();
     fake.state.captureStatus = "PENDING";
-    const out = await gc.as.action(api.payments.release.releaseAndPay, { milestoneId, amountCents: 600_000, requestKey: "test-key-deny1" });
+    const out = await payFromTranche(t, gc.as, { milestoneId, amountCents: 600_000, requestKey: "test-key-deny1" });
     await dispatch(t, captureEvent("WH-D-1", "DENIED", out.captureId!));
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     const r = await rows(t, milestoneId);
@@ -215,7 +216,7 @@ describe("PENDING captures hold the payout", () => {
   test("a sub that switches its payout email while the capture is PENDING is not paid at the old address on COMPLETED", async () => {
     const { t, gc, milestoneId } = await setup();
     fake.state.captureStatus = "PENDING";
-    const out = await gc.as.action(api.payments.release.releaseAndPay, { milestoneId, amountCents: 600_000, requestKey: "test-key-swap1" });
+    const out = await payFromTranche(t, gc.as, { milestoneId, amountCents: 600_000, requestKey: "test-key-swap1" });
     expect(out.status).toBe("capture_pending");
     await t.run(async (ctx) => {
       const payout = (await ctx.db.get(out.paymentId))!;
@@ -238,7 +239,7 @@ describe("PENDING captures hold the payout", () => {
   test("Refresh status GETs the capture and pays once it is COMPLETED", async () => {
     const { t, gc, milestoneId } = await setup();
     fake.state.captureStatus = "PENDING";
-    const out = await gc.as.action(api.payments.release.releaseAndPay, { milestoneId, amountCents: 600_000, requestKey: "test-key-refr1" });
+    const out = await payFromTranche(t, gc.as, { milestoneId, amountCents: 600_000, requestKey: "test-key-refr1" });
     const still = await gc.as.action(api.payments.release.refreshCaptureStatus, { paymentId: out.paymentId });
     expect(still).toMatchObject({ captureStatus: "PENDING", status: "capture_pending" });
     expect(payoutPosts()).toHaveLength(0);
@@ -254,7 +255,7 @@ describe("PENDING captures hold the payout", () => {
 
   test("a COMPLETED capture still pays out in one call", async () => {
     const { t, gc, milestoneId } = await setup();
-    const out = await gc.as.action(api.payments.release.releaseAndPay, { milestoneId, amountCents: 600_000, requestKey: "test-key-norm1" });
+    const out = await payFromTranche(t, gc.as, { milestoneId, amountCents: 600_000, requestKey: "test-key-norm1" });
     expect(out.state).toBe("pending");
     expect(out.status).toBe("pending");
     expect(payoutPosts()).toHaveLength(1);
@@ -265,9 +266,9 @@ describe("PENDING captures hold the payout", () => {
 
 describe("closing a milestone excludes releases", () => {
   test("close is refused while a release is in flight (capture pending)", async () => {
-    const { gc, milestoneId } = await setup();
+    const { t, gc, milestoneId } = await setup();
     fake.state.captureStatus = "PENDING";
-    await gc.as.action(api.payments.release.releaseAndPay, { milestoneId, amountCents: 600_000, requestKey: "test-key-close1" });
+    await payFromTranche(t, gc.as, { milestoneId, amountCents: 600_000, requestKey: "test-key-close1" });
     const err = await errorOf(gc.as.action(api.payments.release.closeMilestone, { milestoneId }));
     expect(err.data.code).toBe("RELEASE_IN_PROGRESS");
     expect(fake.posts(/\/void$/)).toHaveLength(0);
@@ -275,28 +276,30 @@ describe("closing a milestone excludes releases", () => {
 
   test("a release is refused while the milestone is closing", async () => {
     const { t, gc, milestoneId, fundingId } = await setup();
-    await gc.as.action(api.payments.release.releaseAndPay, { milestoneId, amountCents: 400_000, requestKey: "test-key-close2" });
+    await payFromTranche(t, gc.as, { milestoneId, amountCents: 400_000, requestKey: "test-key-close2" });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     // The closing marker is set before the void call reaches PayPal.
     const begun = await t.mutation(internal.payments.releaseDb.beginVoid, { milestoneId });
     expect(begun.state).toBe("void");
     const err = await errorOf(
-      gc.as.action(api.payments.release.releaseAndPay, { milestoneId, amountCents: 100_000, requestKey: "test-key-close3" }),
+      payFromTranche(t, gc.as, { milestoneId, amountCents: 100_000, requestKey: "test-key-close3" }),
     );
-    expect(err.data.code).toBe("CLOSING");
+    // A closing tranche is no funding source, so canPay refuses before any capture.
+    expect(err.data.code).toBe("CANNOT_PAY");
+    expect(err.data.message).toMatch(/No funded tranche/);
     expect(fake.posts(/\/capture$/)).toHaveLength(1);
     const r = await rows(t, milestoneId);
     expect(r.payouts).toHaveLength(1);
 
     // A rejected void clears the marker so releases can continue.
     await t.mutation(internal.payments.releaseDb.recordVoidFailure, { fundingPaymentId: fundingId, error: "Void rejected" });
-    const ok = await gc.as.action(api.payments.release.releaseAndPay, { milestoneId, amountCents: 100_000, requestKey: "test-key-close4" });
+    const ok = await payFromTranche(t, gc.as, { milestoneId, amountCents: 100_000, requestKey: "test-key-close4" });
     expect(ok.state).toBe("pending");
   });
 
   test("a capture PayPal applied after the void is recorded, not dropped", async () => {
     const { t, gc, milestoneId, fundingId } = await setup();
-    await gc.as.action(api.payments.release.releaseAndPay, { milestoneId, amountCents: 400_000, requestKey: "test-key-late1" });
+    await payFromTranche(t, gc.as, { milestoneId, amountCents: 400_000, requestKey: "test-key-late1" });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     await t.run(async (ctx) => ctx.db.patch(fundingId, { status: "voided" }));
     await t.mutation(internal.payments.releaseDb.recordCapture, {
@@ -324,7 +327,7 @@ describe("event-first capture settlement", () => {
 
     fake.state.captureStatus = "PENDING";
     fake.state.nextCaptureId = "CAP-EARLY";
-    const out = await gc.as.action(api.payments.release.releaseAndPay, { milestoneId, amountCents: 600_000, requestKey: "test-key-early1" });
+    const out = await payFromTranche(t, gc.as, { milestoneId, amountCents: 600_000, requestKey: "test-key-early1" });
     expect(out.captureId).toBe("CAP-EARLY");
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     r = await rows(t, milestoneId);
@@ -339,7 +342,7 @@ describe("event-first capture settlement", () => {
     await dispatch(t, captureEvent("WH-E-2", "DENIED", "CAP-EARLY2"));
     fake.state.captureStatus = "PENDING";
     fake.state.nextCaptureId = "CAP-EARLY2";
-    await gc.as.action(api.payments.release.releaseAndPay, { milestoneId, amountCents: 600_000, requestKey: "test-key-early2" }).catch(() => null);
+    await payFromTranche(t, gc.as, { milestoneId, amountCents: 600_000, requestKey: "test-key-early2" }).catch(() => null);
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     const r = await rows(t, milestoneId);
     expect(payoutPosts()).toHaveLength(0);
@@ -352,9 +355,9 @@ describe("event-first capture settlement", () => {
 describe("refunds of older captures", () => {
   test("a refund of the first of two captures (up link only) resolves the funding payment", async () => {
     const { t, gc, milestoneId } = await setup();
-    const first = await gc.as.action(api.payments.release.releaseAndPay, { milestoneId, amountCents: 300_000, requestKey: "test-key-ref1" });
+    const first = await payFromTranche(t, gc.as, { milestoneId, amountCents: 300_000, requestKey: "test-key-ref1" });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
-    const second = await gc.as.action(api.payments.release.releaseAndPay, { milestoneId, amountCents: 300_000, requestKey: "test-key-ref2" });
+    const second = await payFromTranche(t, gc.as, { milestoneId, amountCents: 300_000, requestKey: "test-key-ref2" });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     expect(first.captureId).not.toBe(second.captureId);
 
@@ -382,7 +385,7 @@ describe("capture status never moves back to PENDING", () => {
   test("a stale PENDING refresh applied after the COMPLETED webhook does not undo settlement", async () => {
     const { t, gc, milestoneId } = await setup();
     fake.state.captureStatus = "PENDING";
-    const out = await gc.as.action(api.payments.release.releaseAndPay, { milestoneId, amountCents: 600_000, requestKey: "test-key-stale1" });
+    const out = await payFromTranche(t, gc.as, { milestoneId, amountCents: 600_000, requestKey: "test-key-stale1" });
     expect(out.status).toBe("capture_pending");
     const captureId = out.captureId!;
 
@@ -437,7 +440,7 @@ describe("capture status never moves back to PENDING", () => {
     "a later PENDING refresh or webhook keeps a %s capture terminal",
     async (terminal) => {
       const { t, gc, milestoneId, fundingId } = await setup();
-      const out = await gc.as.action(api.payments.release.releaseAndPay, { milestoneId, amountCents: 600_000, requestKey: `test-key-term-${terminal}` });
+      const out = await payFromTranche(t, gc.as, { milestoneId, amountCents: 600_000, requestKey: `test-key-term-${terminal}` });
       await t.finishAllScheduledFunctions(vi.runAllTimers);
       const captureId = out.captureId!;
       await t.run(async (ctx) => {
@@ -470,7 +473,7 @@ describe("capture status never moves back to PENDING", () => {
   test("a release left created with a collected capture is paid by Retry release without a new capture", async () => {
     const { t, gc, milestoneId } = await setup();
     fake.state.captureStatus = "PENDING";
-    const out = await gc.as.action(api.payments.release.releaseAndPay, { milestoneId, amountCents: 600_000, requestKey: "test-key-stuck1" });
+    const out = await payFromTranche(t, gc.as, { milestoneId, amountCents: 600_000, requestKey: "test-key-stuck1" });
     // The COMPLETED webhook moves the release to created; its scheduled payout never runs here.
     await dispatch(t, captureEvent("WH-STUCK-1", "COMPLETED", out.captureId!));
     expect((await rows(t, milestoneId)).payouts[0].status).toBe("created");

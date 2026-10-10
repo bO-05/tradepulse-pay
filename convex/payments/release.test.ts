@@ -8,6 +8,7 @@ import schema from "../schema";
 import { signInAs } from "../lib/testIdentity";
 import { clearPayPalTokenCache } from "./paypalClient";
 import { RESUME_RELEASE_AFTER_MS } from "./retainageMath";
+import { payFromTranche } from "../lib/testPayApp";
 
 const modules = import.meta.glob("/convex/**/*.ts");
 
@@ -205,7 +206,7 @@ afterEach(() => {
 describe("release & pay: capture", () => {
   test("a partial release captures with final_capture false and pays the net of 10% retainage", async () => {
     const { t, gc, milestone } = await setup({ authorizedCents: 1_500_000 });
-    const out = await gc.as.action(api.payments.release.releaseAndPay, {
+    const out = await payFromTranche(t, gc.as, {
       milestoneId: milestone._id,
       amountCents: 1_000_000,
       requestKey: key("partial"),
@@ -255,7 +256,7 @@ describe("release & pay: capture", () => {
 
   test("the batch poll marks the payout paid; closing the milestone voids the remainder", async () => {
     const { t, gc, milestone } = await setup({ authorizedCents: 1_000_000 });
-    await gc.as.action(api.payments.release.releaseAndPay, { milestoneId: milestone._id, amountCents: 600_000, requestKey: key("p1") });
+    await payFromTranche(t, gc.as, { milestoneId: milestone._id, amountCents: 600_000, requestKey: key("p1") });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     let r = await rows(t, milestone._id);
     expect(r.payouts[0]).toMatchObject({ status: "success", paypalPayoutItemId: `ITEM-${r.payouts[0].paypalPayoutBatchId}` });
@@ -271,15 +272,16 @@ describe("release & pay: capture", () => {
     expect(r.audits.filter((a) => a.operation === "paypal.authorizations.void")).toHaveLength(1);
 
     const err = await errorOf(
-      gc.as.action(api.payments.release.releaseAndPay, { milestoneId: milestone._id, amountCents: 100, requestKey: key("p2") }),
+      payFromTranche(t, gc.as, { milestoneId: milestone._id, amountCents: 100, requestKey: key("p2") }),
     );
-    expect(err.data.code).toBe("NOT_RELEASABLE");
+    expect(err.data.code).toBe("CANNOT_PAY");
+    expect(err.data.message).toMatch(/No funded tranche \(available \$0\.00\)/);
     expect(fake.posts(/\/capture$/)).toHaveLength(1);
   });
 
   test("releasing the full authorized amount is a final capture with no void, and the milestone becomes paid", async () => {
     const { t, gc, milestone } = await setup({ authorizedCents: 1_000_000 });
-    await gc.as.action(api.payments.release.releaseAndPay, { milestoneId: milestone._id, amountCents: 1_000_000, requestKey: key("full") });
+    await payFromTranche(t, gc.as, { milestoneId: milestone._id, amountCents: 1_000_000, requestKey: key("full") });
     expect((fake.posts(/\/capture$/)[0].body as { final_capture: boolean }).final_capture).toBe(true);
     let r = await rows(t, milestone._id);
     expect(r.funding.status).toBe("captured");
@@ -295,9 +297,10 @@ describe("release & pay: capture", () => {
   test("an amount above the remaining authorization is refused before any PayPal call", async () => {
     const { t, gc, milestone } = await setup({ authorizedCents: 1_000_000 });
     const err = await errorOf(
-      gc.as.action(api.payments.release.releaseAndPay, { milestoneId: milestone._id, amountCents: 1_000_001, requestKey: key("big") }),
+      payFromTranche(t, gc.as, { milestoneId: milestone._id, amountCents: 1_000_001, requestKey: key("big") }),
     );
-    expect(err.data.code).toBe("INVALID_AMOUNT");
+    expect(err.data.code).toBe("CANNOT_PAY");
+    expect(err.data.message).toContain("No funded tranche covers $10,000.01 (available $10,000.00)");
     expect(fake.calls).toHaveLength(0);
     expect((await rows(t, milestone._id)).payouts).toHaveLength(0);
   });
@@ -306,7 +309,7 @@ describe("release & pay: capture", () => {
     const { t, gc, milestone } = await setup({ authorizedCents: 1_000_000 });
     fake.voided.add(AUTH_ID);
     const err = await errorOf(
-      gc.as.action(api.payments.release.releaseAndPay, { milestoneId: milestone._id, amountCents: 500_000, requestKey: key("void") }),
+      payFromTranche(t, gc.as, { milestoneId: milestone._id, amountCents: 500_000, requestKey: key("void") }),
     );
     expect(err.data.code).toBe("CAPTURE_FAILED");
     expect(err.data.message).toMatch(/AUTHORIZATION_VOIDED/);
@@ -333,11 +336,11 @@ describe("release & pay: idempotency", () => {
     const { t, gc, milestone } = await setup({ authorizedCents: 1_000_000 });
     const args = { milestoneId: milestone._id, amountCents: 400_000, requestKey: key("dbl") };
     const [a, b] = await Promise.all([
-      gc.as.action(api.payments.release.releaseAndPay, args),
-      gc.as.action(api.payments.release.releaseAndPay, args),
+      payFromTranche(t, gc.as, args),
+      payFromTranche(t, gc.as, args),
     ]);
     expect([a.state, b.state].sort()).toEqual(["busy", "pending"]);
-    const again = await gc.as.action(api.payments.release.releaseAndPay, args);
+    const again = await payFromTranche(t, gc.as, args);
     expect(again.state).toBe("already_processed");
     const r = await rows(t, milestone._id);
     expect(r.payouts).toHaveLength(1);
@@ -351,8 +354,8 @@ describe("release & pay: idempotency", () => {
   test("two clicks with different keys while one release is in flight still release once", async () => {
     const { t, gc, milestone } = await setup({ authorizedCents: 1_000_000 });
     const [a, b] = await Promise.all([
-      gc.as.action(api.payments.release.releaseAndPay, { milestoneId: milestone._id, amountCents: 400_000, requestKey: key("k1") }),
-      gc.as.action(api.payments.release.releaseAndPay, { milestoneId: milestone._id, amountCents: 400_000, requestKey: key("k2") }),
+      payFromTranche(t, gc.as, { milestoneId: milestone._id, amountCents: 400_000, requestKey: key("k1") }),
+      payFromTranche(t, gc.as, { milestoneId: milestone._id, amountCents: 400_000, requestKey: key("k2") }),
     ]);
     expect([a.state, b.state].sort()).toEqual(["busy", "pending"]);
     const r = await rows(t, milestone._id);
@@ -363,7 +366,7 @@ describe("release & pay: idempotency", () => {
   test("a lost payout response resolves through the duplicate sender_batch_id 400 to the existing batch", async () => {
     const { t, gc, milestone } = await setup({ authorizedCents: 1_000_000 });
     fake.state.dropNextPayoutResponse = true;
-    const p = gc.as.action(api.payments.release.releaseAndPay, { milestoneId: milestone._id, amountCents: 1_000_000, requestKey: key("lost") });
+    const p = payFromTranche(t, gc.as, { milestoneId: milestone._id, amountCents: 1_000_000, requestKey: key("lost") });
     await vi.advanceTimersByTimeAsync(5_000);
     const out = await p;
     const posts = fake.posts(/^\/v1\/payments\/payouts$/);
@@ -392,7 +395,7 @@ describe("release & pay: idempotency", () => {
 test("a transient INSUFFICIENT_FUNDS payout is retried with the same sender_batch_id and then paid", async () => {
   const { t, gc, milestone } = await setup({ authorizedCents: 1_000_000 });
   fake.state.insufficientFunds = 1;
-  const out = await gc.as.action(api.payments.release.releaseAndPay, { milestoneId: milestone._id, amountCents: 1_000_000, requestKey: key("funds") });
+  const out = await payFromTranche(t, gc.as, { milestoneId: milestone._id, amountCents: 1_000_000, requestKey: key("funds") });
   expect(out.state).toBe("pending");
   let r = await rows(t, milestone._id);
   expect(r.payouts[0].status).toBe("created");
@@ -438,7 +441,7 @@ describe("queued payouts re-check the confirmed payee before sending", () => {
   test("an INSUFFICIENT_FUNDS retry after the payee confirmation was revoked is blocked and never sent", async () => {
     const { t, gc, milestone, agreement } = await setup({ authorizedCents: 1_000_000 });
     fake.state.insufficientFunds = 1;
-    await gc.as.action(api.payments.release.releaseAndPay, { milestoneId: milestone._id, amountCents: 1_000_000, requestKey: key("revoke") });
+    await payFromTranche(t, gc.as, { milestoneId: milestone._id, amountCents: 1_000_000, requestKey: key("revoke") });
     expect(payoutPosts()).toHaveLength(1);
     await changePayee(t, agreement._id, "attacker@paypal.test", false);
 
@@ -454,7 +457,7 @@ describe("queued payouts re-check the confirmed payee before sending", () => {
   test("a retry after the payee changed to a newly confirmed email is not sent to the old address; Retry payout pays the new one", async () => {
     const { t, gc, milestone, agreement } = await setup({ authorizedCents: 1_000_000 });
     fake.state.insufficientFunds = 1;
-    await gc.as.action(api.payments.release.releaseAndPay, { milestoneId: milestone._id, amountCents: 1_000_000, requestKey: key("chg") });
+    await payFromTranche(t, gc.as, { milestoneId: milestone._id, amountCents: 1_000_000, requestKey: key("chg") });
     await changePayee(t, agreement._id, "new-payee@paypal.test", true);
 
     await t.finishAllScheduledFunctions(vi.runAllTimers);
@@ -473,7 +476,7 @@ describe("queued payouts re-check the confirmed payee before sending", () => {
 
   test("resuming a retainage release after the payee was revoked is blocked and keeps the retainage on hold", async () => {
     const s = await setup({ authorizedCents: 1_000_000 });
-    await s.gc.as.action(api.payments.release.releaseAndPay, { milestoneId: s.milestone._id, amountCents: 1_000_000, requestKey: key("rr") });
+    await payFromTranche(s.t, s.gc.as, { milestoneId: s.milestone._id, amountCents: 1_000_000, requestKey: key("rr") });
     await s.t.finishAllScheduledFunctions(vi.runAllTimers);
     const begun = await s.t.mutation(internal.payments.retainageDb.beginRetainageRelease, { agreementId: s.agreement._id });
     if (begun.state !== "new") throw new Error("expected a new release");
@@ -491,7 +494,7 @@ describe("queued payouts re-check the confirmed payee before sending", () => {
 
   test("a POST that may have reached PayPal is still reconciled through the same batch after the payee changes", async () => {
     const s = await setup({ authorizedCents: 1_000_000 });
-    await s.gc.as.action(api.payments.release.releaseAndPay, { milestoneId: s.milestone._id, amountCents: 1_000_000, requestKey: key("rec") });
+    await payFromTranche(s.t, s.gc.as, { milestoneId: s.milestone._id, amountCents: 1_000_000, requestKey: key("rec") });
     await s.t.finishAllScheduledFunctions(vi.runAllTimers);
     const begun = await s.t.mutation(internal.payments.retainageDb.beginRetainageRelease, { agreementId: s.agreement._id });
     if (begun.state !== "new") throw new Error("expected a new release");
@@ -510,7 +513,7 @@ describe("queued payouts re-check the confirmed payee before sending", () => {
 
   test("an OAuth failure before the payout POST leaves the release unsent; Resume release after revocation sends nothing", async () => {
     const s = await setup({ authorizedCents: 1_000_000 });
-    await s.gc.as.action(api.payments.release.releaseAndPay, { milestoneId: s.milestone._id, amountCents: 1_000_000, requestKey: key("oauth") });
+    await payFromTranche(s.t, s.gc.as, { milestoneId: s.milestone._id, amountCents: 1_000_000, requestKey: key("oauth") });
     await s.t.finishAllScheduledFunctions(vi.runAllTimers);
     const before = payoutPosts().length;
 
@@ -548,8 +551,8 @@ describe("queued payouts re-check the confirmed payee before sending", () => {
 describe("retainage ledger", () => {
   test("payouts of $10,000 and $5,000 gross hold $1,500 and the ledger view shows it", async () => {
     const { t, gc, milestone, agreement } = await setup({ authorizedCents: 2_000_000 });
-    await gc.as.action(api.payments.release.releaseAndPay, { milestoneId: milestone._id, amountCents: 1_000_000, requestKey: key("a") });
-    await gc.as.action(api.payments.release.releaseAndPay, { milestoneId: milestone._id, amountCents: 500_000, requestKey: key("b") });
+    await payFromTranche(t, gc.as, { milestoneId: milestone._id, amountCents: 1_000_000, requestKey: key("a") });
+    await payFromTranche(t, gc.as, { milestoneId: milestone._id, amountCents: 500_000, requestKey: key("b") });
     const r = await rows(t, milestone._id);
     expect(r.ledger.map((l) => l.deltaCents).sort()).toEqual([100_000, 50_000].sort());
     expect(r.ledger.reduce((a, l) => a + l.deltaCents, 0)).toBe(150_000);
@@ -562,8 +565,8 @@ describe("retainage ledger", () => {
   });
 
   test("odd gross 333333 cents holds 33333 and pays 3000.00 (integer cents only)", async () => {
-    const { t, milestone } = await setup({ authorizedCents: 1_000_000 });
-    await t.action(internal.payments.release.releaseAndPayInternal, { milestoneId: milestone._id, amountCents: 333_333, requestKey: key("odd") });
+    const { t, gc, milestone } = await setup({ authorizedCents: 1_000_000 });
+    await payFromTranche(t, gc.as, { milestoneId: milestone._id, amountCents: 333_333, requestKey: key("odd") });
     const r = await rows(t, milestone._id);
     expect(r.payouts[0]).toMatchObject({ grossCents: 333_333, retainageCents: 33_333, netCents: 300_000 });
     expect(r.ledger[0].deltaCents).toBe(33_333);
@@ -577,7 +580,7 @@ describe("retainage ledger", () => {
   test("an unclaimed payout is not paid and keeps its credit; a later return reverses it", async () => {
     const { t, gc, milestone, agreement } = await setup({ authorizedCents: 1_000_000 });
     fake.state.defaultItemStatus = "UNCLAIMED";
-    await gc.as.action(api.payments.release.releaseAndPay, { milestoneId: milestone._id, amountCents: 1_000_000, requestKey: key("unc") });
+    await payFromTranche(t, gc.as, { milestoneId: milestone._id, amountCents: 1_000_000, requestKey: key("unc") });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     let r = await rows(t, milestone._id);
     expect(r.payouts[0]).toMatchObject({ status: "unclaimed", paypalItemStatus: "UNCLAIMED" });
@@ -600,7 +603,7 @@ describe("retainage ledger", () => {
   test("a failed payout item reverses its retainage credit", async () => {
     const { t, gc, milestone } = await setup({ authorizedCents: 1_000_000 });
     fake.state.defaultItemStatus = "FAILED";
-    await gc.as.action(api.payments.release.releaseAndPay, { milestoneId: milestone._id, amountCents: 500_000, requestKey: key("fail") });
+    await payFromTranche(t, gc.as, { milestoneId: milestone._id, amountCents: 500_000, requestKey: key("fail") });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     const r = await rows(t, milestone._id);
     expect(r.payouts[0].status).toBe("failed");
@@ -612,7 +615,7 @@ describe("retry payout of a captured release", () => {
   async function failedRelease() {
     const s = await setup({ authorizedCents: 1_000_000 });
     fake.state.defaultItemStatus = "FAILED";
-    await s.gc.as.action(api.payments.release.releaseAndPay, { milestoneId: s.milestone._id, amountCents: 1_000_000, requestKey: key("rt") });
+    await payFromTranche(s.t, s.gc.as, { milestoneId: s.milestone._id, amountCents: 1_000_000, requestKey: key("rt") });
     await s.t.finishAllScheduledFunctions(vi.runAllTimers);
     fake.state.defaultItemStatus = "SUCCESS";
     const r = await rows(s.t, s.milestone._id);
@@ -677,14 +680,14 @@ describe("retry payout of a captured release", () => {
 
   test("a retry is refused while a payout for that release is in flight, and when nothing was captured", async () => {
     const { t, gc, milestone } = await setup({ authorizedCents: 1_000_000 });
-    await gc.as.action(api.payments.release.releaseAndPay, { milestoneId: milestone._id, amountCents: 500_000, requestKey: key("fl") });
+    await payFromTranche(t, gc.as, { milestoneId: milestone._id, amountCents: 500_000, requestKey: key("fl") });
     const pending = (await rows(t, milestone._id)).payouts[0];
     expect(pending.status).toBe("pending");
     expect((await errorOf(gc.as.action(api.payments.payoutRetry.retryPayout, { paymentId: pending._id }))).data.code).toBe("PAYOUT_IN_FLIGHT");
 
     const s2 = await setup({ authorizedCents: 1_000_000 });
     fake.voided.add(AUTH_ID);
-    await errorOf(s2.gc.as.action(api.payments.release.releaseAndPay, { milestoneId: s2.milestone._id, amountCents: 100_000, requestKey: key("nc") }));
+    await errorOf(payFromTranche(s2.t, s2.gc.as, { milestoneId: s2.milestone._id, amountCents: 100_000, requestKey: key("nc") }));
     const failed = (await rows(s2.t, s2.milestone._id)).payouts[0];
     expect((await errorOf(s2.gc.as.action(api.payments.payoutRetry.retryPayout, { paymentId: failed._id }))).data.code).toBe("NOT_CAPTURED");
   });
@@ -692,7 +695,7 @@ describe("retry payout of a captured release", () => {
   test("resuming an interrupted payout-only retry pays with its own sender_batch_id and never captures again", async () => {
     const s = await setup({ authorizedCents: 2_000_000 });
     fake.state.defaultItemStatus = "FAILED";
-    await s.gc.as.action(api.payments.release.releaseAndPay, { milestoneId: s.milestone._id, amountCents: 1_000_000, requestKey: key("rr") });
+    await payFromTranche(s.t, s.gc.as, { milestoneId: s.milestone._id, amountCents: 1_000_000, requestKey: key("rr") });
     await s.t.finishAllScheduledFunctions(vi.runAllTimers);
     fake.state.defaultItemStatus = "SUCCESS";
     const { t, gc, agreement, milestone } = s;
@@ -745,20 +748,18 @@ describe("retry payout of a captured release", () => {
 });
 
 describe("access and audit", () => {
-  test.each(["sub", "owner", null] as const)("role %s cannot release & pay", async (role) => {
+  test.each(["sub", "owner", null] as const)("role %s cannot pay an approved pay app", async (role) => {
     const { t, milestone } = await setup({ authorizedCents: 1_000_000 });
     const caller = role === null ? t : (await signInAs(t, role)).as;
-    const err = await errorOf(
-      caller.action(api.payments.release.releaseAndPay, { milestoneId: milestone._id, amountCents: 100_000, requestKey: key("deny") }),
-    );
+    const err = await errorOf(payFromTranche(t, caller, { milestoneId: milestone._id, amountCents: 100_000, requestKey: key("deny") }));
     expect(String(err.data?.message ?? err.message)).toMatch(/Not authenticated|Forbidden|Not found/);
     expect(fake.calls).toHaveLength(0);
     expect((await rows(t, milestone._id)).payouts).toHaveLength(0);
   });
 
   test("a sub sees releases on its own agreement but no release control", async () => {
-    const { gc, sub, milestone, agreement } = await setup({ authorizedCents: 1_000_000 });
-    await gc.as.action(api.payments.release.releaseAndPay, { milestoneId: milestone._id, amountCents: 100_000, requestKey: key("view") });
+    const { t, gc, sub, milestone, agreement } = await setup({ authorizedCents: 1_000_000 });
+    await payFromTranche(t, gc.as, { milestoneId: milestone._id, amountCents: 100_000, requestKey: key("view") });
     const ledger = await sub.as.query(api.payments.ledger.getAgreementLedger, { agreementId: agreement._id });
     expect(ledger?.canRelease).toBe(false);
     expect(ledger?.milestones.find((m) => m._id === milestone._id)?.releases).toHaveLength(1);
@@ -767,7 +768,7 @@ describe("access and audit", () => {
   test("audit entries carry no secrets or tokens", async () => {
     const { t, gc, milestone } = await setup({ authorizedCents: 1_000_000 });
     fake.voided.add("nope");
-    await gc.as.action(api.payments.release.releaseAndPay, { milestoneId: milestone._id, amountCents: 600_000, requestKey: key("sec") });
+    await payFromTranche(t, gc.as, { milestoneId: milestone._id, amountCents: 600_000, requestKey: key("sec") });
     await gc.as.action(api.payments.release.closeMilestone, { milestoneId: milestone._id });
     const r = await rows(t, milestone._id);
     const blob = JSON.stringify([r.audits, r.payouts.map((p) => p.error), r.funding.error]);
@@ -796,8 +797,8 @@ describe("access and audit", () => {
 describe("retainage release", () => {
   async function withBalance() {
     const s = await setup({ authorizedCents: 2_000_000 });
-    await s.gc.as.action(api.payments.release.releaseAndPay, { milestoneId: s.milestone._id, amountCents: 1_000_000, requestKey: key("ra") });
-    await s.gc.as.action(api.payments.release.releaseAndPay, { milestoneId: s.milestone._id, amountCents: 500_000, requestKey: key("rb") });
+    await payFromTranche(s.t, s.gc.as, { milestoneId: s.milestone._id, amountCents: 1_000_000, requestKey: key("ra") });
+    await payFromTranche(s.t, s.gc.as, { milestoneId: s.milestone._id, amountCents: 500_000, requestKey: key("rb") });
     await s.t.finishAllScheduledFunctions(vi.runAllTimers);
     return s;
   }
@@ -917,10 +918,10 @@ describe("retainage release", () => {
 
   test("retainage credited by an unclaimed source payout is not releasable, so its later return cannot drive the ledger negative", async () => {
     const { t, gc, milestone, agreement } = await setup({ authorizedCents: 2_000_000 });
-    await gc.as.action(api.payments.release.releaseAndPay, { milestoneId: milestone._id, amountCents: 1_000_000, requestKey: key("ok") });
+    await payFromTranche(t, gc.as, { milestoneId: milestone._id, amountCents: 1_000_000, requestKey: key("ok") });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     fake.state.defaultItemStatus = "UNCLAIMED";
-    await gc.as.action(api.payments.release.releaseAndPay, { milestoneId: milestone._id, amountCents: 500_000, requestKey: key("unc") });
+    await payFromTranche(t, gc.as, { milestoneId: milestone._id, amountCents: 500_000, requestKey: key("unc") });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     const unclaimed = (await rows(t, milestone._id)).payouts.find((p) => p.status === "unclaimed")!;
     expect(unclaimed.grossCents).toBe(500_000);
@@ -951,7 +952,7 @@ describe("retainage release", () => {
   test("an unclaimed source payout that is later claimed becomes releasable", async () => {
     const { t, gc, milestone, agreement } = await setup({ authorizedCents: 1_000_000 });
     fake.state.defaultItemStatus = "UNCLAIMED";
-    await gc.as.action(api.payments.release.releaseAndPay, { milestoneId: milestone._id, amountCents: 500_000, requestKey: key("cl") });
+    await payFromTranche(t, gc.as, { milestoneId: milestone._id, amountCents: 500_000, requestKey: key("cl") });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     const before = payoutPosts().length;
     expect((await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id })).state).toBe("nothing_to_release");
