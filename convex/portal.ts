@@ -4,8 +4,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { query, type QueryCtx } from "./_generated/server";
 import { requireRole } from "./lib/roles";
 import { callerProjects, findSubcontractDocScope, requireDocScope, subContractorScope } from "./lib/projectScope";
-import { ownerChangeOrdersOfProject } from "./lib/ownerView";
-import { changeOrderView } from "./payments/changeOrderDb";
+import { primeChangeOrders, primeContractSum, recipientFor, rowViews } from "./billing/changeOrderView";
 import { loadMilestoneFunding } from "./payments/milestoneFundingState";
 import { agreementContractSumCents } from "./payments/sov";
 import { WITHDRAWABLE_PAY_APP_STATUSES } from "./payApps/validation";
@@ -209,7 +208,7 @@ export const getAgreementSummary = query({
   },
 });
 
-/** Owner portal: read-only projects with their agreements and change-order invoices. */
+/** Owner portal: projects with their prime change orders (and, for the GC, the subcontract agreements). */
 export const ownerOverview = query({
   args: {},
   handler: async (ctx) => {
@@ -218,9 +217,11 @@ export const ownerOverview = query({
     for (const project of (await callerProjects(ctx)).slice(0, 50)) {
       const access = await requireDocScope(ctx, "projects", project._id, { roles: ["owner", "gc"] }).catch(() => null);
       if (access === null) continue;
-      const changeOrders = (await ownerChangeOrdersOfProject(ctx, project._id))
-        .filter(({ agreement }) => agreement.status !== "superseded")
-        .map(({ agreement, changeOrder }) => changeOrderView(changeOrder, agreement));
+      const party = access.partyRole === "owner" ? "owner" : "gc";
+      const changeOrders = await rowViews(ctx, await primeChangeOrders(ctx, project._id), {
+        party,
+        recipient: await recipientFor(ctx, project._id, party),
+      });
       // Subcontract agreements (sums, subcontractors) are GC data; the owner gets the project summary only.
       const agreements =
         access.partyRole === "gc"
@@ -240,6 +241,7 @@ export const ownerOverview = query({
         isDemoProject: project.isDemoProject,
         partyRole: access.partyRole,
         agreements: agreements.map(agreementSummary),
+        primeContractSum: await primeContractSum(ctx, project),
         changeOrders,
       });
     }

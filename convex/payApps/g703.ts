@@ -20,6 +20,7 @@ import {
   WITHDRAWABLE_PAY_APP_STATUSES,
   priorBillingByLine,
 } from "./validation";
+import { payAppChangeOrderSummary } from "../billing/changeOrderView";
 import {
   MAX_STORED_NOTE_LENGTH,
   approvedWorkAndStored,
@@ -501,6 +502,7 @@ async function payAppView(ctx: QueryCtx, scope: ProjectAccess & { doc: Doc<"payA
         }
       : null;
   const lineErrors = sheet.errors.map((e) => ({ sovLineId: e.sovLineId, message: e.message }));
+  const changeOrders = await payAppChangeOrderSummary(ctx, payApp, new Set(sheet.lines.map((l) => l.sovLineId as string)));
   const claimedCents = sheet.lines.reduce((acc, l) => acc + lineIncrementCents(l), 0);
   return {
     _id: payApp._id,
@@ -543,6 +545,7 @@ async function payAppView(ctx: QueryCtx, scope: ProjectAccess & { doc: Doc<"payA
     revisionRequest,
     review,
     excludedScopeNotes: isSub ? [] : (agreement.excludedScopeNotes ?? []),
+    changeOrders,
   };
 }
 
@@ -719,6 +722,7 @@ function mergeEntries(
   entries: readonly EntryArg[] | undefined,
 ): StoredG703["lines"] {
   const known = new Set(live.lines.map((l) => l.sovLineId as string));
+  const deductive = new Set(live.lines.filter((l) => l.scheduledValueCents < 0).map((l) => l.sovLineId as string));
   const byId = new Map(existing.lines.map((l) => [l.sovLineId as string, l]));
   const seen = new Set<string>();
   for (const e of entries ?? []) {
@@ -727,8 +731,10 @@ function mergeEntries(
     seen.add(e.sovLineId);
     for (const cents of [e.workThisPeriodCents, e.storedCents]) {
       if (!Number.isSafeInteger(cents)) throw invalid("Amounts must be whole cents.");
-      if (cents < 0) throw invalid("Amounts cannot be negative; the total to date cannot drop below the previous applications.");
-      if (cents > MAX_LINE_CENTS) throw invalid("An amount is too large.");
+      // A deductive change-order line bills a negative E; its range is checked with the line errors.
+      const negativeAllowed = deductive.has(e.sovLineId) && cents === e.workThisPeriodCents;
+      if (cents < 0 && !negativeAllowed) throw invalid("Amounts cannot be negative; the total to date cannot drop below the previous applications.");
+      if (Math.abs(cents) > MAX_LINE_CENTS) throw invalid("An amount is too large.");
     }
     if (e.note !== undefined && e.note.length > MAX_STORED_NOTE_LENGTH) {
       throw invalid(`A line note must be at most ${MAX_STORED_NOTE_LENGTH} characters.`);

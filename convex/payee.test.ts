@@ -265,7 +265,7 @@ describe("owner billing email", () => {
     const { fx } = await setup();
     const owner = await fx.gcB.admin.as.query(api.partyProfiles.getProjectOwner, { projectId: fx.gcB.project.projectId });
     expect(owner).toMatchObject({ company: null, invoicing: { enabled: false, reason: NO_PROJECT_OWNER_REASON } });
-    expect(NO_PROJECT_OWNER_REASON).toMatch(/Invite the owner and set a billing email before invoicing/);
+    expect(NO_PROJECT_OWNER_REASON).toBe("No owner on this project – invite the owner to enable invoicing");
   });
 });
 

@@ -258,6 +258,21 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
         gcReasons={gcReasons(view)}
       />
       <G702Card summary={summary} retainageBps={view.retainageBps} />
+      {view.changeOrders.length > 0 ? (
+        <Card title="Change orders on this application" padded>
+          <ul className="divide-y divide-line text-sm" data-testid="pay-app-change-orders">
+            {view.changeOrders.map((co) => (
+              <li key={co._id} className="flex flex-wrap items-baseline justify-between gap-2 py-2">
+                <span>
+                  <span className="font-semibold">{co.label}</span> – {co.title}
+                  {co.thisPeriod ? <span className="ml-2 text-xs text-sky-300">Approved this period</span> : null}
+                </span>
+                <span className="tabular-nums font-semibold">{formatCents(co.amountCents, { showPlus: true })}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
       <VersionHistory versions={view.versions} />
 
       <ConfirmDialog

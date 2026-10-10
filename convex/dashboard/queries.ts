@@ -189,11 +189,11 @@ export const getDashboardData = query({
 
     const ownerChangeOrders: Doc<"changeOrders">[] = [];
     for (const project of scoped.ownerProjects) {
-      for (const { agreement, changeOrder: co } of await ownerChangeOrdersOfProject(ctx, project._id)) {
+      for (const co of await ownerChangeOrdersOfProject(ctx, project._id)) {
         ownerChangeOrders.push(co);
         changeOrders.push({
           changeOrderId: co._id,
-          agreementId: agreement._id,
+          agreementId: co.agreementId ?? null,
           number: co.number,
           description: co.description,
           status: co.status,

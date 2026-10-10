@@ -193,7 +193,6 @@ const VIA_AGREEMENT = new Set<TableNames>([
   "agentProposals",
   "payments",
   "retainageLedger",
-  "changeOrders",
 ]);
 const VIA_PACKAGE = new Set<TableNames>(["contractors", "bids", "conversations"]);
 
@@ -204,6 +203,12 @@ export async function projectIdOfDoc<T extends ProjectScopedTable>(
   doc: Doc<T>,
 ): Promise<Id<"projects"> | null> {
   if (table === "projects") return (doc as unknown as Doc<"projects">)._id;
+  if (table === "changeOrders") {
+    const co = doc as unknown as Doc<"changeOrders">;
+    if (co.projectId !== undefined) return co.projectId;
+    const agreement = co.agreementId === undefined ? null : await ctx.db.get(co.agreementId);
+    return agreement?.projectId ?? null;
+  }
   if (VIA_AGREEMENT.has(table)) {
     const agreement = await ctx.db.get((doc as unknown as { agreementId: Id<"agreements"> }).agreementId);
     return agreement?.projectId ?? null;

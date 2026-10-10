@@ -1,8 +1,7 @@
 import type { Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
 
-export const NO_PROJECT_OWNER_REASON =
-  "Invite the owner and set a billing email before invoicing. No owner company has joined this project yet.";
+export const NO_PROJECT_OWNER_REASON = "No owner on this project – invite the owner to enable invoicing";
 export function noOwnerEmailReason(ownerCompanyName: string): string {
   return `Invoicing is disabled: ${ownerCompanyName} has no billing email. An admin of ${ownerCompanyName} must set one in Company settings before invoicing.`;
 }

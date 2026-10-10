@@ -2,7 +2,7 @@ import { useAction, useMutation } from "convex/react";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
-import { DEMO_CHANGE_ORDER, demoEditedApprovalCents } from "../../../convex/judgeDemo/scenario";
+import { demoEditedApprovalCents } from "../../../convex/judgeDemo/scenario";
 import { readableError } from "../FundMilestone";
 import { changeOrderInvoiced, ensureChangeOrderInvoiced, type DriverChangeOrder } from "./changeOrderStep";
 import { FUNDED_STATUSES, moneyProposal, payoutFinished, proposalsReady, type DemoInboxItem, type DemoLedger } from "./steps";
@@ -12,7 +12,7 @@ export type DriverSnapshot = {
   ledger: DemoLedger | null | undefined;
   honest: DemoInboxItem | null;
   agent: DemoInboxItem | null;
-  /** undefined while loading; null when the agreement has no change order yet. */
+  /** undefined while loading; null when the run has no change order yet. */
   changeOrder: (DriverChangeOrder & { _id: Id<"changeOrders"> }) | null | undefined;
 };
 
@@ -30,7 +30,7 @@ export function useJudgeDemoDriver(snapshot: DriverSnapshot, onRunCreated: (runI
   const fileDemoPayApp = useMutation(api.judgeDemo.runs.fileDemoPayApp);
   const approveProposal = useMutation(api.payApps.proposals.approveProposal);
   const editProposal = useMutation(api.payApps.proposals.editProposal);
-  const createChangeOrder = useAction(api.payments.invoices.createChangeOrder);
+  const prepareDemoChangeOrder = useMutation(api.judgeDemo.runs.prepareDemoChangeOrder);
   const sendChangeOrderInvoice = useAction(api.payments.invoices.sendChangeOrderInvoice);
 
   const latest = useRef(snapshot);
@@ -119,7 +119,10 @@ export function useJudgeDemoDriver(snapshot: DriverSnapshot, onRunCreated: (runI
 
       await ensureChangeOrderInvoiced<Id<"changeOrders">>({
         current: async () => (await waitFor("the change orders", (s) => (s.changeOrder === undefined ? null : { co: s.changeOrder }), 20_000)).co,
-        create: () => createChangeOrder({ agreementId: run.agreementId, ...DEMO_CHANGE_ORDER }),
+        create: async () => {
+          const changeOrderId = await prepareDemoChangeOrder({ runId: id });
+          return await sendChangeOrderInvoice({ changeOrderId });
+        },
         resume: (changeOrderId) => sendChangeOrderInvoice({ changeOrderId }),
         waitInvoiced: () => waitFor("the sent change-order invoice", (s) => (changeOrderInvoiced(s.changeOrder ?? null) ? true : null), 30_000).then(() => undefined),
         onPhase: setPhase,

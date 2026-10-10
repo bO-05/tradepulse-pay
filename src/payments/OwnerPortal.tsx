@@ -3,7 +3,7 @@ import { api } from "../../convex/_generated/api";
 import { agreementHash, type Role } from "../auth/navigation";
 import { requestNewProject } from "../projects/newProjectRequest";
 import { Button, EmptyState } from "../ui";
-import { ChangeOrderList } from "./ChangeOrders";
+import { CHANGE_ORDERS_PAGE_HASH, ChangeOrderRows } from "./ChangeOrders";
 import { formatCents, formatDollars } from "./format";
 
 /** Read-only projects view for owners (and GC). No approve, fund or award controls live here. */
@@ -76,9 +76,22 @@ export function OwnerPortal({ role }: { role?: Role }) {
 
           {project.partyRole === "owner" && <OwnerTrancheStatus projectId={project._id} />}
 
-          <div>
-            <h3 className="text-sm font-semibold mb-2">Change-order invoices</h3>
-            <ChangeOrderList changeOrders={project.changeOrders} canRefresh canResend={false} showAgreement />
+          <div data-testid="portal-change-orders">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+              <h3 className="text-sm font-semibold">Change orders</h3>
+              <a href={CHANGE_ORDERS_PAGE_HASH} className="text-xs text-emerald-400 hover:text-emerald-300">
+                All change orders
+              </a>
+            </div>
+            {project.primeContractSum ? (
+              <p className="text-sm text-slate-300 mb-2" data-testid="portal-prime-contract-sum">
+                Prime contract sum to date <span className="font-semibold tabular-nums">{formatCents(project.primeContractSum.toDateCents)}</span>
+                {" "}(original {formatCents(project.primeContractSum.originalCents)}, net change{" "}
+                {project.primeContractSum.netChangeCents > 0 ? "+" : ""}
+                {formatCents(project.primeContractSum.netChangeCents)})
+              </p>
+            ) : null}
+            <ChangeOrderRows rows={project.changeOrders} emptyText="No prime change orders on this project yet." />
           </div>
         </section>
       ))}

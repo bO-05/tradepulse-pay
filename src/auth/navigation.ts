@@ -18,6 +18,7 @@ export type AreaId =
   | "notifications"
   | "billing"
   | "pay-apps"
+  | "change-orders"
   | "pay-app"
   | "agreement"
   | "ledger"
@@ -61,6 +62,7 @@ const AREA_HASH: Record<NavItem["area"], string> = {
   "gc-projects": "#/all-projects",
   billing: "#/billing",
   "pay-apps": "#/pay-apps",
+  "change-orders": "#/change-orders",
 };
 
 /** One pay app (G703 sheet and G702 summary): the GC and the filing sub; owners get Not found. */
@@ -93,6 +95,7 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { area: "procurement", label: "Procurement", hash: AREA_HASH.procurement },
     { area: "gc-projects", label: "Projects", hash: AREA_HASH["gc-projects"] },
     { area: "billing", label: "Billing", hash: AREA_HASH.billing },
+    { area: "change-orders", label: "Change orders", hash: AREA_HASH["change-orders"] },
     { area: "payments", label: "Payments", hash: AREA_HASH.payments },
     { area: "inbox", label: "Approval inbox", hash: AREA_HASH.inbox },
     { area: "owner-portal", label: "Projects overview", hash: AREA_HASH["owner-portal"] },
@@ -105,6 +108,7 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
   sub: [
     { area: "sub-portal", label: "My agreements & pay applications", hash: AREA_HASH["sub-portal"] },
     { area: "pay-apps", label: "Pay apps", hash: AREA_HASH["pay-apps"] },
+    { area: "change-orders", label: "Change orders", hash: AREA_HASH["change-orders"] },
     { area: "bid-invitations", label: "Bid invitations", hash: AREA_HASH["bid-invitations"] },
     { area: "my-projects", label: "Projects", hash: AREA_HASH["my-projects"] },
     { area: "payments", label: "Payments", hash: AREA_HASH.payments },
@@ -112,6 +116,7 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
   owner: [
     { area: "owner-portal", label: "Projects & change orders", hash: AREA_HASH["owner-portal"] },
     { area: "my-projects", label: "My projects", hash: AREA_HASH["my-projects"] },
+    { area: "change-orders", label: "Change orders", hash: AREA_HASH["change-orders"] },
     { area: "dashboard", label: "Dashboard", hash: AREA_HASH.dashboard },
   ],
 };

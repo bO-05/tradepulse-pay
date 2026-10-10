@@ -7,6 +7,7 @@ describe("role navigation", () => {
       "procurement",
       "gc-projects",
       "billing",
+      "change-orders",
       "payments",
       "inbox",
       "owner-portal",
@@ -16,8 +17,8 @@ describe("role navigation", () => {
       "dashboard",
       "judge-demo",
     ]);
-    expect(NAV_BY_ROLE.sub.map((i) => i.area)).toEqual(["sub-portal", "pay-apps", "bid-invitations", "my-projects", "payments"]);
-    expect(NAV_BY_ROLE.owner.map((i) => i.area)).toEqual(["owner-portal", "my-projects", "dashboard"]);
+    expect(NAV_BY_ROLE.sub.map((i) => i.area)).toEqual(["sub-portal", "pay-apps", "change-orders", "bid-invitations", "my-projects", "payments"]);
+    expect(NAV_BY_ROLE.owner.map((i) => i.area)).toEqual(["owner-portal", "my-projects", "change-orders", "dashboard"]);
   });
 
   test("People is GC-only; project switcher for subs and owners; Company settings for every role", () => {

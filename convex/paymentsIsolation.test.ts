@@ -177,9 +177,13 @@ async function insertMoney(ctx: Ctx, agreementId: Id<"agreements">, contractorId
     source: "agent",
     createdAt: now,
   });
+  const projectId = (await ctx.db.get(agreementId))!.projectId;
   const changeOrderId = await ctx.db.insert("changeOrders", {
     agreementId,
+    projectId,
+    scope: "prime",
     number: 1,
+    title: `${tag} added outlets`,
     description: `${tag} added outlets`,
     amountCents: 750_000,
     status: "invoiced",
@@ -188,7 +192,10 @@ async function insertMoney(ctx: Ctx, agreementId: Id<"agreements">, contractorId
   });
   await ctx.db.insert("changeOrders", {
     agreementId,
+    projectId,
+    scope: "prime",
     number: 2,
+    title: `${tag} draft change`,
     description: `${tag} draft change`,
     amountCents: 10_000,
     status: "draft",
@@ -329,10 +336,17 @@ const GC_ONLY: Case[] = [
   a("payments/payoutRetry:retryPayout", api.payments.payoutRetry.retryPayout, (i) => ({ paymentId: i.payoutId })),
   a("payments/retainage:releaseRetainage", api.payments.retainage.releaseRetainage, (i) => ({ agreementId: i.agreementId })),
   a("payments/retainage:resumeRetainageRelease", api.payments.retainage.resumeRetainageRelease, (i) => ({ paymentId: i.retainageId })),
-  a("payments/invoices:createChangeOrder", api.payments.invoices.createChangeOrder, (i) => ({
-    agreementId: i.agreementId,
-    description: "Forged change order",
+  m("billing/changeOrders:createChangeOrder (prime)", api.billing.changeOrders.createChangeOrder, (i) => ({
+    scope: "prime",
+    projectId: i.projectId,
+    title: "Forged change order",
     amountCents: 100,
+  })),
+  q("billing/changeOrders:getChangeOrder (owner allowed)", api.billing.changeOrders.getChangeOrder, (i) => ({ changeOrderId: i.changeOrderId })),
+  m("billing/changeOrders:approveChangeOrder (owner allowed)", api.billing.changeOrders.approveChangeOrder, (i) => ({ changeOrderId: i.changeOrderId })),
+  m("billing/changeOrders:rejectChangeOrder (owner allowed)", api.billing.changeOrders.rejectChangeOrder, (i) => ({
+    changeOrderId: i.changeOrderId,
+    reason: "Forged",
   })),
   a("payments/invoices:sendChangeOrderInvoice", api.payments.invoices.sendChangeOrderInvoice, (i) => ({ changeOrderId: i.changeOrderId })),
   a("payments/invoices:refreshChangeOrderStatus (owner allowed)", api.payments.invoices.refreshChangeOrderStatus, (i) => ({
@@ -358,7 +372,7 @@ const GC_ONLY: Case[] = [
 /** Reads that answer null or [] for an id the caller cannot see, exactly as for a missing id. */
 const BLANK_READS: Case[] = [
   q("payments/ledger:getAgreementLedger", api.payments.ledger.getAgreementLedger, (i) => ({ agreementId: i.agreementId })),
-  q("payments/changeOrderDb:listForAgreement", api.payments.changeOrderDb.listForAgreement, (i) => ({ agreementId: i.agreementId })),
+  q("billing/changeOrders:listForAgreement", api.billing.changeOrders.listForAgreement, (i) => ({ agreementId: i.agreementId })),
   q("payApps/review:listAgreementPayApps", api.payApps.review.listAgreementPayApps, (i) => ({ agreementId: i.agreementId })),
   q("payApps/proposals:getAgentTrace", api.payApps.proposals.getAgentTrace, (i) => ({ payAppId: i.payAppId })),
   q("payApps/submit:payAppFormContext", api.payApps.submit.payAppFormContext, (i) => ({ agreementId: i.agreementId })),
@@ -483,8 +497,9 @@ describe("the owning GC company still works (control)", () => {
     const ledger = await dana.query(api.payments.ledger.getAgreementLedger, { agreementId: bayview.agreementId });
     expect(ledger).not.toBeNull();
     expect(await dana.query(api.payApps.review.listAgreementPayApps, { agreementId: bayview.agreementId })).toHaveLength(1);
-    const cos = await dana.query(api.payments.changeOrderDb.listForAgreement, { agreementId: bayview.agreementId });
-    expect(cos!.changeOrders).toHaveLength(2);
+    const cos = await dana.query(api.billing.changeOrders.listForProject, { projectId: bayview.projectId });
+    // Bayview's and Lakeshore's fixture rows are both prime COs of the Harbor Point project.
+    expect(cos.prime!.changeOrders.map((c) => c.status)).toEqual(["invoiced", "invoiced", "draft", "draft"]);
     const inbox = await dana.query(api.payApps.proposals.listInbox, {});
     expect(JSON.stringify(inbox)).toContain(bayview.payAppId);
     expect(JSON.stringify(inbox)).not.toContain("SONORAN");
@@ -563,9 +578,12 @@ describe("the owner sees project summary and owner items only", () => {
 
   test("the owner's change-order list hides drafts and offers no create", async () => {
     const { fx, bayview } = await setup();
-    const list = await fx.owner.admin.as.query(api.payments.changeOrderDb.listForAgreement, { agreementId: bayview.agreementId });
-    expect(list!.canCreate).toBe(false);
-    expect(list!.changeOrders.map((c) => c.status)).toEqual(["invoiced"]);
+    const list = await fx.owner.admin.as.query(api.billing.changeOrders.listForProject, { projectId: bayview.projectId });
+    expect(list.agreements).toEqual([]);
+    expect(list.prime!.canCreate).toBe(false);
+    expect(list.prime!.changeOrders.map((c) => c.status)).toEqual(["invoiced", "invoiced"]);
+    expect(list.prime!.changeOrders.every((c) => c.scope === "prime")).toBe(true);
+    expect(await fx.owner.admin.as.query(api.billing.changeOrders.listForAgreement, { agreementId: bayview.agreementId })).toBeNull();
   });
 
   test("another project's owner sees nothing of Bayview", async () => {
@@ -581,7 +599,7 @@ describe("the owner sees project summary and owner items only", () => {
     const text = JSON.stringify(await pat.query(api.dashboard.queries.getDashboardData, {}));
     expect(text).toContain("SONORAN added outlets");
     expect(text).not.toMatch(/Harbor Point|BAYVIEW|Camelback/);
-    expect(await pat.query(api.payments.changeOrderDb.listForAgreement, { agreementId: bayview.agreementId })).toBeNull();
+    expect(await outcome(pat.query(api.billing.changeOrders.listForProject, { projectId: bayview.projectId }))).toBe(NOT_FOUND);
     expect(await outcome(pat.query(api.dashboard.queries.getDashboardData, { projectId: bayview.projectId }))).toBe(NOT_FOUND);
   });
 });
@@ -590,27 +608,33 @@ describe("change-order invoices go to THAT project's owner", () => {
   test("each GC's invoicing recipient is the owner on its own project", async () => {
     const { t, fx } = await setup();
     // A member's sign-in email is never a fallback: without a billing email invoicing is disabled.
-    const noEmail = await fx.gcA.admin.as.query(api.payments.changeOrderDb.listForAgreement, { agreementId: fx.gcA.project.agreementId });
+    const noEmail = await fx.gcA.admin.as.query(api.billing.changeOrders.listForProject, { projectId: fx.gcA.project.projectId });
     expect(noEmail!.invoicing).toEqual({ enabled: false, reason: noOwnerEmailReason("Harbor Point Dental LLC"), recipientEmail: null });
     await t.run((ctx) => ctx.db.patch(fx.owner.companyId, { billingEmail: "ap@harborpoint.test" }));
-    const bay = await fx.gcA.admin.as.query(api.payments.changeOrderDb.listForAgreement, { agreementId: fx.gcA.project.agreementId });
+    const bay = await fx.gcA.admin.as.query(api.billing.changeOrders.listForProject, { projectId: fx.gcA.project.projectId });
     expect(bay!.invoicing).toEqual({ enabled: true, reason: null, recipientEmail: "ap@harborpoint.test" });
-    expect(bay!.canCreate).toBe(true);
-    const son = await fx.gcB.admin.as.query(api.payments.changeOrderDb.listForAgreement, { agreementId: fx.gcB.project.agreementId });
+    expect(bay!.prime!.canCreate).toBe(true);
+    const son = await fx.gcB.admin.as.query(api.billing.changeOrders.listForProject, { projectId: fx.gcB.project.projectId });
     expect(son!.invoicing).toEqual({ enabled: true, reason: null, recipientEmail: "ap@mesa-owner.test" });
   });
 
-  test("a project without an owner disables invoicing with the reason and creates nothing", async () => {
+  test("a project without an owner disables Invoice now with the reason and sends nothing", async () => {
     const { t, fx } = await setup();
-    const demoAgreement = fx.demo.project.agreementId;
-    const list = await fx.demo.gc.as.query(api.payments.changeOrderDb.listForAgreement, { agreementId: demoAgreement });
-    expect(list!.canCreate).toBe(false);
-    expect(list!.invoicing).toEqual({ enabled: false, reason: NO_PROJECT_OWNER_REASON, recipientEmail: null });
+    const gc = fx.demo.gc.as;
+    const projectId = fx.demo.project.projectId;
+    const list = await gc.query(api.billing.changeOrders.listForProject, { projectId });
+    expect(list.invoicing).toEqual({ enabled: false, reason: NO_PROJECT_OWNER_REASON, recipientEmail: null });
+    const { changeOrderId } = await gc.mutation(api.billing.changeOrders.createChangeOrder, {
+      scope: "prime",
+      projectId,
+      title: "Extra",
+      amountCents: 100,
+    });
+    await gc.mutation(api.billing.changeOrders.submitChangeOrder, { changeOrderId });
+    const row = (await gc.query(api.billing.changeOrders.listForProject, { projectId })).prime!.changeOrders.find((c) => c._id === changeOrderId)!;
+    expect(row.invoice).toEqual({ show: true, enabled: false, reason: NO_PROJECT_OWNER_REASON });
     const before = await snapshot(t);
-    const err = await outcome(
-      fx.demo.gc.as.action(api.payments.invoices.createChangeOrder, { agreementId: demoAgreement, description: "Extra", amountCents: 100 }),
-    );
-    expect(err).toContain("NO_OWNER_EMAIL");
+    expect(await outcome(gc.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId }))).toMatch(/NOT_INVOICEABLE|NO_OWNER_EMAIL/);
     expect(await snapshot(t)).toBe(before);
     expect(fetchSpy).not.toHaveBeenCalled();
   });

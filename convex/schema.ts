@@ -41,6 +41,7 @@ export const notificationKindValidator = v.union(
   v.literal("compliance_expired"),
   v.literal("change_order_submitted"),
   v.literal("change_order_approved"),
+  v.literal("change_order_rejected"),
   v.literal("owner_pay_app_ready"),
 );
 
@@ -179,10 +180,16 @@ export const paymentStatusValidator = v.union(
 
 export const changeOrderStatusValidator = v.union(
   v.literal("draft"),
+  v.literal("submitted"),
+  v.literal("approved"),
+  v.literal("rejected"),
+  v.literal("void"),
   v.literal("invoiced"),
   v.literal("paid"),
   v.literal("cancelled"),
 );
+
+export const changeOrderScopeValidator = v.union(v.literal("subcontract"), v.literal("prime"));
 
 export const licenseStatusValidator = v.union(
   v.literal("active"),
@@ -540,6 +547,8 @@ export default defineSchema({
     sourceBidLineRef: v.optional(v.string()),
     // Canonical JSON of the award inputs the SOV and milestones were generated from.
     sourceFingerprint: v.optional(v.string()),
+    // Set on lines added by an approved subcontract change order; such lines are never edited or deleted.
+    changeOrderId: v.optional(v.id("changeOrders")),
   }).index("by_agreementId_and_lineNo", ["agreementId", "lineNo"]),
 
   milestones: defineTable({
@@ -749,12 +758,33 @@ export default defineSchema({
     .index("by_agreementId", ["agreementId"])
     .index("by_paymentId", ["paymentId"]),
 
+  // Change orders (§16). Subcontract COs belong to an agreement and, once the GC approves them, add an SOV
+  // line. Prime COs belong to the project and are decided by the owner; a prime CO may also carry the
+  // agreementId of the subcontract it is billed through (judge demo), which never makes it visible to that sub.
+  // Rows written before scope existed are prime COs on an agreement (see changeOrderBackfill).
   changeOrders: defineTable({
-    agreementId: v.id("agreements"),
+    agreementId: v.optional(v.id("agreements")),
+    projectId: v.optional(v.id("projects")),
+    scope: v.optional(changeOrderScopeValidator),
     number: v.number(),
+    title: v.optional(v.string()),
     description: v.string(),
     amountCents: v.number(),
+    scheduleDays: v.optional(v.number()),
     status: changeOrderStatusValidator,
+    requestedBy: v.optional(v.id("users")),
+    requestedByParty: v.optional(v.union(v.literal("gc"), v.literal("sub"))),
+    linkedChangeOrderId: v.optional(v.id("changeOrders")),
+    submittedAt: v.optional(v.number()),
+    approvedBy: v.optional(v.id("users")),
+    approvedAt: v.optional(v.number()),
+    rejectedBy: v.optional(v.id("users")),
+    rejectedAt: v.optional(v.number()),
+    rejectionReason: v.optional(v.string()),
+    sovLineId: v.optional(v.id("scheduleOfValues")),
+    // Set when the judge demo approved a prime change order as a stand-in for the demo owner.
+    judgeDemo: v.optional(v.object({ runId: v.id("judgeDemoRuns"), approvedFor: v.string() })),
+    updatedAt: v.optional(v.number()),
     paypalInvoiceId: v.optional(v.string()),
     payerViewUrl: v.optional(v.string()),
     recipientEmail: v.optional(v.string()),
@@ -771,6 +801,7 @@ export default defineSchema({
     statusCheckedAt: v.optional(v.number()),
   })
     .index("by_agreementId_and_number", ["agreementId", "number"])
+    .index("by_projectId_and_scope_and_number", ["projectId", "scope", "number"])
     .index("by_paypalInvoiceId", ["paypalInvoiceId"])
     .index("by_status", ["status"]),
 
@@ -1256,6 +1287,7 @@ export default defineSchema({
     agreementNumber: v.string(),
     honestPayAppId: v.optional(v.id("payApplications")),
     agentPayAppId: v.optional(v.id("payApplications")),
+    changeOrderId: v.optional(v.id("changeOrders")),
     createdAt: v.number(),
   }).index("by_startedBy", ["startedBy"]),
 

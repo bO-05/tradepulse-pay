@@ -50,6 +50,8 @@ async function ownerFixture() {
     });
     await ctx.db.insert("changeOrders", {
       agreementId: a.agreementId,
+      projectId: a.projectId,
+      scope: "prime",
       number: 1,
       description: "Owner-requested outlets",
       amountCents: 77_700,
@@ -57,18 +59,31 @@ async function ownerFixture() {
       createdAt: now,
     });
     await ctx.db.insert("changeOrders", {
-      agreementId: a.agreementId,
+      projectId: a.projectId,
+      scope: "prime",
       number: 2,
       description: "GC working draft",
       amountCents: 88_800,
       status: "draft",
       createdAt: now,
     });
+    await ctx.db.insert("changeOrders", {
+      agreementId: a.agreementId,
+      projectId: a.projectId,
+      scope: "subcontract",
+      number: 1,
+      title: "Subcontract-only change",
+      description: "Between the GC and the sub",
+      amountCents: 66_600,
+      status: "approved",
+      requestedByParty: "sub",
+      createdAt: now,
+    });
   });
   return { t, fx, a };
 }
 
-const SUB_AMOUNTS = [/41[,]?234/, /4123400/, /43[,]?210/, /Base Bid/, /Leveled/, /Eastbay/, /88800/];
+const SUB_AMOUNTS = [/41[,]?234/, /4123400/, /43[,]?210/, /Base Bid/, /Leveled/, /Eastbay/, /88800/, /66600/, /Subcontract-only/];
 
 function expectNoSubcontractData(value: unknown, label: string) {
   const text = JSON.stringify(value);
@@ -111,9 +126,11 @@ describe("owners get owner-safe projections only", () => {
     expect(portal[0].changeOrders.map((c) => c.amountCents)).toEqual([77_700]);
     expectNoSubcontractData(portal, "ownerOverview");
 
-    const cos = await owner.query(api.payments.changeOrderDb.listForAgreement, { agreementId: a.agreementId });
-    expect(cos!.canCreate).toBe(false);
-    expect(cos!.changeOrders.map((c) => c.amountCents)).toEqual([77_700]);
+    const cos = await owner.query(api.billing.changeOrders.listForProject, { projectId: a.projectId });
+    expect(cos.agreements).toEqual([]);
+    expect(cos.prime!.canCreate).toBe(false);
+    expect(cos.prime!.changeOrders.map((c) => c.amountCents)).toEqual([77_700]);
+    expectNoSubcontractData(cos, "listForProject");
   });
 
   test("owner reads of subcontract records by id read Not found", async () => {
@@ -166,7 +183,7 @@ describe("owners get owner-safe projections only", () => {
     const { fx, a } = await ownerFixture();
     const dash = await fx.gcA.admin.as.query(api.dashboard.queries.getDashboardData, {});
     expect(dash.agreements.map((r) => r.contractSumCents)).toEqual([4_123_400]);
-    expect(dash.changeOrders.map((c) => c.amountCents).sort()).toEqual([77_700, 88_800]);
+    expect(dash.changeOrders.map((c) => c.amountCents).sort()).toEqual([66_600, 77_700]);
     expect(await fx.gcA.admin.as.query(api.payments.ledger.getAgreementLedger, { agreementId: a.agreementId })).not.toBeNull();
     expect(await fx.sub.admin.as.query(api.payments.ledger.getAgreementLedger, { agreementId: a.agreementId })).not.toBeNull();
     const subOverview = await fx.sub.admin.as.query(api.people.projectOverview, { projectId: a.projectId });

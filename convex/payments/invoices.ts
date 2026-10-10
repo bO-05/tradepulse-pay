@@ -9,8 +9,8 @@ import type { BeginInvoice } from "./changeOrderDb";
 import { payPalClientForAction, type PayPalClient } from "./paypalClient";
 
 /**
- * Change-order invoices (architecture §4 step 5): the GC creates a change order, which becomes an
- * Invoicing v2 invoice to the Owner's sandbox email (create draft → send). The sandbox sends no email,
+ * Change-order invoices (architecture §4 step 5, §16): once the owner approves a prime change order, the
+ * GC's "Invoice now" makes it an Invoicing v2 invoice to the owner's billing email (create draft → send). The sandbox sends no email,
  * so the stored payer-view URL shown in the app is how the Owner reaches the invoice. Paid status
  * comes from "Refresh status" (GET) or the INVOICING.INVOICE.PAID webhook.
  *
@@ -61,7 +61,11 @@ async function invoiceChangeOrder(ctx: ActionCtx, changeOrderId: Id<"changeOrder
       alreadyInvoiced: true,
     };
   }
-  const paypal = payPalClientForAction(ctx, env, { actor, projectId: begun.projectId, agreementId: begun.agreementId });
+  const paypal = payPalClientForAction(ctx, env, {
+    actor,
+    projectId: begun.projectId,
+    ...(begun.agreementId !== null ? { agreementId: begun.agreementId } : {}),
+  });
   let invoiceId = begun.paypalInvoiceId;
   let auditRecorded = true;
   try {
@@ -125,31 +129,11 @@ async function refreshChangeOrder(ctx: ActionCtx, changeOrderId: Id<"changeOrder
   return { changeOrderId, status: applied.status ?? row.status, paypalInvoiceStatus: invoice.status, changed: applied.changed };
 }
 
-const createArgs = {
-  agreementId: v.id("agreements"),
-  number: v.optional(v.number()),
-  description: v.string(),
-  amountCents: v.number(),
-};
-
 /**
- * GC of the agreement's project only: records the change order, then creates and sends its PayPal
- * invoice to that project's owner.
+ * "Invoice now", GC of the project only: invoices an owner-approved prime change order to the project
+ * owner's billing email (create draft → send), or resumes one whose create or send did not finish.
+ * Unapproved and subcontract change orders are refused before PayPal is called.
  */
-export const createChangeOrder = action({
-  args: createArgs,
-  returns: invoiceResult,
-  handler: async (ctx, args): Promise<InvoiceResult> => {
-    const scope = await requireProjectScopeInAction(ctx, { docs: [{ table: "agreements", id: args.agreementId }] }, { roles: ["gc"], write: true });
-    const changeOrderId: Id<"changeOrders"> = await ctx.runMutation(internal.payments.changeOrderDb.insertChangeOrder, {
-      ...args,
-      createdBy: scope.userId,
-    });
-    return await invoiceChangeOrder(ctx, changeOrderId, scope.actor);
-  },
-});
-
-/** GC of the project only: retries invoicing a change order whose create or send did not finish. */
 export const sendChangeOrderInvoice = action({
   args: { changeOrderId: v.id("changeOrders") },
   returns: invoiceResult,
@@ -166,16 +150,6 @@ export const refreshChangeOrderStatus = action({
   handler: async (ctx, { changeOrderId }): Promise<RefreshResult> => {
     const scope = await requireProjectScopeInAction(ctx, { docs: [{ table: "changeOrders", id: changeOrderId }] }, { roles: ["gc", "owner"] });
     return await refreshChangeOrder(ctx, changeOrderId, scope.actor);
-  },
-});
-
-/** CLI entry point: `npx convex run payments/invoices:createChangeOrderInternal '{...}'`. */
-export const createChangeOrderInternal = internalAction({
-  args: { ...createArgs, actor: v.optional(v.string()) },
-  returns: invoiceResult,
-  handler: async (ctx, { actor, ...args }): Promise<InvoiceResult> => {
-    const changeOrderId: Id<"changeOrders"> = await ctx.runMutation(internal.payments.changeOrderDb.insertChangeOrder, args);
-    return await invoiceChangeOrder(ctx, changeOrderId, actor ?? "system:internal");
   },
 });
 
@@ -201,7 +175,7 @@ export const recordInvoicePaymentInternal = internalAction({
     const paypal = payPalClientForAction(ctx, env, {
       actor: "system:internal",
       projectId: row.projectId ?? undefined,
-      agreementId: row.agreementId,
+      agreementId: row.agreementId ?? undefined,
     });
     await paypal.request({
       method: "POST",

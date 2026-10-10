@@ -38,6 +38,8 @@ function lineView(l: Doc<"scheduleOfValues">) {
     csiCode: l.csiCode ?? "",
     scheduledValueCents: l.scheduledValueCents,
     fromBid: l.sourceBidLineRef !== undefined,
+    changeOrderId: l.changeOrderId ?? null,
+    fromChangeOrder: l.changeOrderId !== undefined,
   };
 }
 
@@ -52,6 +54,8 @@ export const getSov = query({
     const lines = isGc || approved ? await loadLines(ctx, agreement._id) : [];
     const contractSumCents = agreementContractSumCents(agreement);
     const totalCents = sumSovCents(lines);
+    const changeOrderLines = lines.filter((l) => l.changeOrderId !== undefined);
+    const netChangeCents = sumSovCents(changeOrderLines);
     return {
       agreementId: agreement._id,
       agreementNumber: agreement.agreementNumber,
@@ -63,7 +67,11 @@ export const getSov = query({
       approvedByName: agreement.sov?.approvedByName ?? null,
       contractSumCents,
       totalCents,
-      differenceCents: totalCents - contractSumCents,
+      // Approved change orders append lines; the original contract sum is never rewritten.
+      originalContractSumCents: contractSumCents,
+      netChangeOrdersCents: netChangeCents,
+      contractSumToDateCents: contractSumCents + netChangeCents,
+      differenceCents: totalCents - netChangeCents - contractSumCents,
       excludedScopeNotes: agreement.excludedScopeNotes ?? [],
       canEdit: isGc && !approved && agreement.status !== "superseded",
       approvalProblem: isGc && !approved ? sovApprovalProblem(contractSumCents, lines) : null,
@@ -73,6 +81,9 @@ export const getSov = query({
 });
 
 const GC_WRITE = { roles: ["gc" as const], write: true };
+
+export const CHANGE_ORDER_LINE_MESSAGE =
+  "This line comes from an approved change order and cannot be edited or deleted – create a new change order";
 
 function editableAgreement<S extends ProjectAccess & { doc: Doc<"agreements"> }>(scope: S): S {
   assertEditable(scope.doc);
@@ -85,6 +96,9 @@ async function editableLine<S extends ProjectAccess & { doc: Doc<"scheduleOfValu
 ): Promise<S & { agreement: Doc<"agreements"> }> {
   const agreement = await ctx.db.get(scope.doc.agreementId);
   if (agreement === null) throw new ConvexError({ code: "NOT_FOUND", message: "Not found." });
+  if (scope.doc.changeOrderId !== undefined) {
+    throw new ConvexError({ code: "CHANGE_ORDER_LINE", message: CHANGE_ORDER_LINE_MESSAGE });
+  }
   assertEditable(agreement);
   return { ...scope, agreement };
 }

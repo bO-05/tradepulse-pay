@@ -69,7 +69,7 @@ function ProjectView({ projectId, projects }: { projectId: string; projects: Pro
       {project.partyRole === "owner" ? (
         <Card title="Change orders">
           {project.changeOrders.length === 0 ? (
-            <p className="text-sm text-ink-subtle">No change orders have been invoiced to you on this project yet.</p>
+            <p className="text-sm text-ink-subtle">No prime change orders on this project yet. Open Change orders to approve or reject submitted ones.</p>
           ) : (
             <ul className="divide-y divide-line text-sm">
               {project.changeOrders.map((co) => (

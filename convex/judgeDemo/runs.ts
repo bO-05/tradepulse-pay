@@ -3,13 +3,15 @@ import type { Doc, Id } from "../_generated/dataModel";
 import { mutation, query, type MutationCtx } from "../_generated/server";
 import { normalizeAgentEmail, syncAgentProfilesForEmail } from "../lib/agentAccess";
 import { requireRole } from "../lib/roles";
-import { requireDemoCompany } from "../lib/projectScope";
+import { requireDemoCompany, requireProjectScope } from "../lib/projectScope";
+import { approvePrime, insertDraftChangeOrder } from "../billing/changeOrders";
 import { attachProjectToDemo, ensureDemoCompanies } from "../lib/demoTenancy";
 import { recordPayApplication, payAppSovContext } from "../payApps/submit";
 import { DEMO_SOV_APPROVER } from "../lib/demoBilling";
 import { RETAINAGE_PERCENT } from "../terms";
 import {
   DEMO_BILLING_AGENT_EMAIL,
+  DEMO_CHANGE_ORDER,
   DEMO_CONTRACT_SUM,
   DEMO_EXCLUSION,
   DEMO_LINE_ITEMS,
@@ -29,6 +31,7 @@ import { seededProposalBidRow } from "../lib/bidMoney";
  */
 
 const SUB1_EMAIL = "sub1@demo.tradepulse";
+const OWNER_EMAIL = "owner@demo.tradepulse";
 const GC_NAME = "Austin Commercial, LP";
 
 export async function sub1Account(ctx: MutationCtx): Promise<{ userId: Id<"users">; contractorId: Id<"contractors"> }> {
@@ -272,6 +275,38 @@ export const fileDemoPayApp = mutation({
   },
 });
 
+/**
+ * The run's prime change order, drafted and submitted through the regular path and approved as a
+ * stand-in for the demo owner (the row records that the judge demo approved it). The GC then invoices
+ * it with the regular "Invoice now" action. Idempotent per run.
+ */
+export const prepareDemoChangeOrder = mutation({
+  args: { runId: v.id("judgeDemoRuns") },
+  handler: async (ctx, args) => {
+    await requireDemoCompany(ctx, ["gc"]);
+    const viewer = await requireRole(ctx, ["gc"]);
+    const run = await loadRun(ctx, args.runId, viewer.userId);
+    if (run.changeOrderId !== undefined) return run.changeOrderId;
+    const access = await requireProjectScope(ctx, run.projectId, { roles: ["gc"], write: true });
+    const owner = await ctx.db
+      .query("users")
+      .withIndex("email", (q) => q.eq("email", OWNER_EMAIL))
+      .first();
+    if (owner === null) {
+      throw new ConvexError({ code: "DEMO_NOT_SEEDED", message: `The demo account ${OWNER_EMAIL} is missing. Run demoAccounts:seedDemo first.` });
+    }
+    const changeOrderId = await insertDraftChangeOrder(ctx, access, { agreement: null }, { scope: "prime", ...DEMO_CHANGE_ORDER });
+    const agreement = await ctx.db.get(run.agreementId);
+    const now = Date.now();
+    // Billed through the demo agreement so its ledger and the dashboard count the invoice as before.
+    await ctx.db.patch(changeOrderId, { status: "submitted", submittedAt: now, ...(agreement ? { agreementId: agreement._id } : {}) });
+    const co = (await ctx.db.get(changeOrderId))!;
+    await approvePrime(ctx, access, co, { approvedBy: owner._id, judgeDemo: { runId: run._id, approvedFor: OWNER_EMAIL } });
+    await ctx.db.patch(run._id, { changeOrderId });
+    return changeOrderId;
+  },
+});
+
 /** The GC's latest run (or a given one) with the ids the demo page needs. */
 export const getRun = query({
   args: { runId: v.optional(v.id("judgeDemoRuns")) },
@@ -295,6 +330,8 @@ export const getRun = query({
       contractorId: agreement?.contractorId ?? null,
       honestPayAppId: run.honestPayAppId ?? null,
       agentPayAppId: run.agentPayAppId ?? null,
+      projectId: run.projectId,
+      changeOrderId: run.changeOrderId ?? null,
       createdAt: run.createdAt,
     };
   },

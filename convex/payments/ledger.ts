@@ -121,7 +121,8 @@ export const getAgreementLedger = query({
       payApps: billing.rows,
       payments,
       retainage,
-      changeOrders,
+      // Change-order invoices are between the GC and the owner; a sub's ledger never counts them.
+      changeOrders: isGc ? changeOrders : [],
     });
     const capturedReleaseIds = new Set<string>();
     for (const p of payments) {

@@ -89,6 +89,8 @@ async function setup() {
     });
     await ctx.db.insert("changeOrders", {
       agreementId: agreement._id,
+      projectId: agreement.projectId,
+      scope: "prime",
       number: 1,
       description: "Added outlets",
       amountCents: 7_500,

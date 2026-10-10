@@ -31,7 +31,7 @@ export function JudgeDemoPage() {
   const agreementId = run?.agreementId;
   const ledger = useQuery(api.payments.ledger.getAgreementLedger, agreementId ? { agreementId } : "skip");
   const inbox = useQuery(api.payApps.proposals.listInbox, run ? {} : "skip");
-  const changeOrders = useQuery(api.payments.changeOrderDb.listForAgreement, agreementId ? { agreementId } : "skip");
+  const changeOrders = useQuery(api.billing.changeOrders.listForProject, run ? { projectId: run.projectId } : "skip");
   const dashboard = useQuery(api.dashboard.queries.getDashboardData, agreementId ? {} : "skip");
   const dashboardTotals = dashboard ? (dashboard.agreements.find((a) => a.agreementId === agreementId)?.totals ?? null) : undefined;
   const refreshCo = useAction(api.payments.invoices.refreshChangeOrderStatus);
@@ -49,7 +49,8 @@ export function JudgeDemoPage() {
   const byId = useMemo(() => new Map((inbox ?? []).map((i) => [i.payApp._id as string, i as unknown as DemoInboxItem])), [inbox]);
   const honest = run?.honestPayAppId ? (byId.get(run.honestPayAppId) ?? null) : null;
   const agent = run?.agentPayAppId ? (byId.get(run.agentPayAppId) ?? null) : null;
-  const changeOrder = changeOrders?.changeOrders[0] ?? null;
+  const primeRows = changeOrders?.prime?.changeOrders ?? [];
+  const changeOrder = (run?.changeOrderId ? primeRows.find((co) => co._id === run.changeOrderId) : undefined) ?? primeRows[0] ?? null;
 
   const driver = useJudgeDemoDriver(
     {

@@ -145,7 +145,9 @@ function SovEditor({ sov }: { sov: SovData }) {
     >
       <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
         <div>
-          <dt className="text-xs text-slate-400">Contract sum</dt>
+          <dt className="text-xs text-slate-400">
+            {sov.netChangeOrdersCents !== 0 ? "Original contract sum" : "Contract sum"}
+          </dt>
           <dd
             className="font-semibold tabular-nums"
             data-testid="sov-contract-sum"
@@ -173,6 +175,23 @@ function SovEditor({ sov }: { sov: SovData }) {
                 data-testid="sov-difference"
               >
                 {formatDifference(sov.differenceCents)}
+              </dd>
+            </div>
+          </>
+        ) : null}
+        {sov.netChangeOrdersCents !== 0 ? (
+          <>
+            <div>
+              <dt className="text-xs text-slate-400">Net change by change orders</dt>
+              <dd className="font-semibold tabular-nums" data-testid="sov-net-change">
+                {sov.netChangeOrdersCents > 0 ? "+" : ""}
+                {formatCents(sov.netChangeOrdersCents)}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-slate-400">Contract sum to date</dt>
+              <dd className="font-semibold tabular-nums" data-testid="sov-contract-sum-to-date">
+                {formatCents(sov.contractSumToDateCents)}
               </dd>
             </div>
           </>
@@ -304,6 +323,14 @@ function SovEditor({ sov }: { sov: SovData }) {
                     <td className="py-2 pr-3 tabular-nums">{line.lineNo}</td>
                     <td className="py-2 pr-3 break-words">
                       {line.description}
+                      {line.fromChangeOrder ? (
+                        <span
+                          className="ml-2 rounded-full border border-sky-800 bg-sky-950 px-2 py-0.5 text-[11px] text-sky-200"
+                          data-testid="sov-line-change-order"
+                        >
+                          From change order
+                        </span>
+                      ) : null}
                     </td>
                     <td className="py-2 pr-3 font-mono text-xs">
                       {line.csiCode || "—"}
@@ -311,7 +338,11 @@ function SovEditor({ sov }: { sov: SovData }) {
                     <td className="py-2 pr-3 text-right tabular-nums">
                       {formatCents(line.scheduledValueCents)}
                     </td>
-                    {sov.canEdit ? (
+                    {sov.canEdit && line.fromChangeOrder ? (
+                      <td className="py-1 text-right text-xs text-slate-400">
+                        Change order line
+                      </td>
+                    ) : sov.canEdit ? (
                       <td className="whitespace-nowrap py-1 text-right">
                         <IconButton
                           size="sm"

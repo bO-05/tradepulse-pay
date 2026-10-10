@@ -27,6 +27,8 @@ import type * as bidCentsMigration from "../bidCentsMigration.js";
 import type * as bidPortal from "../bidPortal.js";
 import type * as bids from "../bids.js";
 import type * as billing_canPay from "../billing/canPay.js";
+import type * as billing_changeOrderView from "../billing/changeOrderView.js";
+import type * as billing_changeOrders from "../billing/changeOrders.js";
 import type * as billing_pay from "../billing/pay.js";
 import type * as billing_payGate from "../billing/payGate.js";
 import type * as billing_payGateDb from "../billing/payGateDb.js";
@@ -231,6 +233,8 @@ declare const fullApi: ApiFromModules<{
   bidPortal: typeof bidPortal;
   bids: typeof bids;
   "billing/canPay": typeof billing_canPay;
+  "billing/changeOrderView": typeof billing_changeOrderView;
+  "billing/changeOrders": typeof billing_changeOrders;
   "billing/pay": typeof billing_pay;
   "billing/payGate": typeof billing_payGate;
   "billing/payGateDb": typeof billing_payGateDb;

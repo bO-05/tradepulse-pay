@@ -168,13 +168,24 @@ export function lineIncrementCents(l: { workThisPeriodCents: number; storedCents
 
 /** What E + F may total on a line: the scheduled value less previous work and other pending requests. */
 export function lineRemainingCents(l: Pick<G703EntryLine, "scheduledValueCents" | "previousWorkCents" | "pendingCents">): number {
+  if (l.scheduledValueCents < 0) return Math.min(0, l.scheduledValueCents - l.previousWorkCents);
   return Math.max(0, l.scheduledValueCents - l.previousWorkCents - l.pendingCents);
+}
+
+/** Billing on a deductive (negative) change-order line: E between the remaining deduction and 0.00, no stored material. */
+function deductiveLineErrors(l: G703EntryLine, push: (message: string) => void): void {
+  const remaining = lineRemainingCents(l);
+  if (l.storedCents !== 0) push("a deductive change-order line has no stored materials.");
+  else if (l.workThisPeriodCents > 0) push(`a deductive change-order line bills between ${formatCents(remaining)} and $0.00.`);
+  else if (l.workThisPeriodCents < remaining) {
+    push(`at most ${formatCents(remaining)} remains to deduct; this is ${formatCents(remaining - l.workThisPeriodCents)} beyond the scheduled value.`);
+  }
 }
 
 /**
  * Every per-line problem with the entered E and F: whole non-negative cents, no line above 100% of its
  * scheduled value, and no total to date below the previous application's (stored material leaves F only
- * by being installed into E).
+ * by being installed into E). A deductive change-order line (negative C) bills E in [C − D, 0].
  */
 export function g703LineErrors(lines: readonly G703EntryLine[]): G703LineError[] {
   const errors: G703LineError[] = [];
@@ -182,6 +193,10 @@ export function g703LineErrors(lines: readonly G703EntryLine[]): G703LineError[]
     const push = (message: string) => errors.push({ sovLineId: l.sovLineId, lineNo: l.lineNo, message: `Line ${l.lineNo}: ${message}` });
     if (!Number.isSafeInteger(l.workThisPeriodCents) || !Number.isSafeInteger(l.storedCents)) {
       push("amounts must be whole cents.");
+      continue;
+    }
+    if (l.scheduledValueCents < 0) {
+      deductiveLineErrors(l, push);
       continue;
     }
     if (l.workThisPeriodCents < 0) {

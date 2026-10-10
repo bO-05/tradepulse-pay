@@ -132,10 +132,14 @@ async function setup() {
     });
     const changeOrderId = await ctx.db.insert("changeOrders", {
       agreementId,
+      projectId: base.agreement.projectId,
+      scope: "subcontract",
       number: 1,
+      title: "Sweep change order",
       description: SECRET_CO_DESCRIPTION,
       amountCents: 50_000,
-      status: "draft",
+      status: "submitted",
+      requestedByParty: "sub",
       createdAt: now,
     });
     const linkId = (await ctx.db.query("agentLinks").first())!._id;
@@ -221,10 +225,16 @@ const GC_ONLY: Case[] = [
     agreementId: i.agreementId,
   })),
   a("payments/retainage:resumeRetainageRelease", api.payments.retainage.resumeRetainageRelease, (i) => ({ paymentId: i.retainageId })),
-  a("payments/invoices:createChangeOrder (change-order create)", api.payments.invoices.createChangeOrder, (i) => ({
-    agreementId: i.agreementId,
-    description: "Forged change order",
+  m("billing/changeOrders:createChangeOrder (prime)", api.billing.changeOrders.createChangeOrder, (i) => ({
+    scope: "prime",
+    projectId: i.projectId,
+    title: "Forged change order",
     amountCents: 12_345,
+  })),
+  m("billing/changeOrders:approveChangeOrder (subcontract)", api.billing.changeOrders.approveChangeOrder, (i) => ({ changeOrderId: i.changeOrderId })),
+  m("billing/changeOrders:rejectChangeOrder (subcontract)", api.billing.changeOrders.rejectChangeOrder, (i) => ({
+    changeOrderId: i.changeOrderId,
+    reason: "Forged",
   })),
   a("payments/invoices:sendChangeOrderInvoice", api.payments.invoices.sendChangeOrderInvoice, (i) => ({ changeOrderId: i.changeOrderId })),
   m("agentLinks:addAgentLink", api.agentLinks.addAgentLink, (i) => ({ agentEmail: "forged@agentmail.to", contractorId: i.contractorId })),
@@ -305,7 +315,9 @@ describe("agreement ledger and payment reads", () => {
   const READS: ReadCase[] = [
     { name: "payments/ledger:getAgreementLedger", fn: api.payments.ledger.getAgreementLedger, args: (i) => ({ agreementId: i.agreementId }) },
     { name: "payments/ledger:listLedgerAgreements", fn: api.payments.ledger.listLedgerAgreements, args: () => ({}) },
-    { name: "payments/changeOrderDb:listForAgreement", fn: api.payments.changeOrderDb.listForAgreement, args: (i) => ({ agreementId: i.agreementId }) },
+    { name: "billing/changeOrders:listForAgreement", fn: api.billing.changeOrders.listForAgreement, args: (i) => ({ agreementId: i.agreementId }) },
+    { name: "billing/changeOrders:getChangeOrder", fn: api.billing.changeOrders.getChangeOrder, args: (i) => ({ changeOrderId: i.changeOrderId }) },
+    { name: "billing/changeOrders:listForProject", fn: api.billing.changeOrders.listForProject, args: (i) => ({ projectId: i.projectId }) },
     { name: "payApps/review:listAgreementPayApps", fn: api.payApps.review.listAgreementPayApps, args: (i) => ({ agreementId: i.agreementId }) },
     { name: "payApps/submit:payAppFormContext", fn: api.payApps.submit.payAppFormContext, args: (i) => ({ agreementId: i.agreementId }) },
     { name: "payApps/proposals:listInbox", fn: api.payApps.proposals.listInbox, args: () => ({}) },
@@ -484,7 +496,7 @@ describe("static guard sweep over convex/**", () => {
       "payments/release",
       "payments/retainage",
       "payments/invoices",
-      "payments/changeOrderDb",
+      "billing/changeOrders",
       "payments/sandboxTopUp",
       "payApps/submit",
       "payApps/g703",

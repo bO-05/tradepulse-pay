@@ -1,6 +1,7 @@
 import { ConvexError } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
+import { changeOrderScopeOf } from "../payments/changeOrderMath";
 import { findActiveAgentLink } from "./agentAccess";
 import { getViewer, requireRole, type Role } from "./roles";
 import {
@@ -55,12 +56,12 @@ const CONTRACTOR_VIA_AGREEMENT = new Set<ProjectScopedTable>([
   "agentProposals",
   "payments",
   "retainageLedger",
-  "changeOrders",
 ]);
 
 /**
  * The contractor (bidder/vendor record) a document belongs to: undefined for documents that are
- * not vendor-specific (projects, packages, files), null when the owning contractor is missing.
+ * not vendor-specific (projects, packages, files, prime change orders), null when the owning
+ * contractor is missing.
  */
 export async function contractorOfDoc<T extends ProjectScopedTable>(
   ctx: QueryCtx,
@@ -68,6 +69,12 @@ export async function contractorOfDoc<T extends ProjectScopedTable>(
   doc: Doc<T>,
 ): Promise<Id<"contractors"> | null | undefined> {
   if (table === "contractors") return (doc as unknown as Doc<"contractors">)._id;
+  if (table === "changeOrders") {
+    const co = doc as unknown as Doc<"changeOrders">;
+    if (changeOrderScopeOf(co) === "prime") return undefined;
+    const agreement = co.agreementId === undefined ? null : await ctx.db.get(co.agreementId);
+    return agreement?.contractorId ?? null;
+  }
   if (CONTRACTOR_FIELD.has(table)) return (doc as unknown as { contractorId: Id<"contractors"> }).contractorId ?? null;
   if (CONTRACTOR_VIA_AGREEMENT.has(table)) {
     const agreement = await ctx.db.get((doc as unknown as { agreementId: Id<"agreements"> }).agreementId);
@@ -83,11 +90,18 @@ async function assertVisibleToParty<T extends ProjectScopedTable>(
   doc: Doc<T>,
 ): Promise<void> {
   if (access.partyRole === "gc") return;
+  if (table === "changeOrders") {
+    // Prime change orders are between the GC and the owner; subcontract ones between the GC and that sub.
+    const prime = changeOrderScopeOf(doc as unknown as Doc<"changeOrders">) === "prime";
+    if (access.partyRole === "owner") {
+      if (prime) return;
+      throw notFound();
+    }
+    if (prime) throw notFound();
+  }
   if (access.partyRole === "owner") {
-    // Owners get the project summary and owner items only. Change orders are invoiced to the owner;
-    // every other vendor-specific record (bids, agreements, SOV, pay apps, payments, retainage) is
-    // subcontract detail.
-    if (table === "changeOrders") return;
+    // Owners get the project summary and owner items only; every vendor-specific record (bids,
+    // agreements, SOV, pay apps, payments, retainage, subcontract change orders) is subcontract detail.
     if ((await contractorOfDoc(ctx, table, doc)) !== undefined) throw notFound();
     return;
   }

@@ -5,6 +5,7 @@ import { SovPage } from "../billing/SovEditor";
 import { BillingWorklist } from "../billing/BillingWorklist";
 import { PayAppPage } from "../billing/PayAppPage";
 import { PayAppsPage } from "../billing/PayAppsPage";
+import { ChangeOrdersPage } from "../payments/ChangeOrders";
 import { ApprovalInbox } from "../payments/inbox/ApprovalInbox";
 import { PaymentsWorkspace } from "../payments/PaymentsWorkspace";
 import { OwnerPortal } from "../payments/OwnerPortal";
@@ -77,6 +78,7 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
   else if (route.area === "billing-agents") content = <BillingAgentsView />;
   else if (route.area === "billing") content = <BillingWorklist />;
   else if (route.area === "pay-apps") content = <PayAppsPage />;
+  else if (route.area === "change-orders") content = <ChangeOrdersPage />;
   else if (route.area === "pay-app") {
     const back = me.role === "gc" ? { hash: "#/billing", label: "Billing" } : { hash: "#/pay-apps", label: "Pay apps" };
     content = <PayAppPage payAppId={route.payAppId ?? ""} backHash={back.hash} backLabel={back.label} />;

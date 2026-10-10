@@ -106,6 +106,26 @@ async function removeOwners(t: Setup["t"], projectId: Id<"projects">) {
   });
 }
 
+/** A prime change order drafted and submitted by the GC and approved by the owner, ready for "Invoice now". */
+async function approvedPrime(su: Setup, input: { title: string; amountCents: number }) {
+  const { gc, owner, agreement } = su;
+  const { changeOrderId } = await gc.as.mutation(api.billing.changeOrders.createChangeOrder, {
+    scope: "prime",
+    projectId: agreement.projectId,
+    title: input.title,
+    description: `${input.title} (owner request)`,
+    amountCents: input.amountCents,
+  });
+  await gc.as.mutation(api.billing.changeOrders.submitChangeOrder, { changeOrderId });
+  await owner.as.mutation(api.billing.changeOrders.approveChangeOrder, { changeOrderId });
+  return changeOrderId;
+}
+
+async function invoiceNow(su: Setup, input: { title: string; amountCents: number }) {
+  const changeOrderId = await approvedPrime(su, input);
+  return await su.gc.as.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId });
+}
+
 async function changeOrders(t: Setup["t"]) {
   return await t.run(async (ctx) => await ctx.db.query("changeOrders").collect());
 }
@@ -134,14 +154,11 @@ afterEach(() => {
   clearPayPalTokenCache();
 });
 
-describe("change order invoices", () => {
-  test("GC creates a change order: draft invoice to the Owner, sent, stored as invoiced with a payer link", async () => {
-    const { t, gc, agreement } = await setup();
-    const out = await gc.as.action(api.payments.invoices.createChangeOrder, {
-      agreementId: agreement._id,
-      description: "Add 4 floor boxes in the lobby",
-      amountCents: 250_000,
-    });
+describe("change order invoices (legacy Invoice now on approved prime change orders)", () => {
+  test("Invoice now: draft invoice to the owner, sent, stored as invoiced with a payer link", async () => {
+    const su = await setup();
+    const { t } = su;
+    const out = await invoiceNow(su, { title: "Add 4 floor boxes in the lobby", amountCents: 250_000 });
     expect(out).toMatchObject({ status: "invoiced", paypalInvoiceId: "INV2-TEST-1", alreadyInvoiced: false });
     expect(out.payerViewUrl).toBe("https://www.sandbox.paypal.com/invoice/p/#INV2TEST1");
 
@@ -150,6 +167,7 @@ describe("change order invoices", () => {
     const body = creates[0].body as any;
     expect(body.primary_recipients[0].billing_info.email_address).toBe(OWNER_EMAIL);
     expect(body.items[0].unit_amount).toEqual({ currency_code: "USD", value: "2500.00" });
+    expect(body.items[0].name).toBe("Change order PCO #1: Add 4 floor boxes in the lobby");
     expect(creates[0].requestId).toMatch(/^co_.+_create$/);
     const sends = fake.posts(/\/send$/);
     expect(sends).toHaveLength(1);
@@ -159,6 +177,7 @@ describe("change order invoices", () => {
 
     const [co] = await changeOrders(t);
     expect(co).toMatchObject({
+      scope: "prime",
       number: 1,
       status: "invoiced",
       amountCents: 250_000,
@@ -177,19 +196,16 @@ describe("change order invoices", () => {
     expect(JSON.stringify(audits)).not.toContain("A21AAfaketoken");
   });
 
-  test("Owner sees the invoiced change order with its link; refresh keeps it invoiced until paid, then paid", async () => {
-    const { t, gc, owner, agreement } = await setup();
-    const out = await gc.as.action(api.payments.invoices.createChangeOrder, {
-      agreementId: agreement._id,
-      number: 1,
-      description: "Upsize feeder",
-      amountCents: 250_000,
-    });
+  test("owner sees the invoiced change order with its link; refresh keeps it invoiced until paid, then paid", async () => {
+    const su = await setup();
+    const { t, gc, owner, agreement } = su;
+    const out = await invoiceNow(su, { title: "Upsize feeder", amountCents: 250_000 });
 
-    const list = await owner.as.query(api.payments.changeOrderDb.listForAgreement, { agreementId: agreement._id });
-    expect(list!.canCreate).toBe(false);
-    expect(list!.changeOrders).toHaveLength(1);
-    expect(list!.changeOrders[0]).toMatchObject({ label: "CO-001", status: "invoiced", payerViewUrl: out.payerViewUrl });
+    const list = await owner.as.query(api.billing.changeOrders.listForProject, { projectId: agreement.projectId });
+    expect(list.agreements).toEqual([]);
+    expect(list.prime!.canCreate).toBe(false);
+    expect(list.prime!.changeOrders).toHaveLength(1);
+    expect(list.prime!.changeOrders[0]).toMatchObject({ label: "PCO #1", status: "invoiced", payerViewUrl: out.payerViewUrl });
     const overview = await owner.as.query(api.portal.ownerOverview, {});
     expect(overview.flatMap((p) => p.changeOrders)[0]).toMatchObject({ status: "invoiced", payerViewUrl: out.payerViewUrl });
 
@@ -203,18 +219,14 @@ describe("change order invoices", () => {
     expect(co.status).toBe("paid");
     expect(co.paidAt).toBeTypeOf("number");
 
-    const gcList = await gc.as.query(api.payments.changeOrderDb.listForAgreement, { agreementId: agreement._id });
-    expect(gcList!.changeOrders[0].status).toBe("paid");
+    const gcList = await gc.as.query(api.billing.changeOrders.listForProject, { projectId: agreement.projectId });
+    expect(gcList.prime!.changeOrders[0].status).toBe("paid");
   });
 
   test("record-payment fallback marks the invoice paid and the change order paid", async () => {
-    const { t, gc, agreement } = await setup();
-    const out = await gc.as.action(api.payments.invoices.createChangeOrder, {
-      agreementId: agreement._id,
-      description: "Extra circuits",
-      amountCents: 12_345,
-    });
-    const res = await t.action(internal.payments.invoices.recordInvoicePaymentInternal, { changeOrderId: out.changeOrderId });
+    const su = await setup();
+    const out = await invoiceNow(su, { title: "Extra circuits", amountCents: 12_345 });
+    const res = await su.t.action(internal.payments.invoices.recordInvoicePaymentInternal, { changeOrderId: out.changeOrderId });
     expect(res).toMatchObject({ status: "paid", paypalInvoiceStatus: "MARKED_AS_PAID" });
     const pay = fake.posts(/\/payments$/);
     expect(pay).toHaveLength(1);
@@ -222,12 +234,9 @@ describe("change order invoices", () => {
   });
 
   test("webhook-style status apply by invoice id is idempotent and never moves paid backwards", async () => {
-    const { t, gc, agreement } = await setup();
-    const out = await gc.as.action(api.payments.invoices.createChangeOrder, {
-      agreementId: agreement._id,
-      description: "Panel relocation",
-      amountCents: 50_000,
-    });
+    const su = await setup();
+    const { t } = su;
+    const out = await invoiceNow(su, { title: "Panel relocation", amountCents: 50_000 });
     const first = await t.mutation(internal.payments.changeOrderDb.applyInvoiceStatus, {
       paypalInvoiceId: out.paypalInvoiceId!,
       paypalInvoiceStatus: "PAID",
@@ -245,74 +254,75 @@ describe("change order invoices", () => {
     expect(unknown).toEqual({ changeOrderId: null, status: null, changed: false });
   });
 
-  test("a failed send leaves a draft with the error; retry sends the same invoice without creating another", async () => {
-    const { t, gc, agreement } = await setup();
+  test("a failed send leaves the approved change order with the error; retry sends the same invoice without creating another", async () => {
+    const su = await setup();
+    const { t, gc } = su;
+    const changeOrderId = await approvedPrime(su, { title: "Trenching", amountCents: 75_000 });
     fake.state.failSend = true;
-    const err = await errorOf(
-      gc.as.action(api.payments.invoices.createChangeOrder, { agreementId: agreement._id, description: "Trenching", amountCents: 75_000 }),
-    );
+    const err = await errorOf(gc.as.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId }));
     expect(err.data.code).toBe("INVOICE_FAILED");
     expect(err.data.message).toMatch(/INVALID_INVOICE_STATE/);
     let [co] = await changeOrders(t);
-    expect(co).toMatchObject({ status: "draft", paypalInvoiceId: "INV2-TEST-1" });
+    expect(co).toMatchObject({ status: "approved", paypalInvoiceId: "INV2-TEST-1" });
     expect(co.error).toMatch(/Invoice not sent/);
 
-    const draftsForOwner = await (await signInAs(t, "owner")).as.query(api.payments.changeOrderDb.listForAgreement, {
-      agreementId: agreement._id,
-    });
-    expect(draftsForOwner!.changeOrders).toHaveLength(0);
-
-    const retry = await gc.as.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId: co._id });
+    const retry = await gc.as.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId });
     expect(retry).toMatchObject({ status: "invoiced", paypalInvoiceId: "INV2-TEST-1" });
     expect(fake.posts(/^\/v2\/invoicing\/invoices$/)).toHaveLength(1);
     [co] = await changeOrders(t);
     expect(co.error).toBeUndefined();
 
-    const again = await gc.as.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId: co._id });
+    const again = await gc.as.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId });
     expect(again.alreadyInvoiced).toBe(true);
     expect(fake.posts(/\/send$/)).toHaveLength(2);
   });
 
   test("retry after the owner was removed is refused with the disabled reason; nothing goes to PayPal", async () => {
-    const { t, gc, agreement } = await setup();
+    const su = await setup();
+    const { t, gc, agreement } = su;
+    const changeOrderId = await approvedPrime(su, { title: "Bollards", amountCents: 40_000 });
     fake.state.failCreate = true;
-    await errorOf(gc.as.action(api.payments.invoices.createChangeOrder, { agreementId: agreement._id, description: "Bollards", amountCents: 40_000 }));
+    await errorOf(gc.as.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId }));
     let [co] = await changeOrders(t);
-    expect(co).toMatchObject({ status: "draft", recipientEmail: OWNER_EMAIL });
+    expect(co).toMatchObject({ status: "approved", recipientEmail: OWNER_EMAIL });
     expect(co.paypalInvoiceId).toBeUndefined();
     const createsBefore = fake.posts(/^\/v2\/invoicing\/invoices$/).length;
 
     await removeOwners(t, agreement.projectId);
-    const list = await gc.as.query(api.payments.changeOrderDb.listForAgreement, { agreementId: agreement._id });
-    expect(list!.invoicing.enabled).toBe(false);
+    const list = await gc.as.query(api.billing.changeOrders.listForProject, { projectId: agreement.projectId });
+    expect(list.invoicing!.enabled).toBe(false);
+    expect(list.prime!.changeOrders[0].invoice).toEqual({ show: true, enabled: false, reason: list.invoicing!.reason });
 
-    const err = await errorOf(gc.as.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId: co._id }));
+    const err = await errorOf(gc.as.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId }));
     expect(err.data.code).toBe("NO_OWNER_EMAIL");
-    expect(err.data.message).toBe(list!.invoicing.reason);
+    expect(err.data.message).toBe(list.invoicing!.reason);
     expect(fake.posts(/^\/v2\/invoicing\/invoices$/)).toHaveLength(createsBefore);
     expect(fake.posts(/\/send$/)).toHaveLength(0);
     [co] = await changeOrders(t);
-    expect(co.status).toBe("draft");
+    expect(co.status).toBe("approved");
   });
 
-  test("a draft already addressed to a removed owner is never sent", async () => {
-    const { t, gc, agreement } = await setup();
+  test("a PayPal draft already addressed to a removed owner is never sent", async () => {
+    const su = await setup();
+    const { t, gc, agreement } = su;
+    const changeOrderId = await approvedPrime(su, { title: "Signage", amountCents: 9_900 });
     fake.state.failSend = true;
-    await errorOf(gc.as.action(api.payments.invoices.createChangeOrder, { agreementId: agreement._id, description: "Signage", amountCents: 9_900 }));
+    await errorOf(gc.as.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId }));
     const [co] = await changeOrders(t);
     expect(co.paypalInvoiceId).toBe("INV2-TEST-1");
     await removeOwners(t, agreement.projectId);
-    const err = await errorOf(gc.as.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId: co._id }));
+    const err = await errorOf(gc.as.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId }));
     expect(err.data.code).toBe("NO_OWNER_EMAIL");
     expect(fake.posts(/\/send$/)).toHaveLength(1);
     expect(fake.invoices.get("INV2-TEST-1")!.status).toBe("DRAFT");
   });
 
   test("owner replaced before the invoice existed: the retry invoices the current owner under a new request id", async () => {
-    const { t, gc, agreement } = await setup();
+    const su = await setup();
+    const { t, gc, agreement } = su;
+    const changeOrderId = await approvedPrime(su, { title: "Canopy", amountCents: 12_000 });
     fake.state.failCreate = true;
-    await errorOf(gc.as.action(api.payments.invoices.createChangeOrder, { agreementId: agreement._id, description: "Canopy", amountCents: 12_000 }));
-    const [co] = await changeOrders(t);
+    await errorOf(gc.as.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId }));
     const firstRequestId = fake.posts(/^\/v2\/invoicing\/invoices$/)[0].requestId;
 
     await removeOwners(t, agreement.projectId);
@@ -322,7 +332,7 @@ describe("change order invoices", () => {
       await ctx.db.insert("projectMembers", { projectId: agreement.projectId, companyId, partyRole: "owner", status: "active", createdAt: Date.now() });
     });
 
-    const retry = await gc.as.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId: co._id });
+    const retry = await gc.as.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId });
     expect(retry.status).toBe("invoiced");
     const creates = fake.posts(/^\/v2\/invoicing\/invoices$/);
     const last = creates.at(-1)!;
@@ -332,75 +342,82 @@ describe("change order invoices", () => {
     expect(after.recipientEmail).toBe(NEW_OWNER);
   });
 
-  test("a PayPal draft addressed to a previous owner is refused rather than sent to the new owner's project", async () => {
-    const { t, gc, agreement } = await setup();
+  test("a PayPal draft addressed to a previous owner is refused rather than sent to the new owner", async () => {
+    const su = await setup();
+    const { t, gc, agreement } = su;
+    const changeOrderId = await approvedPrime(su, { title: "Ramp", amountCents: 5_000 });
     fake.state.failSend = true;
-    await errorOf(gc.as.action(api.payments.invoices.createChangeOrder, { agreementId: agreement._id, description: "Ramp", amountCents: 5_000 }));
-    const [co] = await changeOrders(t);
+    await errorOf(gc.as.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId }));
     await removeOwners(t, agreement.projectId);
     await t.run(async (ctx) => {
       const companyId = await ctx.db.insert("companies", { name: "Other Owner", kind: "owner", isDemo: false, billingEmail: "other@owner.test", createdAt: Date.now() });
       await ctx.db.insert("projectMembers", { projectId: agreement.projectId, companyId, partyRole: "owner", status: "active", createdAt: Date.now() });
     });
-    const err = await errorOf(gc.as.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId: co._id }));
+    const err = await errorOf(gc.as.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId }));
     expect(err.data.code).toBe("OWNER_CHANGED");
     expect(fake.posts(/\/send$/)).toHaveLength(1);
   });
 
-  test("only the GC can create change orders; subs see none; the owner cannot create", async () => {
-    const { t, owner, sub, agreement } = await setup();
-    const args = { agreementId: agreement._id, description: "x", amountCents: 100 };
-    for (const who of [owner, sub]) {
-      const err = await errorOf(who.as.action(api.payments.invoices.createChangeOrder, args));
-      expect(err.data.code).toBe("NOT_FOUND");
-    }
-    const anon = await errorOf(t.action(api.payments.invoices.createChangeOrder, args));
-    expect(anon.data.code).toBe("UNAUTHENTICATED");
+  test("Invoice now is refused for unapproved prime and for subcontract change orders; no PayPal call", async () => {
+    const su = await setup();
+    const { t, gc, sub, agreement } = su;
+    const { changeOrderId: draft } = await gc.as.mutation(api.billing.changeOrders.createChangeOrder, {
+      scope: "prime",
+      projectId: agreement.projectId,
+      title: "Not yet approved",
+      amountCents: 10_000,
+    });
+    expect((await errorOf(gc.as.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId: draft }))).data.code).toBe("NOT_INVOICEABLE");
+    await gc.as.mutation(api.billing.changeOrders.submitChangeOrder, { changeOrderId: draft });
+    expect((await errorOf(gc.as.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId: draft }))).data.code).toBe("NOT_INVOICEABLE");
+    const listed = await gc.as.query(api.billing.changeOrders.listForProject, { projectId: agreement.projectId });
+    expect(listed.prime!.changeOrders[0].invoice.show).toBe(false);
+
+    const { changeOrderId: subCo } = await sub.as.mutation(api.billing.changeOrders.createChangeOrder, {
+      scope: "subcontract",
+      agreementId: agreement._id,
+      title: "Sub scope",
+      amountCents: 10_000,
+    });
+    await sub.as.mutation(api.billing.changeOrders.submitChangeOrder, { changeOrderId: subCo });
+    expect((await errorOf(gc.as.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId: subCo }))).data.code).toBe("NOT_INVOICEABLE");
     expect(fake.calls).toHaveLength(0);
-    expect(await changeOrders(t)).toHaveLength(0);
-    const subList = await sub.as.query(api.payments.changeOrderDb.listForAgreement, { agreementId: agreement._id });
-    expect(subList!.changeOrders).toEqual([]);
+    expect((await changeOrders(t)).every((co) => co.paypalInvoiceId === undefined)).toBe(true);
   });
 
-  test("sub cannot refresh a change order status", async () => {
-    const { gc, sub, agreement } = await setup();
-    const out = await gc.as.action(api.payments.invoices.createChangeOrder, { agreementId: agreement._id, description: "x", amountCents: 100 });
-    const err = await errorOf(sub.as.action(api.payments.invoices.refreshChangeOrderStatus, { changeOrderId: out.changeOrderId }));
+  test("subs and owners cannot invoice; subs cannot refresh a prime change order", async () => {
+    const su = await setup();
+    const { gc, owner, sub } = su;
+    const changeOrderId = await approvedPrime(su, { title: "x", amountCents: 100 });
+    for (const who of [owner, sub]) {
+      const err = await errorOf(who.as.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId }));
+      expect(err.data.code).toBe("NOT_FOUND");
+    }
+    await gc.as.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId });
+    const err = await errorOf(sub.as.action(api.payments.invoices.refreshChangeOrderStatus, { changeOrderId }));
     expect(err.data.code).toBe("NOT_FOUND");
   });
 
-  test("validation: positive integer cents, non-empty description, unique number", async () => {
-    const { t, gc, agreement } = await setup();
-    const call = (a: { number?: number; description?: string; amountCents?: number }) =>
-      errorOf(
-        gc.as.action(api.payments.invoices.createChangeOrder, {
-          agreementId: agreement._id,
-          description: a.description ?? "ok",
-          amountCents: a.amountCents ?? 100,
-          ...(a.number !== undefined ? { number: a.number } : {}),
-        }),
-      );
-    expect((await call({ amountCents: 0 })).data.code).toBe("INVALID_ARGUMENT");
-    expect((await call({ amountCents: 10.5 })).data.message).toMatch(/cents|integer/i);
-    expect((await call({ description: "   " })).data.code).toBe("INVALID_ARGUMENT");
-    expect(fake.calls).toHaveLength(0);
-
-    await gc.as.action(api.payments.invoices.createChangeOrder, { agreementId: agreement._id, number: 7, description: "ok", amountCents: 100 });
-    expect((await call({ number: 7 })).data.code).toBe("DUPLICATE_CHANGE_ORDER");
-    const next = await gc.as.action(api.payments.invoices.createChangeOrder, { agreementId: agreement._id, description: "ok", amountCents: 100 });
-    const rows = await changeOrders(t);
-    expect(rows.find((r) => r._id === next.changeOrderId)!.number).toBe(8);
-  });
-
-  test("no owner email on file: nothing is sent to PayPal", async () => {
+  test("no owner on the project: Invoice now shows disabled with the reason and nothing is sent to PayPal", async () => {
     const t = convexTest(schema, modules);
     await t.mutation(internal.projects.seedInitialDataInternal, { force: false });
     const gc = await signInAs(t, "gc");
     const agreement = await t.run(async (ctx) => (await ctx.db.query("agreements").first())!);
-    const err = await errorOf(
-      gc.as.action(api.payments.invoices.createChangeOrder, { agreementId: agreement._id as Id<"agreements">, description: "x", amountCents: 100 }),
-    );
-    expect(err.data.code).toBe("NO_OWNER_EMAIL");
+    await removeOwners(t, agreement.projectId);
+    const { changeOrderId } = await gc.as.mutation(api.billing.changeOrders.createChangeOrder, {
+      scope: "prime",
+      projectId: agreement.projectId,
+      title: "Owner-requested change",
+      amountCents: 100,
+    });
+    await gc.as.mutation(api.billing.changeOrders.submitChangeOrder, { changeOrderId });
+    const list = await gc.as.query(api.billing.changeOrders.listForProject, { projectId: agreement.projectId });
+    expect(list.prime!.changeOrders[0].invoice).toEqual({
+      show: true,
+      enabled: false,
+      reason: "No owner on this project – invite the owner to enable invoicing",
+    });
+    expect((await errorOf(gc.as.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId }))).data.code).toBe("NOT_INVOICEABLE");
     expect(fake.calls).toHaveLength(0);
   });
 });

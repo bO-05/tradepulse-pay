@@ -190,13 +190,13 @@ export const projectOverview = query({
     const gcContacts =
       project.gcCompanyId === undefined ? [] : (await activeMembers(ctx, project.gcCompanyId)).filter((m) => m.role === "admin");
     const yourTeam = access.company === null ? [] : await activeMembers(ctx, access.company._id);
-    // Owners see the change orders invoiced to them, never the subcontracts behind them.
+    // Owners see their prime change orders, never the subcontract change orders behind them.
     const changeOrders =
       access.partyRole === "owner"
-        ? (await ownerChangeOrdersOfProject(ctx, project._id)).map(({ changeOrder: co }) => ({
+        ? (await ownerChangeOrdersOfProject(ctx, project._id)).map((co) => ({
             _id: co._id,
-            label: changeOrderLabel(co.number),
-            description: co.description,
+            label: changeOrderLabel(co.number, "prime"),
+            description: co.title ?? co.description,
             amountCents: co.amountCents,
             status: co.status,
             payerViewUrl: co.payerViewUrl ?? null,
