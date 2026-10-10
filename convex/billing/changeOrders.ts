@@ -573,7 +573,8 @@ async function ownerBilledToDateCents(ctx: QueryCtx, project: Doc<"projects">, p
   const direct = primeCos
     .filter((c) => CO_APPROVED_STATUSES.has(c.status as ChangeOrderStatus) && c.amountCents > 0 && isDirectlyInvoiced(c))
     .reduce((acc, c) => acc + c.amountCents, 0);
-  return { cents: (latest?.figures.completedAndStoredCents ?? 0) + direct, direct };
+  // A credit-only owner app certifies a negative total; the floor never drops below $0.00 because of it.
+  return { cents: Math.max(0, (latest?.figures.completedAndStoredCents ?? 0) + direct), direct };
 }
 
 /**

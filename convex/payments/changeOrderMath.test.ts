@@ -97,6 +97,13 @@ describe("change order math", () => {
     expect(problem).toContain("$90,437.50");
   });
 
+  test("deductive floor: the contract sum never goes below $0.00, even when the billed amount is a net credit", () => {
+    const problem = deductiveFloorProblem({ contractSumToDateCents: 123_880_000, amountCents: -123_930_000, billedCents: -120_000 });
+    expect(problem).toContain("-$500.00");
+    expect(problem).toContain("$0.00");
+    expect(deductiveFloorProblem({ contractSumToDateCents: 123_880_000, amountCents: -123_880_000, billedCents: -120_000 })).toBeNull();
+  });
+
   test("invoice id is read from the self link of the 201 body", () => {
     expect(
       invoiceIdFromCreateResponse({

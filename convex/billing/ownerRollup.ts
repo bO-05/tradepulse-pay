@@ -177,9 +177,10 @@ export async function buildOwnerSheet(
   for (const co of await primeChangeOrders(ctx, project._id)) {
     if (!CO_APPROVED_STATUSES.has(co.status as ChangeOrderStatus)) continue;
     const key = changeOrderKey(co._id);
-    // Billed with its own "Invoice now" invoice: kept off owner pay apps so it is never billed twice.
-    if (isDirectlyInvoiced(co) && !prev.has(key)) continue;
     netChangeOrdersCents += co.amountCents;
+    // Billed with its own "Invoice now" invoice: it stays in the contract sum, but its continuation
+    // line is kept off owner pay apps so it is never billed twice.
+    if (isDirectlyInvoiced(co) && !prev.has(key)) continue;
     lines.push({
       key,
       kind: "change_order",

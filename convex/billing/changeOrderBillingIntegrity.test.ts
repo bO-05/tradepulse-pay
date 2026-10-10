@@ -238,6 +238,30 @@ describe("deductive prime change orders respect the contract-sum floor", () => {
     const ok = await primeCo(s, "Delete 2 exterior fixtures", -120_000, { approve: false });
     await expect(s.mendez.mutation(api.billing.changeOrders.approveChangeOrder, { changeOrderId: ok })).resolves.toMatchObject({ status: "approved" });
   });
+
+  test("after a credit-only owner pay app certifies a negative amount, a deduction below $0.00 is still refused", async () => {
+    const s = await setup();
+    const credit = await primeCo(s, "Delete 2 exterior fixtures", -120_000);
+    const { ownerPayAppId } = await s.dana.mutation(api.billing.ownerPayApps.createOwnerPayApp, { projectId: s.projectId });
+    const pcoKey = (await s.dana.query(api.billing.ownerPayApps.getOwnerPayApp, { ownerPayAppId })).lines.find((l) => l.kind === "change_order")!.key;
+    await s.dana.mutation(api.billing.ownerPayApps.saveOwnerPayApp, { ownerPayAppId, entries: [{ key: pcoKey, workThisPeriodCents: -120_000 }] });
+    await s.dana.mutation(api.billing.ownerPayApps.submitOwnerPayApp, { ownerPayAppId });
+    await s.mendez.action(api.billing.ownerInvoices.approveOwnerPayApp, { ownerPayAppId: ownerPayAppId as Id<"ownerPayApps"> });
+    const approved = await s.t.run(async (ctx) => await ctx.db.get(ownerPayAppId as Id<"ownerPayApps">));
+    expect(approved!.figures.completedAndStoredCents).toBe(-120_000);
+    expect((await coRow(s, credit)).status).toBe("approved");
+
+    // $1,238,800.00 − $1,239,300.00 = −$500.00.
+    const id = await primeCo(s, "Delete the rest of the scope", -123_930_000, { approve: false });
+    const before = await coRow(s, id);
+    await expect(s.mendez.mutation(api.billing.changeOrders.approveChangeOrder, { changeOrderId: id })).rejects.toThrow(/-\$500\.00.*\$0\.00/);
+    expect(await coRow(s, id)).toEqual(before);
+    const gc = await s.dana.query(api.billing.changeOrders.listForProject, { projectId: s.projectId });
+    expect(gc.prime!.contractSum!.toDateCents).toBe(123_880_000);
+    // Down to exactly $0.00 is allowed.
+    const toZero = await primeCo(s, "Delete all remaining scope", -123_880_000, { approve: false });
+    await expect(s.mendez.mutation(api.billing.changeOrders.approveChangeOrder, { changeOrderId: toZero })).resolves.toMatchObject({ status: "approved" });
+  });
 });
 
 describe(`change-order numbering and aggregation within the ${CO_CAPACITY}-per-contract capacity`, () => {
@@ -335,6 +359,33 @@ describe("a prime CO is billed through one path only", () => {
     // The contract itself still includes the approved CO.
     const gc = await s.dana.query(api.billing.changeOrders.listForProject, { projectId: s.projectId });
     expect(gc.prime!.contractSum!.toDateCents).toBe(124_997_500);
+  });
+
+  test("a CO invoiced with Invoice now stays in the owner G702 contract sum, its PDF and balance to finish", async () => {
+    const s = await setup();
+    const gcLine = await addGeneralConditions(s);
+    const id = await primeCo(s, "Owner-requested outlets", 997_500);
+    await s.dana.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId: id });
+    const { ownerPayAppId } = await s.dana.mutation(api.billing.ownerPayApps.createOwnerPayApp, { projectId: s.projectId });
+    await s.dana.mutation(api.billing.ownerPayApps.saveOwnerPayApp, { ownerPayAppId, entries: [{ key: gcLine, workThisPeriodCents: 5_141_260 }] });
+    const app = await s.dana.query(api.billing.ownerPayApps.getOwnerPayApp, { ownerPayAppId });
+    expect(app.lines.some((l) => l.kind === "change_order")).toBe(false);
+    expect(app.figures).toMatchObject({
+      originalContractSumCents: 124_000_000,
+      netChangeOrdersCents: 997_500,
+      contractSumToDateCents: 124_997_500,
+      completedAndStoredCents: 5_141_260,
+    });
+    expect(app.figures.balanceToFinishInclRetainageCents).toBe(124_997_500 - app.figures.earnedLessRetainageCents);
+    // Not billable again on the owner pay app.
+    await expect(
+      s.dana.mutation(api.billing.ownerPayApps.saveOwnerPayApp, { ownerPayAppId, entries: [{ key: `pco:${id}`, workThisPeriodCents: 997_500 }] }),
+    ).rejects.toThrow(/Only GC lines/);
+    await s.dana.mutation(api.billing.ownerPayApps.submitOwnerPayApp, { ownerPayAppId });
+
+    const out = await s.t.query(internal.documents.store.renderInput, { kind: "owner_pay_app_pdf", relatedId: ownerPayAppId });
+    const figures = (out!.loaded.input as { data: { figures: Record<string, number> } }).data.figures;
+    expect(figures).toMatchObject({ netChangeOrdersCents: 997_500, contractSumToDateCents: 124_997_500 });
   });
 
   test("once a CO is on a submitted owner pay app, Invoice now is unavailable and refused", async () => {

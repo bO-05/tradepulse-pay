@@ -178,7 +178,8 @@ export function contractSumBreakdown(originalCents: number, approvedAmounts: rea
 
 /**
  * Architecture §22: a deductive change order may not take the contract sum to date below what was
- * already billed (total completed and stored on approved pay apps). Returns the refusal, or null.
+ * already billed (total completed and stored on approved pay apps), nor below $0.00 even when the
+ * billed amount is a net credit. Returns the refusal, or null.
  */
 export function deductiveFloorProblem(opts: {
   contractSumToDateCents: number;
@@ -188,7 +189,12 @@ export function deductiveFloorProblem(opts: {
 }): string | null {
   if (opts.amountCents >= 0) return null;
   const after = opts.contractSumToDateCents + opts.amountCents;
-  if (after >= opts.billedCents) return null;
+  if (after >= Math.max(0, opts.billedCents)) return null;
+  if (opts.billedCents <= 0) {
+    return `This deductive change order would make the contract sum to date ${formatCents(after)}, below $0.00 (the contract sum to date is ${formatCents(
+      opts.contractSumToDateCents,
+    )} and the deduction is ${formatCents(opts.amountCents)}). Reduce the deduction or reject it.`;
+  }
   return `This deductive change order would make the contract sum to date ${formatCents(after)}, below the ${formatCents(
     opts.billedCents,
   )} already billed ${opts.billedOn ?? "on approved pay apps"}. Reduce the deduction or reject it.`;
