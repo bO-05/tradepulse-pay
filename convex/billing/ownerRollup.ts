@@ -3,7 +3,7 @@ import type { QueryCtx } from "../_generated/server";
 import { approvedWorkAndStored, isoDate, nextBillingDate } from "../payApps/g703Math";
 import { loadBillingHistory } from "../payApps/billingHistory";
 import { APPROVED_PAY_APP_STATUSES } from "../payApps/validation";
-import { CO_APPROVED_STATUSES, type ChangeOrderStatus } from "../payments/changeOrderMath";
+import { CO_APPROVED_STATUSES, isDirectlyInvoiced, type ChangeOrderStatus } from "../payments/changeOrderMath";
 import { agreementContractSumCents } from "../payments/sov";
 import { primeChangeOrders } from "./changeOrderView";
 import {
@@ -22,8 +22,8 @@ import type { ownerPayAppLineValidator } from "../schema";
 /**
  * Builds the prime continuation sheet of an owner pay app (architecture §16): trade lines from the
  * subs' GC-approved pay apps for periods ending on or before the owner period end, the GC lines from
- * project setup and the owner-approved prime change orders. Previous-application columns come from
- * the owner pay app before it.
+ * project setup and the owner-approved prime change orders not billed with "Invoice now".
+ * Previous-application columns come from the owner pay app before it.
  */
 
 export type StoredOwnerLine = Infer<typeof ownerPayAppLineValidator>;
@@ -176,8 +176,10 @@ export async function buildOwnerSheet(
   let netChangeOrdersCents = 0;
   for (const co of await primeChangeOrders(ctx, project._id)) {
     if (!CO_APPROVED_STATUSES.has(co.status as ChangeOrderStatus)) continue;
-    netChangeOrdersCents += co.amountCents;
     const key = changeOrderKey(co._id);
+    // Billed with its own "Invoice now" invoice: kept off owner pay apps so it is never billed twice.
+    if (isDirectlyInvoiced(co) && !prev.has(key)) continue;
+    netChangeOrdersCents += co.amountCents;
     lines.push({
       key,
       kind: "change_order",

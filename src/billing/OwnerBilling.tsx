@@ -156,6 +156,68 @@ function PrimeSheet({
   );
 }
 
+/** Approved prime change orders billed with "Invoice now", which owner pay apps leave off. */
+function DirectlyInvoicedNote({ app }: { app: Detail }) {
+  if (app.directlyInvoicedChangeOrders.length === 0) return null;
+  return (
+    <div className="rounded-lg border border-line px-3 py-2 text-sm" data-testid="owner-direct-invoiced">
+      <p className="font-medium">Change orders invoiced separately</p>
+      <p className="text-xs text-ink-subtle">These approved prime change orders were billed with their own PayPal invoice, so this pay app leaves them off.</p>
+      <ul className="mt-1 space-y-0.5">
+        {app.directlyInvoicedChangeOrders.map((co) => (
+          <li key={co._id} className="flex justify-between gap-3">
+            <span>
+              {co.label} – {co.title}
+            </span>
+            <span className="tabular-nums">{signedCents(co.amountCents)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** What the current roll-up would change on the saved draft (for example a sub pay app approved since). */
+function RefreshPanel({ app, busy, onRefresh }: { app: Detail; busy: boolean; onRefresh: () => void }) {
+  const r = app.refresh;
+  if (r === null) return null;
+  const pair = (from: number, to: number) => `${formatCents(from)} → ${formatCents(to)}`;
+  return (
+    <div className="space-y-2 rounded-lg border border-sky-700 bg-sky-950/40 px-3 py-3 text-sm text-sky-100" role="status" data-testid="owner-refresh-panel">
+      <p className="font-medium">The roll-up changed since this pay app was saved. Review the new figures and refresh before submitting.</p>
+      <ul className="space-y-0.5" data-testid="owner-refresh-changes">
+        {r.lines.map((l) => (
+          <li key={l.key} className="flex flex-wrap justify-between gap-3">
+            <span>
+              {l.description}
+              {l.change === "added" ? " (new line)" : l.change === "removed" ? " (removed)" : ""}
+            </span>
+            <span className="tabular-nums">Completed & stored {pair(l.fromToDateCents, l.toToDateCents)}</span>
+          </li>
+        ))}
+        {r.pendingSubPayApps.from !== r.pendingSubPayApps.to ? (
+          <li>
+            Sub pay apps not yet approved: {r.pendingSubPayApps.from} → {r.pendingSubPayApps.to}
+          </li>
+        ) : null}
+        <li className="flex flex-wrap justify-between gap-3">
+          <span>Contract sum to date</span>
+          <span className="tabular-nums">{pair(r.contractSumToDate.fromCents, r.contractSumToDate.toCents)}</span>
+        </li>
+        <li className="flex flex-wrap justify-between gap-3 font-semibold">
+          <span>Current payment due</span>
+          <span className="tabular-nums" data-testid="owner-refresh-due">
+            {pair(r.currentPaymentDue.fromCents, r.currentPaymentDue.toCents)}
+          </span>
+        </li>
+      </ul>
+      <Button size="sm" loading={busy} onClick={onRefresh} data-testid="owner-pay-app-refresh">
+        Refresh figures
+      </Button>
+    </div>
+  );
+}
+
 function History({ app }: { app: Detail }) {
   return (
     <ol className="space-y-1 text-xs text-ink-subtle" data-testid="owner-pay-app-history">
@@ -260,6 +322,7 @@ function AppHeader({ app }: { app: Detail }) {
 function GcOwnerPayApp({ ownerPayAppId }: { ownerPayAppId: string }) {
   const app = useQuery(api.billing.ownerPayApps.getOwnerPayApp, { ownerPayAppId });
   const save = useMutation(api.billing.ownerPayApps.saveOwnerPayApp);
+  const refreshSheet = useMutation(api.billing.ownerPayApps.refreshOwnerPayApp);
   const submit = useMutation(api.billing.ownerPayApps.submitOwnerPayApp);
   const remove = useMutation(api.billing.ownerPayApps.deleteOwnerPayApp);
   const toast = useToast();
@@ -277,6 +340,23 @@ function GcOwnerPayApp({ ownerPayAppId }: { ownerPayAppId: string }) {
 
   if (app === undefined) return <p className="text-sm text-ink-subtle" role="status">Loading owner pay app…</p>;
   const dirty = app.lines.some((l) => l.kind !== "trade" && (amounts[l.key] ?? 0) !== l.workThisPeriodCents);
+
+  async function refreshFigures() {
+    setSaving(true);
+    try {
+      // Unsaved amounts are saved with the refresh; otherwise the saved amounts are kept.
+      if (dirty) {
+        if (await saveLines()) toast.success("Figures refreshed.");
+      } else {
+        await refreshSheet({ ownerPayAppId });
+        toast.success("Figures refreshed.");
+      }
+    } catch (err) {
+      toast.error(getErrorMessage(err, "The figures could not be refreshed."));
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function saveLines(): Promise<boolean> {
     setSaving(true);
@@ -307,8 +387,10 @@ function GcOwnerPayApp({ ownerPayAppId }: { ownerPayAppId: string }) {
           The owner requested changes: “{app.changesRequestedComment}”
         </p>
       ) : null}
+      <RefreshPanel app={app} busy={saving} onRefresh={() => void refreshFigures()} />
       <G702Summary app={app} />
       <PrimeSheet app={app} amounts={amounts} errors={errors} onAmount={(key, cents) => setAmounts((a) => ({ ...a, [key]: cents }))} />
+      <DirectlyInvoicedNote app={app} />
       <div className="flex flex-wrap gap-2">
         {app.controls.edit ? (
           <Button variant="secondary" loading={saving} disabled={!dirty} onClick={() => void saveLines().then((ok) => ok && toast.success("Saved."))} data-testid="owner-pay-app-save">
@@ -316,7 +398,12 @@ function GcOwnerPayApp({ ownerPayAppId }: { ownerPayAppId: string }) {
           </Button>
         ) : null}
         {app.controls.submit ? (
-          <Button onClick={() => setConfirm("submit")} data-testid="owner-pay-app-submit">
+          <Button
+            onClick={() => setConfirm("submit")}
+            disabled={app.controls.refresh}
+            title={app.controls.refresh ? "Refresh the figures before submitting." : undefined}
+            data-testid="owner-pay-app-submit"
+          >
             Submit to owner
           </Button>
         ) : null}
@@ -566,6 +653,7 @@ function OwnerPayAppView({ ownerPayAppId }: { ownerPayAppId: string }) {
       <AppHeader app={app} />
       <G702Summary app={app} />
       <PrimeSheet app={app} amounts={{}} errors={{}} />
+      <DirectlyInvoicedNote app={app} />
       <div className="flex flex-wrap gap-2">
         {app.controls.approve ? (
           <Button onClick={() => setOpen("approve")} data-testid="owner-pay-app-approve">

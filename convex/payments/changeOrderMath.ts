@@ -20,8 +20,46 @@ export function changeOrderLabel(number: number, scope: ChangeOrderScope = "subc
   return `${scope === "prime" ? "PCO" : "CO"} #${number}`;
 }
 
-/** Statuses at which a change order counts in the contract sum (it was approved). */
-export const CO_APPROVED_STATUSES: ReadonlySet<ChangeOrderStatus> = new Set(["approved", "invoiced", "paid"]);
+/**
+ * Statuses at which a change order counts in the contract sum (it was approved). invoiced, paid and
+ * cancelled only describe the "Invoice now" invoice of an approved prime CO: cancelling that invoice
+ * withdraws the receivable, not the owner's approval, so the scope stays in the contract.
+ */
+export const CO_APPROVED_STATUSES: ReadonlySet<ChangeOrderStatus> = new Set(["approved", "invoiced", "paid", "cancelled"]);
+
+/**
+ * Supported change orders per contract: per agreement for subcontract COs, per project for prime COs,
+ * drafts and decided ones alike (matching the 200 change-order lines of the SOV capacity). Creation
+ * beyond it is refused, and every read loads the contract's COs completely or refuses; none truncates.
+ */
+export const CO_CAPACITY = 200;
+export const CO_CAPACITY_MESSAGE = `A contract can have at most ${CO_CAPACITY} change orders (drafts, rejected and approved ones together).`;
+
+/**
+ * Whether an approved prime CO is billed with its own "Invoice now" invoice (started, sent or paid).
+ * Such a CO is billed outside owner pay apps; a cancelled invoice billed nothing.
+ */
+export function isDirectlyInvoiced(co: { status: string; paypalInvoiceId?: string; directInvoiceStartedAt?: number }): boolean {
+  if (co.status === "cancelled") return false;
+  return co.status === "invoiced" || co.status === "paid" || co.paypalInvoiceId !== undefined || co.directInvoiceStartedAt !== undefined;
+}
+
+export type ApprovedCoForSums = { id: string; amountCents: number; approvedAt?: number; createdAt: number; number: number };
+
+/**
+ * The contract sum before and after each approved change order, in approval order (approval time,
+ * then number), for records approved before the sums were captured at approval.
+ */
+export function contractSumsByApproval(originalCents: number, approved: readonly ApprovedCoForSums[]): Map<string, { beforeCents: number; afterCents: number }> {
+  const ordered = [...approved].sort((a, b) => (a.approvedAt ?? a.createdAt) - (b.approvedAt ?? b.createdAt) || a.number - b.number);
+  const out = new Map<string, { beforeCents: number; afterCents: number }>();
+  let running = originalCents;
+  for (const co of ordered) {
+    out.set(co.id, { beforeCents: running, afterCents: running + co.amountCents });
+    running += co.amountCents;
+  }
+  return out;
+}
 
 /**
  * Maps a PayPal invoice status to the change order status it implies, or null when it implies no
@@ -142,13 +180,18 @@ export function contractSumBreakdown(originalCents: number, approvedAmounts: rea
  * Architecture §22: a deductive change order may not take the contract sum to date below what was
  * already billed (total completed and stored on approved pay apps). Returns the refusal, or null.
  */
-export function deductiveFloorProblem(opts: { contractSumToDateCents: number; amountCents: number; billedCents: number }): string | null {
+export function deductiveFloorProblem(opts: {
+  contractSumToDateCents: number;
+  amountCents: number;
+  billedCents: number;
+  billedOn?: string;
+}): string | null {
   if (opts.amountCents >= 0) return null;
   const after = opts.contractSumToDateCents + opts.amountCents;
   if (after >= opts.billedCents) return null;
   return `This deductive change order would make the contract sum to date ${formatCents(after)}, below the ${formatCents(
     opts.billedCents,
-  )} already billed on approved pay apps. Reduce the deduction or reject it.`;
+  )} already billed ${opts.billedOn ?? "on approved pay apps"}. Reduce the deduction or reject it.`;
 }
 
 /** Reads the invoice id from the create response, whose 201 body is only a `self` link. */

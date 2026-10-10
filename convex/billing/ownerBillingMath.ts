@@ -138,6 +138,83 @@ export function gcEntryErrors(lines: readonly OwnerLine[], lineNoOf: (key: strin
   );
 }
 
+type SheetLineForDiff = OwnerLine & { subRetainageCents?: number };
+type SheetForDiff = { lines: readonly SheetLineForDiff[]; figures: Pick<OwnerG702, "currentPaymentDueCents" | "contractSumToDateCents" | "completedAndStoredCents"> & Record<string, number>; pendingSubPayApps: number };
+
+export type OwnerSheetLineChange = {
+  key: string;
+  description: string;
+  change: "added" | "removed" | "changed";
+  fromToDateCents: number;
+  toToDateCents: number;
+  fromScheduledValueCents: number;
+  toScheduledValueCents: number;
+};
+
+export type OwnerSheetChanges = {
+  lines: OwnerSheetLineChange[];
+  currentPaymentDue: { fromCents: number; toCents: number };
+  contractSumToDate: { fromCents: number; toCents: number };
+  completedAndStored: { fromCents: number; toCents: number };
+  pendingSubPayApps: { from: number; to: number };
+};
+
+const LINE_FIELDS = ["description", "scheduledValueCents", "previousWorkCents", "previousStoredCents", "workThisPeriodCents", "storedCents", "retainageBps", "subRetainageCents"] as const;
+
+const toDate = (l: OwnerLine) => l.previousWorkCents + l.previousStoredCents + l.workThisPeriodCents + l.storedCents;
+
+/**
+ * What a rebuilt roll-up changes on a saved owner pay app (new approved sub work, a change order
+ * approved or invoiced directly, a new GC line…), or null when the saved sheet is still current.
+ */
+export function ownerSheetChanges(saved: SheetForDiff, fresh: SheetForDiff): OwnerSheetChanges | null {
+  const before = new Map(saved.lines.map((l) => [l.key, l]));
+  const after = new Map(fresh.lines.map((l) => [l.key, l]));
+  const lines: OwnerSheetLineChange[] = [];
+  for (const l of fresh.lines) {
+    const old = before.get(l.key);
+    if (old !== undefined && LINE_FIELDS.every((f) => old[f] === l[f])) continue;
+    lines.push({
+      key: l.key,
+      description: l.description,
+      change: old === undefined ? "added" : "changed",
+      fromToDateCents: old ? toDate(old) : 0,
+      toToDateCents: toDate(l),
+      fromScheduledValueCents: old?.scheduledValueCents ?? 0,
+      toScheduledValueCents: l.scheduledValueCents,
+    });
+  }
+  for (const old of saved.lines) {
+    if (after.has(old.key)) continue;
+    lines.push({
+      key: old.key,
+      description: old.description,
+      change: "removed",
+      fromToDateCents: toDate(old),
+      toToDateCents: 0,
+      fromScheduledValueCents: old.scheduledValueCents,
+      toScheduledValueCents: 0,
+    });
+  }
+  const figuresSame = Object.keys(fresh.figures).every((k) => saved.figures[k] === fresh.figures[k]);
+  if (lines.length === 0 && figuresSame && saved.pendingSubPayApps === fresh.pendingSubPayApps) return null;
+  return {
+    lines,
+    currentPaymentDue: { fromCents: saved.figures.currentPaymentDueCents, toCents: fresh.figures.currentPaymentDueCents },
+    contractSumToDate: { fromCents: saved.figures.contractSumToDateCents, toCents: fresh.figures.contractSumToDateCents },
+    completedAndStored: { fromCents: saved.figures.completedAndStoredCents, toCents: fresh.figures.completedAndStoredCents },
+    pendingSubPayApps: { from: saved.pendingSubPayApps, to: fresh.pendingSubPayApps },
+  };
+}
+
+/** The refusal when the GC submits figures the roll-up has since changed. */
+export function staleSheetMessage(changes: OwnerSheetChanges): string {
+  const due = changes.currentPaymentDue;
+  return `The roll-up changed since this owner pay app was saved (current payment due ${formatCents(due.fromCents)} → ${formatCents(
+    due.toCents,
+  )}). Review the refreshed figures, then submit again.`;
+}
+
 /** "1 sub pay app not yet approved"; null when none are waiting. */
 export function pendingSubPayAppsNote(count: number): string | null {
   if (count <= 0) return null;

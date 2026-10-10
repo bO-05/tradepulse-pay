@@ -1,6 +1,7 @@
 import { ConvexError, v, type Infer } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx } from "../_generated/server";
+import { changeOrdersOnSubmittedOwnerPayApps, ownerPayAppBilledReason } from "../billing/changeOrderView";
 import { invoiceRecipientForProject } from "./changeOrderRecipient";
 import {
   canMoveChangeOrder,
@@ -70,6 +71,14 @@ export const beginInvoice = internalMutation({
     const projectId = co.projectId ?? agreement?.projectId;
     const project = projectId ? await ctx.db.get(projectId) : null;
     if (project === null) throw new ConvexError({ code: "NOT_FOUND", message: "Project not found." });
+    // One billing path per prime CO: once an owner pay app carrying it was submitted, it is billed there.
+    // An invoice already created here is only resumed (the owner pay app roll-up leaves such a CO off).
+    if (co.paypalInvoiceId === undefined) {
+      const applicationNo = (await changeOrdersOnSubmittedOwnerPayApps(ctx, project._id)).get(co._id);
+      if (applicationNo !== undefined) {
+        throw new ConvexError({ code: "BILLED_ON_OWNER_PAY_APP", message: ownerPayAppBilledReason(co.number, applicationNo) });
+      }
+    }
     // A cached recipient is never trusted on its own: the owner may have been removed or replaced
     // since the last attempt, so every attempt re-resolves the project's current owner.
     const recipient = await invoiceRecipientForProject(ctx, project._id);
@@ -86,9 +95,10 @@ export const beginInvoice = internalMutation({
       await ctx.db.patch(changeOrderId, { error: reason });
       throw new ConvexError({ code: "OWNER_CHANGED", message: reason });
     }
-    if (cached !== recipientEmail) {
+    if (cached !== recipientEmail || co.directInvoiceStartedAt === undefined) {
       await ctx.db.patch(changeOrderId, {
         recipientEmail,
+        directInvoiceStartedAt: co.directInvoiceStartedAt ?? Date.now(),
         ...(recipientChanged ? { recipientRevision: (co.recipientRevision ?? 0) + 1 } : {}),
       });
     }

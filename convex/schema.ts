@@ -819,6 +819,12 @@ export default defineSchema({
     rejectedAt: v.optional(v.number()),
     rejectionReason: v.optional(v.string()),
     sovLineId: v.optional(v.id("scheduleOfValues")),
+    // The contract sum to date just before and after this CO was approved (subcontract or prime),
+    // captured at approval so documents never depend on draft numbering.
+    contractSumBeforeCents: v.optional(v.number()),
+    contractSumAfterCents: v.optional(v.number()),
+    // Set when "Invoice now" starts billing this prime CO directly; it then stays off owner pay apps.
+    directInvoiceStartedAt: v.optional(v.number()),
     // Set when the judge demo approved a prime change order as a stand-in for the demo owner.
     judgeDemo: v.optional(v.object({ runId: v.id("judgeDemoRuns"), approvedFor: v.string() })),
     updatedAt: v.optional(v.number()),

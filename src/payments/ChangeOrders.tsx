@@ -365,7 +365,8 @@ function ChangeOrderRow({ co, showAgreement, recipientEmail }: { co: ChangeOrder
           <span className="text-sm font-semibold tabular-nums" data-testid="change-order-amount">
             {signedCents(co.amountCents)}
           </span>
-          <StatusPill status={co.status} />
+          {/* A cancelled invoice leaves the CO approved and in the contract sum. */}
+          <StatusPill status={co.status} {...(co.status === "cancelled" ? { label: "Approved – invoice cancelled", tone: "info" as const } : {})} />
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">

@@ -4,7 +4,7 @@ import { contractSumCentsOf, projectPlace, resolveAgreementTerms } from "../lib/
 import { paymentTermsText, retainageText, stateName } from "../lib/agreementTerms";
 import { notFound } from "../lib/tenancy";
 import { payAppChangeOrderSummary, primeChangeOrders, subcontractChangeOrders } from "../billing/changeOrderView";
-import { CO_APPROVED_STATUSES, changeOrderLabel, changeOrderScopeOf, type ChangeOrderStatus } from "../payments/changeOrderMath";
+import { CO_APPROVED_STATUSES, changeOrderLabel, changeOrderScopeOf, contractSumsByApproval, type ChangeOrderStatus } from "../payments/changeOrderMath";
 import { agreementContractSumCents } from "../payments/sov";
 import { buildSheet, subNameOf } from "../payApps/g703";
 import { formatIsoDate, formatPercentHundredths, g703Line, isoDate, percentHundredths } from "../payApps/g703Math";
@@ -241,8 +241,18 @@ async function changeOrderDocument(ctx: QueryCtx, co: Doc<"changeOrders">): Prom
     contractRef = `Subcontract ${agreement.agreementNumber}`;
   }
   const isApproved = (c: Doc<"changeOrders">) => CO_APPROVED_STATUSES.has(c.status as ChangeOrderStatus);
-  const previous = original + siblings.filter((c) => c._id !== co._id && c.number < co.number && isApproved(c)).reduce((acc, c) => acc + c.amountCents, 0);
   const approved = isApproved(co);
+  // An approved CO shows the sums captured at its approval (or, for records approved before those
+  // were captured, the sums rebuilt in approval order); any other CO shows what approving it now does.
+  let previous: number;
+  if (approved && co.contractSumBeforeCents !== undefined) previous = co.contractSumBeforeCents;
+  else if (approved) {
+    const byApproval = contractSumsByApproval(
+      original,
+      siblings.filter(isApproved).map((c) => ({ id: c._id, amountCents: c.amountCents, approvedAt: c.approvedAt, createdAt: c.createdAt, number: c.number })),
+    );
+    previous = byApproval.get(co._id)?.beforeCents ?? original;
+  } else previous = original + siblings.filter(isApproved).reduce((acc, c) => acc + c.amountCents, 0);
   const label = changeOrderLabel(co.number, scope);
   return {
     projectId: project._id,
@@ -258,7 +268,7 @@ async function changeOrderDocument(ctx: QueryCtx, co: Doc<"changeOrders">): Prom
         description: co.title === undefined ? "" : co.description,
         amountCents: co.amountCents,
         scheduleDays: co.scheduleDays ?? null,
-        statusLabel: statusText(co.status),
+        statusLabel: co.status === "cancelled" ? "Approved (invoice cancelled)" : statusText(co.status),
         projectTitle: project.title,
         projectAddress: projectPlace(project).address,
         partyFrom,

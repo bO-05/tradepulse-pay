@@ -1,3 +1,4 @@
+import { ConvexError } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
 import { formatCents } from "../lib/money";
@@ -5,6 +6,8 @@ import { APPROVED_PAY_APP_STATUSES } from "../payApps/validation";
 import { invoiceRecipientForProject, type InvoiceRecipient } from "../payments/changeOrderRecipient";
 import {
   CO_APPROVED_STATUSES,
+  CO_CAPACITY,
+  CO_CAPACITY_MESSAGE,
   changeOrderEditBlock,
   changeOrderLabel,
   changeOrderScopeOf,
@@ -22,7 +25,6 @@ import { agreementContractSumCents } from "../payments/sov";
  */
 
 export const CHANGE_ORDERS_HASH = "#/change-orders";
-export const CO_LIST_LIMIT = 200;
 
 export type CoParty = "gc" | "sub" | "owner";
 
@@ -50,15 +52,48 @@ export type InvoiceControl = { show: boolean; enabled: boolean; reason: string |
 /**
  * "Invoice now" for the GC on a prime change order: offered (enabled) only once the owner approved it
  * and the project's owner company has a billing email; with no owner it shows disabled with the reason.
+ * A CO on a submitted owner pay app is billed there, so it shows disabled naming that application.
  */
-export function invoiceControlFor(co: Doc<"changeOrders">, party: CoParty, recipient: InvoiceRecipient | null): InvoiceControl {
+export function invoiceControlFor(
+  co: Doc<"changeOrders">,
+  party: CoParty,
+  recipient: InvoiceRecipient | null,
+  ownerPayAppNo: number | null = null,
+): InvoiceControl {
   const hidden = { show: false, enabled: false, reason: null };
   if (party !== "gc" || changeOrderScopeOf(co) !== "prime") return hidden;
   const open = co.status === "draft" || co.status === "submitted" || co.status === "approved";
   if (recipient !== null && !recipient.ok) return open ? { show: true, enabled: false, reason: recipient.reason } : hidden;
   if (co.status !== "approved") return hidden;
   if (co.amountCents <= 0) return { show: true, enabled: false, reason: "A deductive change order is credited, not invoiced." };
+  if (ownerPayAppNo !== null && co.paypalInvoiceId === undefined) {
+    return { show: true, enabled: false, reason: ownerPayAppBilledReason(co.number, ownerPayAppNo) };
+  }
   return { show: true, enabled: recipient?.ok === true, reason: null };
+}
+
+export function ownerPayAppBilledReason(number: number, applicationNo: number): string {
+  return `${changeOrderLabel(number, "prime")} is billed on owner pay app #${applicationNo}, so it can't also be invoiced with Invoice now.`;
+}
+
+/**
+ * Prime change orders on an owner pay app the GC has submitted (at any later status), with the first
+ * such application number. A draft that was never submitted reserves nothing.
+ */
+export async function changeOrdersOnSubmittedOwnerPayApps(ctx: QueryCtx, projectId: Id<"projects">): Promise<Map<string, number>> {
+  const apps = await ctx.db
+    .query("ownerPayApps")
+    .withIndex("by_projectId_and_applicationNo", (q) => q.eq("projectId", projectId))
+    .take(500);
+  const out = new Map<string, number>();
+  for (const app of apps) {
+    const submitted = app.status !== "draft" || app.history.some((h) => h.status !== "draft");
+    if (!submitted) continue;
+    for (const line of app.lines) {
+      if (line.kind === "change_order" && line.changeOrderId !== undefined && !out.has(line.changeOrderId)) out.set(line.changeOrderId, app.applicationNo);
+    }
+  }
+  return out;
 }
 
 export function changeOrderRowView(
@@ -69,6 +104,7 @@ export function changeOrderRowView(
     recipient: InvoiceRecipient | null;
     sovLineNo?: number | null;
     linkedLabel?: string | null;
+    ownerPayAppNo?: number | null;
   },
 ) {
   const scope = changeOrderScopeOf(co);
@@ -77,7 +113,7 @@ export function changeOrderRowView(
   const decides = deciderOf(scope) === opts.party;
   const editBlock = changeOrderEditBlock(status);
   const prime = scope === "prime";
-  const invoice = invoiceControlFor(co, opts.party, opts.recipient);
+  const invoice = invoiceControlFor(co, opts.party, opts.recipient, opts.ownerPayAppNo ?? null);
   return {
     _id: co._id,
     scope,
@@ -124,21 +160,57 @@ export function changeOrderRowView(
 }
 export type ChangeOrderRowView = ReturnType<typeof changeOrderRowView>;
 
-/** Subcontract change orders of one agreement in number order (legacy prime rows on it are left out). */
-export async function subcontractChangeOrders(ctx: QueryCtx, agreementId: Id<"agreements">): Promise<Doc<"changeOrders">[]> {
-  const rows = await ctx.db
-    .query("changeOrders")
-    .withIndex("by_agreementId_and_number", (q) => q.eq("agreementId", agreementId))
-    .take(CO_LIST_LIMIT);
-  return rows.filter((co) => changeOrderScopeOf(co) === "subcontract");
+function overCapacity(): ConvexError<{ code: string; message: string }> {
+  return new ConvexError({ code: "CO_CAPACITY", message: `${CO_CAPACITY_MESSAGE} This contract has more, so its sums cannot be shown completely.` });
 }
 
-/** Prime change orders of one project in number order. */
+/**
+ * Subcontract change orders of one agreement in number order, all of them (legacy prime rows on the
+ * agreement are skipped); more than CO_CAPACITY is refused rather than summed partially.
+ */
+export async function subcontractChangeOrders(ctx: QueryCtx, agreementId: Id<"agreements">): Promise<Doc<"changeOrders">[]> {
+  const rows: Doc<"changeOrders">[] = [];
+  // Legacy prime rows on the agreement are bounded by the prime capacity of its project.
+  const scanned = await ctx.db
+    .query("changeOrders")
+    .withIndex("by_agreementId_and_number", (q) => q.eq("agreementId", agreementId))
+    .take(2 * CO_CAPACITY + 1);
+  for (const co of scanned) if (changeOrderScopeOf(co) === "subcontract") rows.push(co);
+  if (rows.length > CO_CAPACITY || scanned.length > 2 * CO_CAPACITY) throw overCapacity();
+  return rows;
+}
+
+/** Prime change orders of one project in number order, all of them; more than CO_CAPACITY is refused. */
 export async function primeChangeOrders(ctx: QueryCtx, projectId: Id<"projects">): Promise<Doc<"changeOrders">[]> {
-  return await ctx.db
+  const rows = await ctx.db
     .query("changeOrders")
     .withIndex("by_projectId_and_scope_and_number", (q) => q.eq("projectId", projectId).eq("scope", "prime"))
-    .take(CO_LIST_LIMIT);
+    .take(CO_CAPACITY + 1);
+  if (rows.length > CO_CAPACITY) throw overCapacity();
+  return rows;
+}
+
+/** The highest change-order number in use on the contract, from the number index. */
+export async function highestChangeOrderNumber(
+  ctx: QueryCtx,
+  scope: ChangeOrderScope,
+  key: { agreementId?: Id<"agreements">; projectId: Id<"projects"> },
+): Promise<number> {
+  if (scope === "prime") {
+    const last = await ctx.db
+      .query("changeOrders")
+      .withIndex("by_projectId_and_scope_and_number", (q) => q.eq("projectId", key.projectId).eq("scope", "prime"))
+      .order("desc")
+      .first();
+    return last?.number ?? 0;
+  }
+  for await (const co of ctx.db
+    .query("changeOrders")
+    .withIndex("by_agreementId_and_number", (q) => q.eq("agreementId", key.agreementId!))
+    .order("desc")) {
+    if (changeOrderScopeOf(co) === "subcontract") return co.number;
+  }
+  return 0;
 }
 
 function approvedAmounts(rows: readonly Doc<"changeOrders">[]): number[] {
@@ -167,9 +239,15 @@ export async function rowViews(
   opts: { party: CoParty; recipient: InvoiceRecipient | null },
 ): Promise<ChangeOrderRowView[]> {
   const agreements = new Map<string, Doc<"agreements"> | null>();
+  const billedOnOwnerApps = new Map<string, Map<string, number>>();
   const out: ChangeOrderRowView[] = [];
   for (const co of rows) {
     if (!visibleToParty(co, opts.party)) continue;
+    let ownerPayAppNo: number | null = null;
+    if (opts.party === "gc" && changeOrderScopeOf(co) === "prime" && co.status === "approved" && co.projectId !== undefined) {
+      if (!billedOnOwnerApps.has(co.projectId)) billedOnOwnerApps.set(co.projectId, await changeOrdersOnSubmittedOwnerPayApps(ctx, co.projectId));
+      ownerPayAppNo = billedOnOwnerApps.get(co.projectId)!.get(co._id) ?? null;
+    }
     let agreement: Doc<"agreements"> | null = null;
     if (co.agreementId !== undefined) {
       if (!agreements.has(co.agreementId)) agreements.set(co.agreementId, await ctx.db.get(co.agreementId));
@@ -184,6 +262,7 @@ export async function rowViews(
         recipient: opts.recipient,
         sovLineNo: line?.lineNo ?? null,
         linkedLabel: linked ? changeOrderLabel(linked.number, changeOrderScopeOf(linked)) : null,
+        ownerPayAppNo,
       }),
     );
   }

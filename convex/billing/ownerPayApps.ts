@@ -8,14 +8,19 @@ import { requireRole } from "../lib/roles";
 import { notFound, requireProjectAccess, type ProjectAccess } from "../lib/tenancy";
 import { formatIsoDate, isoDate, nextBillingPeriod, percentHundredths } from "../payApps/g703Math";
 import { invoiceRecipientForProject } from "../payments/changeOrderRecipient";
+import { CO_APPROVED_STATUSES, changeOrderLabel, isDirectlyInvoiced, type ChangeOrderStatus } from "../payments/changeOrderMath";
+import { primeChangeOrders } from "./changeOrderView";
 import {
   OWNER_APPROVED_STATUSES,
   OWNER_COMMENT_MAX,
   OWNER_EDITABLE_STATUSES,
   gcEntryErrors,
+  changeOrderKey,
   ownerLineFigures,
   ownerPayAppReadyTitle,
+  ownerSheetChanges,
   pendingSubPayAppsNote,
+  staleSheetMessage,
   type OwnerPayAppStatus,
 } from "./ownerBillingMath";
 import {
@@ -135,8 +140,38 @@ function summaryView(app: Doc<"ownerPayApps">) {
   };
 }
 
+/**
+ * The roll-up of an editable owner pay app rebuilt from the current approved sub pay apps, GC lines
+ * and prime change orders, keeping the GC's saved (or given) this-period amounts.
+ */
+async function rebuildSheet(ctx: QueryCtx, project: Doc<"projects">, app: Doc<"ownerPayApps">, entries?: ReadonlyMap<string, number>) {
+  const apps = await projectOwnerPayApps(ctx, project._id);
+  const previous = apps.filter((a) => a.applicationNo < app.applicationNo).pop() ?? null;
+  const saved = new Map(app.lines.filter((l) => l.kind !== "trade").map((l) => [l.key, l.workThisPeriodCents]));
+  const sheet = await buildOwnerSheet(ctx, project, { periodEnd: app.periodEnd, previous, entries: entries ?? saved });
+  return { sheet, previous, figures: sheetFigures(project, sheet, previous) };
+}
+
+/** What the rebuilt roll-up would change on the saved owner pay app, or null when it is current. */
+async function pendingRefresh(ctx: QueryCtx, project: Doc<"projects">, app: Doc<"ownerPayApps">) {
+  const fresh = await rebuildSheet(ctx, project, app);
+  return ownerSheetChanges(
+    { lines: app.lines, figures: app.figures, pendingSubPayApps: app.pendingSubPayApps },
+    { lines: fresh.sheet.lines, figures: fresh.figures, pendingSubPayApps: fresh.sheet.pendingSubPayApps },
+  );
+}
+
+/** Approved prime COs billed with "Invoice now" and therefore not on this owner pay app. */
+async function directlyInvoicedChangeOrders(ctx: QueryCtx, app: Doc<"ownerPayApps">) {
+  const onSheet = new Set(app.lines.map((l) => l.key));
+  return (await primeChangeOrders(ctx, app.projectId))
+    .filter((co) => CO_APPROVED_STATUSES.has(co.status as ChangeOrderStatus) && isDirectlyInvoiced(co) && !onSheet.has(changeOrderKey(co._id)))
+    .map((co) => ({ _id: co._id, label: changeOrderLabel(co.number, "prime"), title: co.title ?? co.description, amountCents: co.amountCents }));
+}
+
 async function detailView(ctx: QueryCtx, app: Doc<"ownerPayApps">, project: Doc<"projects">, party: Party) {
   const editable = party === "gc" && OWNER_EDITABLE_STATUSES.has(app.status);
+  const refresh = editable ? await pendingRefresh(ctx, project, app) : null;
   const invoicePending = app.status === "approved" && app.figures.currentPaymentDueCents > 0;
   const recipient = await invoiceRecipientForProject(ctx, project._id);
   return {
@@ -149,6 +184,9 @@ async function detailView(ctx: QueryCtx, app: Doc<"ownerPayApps">, project: Doc<
     percentCompleteHundredths: percentHundredths(app.figures.completedAndStoredCents, app.figures.contractSumToDateCents),
     lines: app.lines.map((l, i) => lineView(l, i, party)),
     pendingNote: party === "gc" ? pendingSubPayAppsNote(app.pendingSubPayApps) : null,
+    // Changes the current roll-up makes to the saved figures; the GC refreshes before submitting.
+    refresh,
+    directlyInvoicedChangeOrders: await directlyInvoicedChangeOrders(ctx, app),
     history: app.history.map((h) => ({ status: h.status, at: h.at, byName: h.byName, comment: h.comment ?? null })),
     changesRequestedComment: app.changesRequestedComment ?? null,
     paypalInvoiceId: app.paypalInvoiceId ?? null,
@@ -160,6 +198,7 @@ async function detailView(ctx: QueryCtx, app: Doc<"ownerPayApps">, project: Doc<
     controls: {
       edit: editable,
       submit: editable,
+      refresh: editable && refresh !== null,
       delete: party === "gc" && app.status === "draft" && app.history.every((h) => h.status === "draft"),
       approve: party === "owner" && app.status === "submitted_to_owner",
       requestChanges: party === "owner" && app.status === "submitted_to_owner",
@@ -277,22 +316,37 @@ export const saveOwnerPayApp = mutation({
       if (!editable.has(e.key)) throw invalid("Only GC lines and prime change-order lines take amounts; trade lines come from approved sub pay apps.");
       entries.set(e.key, e.workThisPeriodCents);
     }
-    const project = scope.project;
-    const apps = await projectOwnerPayApps(ctx, project._id);
-    const previous = apps.filter((a) => a.applicationNo < app.applicationNo).pop() ?? null;
-    const sheet = await buildOwnerSheet(ctx, project, { periodEnd: app.periodEnd, previous, entries });
-    const order = new Map(sheet.lines.map((l, i) => [l.key, i + 1]));
-    const errors = gcEntryErrors(sheet.lines, (key) => order.get(key) ?? 0);
-    if (errors.length > 0) throw invalid(errors[0].message, { lineErrors: errors.map((e) => ({ key: e.sovLineId, message: e.message })) });
-    const figures = sheetFigures(project, sheet, previous);
-    await ctx.db.patch(app._id, {
-      lines: sheet.lines,
-      figures,
-      pendingSubPayApps: sheet.pendingSubPayApps,
-      retainageBps: ownerRetainageBps(project),
-      updatedAt: Date.now(),
-    });
-    return { currentPaymentDueCents: figures.currentPaymentDueCents };
+    return await storeRebuiltSheet(ctx, scope.project, app, entries);
+  },
+});
+
+async function storeRebuiltSheet(ctx: MutationCtx, project: Doc<"projects">, app: Doc<"ownerPayApps">, entries?: ReadonlyMap<string, number>) {
+  const { sheet, figures } = await rebuildSheet(ctx, project, app, entries);
+  const order = new Map(sheet.lines.map((l, i) => [l.key, i + 1]));
+  const errors = gcEntryErrors(sheet.lines, (key) => order.get(key) ?? 0);
+  if (errors.length > 0) throw invalid(errors[0].message, { lineErrors: errors.map((e) => ({ key: e.sovLineId, message: e.message })) });
+  await ctx.db.patch(app._id, {
+    lines: sheet.lines,
+    figures,
+    pendingSubPayApps: sheet.pendingSubPayApps,
+    retainageBps: ownerRetainageBps(project),
+    updatedAt: Date.now(),
+  });
+  return { currentPaymentDueCents: figures.currentPaymentDueCents };
+}
+
+/**
+ * GC: rebuilds an editable owner pay app from the sub pay apps approved since it was saved (and the
+ * current GC lines and prime change orders), keeping the GC's this-period amounts.
+ */
+export const refreshOwnerPayApp = mutation({
+  args: { ownerPayAppId: v.string() },
+  handler: async (ctx, args) => {
+    const scope = visibleTo(await requireDocScope(ctx, "ownerPayApps", args.ownerPayAppId, { roles: ["gc"], write: true }));
+    if (!OWNER_EDITABLE_STATUSES.has(scope.doc.status)) {
+      throw invalidState("This owner pay app was submitted to the owner and can no longer be edited.");
+    }
+    return await storeRebuiltSheet(ctx, scope.project, scope.doc);
   },
 });
 
@@ -318,6 +372,8 @@ export const submitOwnerPayApp = mutation({
     const scope = visibleTo(await requireDocScope(ctx, "ownerPayApps", args.ownerPayAppId, { roles: ["gc"], write: true }));
     const app = scope.doc;
     if (!OWNER_EDITABLE_STATUSES.has(app.status)) throw invalidState("This owner pay app was already submitted to the owner.");
+    const changes = await pendingRefresh(ctx, scope.project, app);
+    if (changes !== null) throw new ConvexError({ code: "OWNER_SHEET_CHANGED", message: staleSheetMessage(changes) });
     const ownerCompanyId = await projectOwnerCompanyId(ctx, scope.project);
     if (ownerCompanyId === null) throw invalidState("No owner on this project – invite the owner before submitting an owner pay app.");
     const now = Date.now();

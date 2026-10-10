@@ -10,21 +10,28 @@ import { SOV_CAPACITY_MESSAGE, SOV_MAX_TOTAL_LINES } from "../lib/sovRules";
 import { notFound, type ProjectAccess } from "../lib/tenancy";
 import { g703Context } from "../payApps/g703";
 import {
+  CO_APPROVED_STATUSES,
+  CO_CAPACITY,
+  CO_CAPACITY_MESSAGE,
   CO_MAX_REASON,
   changeOrderEditBlock,
   changeOrderFieldErrors,
   changeOrderLabel,
   changeOrderScopeOf,
+  contractSumsByApproval,
   deductiveFloorProblem,
+  isDirectlyInvoiced,
   type ChangeOrderScope,
   type ChangeOrderStatus,
 } from "../payments/changeOrderMath";
-import { sovIsApproved } from "../payments/sov";
+import { agreementContractSumCents, sovIsApproved } from "../payments/sov";
+import { OWNER_APPROVED_STATUSES } from "./ownerBillingMath";
 import {
   CHANGE_ORDERS_HASH,
   agreementContractSum,
   breakdownText,
   deciderOf,
+  highestChangeOrderNumber,
   primeChangeOrders,
   primeContractSum,
   recipientFor,
@@ -292,9 +299,16 @@ const fieldArgs = {
   scheduleDays: v.optional(v.union(v.number(), v.null())),
 };
 
+/** The next number on the contract, after refusing a contract already at CO_CAPACITY. */
 async function nextNumber(ctx: QueryCtx, scope: ChangeOrderScope, key: { agreementId?: Id<"agreements">; projectId: Id<"projects"> }): Promise<number> {
-  const rows = scope === "prime" ? await primeChangeOrders(ctx, key.projectId) : await subcontractChangeOrders(ctx, key.agreementId!);
-  return rows.reduce((max, co) => Math.max(max, co.number), 0) + 1;
+  const rows = await (scope === "prime" ? primeChangeOrders(ctx, key.projectId) : subcontractChangeOrders(ctx, key.agreementId!)).catch((e: unknown) => {
+    if (e instanceof ConvexError && (e.data as { code?: string }).code === "CO_CAPACITY") return null;
+    throw e;
+  });
+  if (rows === null || rows.length >= CO_CAPACITY) {
+    throw new ConvexError({ code: "CO_CAPACITY", message: `${CO_CAPACITY_MESSAGE} Delete drafts that are no longer needed to make room.` });
+  }
+  return (await highestChangeOrderNumber(ctx, scope, key)) + 1;
 }
 
 export type CreateChangeOrderInput = {
@@ -521,7 +535,15 @@ export async function approveSubcontract(ctx: MutationCtx, access: ProjectAccess
     changeOrderId: co._id,
   });
   const now = Date.now();
-  await ctx.db.patch(co._id, { status: "approved", approvedBy: access.user._id, approvedAt: now, sovLineId, updatedAt: now });
+  await ctx.db.patch(co._id, {
+    status: "approved",
+    approvedBy: access.user._id,
+    approvedAt: now,
+    sovLineId,
+    contractSumBeforeCents: preview.contractSumToDateCents,
+    contractSumAfterCents: preview.contractSumAfterCents,
+    updatedAt: now,
+  });
   await notifyParty(ctx, access.project, "sub", co, {
     kind: "change_order_approved",
     title: `Change order ${label} approved`,
@@ -537,18 +559,51 @@ export async function approveSubcontract(ctx: MutationCtx, access: ProjectAccess
   return { status: "approved" as const, sovLineId, lineNo: preview.lineNo, contractSumToDateCents: preview.contractSumAfterCents };
 }
 
-/** Approves a submitted prime CO for the owner: the prime contract sum to date changes. */
+/**
+ * What the owner has been billed on the prime contract: completed and stored on the latest
+ * owner-approved owner pay app, plus prime COs billed directly with "Invoice now".
+ */
+async function ownerBilledToDateCents(ctx: QueryCtx, project: Doc<"projects">, primeCos: readonly Doc<"changeOrders">[]) {
+  const apps = await ctx.db
+    .query("ownerPayApps")
+    .withIndex("by_projectId_and_applicationNo", (q) => q.eq("projectId", project._id))
+    .order("desc")
+    .take(500);
+  const latest = apps.find((a) => OWNER_APPROVED_STATUSES.has(a.status));
+  const direct = primeCos
+    .filter((c) => CO_APPROVED_STATUSES.has(c.status as ChangeOrderStatus) && c.amountCents > 0 && isDirectlyInvoiced(c))
+    .reduce((acc, c) => acc + c.amountCents, 0);
+  return { cents: (latest?.figures.completedAndStoredCents ?? 0) + direct, direct };
+}
+
+/**
+ * Approves a submitted prime CO for the owner: the prime contract sum to date changes. A deductive CO
+ * may not take the prime contract sum below what the owner was already billed (nor below zero).
+ */
 export async function approvePrime(
   ctx: MutationCtx,
   access: ProjectAccess,
   co: Doc<"changeOrders">,
   opts: { approvedBy: Id<"users">; judgeDemo?: { runId: Id<"judgeDemoRuns">; approvedFor: string } },
 ) {
+  const before = (await primeContractSum(ctx, access.project))?.toDateCents ?? 0;
+  if (co.amountCents < 0) {
+    const billed = await ownerBilledToDateCents(ctx, access.project, await primeChangeOrders(ctx, access.project._id));
+    const problem = deductiveFloorProblem({
+      contractSumToDateCents: before,
+      amountCents: co.amountCents,
+      billedCents: billed.cents,
+      billedOn: billed.direct > 0 ? "to the owner (approved owner pay apps and change orders invoiced directly)" : "to the owner on approved owner pay apps",
+    });
+    if (problem !== null) throw new ConvexError({ code: "DEDUCTIVE_FLOOR", message: problem });
+  }
   const now = Date.now();
   await ctx.db.patch(co._id, {
     status: "approved",
     approvedBy: opts.approvedBy,
     approvedAt: now,
+    contractSumBeforeCents: before,
+    contractSumAfterCents: before + co.amountCents,
     updatedAt: now,
     ...(opts.judgeDemo ? { judgeDemo: opts.judgeDemo } : {}),
   });
@@ -636,5 +691,60 @@ export const backfillChangeOrderScope = internalMutation({
       patched++;
     }
     return { patched, scanned: rows.length };
+  },
+});
+
+/**
+ * Captures the contract sum before and after each approved change order that predates the snapshot,
+ * reconstructed in approval order per contract. Idempotent.
+ *   npx convex run billing/changeOrders:backfillChangeOrderSumSnapshots
+ */
+export const backfillChangeOrderSumSnapshots = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const contracts = new Set<string>();
+    let scanned = 0;
+    for (const status of CO_APPROVED_STATUSES) {
+      const rows = await ctx.db
+        .query("changeOrders")
+        .withIndex("by_status", (q) => q.eq("status", status))
+        .take(2000);
+      scanned += rows.length;
+      for (const co of rows) {
+        if (co.contractSumBeforeCents !== undefined && co.contractSumAfterCents !== undefined) continue;
+        if (changeOrderScopeOf(co) === "prime") {
+          if (co.projectId !== undefined) contracts.add(`prime:${co.projectId}`);
+        } else if (co.agreementId !== undefined) contracts.add(`sub:${co.agreementId}`);
+      }
+    }
+    let patched = 0;
+    for (const key of contracts) {
+      const [kind, id] = key.split(":");
+      let original: number;
+      let cos: Doc<"changeOrders">[];
+      if (kind === "prime") {
+        const project = await ctx.db.get(id as Id<"projects">);
+        if (project === null) continue;
+        original = project.contractValueCents ?? 0;
+        cos = await primeChangeOrders(ctx, project._id);
+      } else {
+        const agreement = await ctx.db.get(id as Id<"agreements">);
+        if (agreement === null) continue;
+        original = agreementContractSumCents(agreement);
+        cos = await subcontractChangeOrders(ctx, agreement._id);
+      }
+      const approved = cos.filter((c) => CO_APPROVED_STATUSES.has(c.status as ChangeOrderStatus));
+      const sums = contractSumsByApproval(
+        original,
+        approved.map((c) => ({ id: c._id, amountCents: c.amountCents, approvedAt: c.approvedAt, createdAt: c.createdAt, number: c.number })),
+      );
+      for (const co of approved) {
+        if (co.contractSumBeforeCents !== undefined && co.contractSumAfterCents !== undefined) continue;
+        const sum = sums.get(co._id)!;
+        await ctx.db.patch(co._id, { contractSumBeforeCents: sum.beforeCents, contractSumAfterCents: sum.afterCents });
+        patched++;
+      }
+    }
+    return { patched, scanned, contracts: contracts.size };
   },
 });
