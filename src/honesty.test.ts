@@ -26,6 +26,10 @@ const rootSources = import.meta.glob("./*.{ts,tsx}", {
   eager: true,
 }) as Record<string, string>;
 
+const llmsTxt = Object.values(
+  import.meta.glob("../convex/lib/llmsTxt.ts", { query: "?raw", import: "default", eager: true }) as Record<string, string>
+)[0];
+
 const convexSources = import.meta.glob("../convex/*.ts", {
   query: "?raw",
   import: "default",
@@ -124,22 +128,23 @@ test("Model diagnostics disclose unavailable providers instead of silently gradi
   expect(diagnostics).not.toContain("305");
 });
 
-test("F3: the New Project form uses placeholders, not silent prefilled values", () => {
+test("F3: the New project wizard starts empty and uses placeholders, not silent prefilled values", async () => {
+  const fields = (await import("./projects/gc/ProjectSetupFields.tsx?raw")).default as string;
+  const form = (await import("./projects/gc/projectSetupForm.ts?raw")).default as string;
+  expect(fields).toContain('placeholder="e.g. Harbor Point Dental LLC"');
+  expect(form).toMatch(/EMPTY_PROJECT_SETUP[^=]*= \{\n  title: "",\n  ownerName: "",/);
+  expect(form).toContain("contractValueCents: null,");
+  expect(form).toContain("validateProjectSetup");
   const header = find("Header.tsx", componentSources);
-  expect(header).toContain('placeholder="e.g. Austin, TX"');
-  expect(header).toContain('placeholder="e.g. 5500000"');
-  expect(header).not.toContain('useState("Austin, TX")');
-  expect(header).not.toContain('useState("Class-A Commercial Mixed-Use")');
+  expect(header).toContain("href={NEW_PROJECT_HASH}");
   expect(header).not.toContain("useState(5500000)");
-  expect(header).not.toContain("useState(52)");
-  expect(header).toContain("validateNewProjectFields");
 });
 
 test("F4: the leveling simulate control's label matches what it opens", () => {
   const levelingView = find("BidLevelingMatrixView.tsx", componentSources);
   expect(levelingView).not.toContain("Simulate Inbound Bid…");
   expect(levelingView).toContain("Open Demo Simulation…");
-  expect(levelingView).toContain("Scenario B (deceptive bid)");
+  expect(levelingView).toContain("Scenario B (exclusion-heavy bid)");
 });
 
 test("F6: the RFI form sends an explicit target trade package", () => {
@@ -175,8 +180,8 @@ test("F9: inbox copy reflects plan-limit sharing, never a 'dedicated' claim", ()
   expect(tour).toContain("packages share an inbox once the plan limit is reached");
 
   const http = find("http.ts", convexSources);
-  expect(http).toContain("shared when the free-tier plan limit is reached");
   expect(http).not.toContain("Dedicated Stateful Project Inboxes");
+  expect(llmsTxt).not.toMatch(/dedicated/i);
 
   const diag = find("SponsorDiagnosticsView.tsx", componentSources);
   expect(diag).not.toContain("Dedicated Stateful Project Inboxes");
@@ -236,4 +241,48 @@ test("License UI never calls a license verified; only an active CSLB result is s
   expect(license).toContain('unverified: { label: "License unverified"');
   expect(license).toContain('none: { label: "No license check yet"');
   expect(reviews).toContain('none: "No license check yet"');
+});
+
+const FORBIDDEN_BRAND_COPY = [/all gas/i, /hackathon/i, /tradepulse pro\b/i, /wayne sutton/i, /vibe apps/i, /convex reactive/i];
+
+test("the product is TradePulse Pay everywhere a non-demo user or crawler looks", () => {
+  const header = find("Header.tsx", componentSources);
+  const app = find("App.tsx", rootSources);
+  for (const [label, src] of [
+    ["Header.tsx", header],
+    ["App.tsx", app],
+    ["llmsTxt.ts", llmsTxt],
+  ] as const) {
+    for (const pattern of FORBIDDEN_BRAND_COPY) expect(src, `${label} matches ${pattern}`).not.toMatch(pattern);
+  }
+  expect(header).toContain("TradePulse <span className=\"text-emerald-400\">Pay</span>");
+  expect(llmsTxt).toContain("TradePulse Pay");
+  expect(llmsTxt).toContain("github.com/bO-05/tradepulse-pay");
+  expect(find("http.ts", convexSources)).toContain("app: PRODUCT_NAME");
+});
+
+test("demo chrome is gated on the Demo company and the app keeps no browser-side data store", () => {
+  const app = find("App.tsx", rootSources);
+  expect(app).toContain("{isDemo && isTourOpen && (");
+  expect(app).toContain("{isDemo && (\n      <JudgeSimulationDock");
+  expect(app).toContain("const showDiagnostics = isDemo && activeTab === \"diagnostics\"");
+  expect(app).not.toMatch(/loadStandaloneData|saveStandaloneData|standaloneState|localStorage\.setItem\("tradepulse_standalone/);
+  // VAL-BRAND-006: the client never seeds data on its own.
+  expect(app).not.toMatch(/seedDataMutation\(\{ force: false \}\)/);
+  expect(Object.keys(rootSources).some((path) => path.includes("standaloneStore"))).toBe(false);
+});
+
+test("bid-leveling and Q&A show simulation controls and help only to the Demo company", () => {
+  const app = find("App.tsx", rootSources);
+  expect(app).not.toContain("onOpenSimulation={() => setIsSimulationOpen(true)}\n            onReviewRfi");
+  expect(app.match(/onOpenSimulation=\{isDemo \? \(\) => setIsSimulationOpen\(true\) : undefined\}/g)).toHaveLength(2);
+  const leveling = find("BidLevelingMatrixView.tsx", componentSources);
+  const qna = find("PreBidQnAView.tsx", componentSources);
+  for (const src of [leveling, qna]) expect(src).toContain("onOpenSimulation?: () => void;");
+  // Every simulation control and its help copy sits behind the optional callback.
+  const gatedLeveling = leveling.replace(/\{onOpenSimulation && \([\s\S]*?Open Demo Simulation…[\s\S]*?\)\}/, "");
+  expect(gatedLeveling).not.toMatch(/Open Demo Simulation…\s*<\/button>/);
+  expect(leveling).toMatch(/onOpenSimulation\s*\?\s*", or simulated from the «Open Demo Simulation…» control/);
+  expect(leveling).not.toMatch(/or simulated from the\n\s*«Open Demo Simulation…» control/);
+  expect(qna).toMatch(/\{onOpenSimulation && \(\s*<button\s*onClick=\{onOpenSimulation\}[\s\S]*?Simulate Inbound RFI/);
 });

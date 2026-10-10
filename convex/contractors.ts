@@ -1,13 +1,26 @@
 import { query, mutation, internalMutation, internalQuery } from "./_generated/server";
-import { requireRole } from "./lib/roles";
+import { auditActor, requireDocScope, requireProjectScope } from "./lib/projectScope";
 import { v, ConvexError } from "convex/values";
 import { deleteContractorCascade } from "./payments/cascade";
 import { validateEmail, validateProjectText } from "./validation";
+import type { Doc, Id } from "./_generated/dataModel";
+import type { MutationCtx } from "./_generated/server";
+import { liveVendorByRawId } from "./lib/vendorRead";
+import {
+  alreadyBidderError,
+  confirmVendorEmail,
+  existingBidderFor,
+  inactiveVendorError,
+  insertDirectoryVendor,
+  packageBidders,
+  vendorForNewBidder,
+} from "./lib/vendorDirectory";
+import { gcConfirmedEmail } from "./lib/rfqEmail";
 
 export const listByPackage = query({
   args: { tradePackageId: v.id("tradePackages") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc", "owner"]);
+    await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"] });
     return await ctx.db
       .query("contractors")
       .withIndex("by_package", (q) => q.eq("tradePackageId", args.tradePackageId))
@@ -49,14 +62,25 @@ export const createContractor = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const tradePackage = await ctx.db.get(args.tradePackageId);
-    if (!tradePackage) throw new Error("Trade package not found");
-    return await ctx.db.insert("contractors", {
+    const access = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"], write: true });
+    const pkg = access.doc;
+    const fields = {
       ...args,
       companyName: validateProjectText(args.companyName, "Company name"),
       contactEmail: validateEmail(args.contactEmail),
+    };
+    const confirmation = { ...gcConfirmedEmail(fields.contactEmail), emailConfirmedByUserId: access.user._id };
+    const resolved = await vendorForNewBidder(ctx, pkg, { ...fields, emailSource: "gc", ...confirmation });
+    if (resolved !== null) {
+      if (resolved.vendor.status !== "active") throw inactiveVendorError(resolved.vendor.name);
+      if (resolved.existingBidder !== null) throw alreadyBidderError(resolved.vendor.name);
+    }
+    return await ctx.db.insert("contractors", {
+      ...fields,
+      ...(resolved !== null ? { vendorId: resolved.vendor._id } : {}),
       dispatchedAt: args.rfqStatus === "invited" ? Date.now() : undefined,
+      emailSource: "gc",
+      ...confirmation,
       updatedAt: Date.now(),
     });
   },
@@ -81,11 +105,22 @@ export const createContractorInternal = internalMutation({
   handler: async (ctx, args) => {
     const tradePackage = await ctx.db.get(args.tradePackageId);
     if (!tradePackage) throw new Error("Trade package not found");
-    return await ctx.db.insert("contractors", {
+    const fields = {
       ...args,
       companyName: validateProjectText(args.companyName, "Company name"),
       contactEmail: validateEmail(args.contactEmail),
+    };
+    const resolved = await vendorForNewBidder(ctx, tradePackage, { ...fields, emailSource: "document" });
+    if (resolved !== null) {
+      if (resolved.vendor.status !== "active") throw inactiveVendorError(resolved.vendor.name);
+      // A quote from a vendor that already bids on the package belongs to that bidder.
+      if (resolved.existingBidder !== null) return resolved.existingBidder._id;
+    }
+    return await ctx.db.insert("contractors", {
+      ...fields,
+      ...(resolved !== null ? { vendorId: resolved.vendor._id } : {}),
       dispatchedAt: args.rfqStatus === "invited" ? Date.now() : undefined,
+      emailSource: "document",
       updatedAt: Date.now(),
     });
   },
@@ -102,7 +137,7 @@ export const updateRfqStatus = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
+    await requireDocScope(ctx, "contractors", args.contractorId, { roles: ["gc"], write: true });
     const patchData: { rfqStatus: any; dispatchedAt?: number } = {
       rfqStatus: args.rfqStatus,
     };
@@ -156,10 +191,9 @@ export const updateContractor = mutation({
     expectedUpdatedAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
     const { contractorId, expectedUpdatedAt, ...fields } = args;
-    const contractor = await ctx.db.get(contractorId);
-    if (!contractor) throw new Error("Contractor not found");
+    const access = await requireDocScope(ctx, "contractors", contractorId, { roles: ["gc"], write: true });
+    const contractor = access.doc;
     if (
       expectedUpdatedAt !== undefined &&
       (contractor.updatedAt ?? contractor._creationTime) !== expectedUpdatedAt
@@ -168,12 +202,17 @@ export const updateContractor = mutation({
         "This contractor was changed in another session, so your edit was not saved. Reload the record and re-apply your change."
       );
     }
+    const contactEmail = validateEmail(args.contactEmail);
+    // A GC edit of the address counts as confirming it for RFQ email.
+    const emailEdited = contactEmail.trim().toLowerCase() !== contractor.contactEmail.trim().toLowerCase();
     await ctx.db.patch(contractorId, {
       ...fields,
       companyName: validateProjectText(args.companyName, "Company name"),
-      contactEmail: validateEmail(args.contactEmail),
+      contactEmail,
+      ...(emailEdited ? { ...gcConfirmedEmail(contactEmail), emailConfirmedByUserId: access.user._id } : {}),
       updatedAt: Date.now(),
     });
+    if (emailEdited) await confirmVendorEmail(ctx, contractor.vendorId, contactEmail);
     return { success: true };
   },
 });
@@ -183,9 +222,8 @@ export const deleteContractor = mutation({
     contractorId: v.id("contractors"),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const contractor = await ctx.db.get(args.contractorId);
-    if (!contractor) throw new Error("Contractor not found");
+    const access = await requireDocScope(ctx, "contractors", args.contractorId, { roles: ["gc"], write: true });
+    const contractor = access.doc;
 
     const tradePkg = await ctx.db.get(contractor.tradePackageId);
 
@@ -235,7 +273,7 @@ export const deleteContractor = mutation({
         eventType: "compliance_audit",
         title: `Contractor Removed: ${contractor.companyName}`,
         description: `Removed contractor ${contractor.companyName} (${contractor.licenseNumber}) and cascaded cleanup of associated bids and RFIs.`,
-        actor: "Procurement Manager",
+        ...auditActor(access),
         timestamp: Date.now(),
       });
     }
@@ -247,7 +285,7 @@ export const deleteContractor = mutation({
 export const listByProject = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc", "owner"]);
+    await requireProjectScope(ctx, args.projectId, { roles: ["gc"] });
     const packages = await ctx.db
       .query("tradePackages")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
@@ -286,6 +324,8 @@ export const batchInsertContractors = internalMutation({
     ),
   },
   handler: async (ctx, args) => {
+    const pkg = await ctx.db.get(args.tradePackageId);
+    if (!pkg) throw new Error("Trade package not found");
     const ids = [];
     for (const c of args.contractors) {
       // Dedupe by source page: two discovered records can legitimately share the
@@ -297,14 +337,100 @@ export const batchInsertContractors = internalMutation({
         .first();
 
       if (!existing) {
+        const resolved = await vendorForNewBidder(ctx, pkg, { ...c, emailSource: "web_discovery" });
+        // Discovery results never re-add an inactive vendor or a vendor already bidding here.
+        if (resolved !== null && (resolved.vendor.status !== "active" || resolved.existingBidder !== null)) continue;
         const id = await ctx.db.insert("contractors", {
           ...c,
           tradePackageId: args.tradePackageId,
           rfqStatus: "discovered",
+          emailSource: "web_discovery",
+          ...(resolved !== null ? { vendorId: resolved.vendor._id } : {}),
         });
         ids.push(id);
       }
     }
     return ids;
+  },
+});
+
+/** A new bidder row for a directory vendor, linked to the vendor's sub company when it is already on the project. */
+async function insertVendorBidder(
+  ctx: MutationCtx,
+  pkg: Doc<"tradePackages">,
+  vendor: Doc<"vendors">,
+): Promise<Id<"contractors">> {
+  let linkedCompanyId: Id<"companies"> | undefined;
+  if (vendor.linkedCompanyId !== undefined) {
+    const companyId = vendor.linkedCompanyId;
+    const member = await ctx.db
+      .query("projectMembers")
+      .withIndex("by_project_company_and_status", (q) =>
+        q.eq("projectId", pkg.projectId).eq("companyId", companyId).eq("status", "active"),
+      )
+      .first();
+    if (member !== null) linkedCompanyId = companyId;
+  }
+  return await ctx.db.insert("contractors", {
+    tradePackageId: pkg._id,
+    companyName: vendor.name,
+    contactEmail: vendor.email,
+    ...(vendor.phone ? { phone: vendor.phone } : {}),
+    licenseNumber: vendor.licenseNumber ?? "",
+    licenseStatus: vendor.licenseNumber
+      ? `Not checked — ${vendor.licenseState ? `${vendor.licenseState} ` : ""}license on file in the vendor directory`
+      : "No license on file",
+    sourceUrl: "",
+    rfqStatus: "discovered",
+    // RFQ email to this address is allowed only while the vendor's confirmation covers it (rfqAddressConfirmed).
+    emailSource: vendor.discoveredEmail !== undefined && vendor.discoveredEmail === vendor.email ? "web_discovery" : "directory",
+    vendorId: vendor._id,
+    ...(linkedCompanyId !== undefined ? { linkedCompanyId } : {}),
+    updatedAt: Date.now(),
+  });
+}
+
+/** "Add bidders from directory": active vendors of the project's GC company become bidders with vendorId. */
+export const addBiddersFromDirectory = mutation({
+  args: { tradePackageId: v.id("tradePackages"), vendorIds: v.array(v.string()) },
+  handler: async (ctx, args) => {
+    const { doc: pkg, project } = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"], write: true });
+    if (args.vendorIds.length === 0) throw new ConvexError({ code: "INVALID" as const, message: "Choose at least one vendor.", field: "vendor" });
+    if (args.vendorIds.length > 50) throw new ConvexError({ code: "INVALID" as const, message: "Add at most 50 bidders at a time.", field: "vendor" });
+    const existing = await packageBidders(ctx, pkg);
+    const vendors: Doc<"vendors">[] = [];
+    for (const raw of args.vendorIds) {
+      const vendor = await liveVendorByRawId(ctx, raw);
+      if (vendor === null || vendor.companyId !== project.gcCompanyId) throw new ConvexError({ code: "NOT_FOUND" as const, message: "Not found." });
+      if (vendor.status !== "active") throw inactiveVendorError(vendor.name);
+      if (existingBidderFor(existing, vendor) !== null || vendors.some((x) => x._id === vendor._id)) throw alreadyBidderError(vendor.name);
+      vendors.push(vendor);
+    }
+    const contractorIds = [];
+    for (const vendor of vendors) contractorIds.push(await insertVendorBidder(ctx, pkg, vendor));
+    return { contractorIds };
+  },
+});
+
+/** "New vendor" in the bidder dialog: creates the vendor in the GC directory and adds it as a bidder. */
+export const createVendorBidder = mutation({
+  args: {
+    tradePackageId: v.id("tradePackages"),
+    name: v.string(),
+    trades: v.array(v.string()),
+    contactName: v.optional(v.string()),
+    email: v.string(),
+    phone: v.optional(v.string()),
+    licenseNumber: v.optional(v.string()),
+    licenseState: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { doc: pkg, project } = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"], write: true });
+    if (project.gcCompanyId === undefined) throw new ConvexError({ code: "NOT_FOUND" as const, message: "Not found." });
+    const { tradePackageId: _pkg, ...fields } = args;
+    const trades = fields.trades.length > 0 ? fields.trades : [pkg.csiDivision];
+    const vendor = await insertDirectoryVendor(ctx, project.gcCompanyId, { ...fields, trades });
+    const contractorId = await insertVendorBidder(ctx, pkg, vendor);
+    return { vendorId: vendor._id, contractorId };
   },
 });

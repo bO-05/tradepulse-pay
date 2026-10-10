@@ -1,13 +1,13 @@
 import { ConvexError, v, type Infer } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
-import { receiverFor } from "./releaseDb";
-import { isInterruptedRelease, releasableRetainageCents } from "./retainageMath";
+import { payoutBlockedMessage, payoutReceiverForContractor } from "../lib/payee";
+import { availableRetainageCents, isInterruptedRelease } from "./retainageMath";
 
 /**
  * Database side of the closeout retainage release (architecture §4 step 4). One agreement has one sub,
- * so a release pays that sub the agreement's releasable retainage (retainageMath.releasableRetainageCents)
- * through one retainage_release payment.
+ * so a release pays that sub the agreement's releasable retainage not reserved by a payment in flight
+ * (retainageMath.availableRetainageCents) through one retainage_release payment.
  * The matching negative ledger row is written when PayPal accepts the batch (payoutDb.recordPayoutCreated),
  * which takes the releasable amount to 0; that is what keeps a second release from paying anything.
  */
@@ -45,16 +45,17 @@ export const beginRetainageRelease = internalMutation({
     const inFlight = releases.find((p) => p.status === "created");
     if (inFlight) return { state: "in_flight", paymentId: inFlight._id, amountCents: inFlight.netCents };
 
-    const balanceCents = releasableRetainageCents(payments, await ledgerRows(ctx, agreementId));
+    const balanceCents = availableRetainageCents(payments, await ledgerRows(ctx, agreementId));
     if (balanceCents <= 0) return { state: "nothing_to_release", balanceCents };
 
-    const receiverEmail = await receiverFor(ctx, agreement.contractorId);
-    if (!receiverEmail) {
+    const receiver = await payoutReceiverForContractor(ctx, agreement.contractorId);
+    if (!receiver.ok) {
       throw new ConvexError({
         code: "NO_PAYOUT_ACCOUNT",
-        message: `${agreement.subcontractorName} has no PayPal payout email on file. No retainage was released.`,
+        message: payoutBlockedMessage(agreement.subcontractorName, receiver.reason, "No retainage was released."),
       });
     }
+    const receiverEmail = receiver.email;
     const paymentId = await ctx.db.insert("payments", {
       agreementId,
       kind: "retainage_release",

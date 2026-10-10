@@ -5,7 +5,8 @@ import type { FunctionReference } from "convex/server";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
 import { agentIdProfile, syncAgentProfile } from "./lib/agentAccess";
-import { signInAs } from "./lib/testIdentity";
+import { withSession, signInAs } from "./lib/testIdentity";
+import { projectSetupArgs } from "./lib/projectSetupFixture";
 
 const modules = import.meta.glob("./**/*.ts");
 type T = TestConvex<typeof schema>;
@@ -14,7 +15,7 @@ type Caller = Pick<T, "query" | "mutation" | "action">;
 type AnyRef = FunctionReference<any, "public", any, any>;
 
 const TABLES = Object.keys(schema.tables) as (keyof typeof schema.tables)[];
-const DENIED = /Not authenticated|Forbidden/;
+const DENIED = /Not authenticated|Forbidden|Not found/;
 const LINKED_AGENT_EMAIL = "boldlevel182@agentmail.to";
 const SECRET_CO_DESCRIPTION = "Sweep fixture change order";
 
@@ -34,7 +35,7 @@ async function signInAgent(t: T, email: string, sub: string) {
     await ctx.db.insert("authAccounts", { userId, provider: "agentid", providerAccountId: id });
     return userId;
   });
-  return t.withIdentity({ subject: `${userId}|agent-session`, email });
+  return await withSession(t, userId, email);
 }
 
 /** Executed agreement with a funded milestone, a payout, retainage, a pending proposal, a change order and an agent link. */
@@ -131,14 +132,55 @@ async function setup() {
     });
     const changeOrderId = await ctx.db.insert("changeOrders", {
       agreementId,
+      projectId: base.agreement.projectId,
+      scope: "subcontract",
       number: 1,
+      title: "Sweep change order",
       description: SECRET_CO_DESCRIPTION,
       amountCents: 50_000,
-      status: "draft",
+      status: "submitted",
+      requestedByParty: "sub",
       createdAt: now,
     });
     const linkId = (await ctx.db.query("agentLinks").first())!._id;
+    const primeLineId = await ctx.db.insert("primeLines", {
+      projectId: base.agreement.projectId,
+      lineNo: 1,
+      description: "General conditions",
+      scheduledValueCents: 100_000,
+      createdAt: now,
+    });
+    const zero = {
+      originalContractSumCents: 0,
+      netChangeOrdersCents: 0,
+      contractSumToDateCents: 0,
+      completedAndStoredCents: 0,
+      retainageCents: 0,
+      retainageWorkCents: 0,
+      retainageStoredCents: 0,
+      earnedLessRetainageCents: 0,
+      previousCertificatesCents: 0,
+      currentPaymentDueCents: 10_000,
+      balanceToFinishInclRetainageCents: 0,
+    };
+    const ownerPayAppId = await ctx.db.insert("ownerPayApps", {
+      projectId: base.agreement.projectId,
+      applicationNo: 1,
+      periodStart: "2026-10-01",
+      periodEnd: "2026-10-25",
+      status: "submitted_to_owner",
+      lines: [],
+      retainageBps: 500,
+      figures: zero,
+      pendingSubPayApps: 0,
+      history: [{ status: "submitted_to_owner", at: now, byUserId: sub1.userId, byName: "GC" }],
+      createdBy: sub1.userId,
+      createdAt: now,
+      updatedAt: now,
+    });
     return {
+      primeLineId,
+      ownerPayAppId,
       milestoneId: milestone._id,
       fundingId,
       payoutId,
@@ -183,7 +225,27 @@ const a = (name: string, fn: AnyRef, args: Case["args"]): Case => ({ name, kind:
 const GC_ONLY: Case[] = [
   m("bids:awardContract (award)", api.bids.awardContract, (i) => ({ bidId: i.bidId, tradePackageId: i.tradePackageId })),
   m("agreements:executeAgreement (execute)", api.agreements.executeAgreement, (i) => ({ agreementId: i.agreementId })),
+  m("agreementTerms:updateAgreementTerms", api.agreementTerms.updateAgreementTerms, (i) => ({
+    agreementId: i.agreementId,
+    terms: {
+      retainageBps: 500,
+      paymentTerms: { type: "net", days: 30 },
+      insurance: {
+        glEachOccurrenceCents: 100_000_000,
+        glAggregateCents: 200_000_000,
+        autoCents: 100_000_000,
+        umbrellaCents: 500_000_000,
+        workersComp: true,
+        additionalInsured: true,
+      },
+      warrantyMonths: 12,
+      governingState: "TX",
+    },
+  })),
   m("projects:seedInitialData (reset/seed)", api.projects.seedInitialData, () => ({ force: true })),
+  m("projects:updateProject (settings)", api.projects.updateProject, (i) => ({ projectId: i.projectId, ...projectSetupArgs() })),
+  m("projects:archiveProject", api.projects.archiveProject, (i) => ({ projectId: i.projectId })),
+  m("projects:restoreProject", api.projects.restoreProject, (i) => ({ projectId: i.projectId })),
   a("payments/orders:createFundingOrder (fund)", api.payments.orders.createFundingOrder, (i) => ({ milestoneId: i.milestoneId })),
   a("payments/orders:authorizeFundingOrder (fund)", api.payments.orders.authorizeFundingOrder, () => ({ orderId: "SWEEP-ORDER-1" })),
   a("payments/release:releaseAndPay (capture + payout)", api.payments.release.releaseAndPay, (i) => ({
@@ -200,10 +262,16 @@ const GC_ONLY: Case[] = [
     agreementId: i.agreementId,
   })),
   a("payments/retainage:resumeRetainageRelease", api.payments.retainage.resumeRetainageRelease, (i) => ({ paymentId: i.retainageId })),
-  a("payments/invoices:createChangeOrder (change-order create)", api.payments.invoices.createChangeOrder, (i) => ({
-    agreementId: i.agreementId,
-    description: "Forged change order",
+  m("billing/changeOrders:createChangeOrder (prime)", api.billing.changeOrders.createChangeOrder, (i) => ({
+    scope: "prime",
+    projectId: i.projectId,
+    title: "Forged change order",
     amountCents: 12_345,
+  })),
+  m("billing/changeOrders:approveChangeOrder (subcontract)", api.billing.changeOrders.approveChangeOrder, (i) => ({ changeOrderId: i.changeOrderId })),
+  m("billing/changeOrders:rejectChangeOrder (subcontract)", api.billing.changeOrders.rejectChangeOrder, (i) => ({
+    changeOrderId: i.changeOrderId,
+    reason: "Forged",
   })),
   a("payments/invoices:sendChangeOrderInvoice", api.payments.invoices.sendChangeOrderInvoice, (i) => ({ changeOrderId: i.changeOrderId })),
   m("agentLinks:addAgentLink", api.agentLinks.addAgentLink, (i) => ({ agentEmail: "forged@agentmail.to", contractorId: i.contractorId })),
@@ -218,13 +286,37 @@ const GC_ONLY: Case[] = [
   m("payApps/proposals:rejectPayApp", api.payApps.proposals.rejectPayApp, (i) => ({ payAppId: i.payAppId })),
   a("payApps/review:rerunPayAppReview", api.payApps.review.rerunPayAppReview, (i) => ({ payAppId: i.payAppId })),
   a("payApps/reviewEvals:executePayAppReviewEvalSuite", api.payApps.reviewEvals.executePayAppReviewEvalSuite, () => ({})),
+  m("billing/tranches:createTranche", api.billing.tranches.createTranche, (i) => ({ agreementId: i.agreementId, name: "Forged", amountCents: 100 })),
+  m("billing/tranches:updateTranche", api.billing.tranches.updateTranche, (i) => ({ trancheId: i.milestoneId, amountCents: 100 })),
+  m("billing/tranches:deleteTranche", api.billing.tranches.deleteTranche, (i) => ({ trancheId: i.milestoneId })),
+  m("billing/tranches:moveTranche", api.billing.tranches.moveTranche, (i) => ({ trancheId: i.milestoneId, direction: "down" })),
+  a("billing/pay:payPayApp (capture + payout)", api.billing.pay.payPayApp, (i) => ({ payAppId: i.payAppId })),
   m("kernel/licenseChecks:requestLicenseCheck", api.kernel.licenseChecks.requestLicenseCheck, (i) => ({ contractorId: i.contractorId })),
+  m("billing/primeLines:addPrimeLine", api.billing.primeLines.addPrimeLine, (i) => ({ projectId: i.projectId, description: "Forged", scheduledValueCents: 100 })),
+  m("billing/primeLines:updatePrimeLine", api.billing.primeLines.updatePrimeLine, (i) => ({
+    primeLineId: i.primeLineId,
+    description: "Forged",
+    scheduledValueCents: 100,
+  })),
+  m("billing/primeLines:deletePrimeLine", api.billing.primeLines.deletePrimeLine, (i) => ({ primeLineId: i.primeLineId })),
+  m("billing/ownerPayApps:createOwnerPayApp", api.billing.ownerPayApps.createOwnerPayApp, (i) => ({ projectId: i.projectId })),
+  m("billing/ownerPayApps:saveOwnerPayApp", api.billing.ownerPayApps.saveOwnerPayApp, (i) => ({ ownerPayAppId: i.ownerPayAppId, entries: [] })),
+  m("billing/ownerPayApps:submitOwnerPayApp", api.billing.ownerPayApps.submitOwnerPayApp, (i) => ({ ownerPayAppId: i.ownerPayAppId })),
+  m("billing/ownerPayApps:deleteOwnerPayApp", api.billing.ownerPayApps.deleteOwnerPayApp, (i) => ({ ownerPayAppId: i.ownerPayAppId })),
+  a("billing/ownerInvoices:sendOwnerPayAppInvoice", api.billing.ownerInvoices.sendOwnerPayAppInvoice, (i) => ({ ownerPayAppId: i.ownerPayAppId })),
 ];
 
 /** Read-only at PayPal; the owner may refresh the invoice it pays. Everyone else is refused. */
 const GC_OR_OWNER: Case[] = [
   a("payments/invoices:refreshChangeOrderStatus", api.payments.invoices.refreshChangeOrderStatus, (i) => ({
     changeOrderId: i.changeOrderId,
+  })),
+  a("billing/ownerInvoices:refreshOwnerPayAppStatus", api.billing.ownerInvoices.refreshOwnerPayAppStatus, (i) => ({ ownerPayAppId: i.ownerPayAppId })),
+  // Owner-only decisions: no other caller in the sweep (and not the GC, see ownerPayApps.test.ts) gets through.
+  a("billing/ownerInvoices:approveOwnerPayApp", api.billing.ownerInvoices.approveOwnerPayApp, (i) => ({ ownerPayAppId: i.ownerPayAppId })),
+  m("billing/ownerPayApps:requestOwnerPayAppChanges", api.billing.ownerPayApps.requestOwnerPayAppChanges, (i) => ({
+    ownerPayAppId: i.ownerPayAppId,
+    comment: "Forged",
   })),
 ];
 
@@ -245,7 +337,7 @@ describe("GC-only money and admin functions reject every other caller", () => {
     const before = await snapshot(t);
     for (const [label, caller] of Object.entries(wrongRole)) {
       const call = c.kind === "mutation" ? caller.mutation(c.fn, c.args(ids)) : caller.action(c.fn, c.args(ids));
-      await expect(call, `${c.name} as ${label}`).rejects.toThrow(label === "unauthenticated" ? /Not authenticated/ : /Forbidden/);
+      await expect(call, `${c.name} as ${label}`).rejects.toThrow(label === "unauthenticated" ? /Not authenticated/ : /Forbidden|Not found/);
     }
     expect(await snapshot(t)).toBe(before);
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -257,7 +349,7 @@ describe("GC-only money and admin functions reject every other caller", () => {
     for (const [label, caller] of Object.entries(wrongRole)) {
       if (label === "owner") continue;
       const call = c.kind === "mutation" ? caller.mutation(c.fn, c.args(ids)) : caller.action(c.fn, c.args(ids));
-      await expect(call, `${c.name} as ${label}`).rejects.toThrow(label === "unauthenticated" ? /Not authenticated/ : /Forbidden/);
+      await expect(call, `${c.name} as ${label}`).rejects.toThrow(label === "unauthenticated" ? /Not authenticated/ : /Forbidden|Not found/);
     }
     expect(await snapshot(t)).toBe(before);
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -269,7 +361,7 @@ describe("GC-only money and admin functions reject every other caller", () => {
     expect((await t.run((ctx) => ctx.db.get(ids.proposalId)))!.editedAmountCents).toBe(5_000);
     await gc.mutation(api.agentLinks.revokeAgentLink, { linkId: ids.linkId });
     expect((await t.run((ctx) => ctx.db.get(ids.linkId)))!.status).toBe("revoked");
-    await gc.mutation(api.payApps.proposals.rejectProposal, { proposalId: ids.proposalId });
+    await gc.mutation(api.payApps.proposals.rejectProposal, { proposalId: ids.proposalId, reason: "Not supported" });
     expect((await t.run((ctx) => ctx.db.get(ids.proposalId)))!.status).toBe("rejected");
   });
 });
@@ -279,14 +371,30 @@ describe("agreement ledger and payment reads", () => {
   const READS: ReadCase[] = [
     { name: "payments/ledger:getAgreementLedger", fn: api.payments.ledger.getAgreementLedger, args: (i) => ({ agreementId: i.agreementId }) },
     { name: "payments/ledger:listLedgerAgreements", fn: api.payments.ledger.listLedgerAgreements, args: () => ({}) },
-    { name: "payments/changeOrderDb:listForAgreement", fn: api.payments.changeOrderDb.listForAgreement, args: (i) => ({ agreementId: i.agreementId }) },
+    { name: "billing/changeOrders:listForAgreement", fn: api.billing.changeOrders.listForAgreement, args: (i) => ({ agreementId: i.agreementId }) },
+    { name: "billing/changeOrders:getChangeOrder", fn: api.billing.changeOrders.getChangeOrder, args: (i) => ({ changeOrderId: i.changeOrderId }) },
+    { name: "billing/changeOrders:listForProject", fn: api.billing.changeOrders.listForProject, args: (i) => ({ projectId: i.projectId }) },
     { name: "payApps/review:listAgreementPayApps", fn: api.payApps.review.listAgreementPayApps, args: (i) => ({ agreementId: i.agreementId }) },
     { name: "payApps/submit:payAppFormContext", fn: api.payApps.submit.payAppFormContext, args: (i) => ({ agreementId: i.agreementId }) },
     { name: "payApps/proposals:listInbox", fn: api.payApps.proposals.listInbox, args: () => ({}) },
     { name: "payApps/proposals:getAgentTrace", fn: api.payApps.proposals.getAgentTrace, args: (i) => ({ payAppId: i.payAppId }) },
     { name: "portal:getAgreementSummary", fn: api.portal.getAgreementSummary, args: (i) => ({ agreementId: i.agreementId }) },
+    { name: "agreementTerms:getAgreementTerms", fn: api.agreementTerms.getAgreementTerms, args: (i) => ({ agreementId: i.agreementId }) },
     { name: "portal:mySubPortal", fn: api.portal.mySubPortal, args: () => ({}) },
     { name: "portal:mySubPayApps", fn: api.portal.mySubPayApps, args: () => ({ paginationOpts: { numItems: 50, cursor: null } }) },
+    { name: "payApps/g703:getPayApp", fn: api.payApps.g703.getPayApp, args: (i) => ({ payAppId: i.payAppId }) },
+    { name: "payApps/g703:payAppLines", fn: api.payApps.g703.payAppLines, args: (i) => ({ payAppId: i.payAppId }) },
+    { name: "payApps/g703:mySubPayAppAgreements", fn: api.payApps.g703.mySubPayAppAgreements, args: () => ({}) },
+    { name: "payApps/g703:gcBillingWorklist", fn: api.payApps.g703.gcBillingWorklist, args: () => ({}) },
+    { name: "billing/canPay:canPay", fn: api.billing.canPay.canPay, args: (i) => ({ payAppId: i.payAppId }) },
+    { name: "billing/canPay:paymentPanel", fn: api.billing.canPay.paymentPanel, args: (i) => ({ payAppId: i.payAppId }) },
+    { name: "billing/tranches:listTranches", fn: api.billing.tranches.listTranches, args: (i) => ({ agreementId: i.agreementId }) },
+    { name: "billing/tranches:ownerProjectTranches", fn: api.billing.tranches.ownerProjectTranches, args: (i) => ({ projectId: i.projectId }) },
+    { name: "billing/retainage:projectRetainage", fn: api.billing.retainage.projectRetainage, args: () => ({}) },
+    { name: "billing/ownerPayApps:ownerBillingProjects", fn: api.billing.ownerPayApps.ownerBillingProjects, args: () => ({}) },
+    { name: "billing/ownerPayApps:listOwnerPayApps", fn: api.billing.ownerPayApps.listOwnerPayApps, args: (i) => ({ projectId: i.projectId }) },
+    { name: "billing/ownerPayApps:getOwnerPayApp", fn: api.billing.ownerPayApps.getOwnerPayApp, args: (i) => ({ ownerPayAppId: i.ownerPayAppId }) },
+    { name: "billing/primeLines:listPrimeLines", fn: api.billing.primeLines.listPrimeLines, args: (i) => ({ projectId: i.projectId }) },
     { name: "kernel/licenseChecks:getContractorLicense", fn: api.kernel.licenseChecks.getContractorLicense, args: (i) => ({ contractorId: i.contractorId }) },
   ];
 
@@ -324,46 +432,84 @@ describe("agreement ledger and payment reads", () => {
   });
 });
 
-describe("legacy procurement reads are GC/owner only", () => {
-  type ReadCase = { name: string; fn: AnyRef; args: (i: Ids) => Record<string, unknown> };
-  const LEGACY_READS: ReadCase[] = [
-    { name: "agreements:listAgreements", fn: api.agreements.listAgreements, args: (i) => ({ projectId: i.projectId }) },
-    { name: "agreements:getAgreementByBid", fn: api.agreements.getAgreementByBid, args: (i) => ({ bidId: i.bidId }) },
-    { name: "agreements:getAgreementByPackage", fn: api.agreements.getAgreementByPackage, args: (i) => ({ tradePackageId: i.tradePackageId }) },
-    { name: "auditLogs:listRecentLogs", fn: api.auditLogs.listRecentLogs, args: (i) => ({ projectId: i.projectId }) },
-    { name: "bids:listByPackage", fn: api.bids.listByPackage, args: (i) => ({ tradePackageId: i.tradePackageId }) },
-    { name: "bids:listAllProjectBids", fn: api.bids.listAllProjectBids, args: (i) => ({ projectId: i.projectId }) },
-    { name: "contractors:listByPackage", fn: api.contractors.listByPackage, args: (i) => ({ tradePackageId: i.tradePackageId }) },
-    { name: "contractors:listByProject", fn: api.contractors.listByProject, args: (i) => ({ projectId: i.projectId }) },
-    { name: "coordination:detectCrossTradeClashes", fn: api.coordination.detectCrossTradeClashes, args: (i) => ({ projectId: i.projectId }) },
-    { name: "crons:getCronStatus", fn: api.crons.getCronStatus, args: () => ({}) },
-    { name: "evals:getLatestEvalRun", fn: api.evals.getLatestEvalRun, args: () => ({}) },
-    { name: "evals:listTracesForRun", fn: api.evals.listTracesForRun, args: () => ({ runId: "eval_1" }) },
-    { name: "files:listFilesByProject", fn: api.files.listFilesByProject, args: (i) => ({ projectId: i.projectId }) },
-    { name: "files:listFilesByPackage", fn: api.files.listFilesByPackage, args: (i) => ({ tradePackageId: i.tradePackageId }) },
-    { name: "llmRouter:getProviderAvailability", fn: api.llmRouter.getProviderAvailability, args: () => ({}) },
-    { name: "projects:getDemoProject", fn: api.projects.getDemoProject, args: () => ({}) },
-    { name: "projects:listProjects", fn: api.projects.listProjects, args: () => ({}) },
-    { name: "projects:getProject", fn: api.projects.getProject, args: (i) => ({ projectId: i.projectId }) },
-    { name: "rfq:listConversations", fn: api.rfq.listConversations, args: (i) => ({ tradePackageId: i.tradePackageId }) },
-    { name: "rfq:getProjectDeliveryStatus", fn: api.rfq.getProjectDeliveryStatus, args: (i) => ({ projectId: i.projectId }) },
-    { name: "tradePackages:listByProject", fn: api.tradePackages.listByProject, args: (i) => ({ projectId: i.projectId }) },
-    { name: "tradePackages:getPackage", fn: api.tradePackages.getPackage, args: (i) => ({ tradePackageId: i.tradePackageId }) },
+describe("procurement reads admit only the parties allowed on the project", () => {
+  type Label = "gc" | "unauthenticated" | "sub (own contractor)" | "sub (other contractor)" | "owner" | "unlinked agent" | "linked billing agent";
+  type ReadCase = { name: string; fn: AnyRef; args: (i: Ids) => Record<string, unknown>; allow: Label[] };
+  const SUBS: Label[] = ["sub (own contractor)", "sub (other contractor)", "linked billing agent"];
+  const READS: ReadCase[] = [
+    { name: "agreements:listAgreements", fn: api.agreements.listAgreements, args: (i) => ({ projectId: i.projectId }), allow: ["gc", "owner", ...SUBS] },
+    { name: "agreements:getAgreementByBid", fn: api.agreements.getAgreementByBid, args: (i) => ({ bidId: i.bidId }), allow: ["gc"] },
+    { name: "agreements:getAgreementByPackage", fn: api.agreements.getAgreementByPackage, args: (i) => ({ tradePackageId: i.tradePackageId }), allow: ["gc"] },
+    // An explicit inaccessible project reads like a deleted one: "Not found.".
+    { name: "auditLogs:listRecentLogs", fn: api.auditLogs.listRecentLogs, args: (i) => ({ projectId: i.projectId }), allow: ["gc", "owner", ...SUBS] },
+    { name: "bids:listByPackage", fn: api.bids.listByPackage, args: (i) => ({ tradePackageId: i.tradePackageId }), allow: ["gc"] },
+    { name: "bids:listAllProjectBids", fn: api.bids.listAllProjectBids, args: (i) => ({ projectId: i.projectId }), allow: ["gc"] },
+    { name: "contractors:listByPackage", fn: api.contractors.listByPackage, args: (i) => ({ tradePackageId: i.tradePackageId }), allow: ["gc"] },
+    { name: "contractors:listByProject", fn: api.contractors.listByProject, args: (i) => ({ projectId: i.projectId }), allow: ["gc"] },
+    { name: "coordination:detectCrossTradeClashes", fn: api.coordination.detectCrossTradeClashes, args: (i) => ({ projectId: i.projectId }), allow: ["gc"] },
+    { name: "crons:getCronStatus", fn: api.crons.getCronStatus, args: () => ({}), allow: ["gc", "owner"] },
+    { name: "evals:getLatestEvalRun", fn: api.evals.getLatestEvalRun, args: () => ({}), allow: ["gc"] },
+    { name: "evals:listTracesForRun", fn: api.evals.listTracesForRun, args: () => ({ runId: "eval_1" }), allow: ["gc"] },
+    { name: "files:listFilesByProject", fn: api.files.listFilesByProject, args: (i) => ({ projectId: i.projectId }), allow: ["gc", "owner"] },
+    { name: "files:listFilesByPackage", fn: api.files.listFilesByPackage, args: (i) => ({ tradePackageId: i.tradePackageId }), allow: ["gc", "owner"] },
+    { name: "llmRouter:getProviderAvailability", fn: api.llmRouter.getProviderAvailability, args: () => ({}), allow: ["gc", "owner"] },
+    { name: "projects:getDemoProject", fn: api.projects.getDemoProject, args: () => ({}), allow: ["gc", "owner"] },
+    { name: "projects:listProjects", fn: api.projects.listProjects, args: () => ({}), allow: ["gc", "owner", ...SUBS] },
+    { name: "projects:getProject", fn: api.projects.getProject, args: (i) => ({ projectId: i.projectId }), allow: ["gc", "owner", ...SUBS] },
+    { name: "rfq:listConversations", fn: api.rfq.listConversations, args: (i) => ({ tradePackageId: i.tradePackageId }), allow: ["gc", ...SUBS] },
+    { name: "rfq:getProjectDeliveryStatus", fn: api.rfq.getProjectDeliveryStatus, args: (i) => ({ projectId: i.projectId }), allow: ["gc"] },
+    { name: "tradePackages:listByProject", fn: api.tradePackages.listByProject, args: (i) => ({ projectId: i.projectId }), allow: ["gc", "owner"] },
+    { name: "tradePackages:getPackage", fn: api.tradePackages.getPackage, args: (i) => ({ tradePackageId: i.tradePackageId }), allow: ["gc", "owner"] },
   ];
 
-  test.each(LEGACY_READS)("$name rejects unauthenticated, sub and agent callers; GC and owner can read", async (c) => {
+  test.each(READS)("$name", async (c) => {
     const { gc, ids, wrongRole } = await setup();
-    for (const label of ["unauthenticated", "sub (own contractor)", "sub (other contractor)", "unlinked agent", "linked billing agent"]) {
-      await expect(wrongRole[label].query(c.fn, c.args(ids)), `${c.name} as ${label}`).rejects.toThrow(DENIED);
+    const callers: Record<Label, Caller> = { gc, ...(wrongRole as Record<Exclude<Label, "gc">, Caller>) };
+    for (const [label, caller] of Object.entries(callers) as [Label, Caller][]) {
+      const call = caller.query(c.fn, c.args(ids));
+      if (c.allow.includes(label)) await expect(call, `${c.name} as ${label}`).resolves.toBeDefined();
+      else await expect(call, `${c.name} as ${label}`).rejects.toThrow(DENIED);
     }
-    await expect(gc.query(c.fn, c.args(ids))).resolves.toBeDefined();
-    await expect(wrongRole.owner.query(c.fn, c.args(ids))).resolves.toBeDefined();
   });
 });
 
 describe("static guard sweep over convex/**", () => {
   const sources = import.meta.glob("./**/*.ts", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
-  const GUARD = /\b(requireRole|requireRoleInAction|requireAgreementAccess|getViewer)\(/;
+  const TENANCY_GUARDS = [
+    "requireProjectScope",
+    "requireDocScope",
+    "findDocScope",
+    "findSubcontractDocScope",
+    "scopedAgreements",
+    "gcAgreementsAndOwnerProjects",
+    "requireProjectScopeInAction",
+    "requireDemoCompany",
+    "requireDemoCompanyInAction",
+    "callerProjects",
+    "subContractorScope",
+    "requireProjectAccess",
+    "requireDocInProject",
+    "requireCompanyMember",
+    "requireCompanyMemberInAction",
+    "accessibleProjectIds",
+  ];
+  const TENANCY = new RegExp(`\\b(${TENANCY_GUARDS.join("|")})\\(`);
+  const GUARD = new RegExp(`\\b(requireRole|requireRoleInAction|requireAgreementAccess|getViewer|requireVerifiedUser|${TENANCY_GUARDS.join("|")})\\(`);
+  // Same lists as scripts/tools/guard-audit.mjs.
+  const NO_PROJECT_DATA = new Set([
+    "crons:getCronStatus",
+    "llmRouter:getProviderAvailability",
+    "llmRouter:runModelDiagnostic",
+    "contractorDiscovery:scrapeContractorWebsite",
+    "profiles:me",
+    "onboarding:createCompany",
+    "invites:accept",
+    "invites:acceptMine",
+    "invites:listMine",
+    "invites:getByToken",
+  ]);
+  // Public before sign-in by design; the invite token is the credential (see guard-audit.mjs TOKEN_GATED).
+  const TOKEN_GATED = new Set(["invites:getByToken"]);
 
   function publicExports() {
     const out: { name: string; kind: string; body: string }[] = [];
@@ -383,15 +529,69 @@ describe("static guard sweep over convex/**", () => {
   test("every exported public query, mutation and action checks the caller's role", () => {
     const fns = publicExports().filter((f) => f.kind !== "httpAction");
     expect(fns.length).toBeGreaterThan(100);
-    expect(fns.filter((f) => !GUARD.test(f.body)).map((f) => f.name)).toEqual([]);
+    expect(fns.filter((f) => !GUARD.test(f.body) && !TOKEN_GATED.has(f.name)).map((f) => f.name)).toEqual([]);
+    const tokenGated = fns.find((f) => f.name === "invites:getByToken")!;
+    expect(tokenGated.body.search(/hashInviteToken\(token\)/)).toBeGreaterThan(-1);
+    expect(tokenGated.body.search(/hashInviteToken\(token\)/)).toBeLessThan(tokenGated.body.search(/ctx\.db/));
+    expect(tokenGated.body).not.toMatch(/ctx\.db\.(insert|patch|replace|delete)|runMutation/);
   });
 
-  test("exported httpActions are the PayPal webhook (signature verified before any write) and the auth-gated Studio AI proxy", () => {
+  test("every public function has a company-tenancy guard unless it reads no project data", () => {
+    const fns = publicExports().filter((f) => f.kind !== "httpAction");
+    const missing = fns.filter((f) => !TENANCY.test(f.body) && !NO_PROJECT_DATA.has(f.name));
+    expect(missing.map((f) => f.name)).toEqual([]);
+    for (const mod of [
+      "projects",
+      "tradePackages",
+      "contractors",
+      "bids",
+      "agreements",
+      "files",
+      "rfq",
+      "coordination",
+      "portal",
+      "agentLinks",
+      "payments/ledger",
+      "payments/orders",
+      "payments/release",
+      "payments/retainage",
+      "payments/invoices",
+      "billing/changeOrders",
+      "payments/sandboxTopUp",
+      "payApps/submit",
+      "payApps/g703",
+      "billing/sov",
+      "billing/tranches",
+      "billing/canPay",
+      "billing/pay",
+      "billing/retainage",
+      "billing/ownerPayApps",
+      "billing/ownerInvoices",
+      "billing/primeLines",
+      "documents/documents",
+      "payApps/review",
+      "payApps/proposals",
+      "payApps/reviewEvals",
+      "kernel/licenseChecks",
+      "dashboard/queries",
+      "dashboard/payAgent",
+      "judgeDemo/runs",
+    ]) {
+      expect(fns.filter((f) => f.name.startsWith(`${mod}:`) && TENANCY.test(f.body)).length, mod).toBeGreaterThan(0);
+    }
+  });
+
+  test("exported httpActions are the PayPal and AgentMail webhooks, the auth-gated Studio AI proxy and the authenticated file and document downloads", () => {
     const http = publicExports().filter((f) => f.kind === "httpAction");
     expect(http.map((f) => f.name).sort()).toEqual([
+      "agentmailWebhook:agentmailWebhook",
       "dashboard/studioProxy:studioPreflight",
       "dashboard/studioProxy:studioProxy",
+      "documents/download:documentDownload",
+      "documents/download:documentPreflight",
       "payments/webhook:paypalWebhook",
+      "projectFileDownload:projectFileDownload",
+      "projectFileDownload:projectFilePreflight",
     ]);
     const byName = new Map(http.map((f) => [f.name, f.body]));
 
@@ -401,15 +601,41 @@ describe("static guard sweep over convex/**", () => {
     expect(verifyAt).toBeGreaterThan(-1);
     expect(writeAt === -1 || verifyAt < writeAt).toBe(true);
 
+    const mailHook = byName.get("agentmailWebhook:agentmailWebhook")!;
+    const mailVerifyAt = mailHook.search(/verifyAgentMailWebhook\(/);
+    const mailWriteAt = mailHook.search(/runMutation|runAction/);
+    expect(mailVerifyAt).toBeGreaterThan(-1);
+    expect(mailWriteAt).toBeGreaterThan(mailVerifyAt);
+
     const proxy = byName.get("dashboard/studioProxy:studioProxy")!;
     const identityAt = proxy.search(/getUserIdentity/);
-    const roleAt = proxy.search(/requireRoleForAction/);
+    const roleAt = proxy.search(/internal\.dashboard\.studioAccess\.authorizeStudioCaller/);
     const fetchAt = proxy.search(/\bfetch\(/);
     expect(identityAt).toBeGreaterThan(-1);
     expect(roleAt).toBeGreaterThan(identityAt);
     expect(fetchAt).toBeGreaterThan(roleAt);
     expect(proxy).not.toMatch(/runMutation|runAction/);
     expect(byName.get("dashboard/studioProxy:studioPreflight")!).not.toMatch(/runQuery|runMutation|runAction|fetch\(/);
+
+    const download = byName.get("projectFileDownload:projectFileDownload")!;
+    const sessionAt = download.search(/getUserIdentity/);
+    const authorizeAt = download.search(/internal\.projectFileDownload\.authorizeDownload/);
+    const storageAt = download.search(/ctx\.storage/);
+    expect(sessionAt).toBeGreaterThan(-1);
+    expect(authorizeAt).toBeGreaterThan(sessionAt);
+    expect(storageAt).toBeGreaterThan(authorizeAt);
+    expect(download).not.toMatch(/runMutation|runAction/);
+    expect(byName.get("projectFileDownload:projectFilePreflight")!).not.toMatch(/ctx\.|fetch\(/);
+
+    const doc = byName.get("documents/download:documentDownload")!;
+    const docSessionAt = doc.search(/getUserIdentity/);
+    const docAuthorizeAt = doc.search(/internal\.documents\.download\.authorizeDocument/);
+    const docStorageAt = doc.search(/ctx\.storage/);
+    expect(docSessionAt).toBeGreaterThan(-1);
+    expect(docAuthorizeAt).toBeGreaterThan(docSessionAt);
+    expect(docStorageAt).toBeGreaterThan(docAuthorizeAt);
+    expect(doc).not.toMatch(/runMutation|runAction|getUrl/);
+    expect(byName.get("documents/download:documentPreflight")!).not.toMatch(/ctx\.|fetch\(/);
   });
 
   test("seed and test-only helpers are internal functions", () => {

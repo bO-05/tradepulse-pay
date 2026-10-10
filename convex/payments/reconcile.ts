@@ -10,6 +10,7 @@ import { computeLedgerTotals, type LedgerTotals } from "./ledgerTotals";
 import { payoutStatusFromPayPal } from "./payoutMath";
 import { payPalClientForAction } from "./paypalClient";
 import { agreementContractSumCents } from "./sov";
+import { loadSovRows } from "../lib/sovLines";
 
 /**
  * Ledger reconciliation for validators and operators (read-only):
@@ -112,10 +113,7 @@ export const ledgerReconciliation = internalQuery({
     const billing = await loadBillingHistory(ctx, agreementId);
     const rows: Rows = {
       agreement,
-      sov: await ctx.db
-        .query("scheduleOfValues")
-        .withIndex("by_agreementId_and_lineNo", (q) => q.eq("agreementId", agreementId))
-        .take(500),
+      sov: await loadSovRows(ctx, agreementId),
       payments: await ctx.db.query("payments").withIndex("by_agreementId", (q) => q.eq("agreementId", agreementId)).take(500),
       retainage: await ctx.db
         .query("retainageLedger")

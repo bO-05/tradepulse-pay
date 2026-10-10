@@ -1,5 +1,6 @@
 import { Agreement, Bid, TradePackage } from "./types.ts";
 import { LEAD_TIME_PENALTY_PER_WEEK, targetWeeksForDivision } from "../convex/terms.ts";
+import { centsToDollarsForDisplay, formatCents, fromDollars } from "../convex/lib/money.ts";
 
 /**
  * A6-05r/A6-54: the schedule penalty is computed from the persisted weeks and the
@@ -15,35 +16,31 @@ export function leadTargetWeeksFor(
 }
 
 export function leadPenaltyArithmetic(
-  bid: Pick<Bid, "longLeadEquipmentWeeks" | "leadTimePenalty" | "leadTimeTargetWeeks">,
+  bid: Pick<Bid, "longLeadEquipmentWeeks" | "leadTimePenaltyCents" | "leadTimeTargetWeeks">,
   csiDivision?: string
 ): string {
   const target = leadTargetWeeksFor(bid, csiDivision);
-  if (bid.leadTimePenalty <= 0) return `within ${target}-wk baseline`;
-  return `(${bid.longLeadEquipmentWeeks} − ${target}) × $${LEAD_TIME_PENALTY_PER_WEEK.toLocaleString("en-US")} = +$${bid.leadTimePenalty.toLocaleString("en-US")}`;
+  if ((bid.leadTimePenaltyCents ?? 0) <= 0) return `within ${target}-wk baseline`;
+  return `(${bid.longLeadEquipmentWeeks} − ${target}) × ${wholeDollars(fromDollars(LEAD_TIME_PENALTY_PER_WEEK))} = +${wholeDollars(bid.leadTimePenaltyCents)}`;
 }
 
-export function calculateLeveledCost(
-  bid: Pick<Bid, "baseBidAmount" | "identifiedExclusions" | "valueEngineeringAlternates" | "leadTimePenalty" | "coiPenalty">
-): number {
-  const activeExclusions = (bid.identifiedExclusions || []).reduce(
-    (sum, exclusion) => (exclusion.isWaived ? sum : sum + (exclusion.costImpact || 0)),
-    0
-  );
-  const acceptedAlternates = (bid.valueEngineeringAlternates || []).reduce(
-    (sum, alternate) => (alternate.isAccepted ? sum + (alternate.costDeduct || 0) : sum),
-    0
-  );
+/** "$6,000" for whole-dollar amounts, otherwise "$6,000.50". */
+function wholeDollars(cents: number): string {
+  const formatted = formatCents(cents);
+  return formatted.endsWith(".00") ? formatted.slice(0, -3) : formatted;
+}
 
-  return Math.max(
-    0,
-    bid.baseBidAmount + activeExclusions + (bid.leadTimePenalty || 0) + (bid.coiPenalty || 0) - acceptedAlternates
-  );
+/** ADR-0003 leveled total in cents (comparison only). */
+export function calculateLeveledCostCents(
+  bid: Pick<Bid, "baseAmountCents" | "identifiedExclusions" | "valueEngineeringAlternates" | "leadTimePenaltyCents" | "coiPenaltyCents">
+): number {
+  const b = getNormalizationBreakdown(bid);
+  return Math.max(0, (bid.baseAmountCents ?? 0) + b.totalUpliftCents);
 }
 
 export function getDeceptiveBidIds(bids: Bid[]): Set<string> {
   const lowestLeveledBid = bids.reduce<Bid | null>(
-    (lowest, bid) => (!lowest || bid.leveledTotalCost < lowest.leveledTotalCost ? bid : lowest),
+    (lowest, bid) => (!lowest || bid.leveledTotalCents < lowest.leveledTotalCents ? bid : lowest),
     null
   );
 
@@ -54,43 +51,46 @@ export function getDeceptiveBidIds(bids: Bid[]): Set<string> {
       .filter(
         (bid) =>
           bid._id !== lowestLeveledBid._id &&
-          bid.baseBidAmount < lowestLeveledBid.baseBidAmount &&
-          bid.leveledTotalCost > lowestLeveledBid.leveledTotalCost
+          bid.baseAmountCents < lowestLeveledBid.baseAmountCents &&
+          bid.leveledTotalCents > lowestLeveledBid.leveledTotalCents
       )
       .map((bid) => bid._id)
   );
 }
 
+/** One bid's ADR-0003 normalization components, in integer cents. */
 export interface NormalizationBreakdown {
-  exclusions: number;
-  leadPenalty: number;
-  coiPenalty: number;
-  veAccepted: number;
-  totalUplift: number;
+  exclusionsCents: number;
+  leadPenaltyCents: number;
+  coiPenaltyCents: number;
+  veAcceptedCents: number;
+  totalUpliftCents: number;
 }
 
 /**
  * Single source of truth for one bid's ADR-0003 normalization components.
- * `totalUplift` is the hidden cost the leveling engine added on top of the base bid
+ * `totalUpliftCents` is the hidden cost the leveling engine added on top of the base bid
  * (exclusions + lead-time + COI penalties − accepted VE credits).
  */
-export function getNormalizationBreakdown(bid: Bid): NormalizationBreakdown {
-  const exclusions = (bid.identifiedExclusions || []).reduce(
-    (sum, exclusion) => (exclusion.isWaived ? sum : sum + (exclusion.costImpact || 0)),
+export function getNormalizationBreakdown(
+  bid: Pick<Bid, "identifiedExclusions" | "valueEngineeringAlternates" | "leadTimePenaltyCents" | "coiPenaltyCents">
+): NormalizationBreakdown {
+  const exclusionsCents = (bid.identifiedExclusions || []).reduce(
+    (sum, exclusion) => (exclusion.isWaived ? sum : sum + Math.max(0, exclusion.costImpactCents ?? 0)),
     0
   );
-  const veAccepted = (bid.valueEngineeringAlternates || []).reduce(
-    (sum, alternate) => (alternate.isAccepted ? sum + (alternate.costDeduct || 0) : sum),
+  const veAcceptedCents = (bid.valueEngineeringAlternates || []).reduce(
+    (sum, alternate) => (alternate.isAccepted ? sum + Math.max(0, alternate.costDeductCents ?? 0) : sum),
     0
   );
-  const leadPenalty = bid.leadTimePenalty || 0;
-  const coiPenalty = bid.coiPenalty || 0;
+  const leadPenaltyCents = bid.leadTimePenaltyCents ?? 0;
+  const coiPenaltyCents = bid.coiPenaltyCents ?? 0;
   return {
-    exclusions,
-    leadPenalty,
-    coiPenalty,
-    veAccepted,
-    totalUplift: exclusions + leadPenalty + coiPenalty - veAccepted,
+    exclusionsCents,
+    leadPenaltyCents,
+    coiPenaltyCents,
+    veAcceptedCents,
+    totalUpliftCents: exclusionsCents + leadPenaltyCents + coiPenaltyCents - veAcceptedCents,
   };
 }
 
@@ -99,18 +99,21 @@ export function getEffectiveBid(bids: Bid[]): Bid | null {
   if (!bids || bids.length === 0) return null;
   const awarded = bids.find((bid) => bid.isAwarded);
   if (awarded) return awarded;
-  return [...bids].sort((a, b) => a.leveledTotalCost - b.leveledTotalCost)[0];
+  return [...bids].sort((a, b) => a.leveledTotalCents - b.leveledTotalCents)[0];
 }
 
 /**
  * Bids whose leveled cost is less than half of the package budget are almost
  * always scope omissions, unit errors or a mis-read document. They are flagged
  * for verification rather than blocked, so a GC cannot award one by accident.
+ * The package budget is a planning estimate in dollars.
  */
 export function getSuspiciouslyLowBidIds(bids: Bid[], packageBudget: number): Set<string> {
   if (!Number.isFinite(packageBudget) || packageBudget <= 0) return new Set<string>();
-  const threshold = packageBudget * 0.5;
-  return new Set(bids.filter((bid) => bid.leveledTotalCost > 0 && bid.leveledTotalCost < threshold).map((bid) => bid._id));
+  const thresholdCents = fromDollars(packageBudget) / 2;
+  return new Set(
+    bids.filter((bid) => bid.leveledTotalCents > 0 && bid.leveledTotalCents < thresholdCents).map((bid) => bid._id)
+  );
 }
 
 export interface ProcurementMetrics {
@@ -148,16 +151,17 @@ export function computeProcurementMetrics(
   agreements: Agreement[] = []
 ): ProcurementMetrics {
   const totalBudget = project?.estBudget || 0;
-  let totalLeveledBuyout = 0;
+  // Summed in cents; the dollar figures below are for display (budgets are dollar estimates).
+  let totalLeveledBuyoutCents = 0;
   let packagesWithBids = 0;
   let packagesUsingBudget = 0;
   const deceptiveBidIds = new Set<string>();
-  let gapsCaught = 0;
+  let gapsCaughtCents = 0;
 
   for (const pkg of tradePackages) {
     const pkgBids = allBids.filter((bid) => bid.tradePackageId === pkg._id);
     if (pkgBids.length === 0) {
-      totalLeveledBuyout += pkg.budgetEstimate || 0;
+      totalLeveledBuyoutCents += pkg.budgetEstimate > 0 ? fromDollars(pkg.budgetEstimate) : 0;
       packagesUsingBudget += 1;
       continue;
     }
@@ -165,7 +169,7 @@ export function computeProcurementMetrics(
     for (const bidId of getDeceptiveBidIds(pkgBids)) deceptiveBidIds.add(bidId);
     const effectiveBid = getEffectiveBid(pkgBids);
     if (effectiveBid) {
-      totalLeveledBuyout += effectiveBid.leveledTotalCost;
+      totalLeveledBuyoutCents += effectiveBid.leveledTotalCents;
     }
   }
 
@@ -173,8 +177,10 @@ export function computeProcurementMetrics(
   // so it reconciles with the highlighted bid card and the audit narrative.
   for (const bidId of deceptiveBidIds) {
     const bid = allBids.find((b) => b._id === bidId);
-    if (bid) gapsCaught += getNormalizationBreakdown(bid).totalUplift;
+    if (bid) gapsCaughtCents += getNormalizationBreakdown(bid).totalUpliftCents;
   }
+  let totalLeveledBuyout = centsToDollarsForDisplay(totalLeveledBuyoutCents);
+  const gapsCaught = centsToDollarsForDisplay(gapsCaughtCents);
 
   if (allBids.length === 0 && tradePackages.length === 0) {
     totalLeveledBuyout = totalBudget;

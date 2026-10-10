@@ -123,7 +123,7 @@ export const JudgeSimulationDock: React.FC<JudgeSimulationDockProps> = ({
             </div>
             <div>
               <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <span id="judge-dock-title">⚡ 60-Second Executive Demo & Simulation Engine</span>
+                <span id="judge-dock-title">Demo simulator</span>
                 <span className="text-[10px] font-semibold uppercase bg-amber-400/20 text-amber-300 border border-amber-400/30 px-2 py-0.5 rounded-full">
                   Instant Showcase
                 </span>
@@ -135,7 +135,7 @@ export const JudgeSimulationDock: React.FC<JudgeSimulationDockProps> = ({
           </div>
           <button
             onClick={onClose}
-            aria-label="Close 60-second judge dock"
+            aria-label="Close demo simulator"
             className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition"
           >
             <X className="w-5 h-5" />
@@ -181,7 +181,7 @@ export const JudgeSimulationDock: React.FC<JudgeSimulationDockProps> = ({
               </span>
             </div>
             <p className="text-xs text-slate-300 leading-relaxed">
-              Executes the complete procurement causal loop in one click: scopes Div 26 package, discovers trade contractors, dispatches RFQ, resolves pre-bid RFI, ingests dual proposals, forensically levels with <strong className="text-emerald-300">ADR-0003</strong>, and drafts an A401-style subcontract agreement for external execution.
+              Executes the complete procurement causal loop in one click: scopes Div 26 package, discovers trade contractors, records a Demo RFQ (no email), drafts a pre-bid RFI answer for GC review, ingests dual proposals, forensically levels with <strong className="text-emerald-300">ADR-0003</strong>, and drafts an A401-style subcontract agreement for external execution.
             </p>
             <p className="text-[10px] text-slate-400">
               The three scenario cards below use fixed demonstration figures for repeatable walkthroughs; they write real records to the active project.
@@ -251,7 +251,7 @@ export const JudgeSimulationDock: React.FC<JudgeSimulationDockProps> = ({
                   Simulate an inbound electrical subcontractor email asking whether the GC or Sub supplies the 400A temporary power distribution board.
                 </p>
                 <div className="bg-slate-900 p-2 rounded text-[11px] text-slate-400 mb-2.5 border border-slate-800 font-mono">
-                  Autonomous Reply cites Section 01 00 00 with 0.96 confidence.
+                  AI draft answer cites Section 01 00 00 for GC review (no email is sent).
                 </div>
               </div>
               <button
@@ -273,7 +273,7 @@ export const JudgeSimulationDock: React.FC<JudgeSimulationDockProps> = ({
               <div>
                 <div className="flex items-center gap-2 mb-1.5 text-amber-400 font-semibold text-xs">
                   <AlertTriangle className="w-4 h-4" />
-                  Scenario B: Deceptive Low Bidder
+                  Scenario B: Exclusion-Heavy Low Bidder
                 </div>
                 <p className="text-xs text-slate-300 mb-2 leading-relaxed">
                   Simulate a bidder submitting a deceptively low base bid ($1.08M) with hidden exclusions for crane hoisting and firestopping.
@@ -292,7 +292,7 @@ export const JudgeSimulationDock: React.FC<JudgeSimulationDockProps> = ({
                 ) : (
                   <Play className="w-3.5 h-3.5 fill-current" />
                 )}
-                Simulate Deceptive Bid
+                Simulate Exclusion-Heavy Bid
               </button>
             </div>
 

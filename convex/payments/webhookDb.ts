@@ -3,6 +3,7 @@ import type { Doc } from "../_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx } from "../_generated/server";
 import { applyCaptureStatus, isSettlementEvent } from "./captureSettlement";
 import { applyInvoiceStatusTo } from "./changeOrderDb";
+import { applyOwnerInvoiceStatusTo } from "../billing/ownerPayAppDb";
 import { applyPayoutStatusTo } from "./payoutDb";
 import { payoutStatusFromPayPal } from "./payoutMath";
 import { moveMilestone } from "./releaseDb";
@@ -154,9 +155,17 @@ async function onInvoice(ctx: MutationCtx, e: ParsedWebhookEvent): Promise<Dispa
     .query("changeOrders")
     .withIndex("by_paypalInvoiceId", (q) => q.eq("paypalInvoiceId", invoiceId))
     .first();
-  if (co === null) return unmatched(e);
   const status = e.resourceStatus ?? (e.eventType === "INVOICING.INVOICE.PAID" ? "PAID" : "CANCELLED");
-  const out = await applyInvoiceStatusTo(ctx, co, status);
+  if (co !== null) {
+    const out = await applyInvoiceStatusTo(ctx, co, status);
+    return { changed: out.changed };
+  }
+  const ownerPayApp = await ctx.db
+    .query("ownerPayApps")
+    .withIndex("by_paypalInvoiceId", (q) => q.eq("paypalInvoiceId", invoiceId))
+    .first();
+  if (ownerPayApp === null) return unmatched(e);
+  const out = await applyOwnerInvoiceStatusTo(ctx, ownerPayApp, status);
   return { changed: out.changed };
 }
 

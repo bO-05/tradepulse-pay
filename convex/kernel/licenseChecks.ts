@@ -2,7 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, internalQuery, mutation, query, type MutationCtx, type QueryCtx } from "../_generated/server";
-import { requireRole } from "../lib/roles";
+import { findDocScope, requireDocScope } from "../lib/projectScope";
 import { licenseStatusValidator } from "../schema";
 import { CACHEABLE_STATUSES, LICENSE_CACHE_MS, RUNNING_STALE_MS, normalizeLicenseNumber, type CslbStatus } from "./cslb";
 
@@ -207,10 +207,9 @@ function toView(row: Doc<"licenseChecks">) {
 export const getContractorLicense = query({
   args: { contractorId: v.string() },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const id = ctx.db.normalizeId("contractors", args.contractorId);
-    const contractor = id === null ? null : await ctx.db.get(id);
-    if (contractor === null) return null;
+    const scope = await findDocScope(ctx, "contractors", args.contractorId, { roles: ["gc"] });
+    if (scope === null) return null;
+    const contractor = scope.doc;
     const rows = await ctx.db
       .query("licenseChecks")
       .withIndex("by_contractorId_and_checkedAt", (q) => q.eq("contractorId", contractor._id))
@@ -228,9 +227,8 @@ export const getContractorLicense = query({
 export const requestLicenseCheck = mutation({
   args: { contractorId: v.string() },
   handler: async (ctx, args): Promise<{ checkId: Id<"licenseChecks">; kind: BeginResult["kind"] }> => {
-    await requireRole(ctx, ["gc"]);
-    const id = ctx.db.normalizeId("contractors", args.contractorId);
-    if (id === null) throw new ConvexError({ code: "NOT_FOUND", message: "Contractor not found." });
+    const scope = await requireDocScope(ctx, "contractors", args.contractorId, { roles: ["gc"], write: true });
+    const id = scope.doc._id;
     const result = await beginCheckInTx(ctx, id, "gc");
     if (result.kind === "started") {
       await ctx.scheduler.runAfter(0, internal.kernel.licenseCheck.performLicenseCheck, {

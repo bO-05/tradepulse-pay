@@ -1,10 +1,15 @@
 import { query, mutation, internalQuery, internalMutation, type MutationCtx } from "./_generated/server";
-import { requireRole } from "./lib/roles";
+import { forbiddenMessage, requireRole } from "./lib/roles";
+import { requireCompanyMember } from "./lib/tenancy";
+import { auditActor, callerProjects, requireDemoCompany, requireProjectScope } from "./lib/projectScope";
+import type { Doc } from "./_generated/dataModel";
 import { linkDemoProfiles } from "./demoAccounts";
+import { attachProjectToDemo, ensureDemoCompanies, findDemoGcCompanyId, type DemoCompanyIds } from "./lib/demoTenancy";
+import { backfillVendorsForCompany } from "./lib/vendorDirectory";
 import { applyDemoLicenseNumbers } from "./kernel/demoLicenses";
 import { remapAgentLinks, snapshotActiveAgentLinks } from "./lib/agentLinkRemap";
 import { v, ConvexError } from "convex/values";
-import { generateAiaA401AgreementText } from "./agreements";
+import { classifyUnflaggedDrafts, refreshAgreementDocument } from "./lib/agreementDocument";
 import { getRealDocumentPdfBytes } from "./realDocuments";
 import { deleteAgreementCascade, deleteContractorCascade } from "./payments/cascade";
 
@@ -15,40 +20,37 @@ import { deleteAgreementCascade, deleteContractorCascade } from "./payments/casc
 function authoritativeDocSize(fileName: string, fallback: number): number {
   return getRealDocumentPdfBytes(fileName)?.length ?? fallback;
 }
-import {
-  DEFAULT_GENERAL_CONTRACTOR,
-  validatePositiveAmount,
-  validatePositiveInteger,
-  validateProjectText,
-} from "./validation";
+import { DEFAULT_GENERAL_CONTRACTOR, validateProjectText } from "./validation";
+import { firstProjectSetupError, validateProjectSetup } from "./lib/projectSetup";
+import { formatRetainagePercent } from "./lib/retainageRules";
+import { formatCents } from "./lib/money";
+import { seededProposalBidRow } from "./lib/bidMoney";
 
+/** The caller's seeded demo project (or newest accessible project); never another company's. */
 export const getDemoProject = query({
   args: {},
   handler: async (ctx) => {
     await requireRole(ctx, ["gc", "owner"]);
-    const demo = await ctx.db
-      .query("projects")
-      .withIndex("by_demo", (q) => q.eq("isDemoProject", true))
-      .first();
-
-    if (demo) return demo;
-    return await ctx.db.query("projects").first();
+    const projects = await callerProjects(ctx);
+    return projects.find((p) => p.isDemoProject) ?? projects[0] ?? null;
   },
 });
 
+/** Project switcher/list: only projects the caller's company can access (archived hidden by default). */
 export const listProjects = query({
-  args: {},
-  handler: async (ctx) => {
-    await requireRole(ctx, ["gc", "owner"]);
-    return await ctx.db.query("projects").order("desc").collect();
+  args: { includeArchived: v.optional(v.boolean()) },
+  handler: async (ctx, args) => {
+    await requireRole(ctx, ["gc", "owner", "sub"]);
+    return await callerProjects(ctx, { includeArchived: args.includeArchived === true });
   },
 });
 
 export const getProject = query({
-  args: { projectId: v.id("projects") },
+  // A string so a malformed id from a URL reads "Not found." like a foreign or deleted one.
+  args: { projectId: v.string() },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc", "owner"]);
-    return await ctx.db.get(args.projectId);
+    const { project } = await requireProjectScope(ctx, args.projectId, { roles: ["gc", "owner", "sub"] });
+    return project;
   },
 });
 
@@ -59,225 +61,292 @@ export const getProjectInternal = internalQuery({
   },
 });
 
+export const getProjectCompanyNameInternal = internalQuery({
+  args: { projectId: v.id("projects") },
+  handler: async (ctx, args): Promise<string | null> => {
+    const project = await ctx.db.get(args.projectId);
+    if (!project?.gcCompanyId) return null;
+    const company = await ctx.db.get(project.gcCompanyId);
+    return company?.name ?? null;
+  },
+});
+
+const setupArgs = {
+  title: v.string(),
+  ownerName: v.string(),
+  address: v.object({ line1: v.string(), city: v.string(), zip: v.string(), state: v.optional(v.string()) }),
+  state: v.string(),
+  contractValueCents: v.number(),
+  retainageBps: v.number(),
+  billingDay: v.number(),
+  startDate: v.string(),
+  substantialCompletionDate: v.optional(v.string()),
+};
+
+type SetupArgs = {
+  title: string;
+  ownerName: string;
+  address: { line1: string; city: string; zip: string; state?: string };
+  state: string;
+  contractValueCents: number;
+  retainageBps: number;
+  billingDay: number;
+  startDate: string;
+  substantialCompletionDate?: string;
+};
+
+/** Validates the §14 setup fields with the wizard's rules and returns the values to store. */
+function cleanSetup(args: SetupArgs) {
+  const state = args.state.trim().toUpperCase();
+  if (args.address.state !== undefined && args.address.state.trim() !== "" && args.address.state.trim().toUpperCase() !== state) {
+    throw new ConvexError({ code: "INVALID", field: "state", message: "The address state must match the project state." });
+  }
+  const sc = args.substantialCompletionDate?.trim() ?? "";
+  const input = {
+    title: args.title,
+    ownerName: args.ownerName,
+    address: args.address,
+    state,
+    contractValueCents: args.contractValueCents,
+    retainageBps: args.retainageBps,
+    billingDay: args.billingDay,
+    startDate: args.startDate.trim(),
+    substantialCompletionDate: sc,
+  };
+  const errors = validateProjectSetup(input);
+  const first = firstProjectSetupError(errors);
+  if (first) throw new ConvexError({ code: "INVALID", field: first.field, message: first.message, fields: errors });
+  const weeks =
+    sc === "" ? 52 : Math.max(1, Math.ceil((Date.parse(`${sc}T00:00:00Z`) - Date.parse(`${input.startDate}T00:00:00Z`)) / (7 * 86_400_000)));
+  const city = args.address.city.trim();
+  return {
+    title: args.title.trim().replace(/\s+/g, " "),
+    ownerName: args.ownerName.trim().replace(/\s+/g, " "),
+    address: { line1: args.address.line1.trim(), city, state, zip: args.address.zip.trim() },
+    state,
+    contractValueCents: args.contractValueCents,
+    retainageBps: args.retainageBps,
+    billingDay: args.billingDay,
+    startDate: input.startDate,
+    substantialCompletionDate: sc === "" ? undefined : sc,
+    // Legacy procurement screens still read these.
+    location: `${city}, ${state}`,
+    estBudget: args.contractValueCents / 100,
+    targetCompletionWeeks: Math.min(weeks, 520),
+  };
+}
+
+function setupSummary(p: ReturnType<typeof cleanSetup>): string {
+  return `${p.location}; contract ${formatCents(p.contractValueCents)}, retainage ${formatRetainagePercent(p.retainageBps)}, billing day ${p.billingDay}.`;
+}
+
+/** New project wizard (architecture §14). The owning company always comes from the session. */
 export const createProject = mutation({
   args: {
-    title: v.string(),
-    location: v.string(),
-    projectType: v.string(),
-    estBudget: v.number(),
-    targetCompletionWeeks: v.number(),
-    specDocumentText: v.string(),
-    isDemoProject: v.boolean(),
+    ...setupArgs,
+    projectType: v.optional(v.string()),
+    specDocumentText: v.optional(v.string()),
+    isDemoProject: v.optional(v.boolean()),
     generalContractorName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const title = validateProjectText(args.title, "Project title");
-    const location = validateProjectText(args.location, "Project location");
-    const projectType = validateProjectText(args.projectType, "Project type");
-    const estBudget = validatePositiveAmount(args.estBudget, "Estimated budget");
-    const targetCompletionWeeks = validatePositiveInteger(args.targetCompletionWeeks, "Target completion", 520);
-    const specDocumentText = args.specDocumentText.trim() || `Project Scope for ${title}.`;
+    const viewer = await requireRole(ctx, ["gc"]);
+    const { user, company } = await requireCompanyMember(ctx);
+    if (company.kind !== "gc") throw new ConvexError({ code: "FORBIDDEN", message: forbiddenMessage(["gc"]) });
+    if (user.emailVerificationTime === undefined) {
+      throw new ConvexError({ code: "EMAIL_UNVERIFIED", message: "Verify your email first." });
+    }
+    const setup = cleanSetup(args);
+    const projectType = args.projectType?.trim() ? validateProjectText(args.projectType, "Project type") : "Commercial";
+    const specDocumentText = args.specDocumentText?.trim() || `Project Scope for ${setup.title}.`;
     const generalContractorName = args.generalContractorName?.trim()
       ? validateProjectText(args.generalContractorName, "General contractor name")
-      : DEFAULT_GENERAL_CONTRACTOR;
+      : company.isDemo
+        ? DEFAULT_GENERAL_CONTRACTOR
+        : company.name;
 
+    const now = Date.now();
     const projectId = await ctx.db.insert("projects", {
-      title,
-      location,
+      ...setup,
       projectType,
-      estBudget,
-      targetCompletionWeeks,
       specDocumentText,
-      isDemoProject: args.isDemoProject,
+      // Demo seed code looks projects up by this flag, so only the Demo company may set it.
+      isDemoProject: args.isDemoProject === true && company.isDemo,
       generalContractorName,
-      createdAt: Date.now(),
+      gcCompanyId: company._id,
+      status: "active",
+      createdAt: now,
     });
 
     await ctx.db.insert("auditLogs", {
       projectId,
-      eventType: "compliance_audit",
-      title: `Project Initialized: ${args.title}`,
-      description: `Established commercial project in ${location} ($${estBudget.toLocaleString()} budget, ${targetCompletionWeeks} weeks target completion).`,
-      actor: "Chief Estimator / GC Project Executive",
-      timestamp: Date.now(),
+      eventType: "project_created",
+      title: `Project created: ${setup.title}`,
+      description: `Owner ${setup.ownerName}; ${setupSummary(setup)}`,
+      ...auditActor({ user, viewer, company }),
+      timestamp: now,
     });
 
     return projectId;
   },
 });
 
+/** Project settings (GC of the owning company only). Archived projects must be restored first. */
+export const updateProject = mutation({
+  args: { projectId: v.string(), ...setupArgs },
+  handler: async (ctx, args) => {
+    const access = await requireProjectScope(ctx, args.projectId, { roles: ["gc"], write: true });
+    const projectId = access.project._id;
+    const { projectId: _ignored, ...fields } = args;
+    const setup = cleanSetup(fields);
+    // Provenance must be inferred against the state the drafts were saved under, before it changes.
+    await classifyUnflaggedDrafts(ctx, access.project);
+    await ctx.db.patch(projectId, setup);
+    await ctx.db.insert("auditLogs", {
+      projectId,
+      eventType: "project_updated",
+      title: `Project settings updated: ${setup.title}`,
+      description: setupSummary(setup),
+      ...auditActor(access),
+      timestamp: Date.now(),
+    });
+    return null;
+  },
+});
+
+/** Hides the project from lists and makes it read-only; nothing is deleted. */
+export const archiveProject = mutation({
+  args: { projectId: v.string() },
+  handler: async (ctx, args) => {
+    const access = await requireProjectScope(ctx, args.projectId, { roles: ["gc"], write: true });
+    if (access.project.isDemoProject) {
+      throw new ConvexError({ code: "INVALID", message: "The Demo company's walkthrough project can't be archived." });
+    }
+    await ctx.db.patch(access.project._id, { archived: true, status: "archived" });
+    await ctx.db.insert("auditLogs", {
+      projectId: access.project._id,
+      eventType: "project_archived",
+      title: `Project archived: ${access.project.title}`,
+      description: "Hidden from project lists and read-only until restored.",
+      ...auditActor(access),
+      timestamp: Date.now(),
+    });
+    return null;
+  },
+});
+
+export const restoreProject = mutation({
+  args: { projectId: v.string() },
+  handler: async (ctx, args) => {
+    const access = await requireProjectScope(ctx, args.projectId, { roles: ["gc"] });
+    if (access.user.emailVerificationTime === undefined) {
+      throw new ConvexError({ code: "EMAIL_UNVERIFIED", message: "Verify your email first." });
+    }
+    if (access.project.archived !== true) return null;
+    await ctx.db.patch(access.project._id, { archived: false, status: "active" });
+    await ctx.db.insert("auditLogs", {
+      projectId: access.project._id,
+      eventType: "project_restored",
+      title: `Project restored: ${access.project.title}`,
+      description: "Back in project lists and editable.",
+      ...auditActor(access),
+      timestamp: Date.now(),
+    });
+    return null;
+  },
+});
+
+/** The Demo GC company's seeded walkthrough projects (isDemoProject), found through the company id. */
+async function demoSeedProjects(ctx: MutationCtx, demoIds: DemoCompanyIds): Promise<Doc<"projects">[]> {
+  const owned = await ctx.db
+    .query("projects")
+    .withIndex("by_gcCompanyId", (q) => q.eq("gcCompanyId", demoIds.gc))
+    .take(2000);
+  return owned.filter((p) => p.isDemoProject === true);
+}
+
+/** Deletes one Demo-company project and every row reached from it by id. */
+async function deleteDemoProjectRows(ctx: MutationCtx, proj: Doc<"projects">): Promise<void> {
+  const pkgs = await ctx.db
+    .query("tradePackages")
+    .withIndex("by_project", (q) => q.eq("projectId", proj._id))
+    .collect();
+  for (const pkg of pkgs) {
+    const contractors = await ctx.db
+      .query("contractors")
+      .withIndex("by_package", (q) => q.eq("tradePackageId", pkg._id))
+      .collect();
+    for (const c of contractors) await deleteContractorCascade(ctx, c._id);
+    const convos = await ctx.db
+      .query("conversations")
+      .withIndex("by_package", (q) => q.eq("tradePackageId", pkg._id))
+      .collect();
+    for (const c of convos) await ctx.db.delete(c._id);
+    const bids = await ctx.db
+      .query("bids")
+      .withIndex("by_package", (q) => q.eq("tradePackageId", pkg._id))
+      .collect();
+    for (const b of bids) await ctx.db.delete(b._id);
+    const agreements = await ctx.db
+      .query("agreements")
+      .withIndex("by_package", (q) => q.eq("tradePackageId", pkg._id))
+      .collect();
+    for (const a of agreements) await deleteAgreementCascade(ctx, a._id);
+    await ctx.db.delete(pkg._id);
+  }
+  const projAgreements = await ctx.db
+    .query("agreements")
+    .withIndex("by_project", (q) => q.eq("projectId", proj._id))
+    .collect();
+  for (const a of projAgreements) await deleteAgreementCascade(ctx, a._id);
+  const files = await ctx.db
+    .query("projectFiles")
+    .withIndex("by_project", (q) => q.eq("projectId", proj._id))
+    .collect();
+  for (const f of files) {
+    if (f.storageId && !f.storageId.startsWith("http") && !f.storageId.startsWith("local_") && !f.storageId.startsWith("/")) {
+      try {
+        await ctx.storage.delete(f.storageId as any);
+      } catch {
+        // Ignore if blob already removed
+      }
+    }
+    await ctx.db.delete(f._id);
+  }
+  const members = await ctx.db
+    .query("projectMembers")
+    .withIndex("by_projectId", (q) => q.eq("projectId", proj._id))
+    .collect();
+  for (const m of members) await ctx.db.delete(m._id);
+  // auditLogs are kept as history; listRecentLogs hides entries of deleted projects.
+  await ctx.db.delete(proj._id);
+}
+
 /**
- * Ensures rich, realistic commercial MEP data is seeded for demo & judge evaluation.
- * Fulfills the 60-Second Invariant: zero empty states, instant live view.
+ * Seeds the Demo company's walkthrough project (The Domain Tower B). `force` deletes and recreates
+ * only the Demo GC company's seeded demo projects, reached by id from the Demo company; rows of
+ * other companies are never read for deletion, whatever their names, emails or phone numbers.
  */
 async function seedDemoProject(ctx: MutationCtx, args: { force?: boolean }) {
   {
-    const existing = await ctx.db
+    const demoIds = await ensureDemoCompanies(ctx);
+    // Pre-tenancy demo projects (no company yet) belong to the Demo company, as in the migration.
+    const flagged = await ctx.db
       .query("projects")
       .withIndex("by_demo", (q) => q.eq("isDemoProject", true))
-      .first();
-
-    // Detect if database currently has obsolete legacy demo data (e.g. 555- numbers, example.com emails, or old demo names)
-    let hasLegacyMockData = false;
-    const sampleContractors = await ctx.db.query("contractors").take(20);
-    for (const sc of sampleContractors) {
-      if (
-        sc.contactEmail.includes("example.com") ||
-        sc.contactEmail.includes("lone-star") ||
-        sc.contactEmail.includes("austin-metro") ||
-        sc.contactEmail.includes("capitalcitygrid") ||
-        sc.contactEmail.includes("@agentmail.to") ||
-        sc.companyName.includes("Direct Inbound") ||
-        sc.companyName.includes("Division 23 HVAC") ||
-        sc.licenseNumber === "TX-VERIFY-PENDING" ||
-        sc.companyName.includes("Lone Star") ||
-        sc.companyName.includes("Austin Metro") ||
-        sc.companyName.includes("Capital City") ||
-        sc.companyName.includes("Colorado River") ||
-        sc.companyName.includes("Apex Commercial") ||
-        sc.companyName.includes("Travis County") ||
-        sc.companyName.includes("Austin Central Air") ||
-        sc.companyName.includes("Hill Country") ||
-        (sc.phone && sc.phone.includes("555-"))
-      ) {
-        hasLegacyMockData = true;
-        break;
-      }
+      .take(50);
+    for (const p of flagged) {
+      if (p.gcCompanyId === undefined) await attachProjectToDemo(ctx, p._id, demoIds);
     }
+    const demoProjects = (await demoSeedProjects(ctx, demoIds)).sort((a, b) => a._creationTime - b._creationTime);
+    const existing = demoProjects[0];
 
-    if (existing && !args.force && !hasLegacyMockData) {
+    if (existing && !args.force) {
       return { status: "already_seeded", projectId: existing._id };
     }
 
-    // Clean up all existing demo records and legacy mock records
-    if (args.force || hasLegacyMockData || existing) {
-      const allDemoProjects = await ctx.db
-        .query("projects")
-        .withIndex("by_demo", (q) => q.eq("isDemoProject", true))
-        .collect();
-
-      for (const proj of allDemoProjects) {
-        const pkgs = await ctx.db
-          .query("tradePackages")
-          .withIndex("by_project", (q) => q.eq("projectId", proj._id))
-          .collect();
-
-        for (const pkg of pkgs) {
-          const contractors = await ctx.db
-            .query("contractors")
-            .withIndex("by_package", (q) => q.eq("tradePackageId", pkg._id))
-            .collect();
-          for (const c of contractors) {
-            await deleteContractorCascade(ctx, c._id);
-          }
-
-          const convos = await ctx.db
-            .query("conversations")
-            .withIndex("by_package", (q) => q.eq("tradePackageId", pkg._id))
-            .collect();
-          for (const c of convos) {
-            await ctx.db.delete(c._id);
-          }
-
-          const bids = await ctx.db
-            .query("bids")
-            .withIndex("by_package", (q) => q.eq("tradePackageId", pkg._id))
-            .collect();
-          for (const b of bids) {
-            await ctx.db.delete(b._id);
-          }
-
-          const agreements = await ctx.db
-            .query("agreements")
-            .withIndex("by_package", (q) => q.eq("tradePackageId", pkg._id))
-            .collect();
-          for (const a of agreements) {
-            await deleteAgreementCascade(ctx, a._id);
-          }
-
-          await ctx.db.delete(pkg._id);
-        }
-
-        const projAgreements = await ctx.db
-          .query("agreements")
-          .withIndex("by_project", (q) => q.eq("projectId", proj._id))
-          .collect();
-        for (const a of projAgreements) {
-          await deleteAgreementCascade(ctx, a._id);
-        }
-
-        const files = await ctx.db
-          .query("projectFiles")
-          .withIndex("by_project", (q) => q.eq("projectId", proj._id))
-          .collect();
-        for (const f of files) {
-          if (f.storageId && !f.storageId.startsWith("http") && !f.storageId.startsWith("local_") && !f.storageId.startsWith("/")) {
-            try {
-              await ctx.storage.delete(f.storageId as any);
-            } catch {
-              // Ignore if blob already removed
-            }
-          }
-          await ctx.db.delete(f._id);
-        }
-
-        // auditLogs are kept as history; listRecentLogs hides entries of deleted projects.
-        await ctx.db.delete(proj._id);
-      }
-
-      // Explicit sweep of any orphaned contractors, bids, or agreements containing legacy mock data
-      const orphanedContractors = await ctx.db.query("contractors").collect();
-      for (const c of orphanedContractors) {
-        if (
-          c.contactEmail.includes("example.com") ||
-          c.contactEmail.includes("lone-star") ||
-          c.contactEmail.includes("austin-metro") ||
-          c.contactEmail.includes("capitalcitygrid") ||
-          c.contactEmail.includes("@agentmail.to") ||
-          c.companyName.includes("Direct Inbound") ||
-          c.companyName.includes("Division 23 HVAC") ||
-          c.licenseNumber === "TX-VERIFY-PENDING" ||
-          c.companyName.includes("Lone Star") ||
-          c.companyName.includes("Austin Metro") ||
-          c.companyName.includes("Capital City") ||
-          c.companyName.includes("Colorado River") ||
-          c.companyName.includes("Apex Commercial") ||
-          c.companyName.includes("Travis County") ||
-          c.companyName.includes("Austin Central Air") ||
-          c.companyName.includes("Hill Country") ||
-          (c.phone && c.phone.includes("555-"))
-        ) {
-          await deleteContractorCascade(ctx, c._id);
-        }
-      }
-
-      const orphanedBids = await ctx.db.query("bids").collect();
-      for (const b of orphanedBids) {
-        if (
-          b.subcontractorName.includes("Lone Star") ||
-          b.subcontractorName.includes("Austin Metro") ||
-          b.subcontractorName.includes("Capital City") ||
-          b.subcontractorName.includes("Colorado River") ||
-          b.subcontractorName.includes("Apex Commercial") ||
-          b.subcontractorName.includes("Travis County") ||
-          b.subcontractorName.includes("Austin Central Air") ||
-          b.subcontractorName.includes("Hill Country")
-        ) {
-          await ctx.db.delete(b._id);
-        }
-      }
-
-      const orphanedAgreements = await ctx.db.query("agreements").collect();
-      for (const a of orphanedAgreements) {
-        if (
-          a.subcontractorName.includes("Lone Star") ||
-          a.subcontractorName.includes("Austin Metro") ||
-          a.subcontractorName.includes("Capital City")
-        ) {
-          await deleteAgreementCascade(ctx, a._id);
-        }
-      }
+    for (const proj of demoProjects) {
+      await deleteDemoProjectRows(ctx, proj);
     }
 
     // 1. Seed Project Root
@@ -295,6 +364,7 @@ Section 26 00 00 - Electrical Systems:
 Furnish and install 1600A main service switchboard, 480/277V step-down distribution dry transformers, lighting control panels, emergency battery backup inverters, and branch conduit routing. Subcontractor is strictly responsible for crane rigging and hoisting up to 14th-floor penthouse plant room. All firestop floor/wall penetration penetrations must comply with UL 1479.`,
       isDemoProject: true,
       generalContractorName: DEFAULT_GENERAL_CONTRACTOR,
+      gcCompanyId: demoIds.gc,
       createdAt: Date.now() - 86400000 * 3,
     });
 
@@ -304,8 +374,9 @@ Furnish and install 1600A main service switchboard, 480/277V step-down distribut
       csiDivision: "26 00 00",
       tradeName: "Electrical & Lighting Systems",
       budgetEstimate: 1250000,
-      agentMailbox: "cleverneed464@agentmail.to",
-      agentMailboxId: "cleverneed464@agentmail.to",
+      agentMailbox: "dullstreet57@agentmail.to",
+      agentMailboxId: "dullstreet57@agentmail.to",
+      agentMailboxShared: true,
       scopeSummary: "Complete commercial electrical distribution, 1600A switchgear, penthouse crane hoisting, emergency lighting, and seismic bracing.",
       mandatoryInclusions: [
         "Crane hoisting to 14th-floor mechanical room",
@@ -325,6 +396,7 @@ Furnish and install 1600A main service switchboard, 480/277V step-down distribut
       budgetEstimate: 1850000,
       agentMailbox: "dullstreet57@agentmail.to",
       agentMailboxId: "dullstreet57@agentmail.to",
+      agentMailboxShared: true,
       scopeSummary: "Chilled water air handling units, VAV terminal boxes, rooftop cooling tower connection, and BACnet automated controls.",
       mandatoryInclusions: [
         "Rooftop crane pick and rigging",
@@ -342,8 +414,9 @@ Furnish and install 1600A main service switchboard, 480/277V step-down distribut
       csiDivision: "22 00 00",
       tradeName: "Plumbing & Domestic Water Systems",
       budgetEstimate: 950000,
-      agentMailbox: "boldlevel182@agentmail.to",
-      agentMailboxId: "boldlevel182@agentmail.to",
+      agentMailbox: "dullstreet57@agentmail.to",
+      agentMailboxId: "dullstreet57@agentmail.to",
+      agentMailboxShared: true,
       scopeSummary: "Domestic hot/cold copper supply, cast iron sanitary waste, roof drainage overflow, and triplex water booster pump skid.",
       mandatoryInclusions: [
         "Triplex booster pump startup and testing",
@@ -442,7 +515,7 @@ Furnish and install 1600A main service switchboard, 480/277V step-down distribut
 
     // 5. Seed Bids & Forensic Normalization Records (The "Apples-to-Apples" Leveling Matrix)
     // Bidder 1: Rosendin Electric, Inc. (Higher Base, Fully Compliant, Zero Hidden Exclusions)
-    const b1 = await ctx.db.insert("bids", {
+    const b1 = await ctx.db.insert("bids", seededProposalBidRow({
       tradePackageId: elecPackageId,
       contractorId: c1,
       subcontractorName: "Rosendin Electric, Inc.",
@@ -473,10 +546,10 @@ Furnish and install 1600A main service switchboard, 480/277V step-down distribut
       // the KPI/register count 1/3 awarded.
       isAwarded: true,
       receivedAt: Date.now() - 3600000 * 18,
-    });
+    }));
 
     // Bidder 2: Alterman, Inc. (Appears $125k cheaper on paper, but hides $185k of exclusions + COI deficiency!)
-    await ctx.db.insert("bids", {
+    await ctx.db.insert("bids", seededProposalBidRow({
       tradePackageId: elecPackageId,
       contractorId: c2,
       subcontractorName: "Alterman, Inc.",
@@ -523,7 +596,7 @@ Furnish and install 1600A main service switchboard, 480/277V step-down distribut
       leveledTotalCost: 1286000,
       isAwarded: false,
       receivedAt: Date.now() - 3600000 * 12,
-    });
+    }));
 
     // 6. Seed Division 23 HVAC Contractors, RFIs, and Leveling Bids
     const h1 = await ctx.db.insert("contractors", {
@@ -586,7 +659,7 @@ Furnish and install 1600A main service switchboard, 480/277V step-down distribut
       timestamp: Date.now() - 72000000,
     });
 
-    await ctx.db.insert("bids", {
+    await ctx.db.insert("bids", seededProposalBidRow({
       tradePackageId: hvacPackageId,
       contractorId: h1,
       subcontractorName: "TDIndustries, Inc.",
@@ -609,9 +682,9 @@ Furnish and install 1600A main service switchboard, 480/277V step-down distribut
       leveledTotalCost: 1820000,
       isAwarded: false,
       receivedAt: Date.now() - 3600000 * 16,
-    });
+    }));
 
-    await ctx.db.insert("bids", {
+    await ctx.db.insert("bids", seededProposalBidRow({
       tradePackageId: hvacPackageId,
       contractorId: h2,
       subcontractorName: "The Brandt Companies, LLC",
@@ -651,7 +724,7 @@ Furnish and install 1600A main service switchboard, 480/277V step-down distribut
       leveledTotalCost: 1785000,
       isAwarded: false,
       receivedAt: Date.now() - 3600000 * 10,
-    });
+    }));
 
     // 7. Seed Division 22 Plumbing Contractors, RFIs, and Leveling Bids
     const p1 = await ctx.db.insert("contractors", {
@@ -714,7 +787,7 @@ Furnish and install 1600A main service switchboard, 480/277V step-down distribut
       timestamp: Date.now() - 54000000,
     });
 
-    await ctx.db.insert("bids", {
+    await ctx.db.insert("bids", seededProposalBidRow({
       tradePackageId: plumbingPackageId,
       contractorId: p1,
       subcontractorName: "Clarke Kent Plumbing",
@@ -736,9 +809,9 @@ Furnish and install 1600A main service switchboard, 480/277V step-down distribut
       leveledTotalCost: 935000,
       isAwarded: false,
       receivedAt: Date.now() - 3600000 * 14,
-    });
+    }));
 
-    await ctx.db.insert("bids", {
+    await ctx.db.insert("bids", seededProposalBidRow({
       tradePackageId: plumbingPackageId,
       contractorId: p2,
       subcontractorName: "Limbach Facility Services LLC",
@@ -778,7 +851,7 @@ Furnish and install 1600A main service switchboard, 480/277V step-down distribut
       leveledTotalCost: 908500,
       isAwarded: false,
       receivedAt: Date.now() - 3600000 * 8,
-    });
+    }));
 
     // 8. Seed Live Reactive Activity Audit Stream Events
     await ctx.db.insert("auditLogs", {
@@ -902,50 +975,13 @@ Furnish and install 1600A main service switchboard, 480/277V step-down distribut
 
     // 10. Seed the A401-style draft subcontract for Rosendin Electric, Inc.
     const agreementNumber = "A401-2026-2601-18042";
-    const agreementText = generateAiaA401AgreementText({
-      agreementNumber,
-      formattedDate: `${new Date().toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-        timeZone: "UTC",
-      })} (UTC)`,
-      generalContractor: DEFAULT_GENERAL_CONTRACTOR,
-      gcCity: "Austin",
-      gcState: "Texas",
-      stateAbbr: "TX",
-      subName: "Rosendin Electric, Inc.",
-      contactEmail: "estimating@rosendin.com",
-      licenseNumber: "TX-TECL-18042",
-      licenseStatus: "Unverified — demo record; state registry lookup not performed",
-      projectTitle: "The Domain Tower B - Commercial MEP",
-      projectLocation: "Austin, TX",
-      projectType: "Class-A Commercial Mixed-Use",
-      csiDivision: "26 00 00",
-      tradeName: "Electrical & Lighting Systems",
-      scopeSummary: "Complete commercial electrical distribution, 1600A switchgear, penthouse crane hoisting, emergency lighting, and seismic bracing.",
-      mandatoryInclusions: [
-        "Crane hoisting to 14th-floor mechanical room",
-        "Seismic bracing (IBC Section 1613)",
-        "Temporary 400A jobsite power distribution",
-        "UL 1479 floor/wall firestopping",
-      ],
-      contractSum: 1225000,
-      baseBidAmount: 1225000,
-      acceptedVeTotal: 0,
-      leveledTotalCost: 1225000,
-      retainagePercent: 10,
-      liquidatedDamagesDaily: 1200,
-      bidDeadline: "2026-09-25",
-    });
-
-    await ctx.db.insert("agreements", {
+    const demoAgreementId = await ctx.db.insert("agreements", {
       projectId,
       tradePackageId: elecPackageId,
       bidId: b1,
       contractorId: c1,
       agreementNumber,
-      documentTitle: "Subcontract Agreement (A401-style structure) â€” generated draft, not an AIA-licensed form",
+      documentTitle: "Subcontract Agreement (A401-style structure) — generated draft, not an AIA-licensed form",
       subcontractorName: "Rosendin Electric, Inc.",
       generalContractorName: DEFAULT_GENERAL_CONTRACTOR,
       subcontractorEmail: "estimating@rosendin.com",
@@ -964,9 +1000,10 @@ Furnish and install 1600A main service switchboard, 480/277V step-down distribut
         "UL 1479 floor/wall firestopping",
       ],
       status: "generated",
-      contractText: agreementText,
+      contractText: "",
       createdAt: Date.now() - 3600000 * 6,
     });
+    await refreshAgreementDocument(ctx, demoAgreementId);
 
     return {
       status: "seeded_success",
@@ -988,14 +1025,19 @@ async function reseedAndRelink(ctx: MutationCtx, args: { force?: boolean }) {
   await applyDemoLicenseNumbers(ctx);
   await linkDemoProfiles(ctx);
   await remapAgentLinks(ctx, links);
+  const demoGcId = await findDemoGcCompanyId(ctx);
+  if (demoGcId !== null) await backfillVendorsForCompany(ctx, demoGcId);
   return result;
 }
 
-/** GC-only demo seed / reset (`force: true` wipes and reseeds the demo project). */
+/**
+ * Demo seed / reset (`force: true` wipes and reseeds the demo project). Only a GC of the Demo
+ * company may run it; it touches only the Demo company's seeded project.
+ */
 export const seedInitialData = mutation({
   args: { force: v.optional(v.boolean()) },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
+    await requireDemoCompany(ctx, ["gc"]);
     return await reseedAndRelink(ctx, args);
   },
 });
@@ -1009,9 +1051,7 @@ export const seedInitialDataInternal = internalMutation({
 export const deleteProject = mutation({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const project = await ctx.db.get(args.projectId);
-    if (!project) throw new Error("Project not found");
+    const { project } = await requireProjectScope(ctx, args.projectId, { roles: ["gc"], write: true });
     if (project.isDemoProject) {
       throw new Error("The default demo project cannot be deleted.");
     }
@@ -1094,6 +1134,19 @@ export const deleteProject = mutation({
       .collect();
     for (const cr of clashResolutions) {
       await ctx.db.delete(cr._id);
+    }
+
+    for (const app of await ctx.db
+      .query("ownerPayApps")
+      .withIndex("by_projectId_and_applicationNo", (q) => q.eq("projectId", args.projectId))
+      .take(500)) {
+      await ctx.db.delete(app._id);
+    }
+    for (const line of await ctx.db
+      .query("primeLines")
+      .withIndex("by_projectId_and_lineNo", (q) => q.eq("projectId", args.projectId))
+      .take(100)) {
+      await ctx.db.delete(line._id);
     }
 
     await ctx.db.delete(args.projectId);

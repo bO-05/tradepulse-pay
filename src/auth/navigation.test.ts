@@ -1,44 +1,116 @@
 import { describe, expect, test } from "vitest";
-import { agreementHash, ledgerHash, NAV_BY_ROLE, parseHash, resolveRoute, signInErrorMessage } from "./navigation";
+import { agreementHash, ledgerHash, NAV_BY_ROLE, navFor, parseHash, payAppHash, resolveRoute } from "./navigation";
 
 describe("role navigation", () => {
   test("GC gets procurement, payments and the read-only overview; sub and owner never get procurement", () => {
     expect(NAV_BY_ROLE.gc.map((i) => i.area)).toEqual([
       "procurement",
+      "gc-projects",
+      "billing",
+      "change-orders",
       "payments",
       "inbox",
       "owner-portal",
+      "people",
+      "vendors",
       "billing-agents",
       "dashboard",
       "judge-demo",
     ]);
-    expect(NAV_BY_ROLE.sub.map((i) => i.area)).toEqual(["sub-portal", "payments"]);
-    expect(NAV_BY_ROLE.owner.map((i) => i.area)).toEqual(["owner-portal", "dashboard"]);
+    expect(NAV_BY_ROLE.sub.map((i) => i.area)).toEqual(["sub-portal", "pay-apps", "change-orders", "bid-invitations", "my-projects", "payments"]);
+    expect(NAV_BY_ROLE.owner.map((i) => i.area)).toEqual(["owner-portal", "my-projects", "owner-pay-apps", "change-orders", "dashboard"]);
+    expect(NAV_BY_ROLE.owner.map((i) => i.label)).toEqual(["Home", "Projects", "Owner pay apps", "Change orders", "Reports"]);
   });
 
-  test("disallowed or unknown areas fall back to the role's home", () => {
-    expect(resolveRoute("sub", "#/procurement")).toEqual({ area: "sub-portal" });
-    expect(resolveRoute("owner", "#/procurement")).toEqual({ area: "owner-portal" });
-    expect(resolveRoute("owner", "#/portal")).toEqual({ area: "owner-portal" });
-    expect(resolveRoute("gc", "")).toEqual({ area: "procurement" });
-    expect(resolveRoute("gc", "#/nonsense")).toEqual({ area: "procurement" });
+  test("People is GC-only; project switcher for subs and owners; Company settings for every role", () => {
+    expect(resolveRoute("gc", "#/people/k97p")).toEqual({ area: "people", projectId: "k97p" });
+    expect(resolveRoute("sub", "#/people/k97p")).toEqual({ area: "not-found" });
+    expect(resolveRoute("gc", "#/vendors")).toEqual({ area: "vendors" });
+    expect(resolveRoute("sub", "#/vendors")).toEqual({ area: "not-found" });
+    expect(resolveRoute("owner", "#/vendors")).toEqual({ area: "not-found" });
+    expect(resolveRoute("sub", "#/my-projects/k97p")).toEqual({ area: "my-projects", projectId: "k97p" });
+    expect(resolveRoute("owner", "#/my-projects")).toEqual({ area: "my-projects" });
+    expect(resolveRoute("gc", "#/my-projects")).toEqual({ area: "not-found" });
+    for (const role of ["gc", "sub", "owner"] as const) expect(resolveRoute(role, "#/company")).toEqual({ area: "company" });
+  });
+
+  test("GC project setup routes: list, wizard, project page and settings; GC only", () => {
+    expect(resolveRoute("gc", "#/all-projects")).toEqual({ area: "gc-projects" });
+    expect(resolveRoute("gc", "#/all-projects/new")).toEqual({ area: "gc-projects", view: "new" });
+    expect(resolveRoute("gc", "#/all-projects/k97p")).toEqual({ area: "gc-projects", projectId: "k97p" });
+    expect(resolveRoute("gc", "#/all-projects/k97p/settings")).toEqual({ area: "gc-projects", projectId: "k97p", view: "settings" });
+    expect(resolveRoute("gc", "#/all-projects/k97p/other")).toEqual({ area: "not-found" });
+    for (const role of ["sub", "owner"] as const) {
+      for (const hash of ["#/all-projects", "#/all-projects/new", "#/all-projects/k97p", "#/all-projects/k97p/settings"]) {
+        expect(resolveRoute(role, hash)).toEqual({ area: "not-found" });
+      }
+    }
+  });
+
+  test("an empty hash is the role's home", () => {
+    for (const hash of ["", "#", "#/"]) {
+      expect(resolveRoute("gc", hash)).toEqual({ area: "procurement" });
+      expect(resolveRoute("sub", hash)).toEqual({ area: "sub-portal" });
+      expect(resolveRoute("owner", hash)).toEqual({ area: "owner-portal" });
+    }
+  });
+
+  test("wrong-role areas are Not found, never a silent fallback to the role's home", () => {
+    expect(resolveRoute("sub", "#/procurement")).toEqual({ area: "not-found" });
+    expect(resolveRoute("owner", "#/procurement")).toEqual({ area: "not-found" });
+    expect(resolveRoute("owner", "#/portal")).toEqual({ area: "not-found" });
     expect(resolveRoute("gc", "#/projects")).toEqual({ area: "owner-portal" });
     expect(resolveRoute("gc", "#/billing-agents")).toEqual({ area: "billing-agents" });
-    expect(resolveRoute("sub", "#/billing-agents")).toEqual({ area: "sub-portal" });
-    expect(resolveRoute("owner", "#/billing-agents")).toEqual({ area: "owner-portal" });
+    expect(resolveRoute("sub", "#/billing-agents")).toEqual({ area: "not-found" });
+    expect(resolveRoute("owner", "#/billing-agents")).toEqual({ area: "not-found" });
     expect(resolveRoute("gc", "#/inbox")).toEqual({ area: "inbox" });
-    expect(resolveRoute("sub", "#/inbox")).toEqual({ area: "sub-portal" });
-    expect(resolveRoute("owner", "#/inbox")).toEqual({ area: "owner-portal" });
-    expect(resolveRoute("gc", "#/judge-demo")).toEqual({ area: "judge-demo" });
-    expect(resolveRoute("sub", "#/judge-demo")).toEqual({ area: "sub-portal" });
-    expect(resolveRoute("owner", "#/judge-demo")).toEqual({ area: "owner-portal" });
+    expect(resolveRoute("sub", "#/inbox")).toEqual({ area: "not-found" });
+    expect(resolveRoute("owner", "#/inbox")).toEqual({ area: "not-found" });
+    expect(resolveRoute("owner", "#/people/k97p")).toEqual({ area: "not-found" });
   });
 
-  test("dashboard: GC and owner reach it, a sub's direct route is access denied", () => {
+  test("unknown routes are Not found", () => {
+    for (const role of ["gc", "sub", "owner"] as const) {
+      expect(resolveRoute(role, "#/nonsense")).toEqual({ area: "not-found" });
+      expect(resolveRoute(role, "#/agreements/")).toEqual({ area: "not-found" });
+      expect(resolveRoute(role, "#/procurement/extra")).toEqual({ area: "not-found" });
+    }
+  });
+
+  test("GC procurement URLs opened by a sub or owner are Not found, with or without the hash", () => {
+    const leveling = "?project=k978yam8&tab=leveling";
+    const diagnostics = "?tab=diagnostics";
+    for (const role of ["sub", "owner"] as const) {
+      expect(resolveRoute(role, "#/procurement", false, leveling)).toEqual({ area: "not-found" });
+      expect(resolveRoute(role, "#/procurement", false, diagnostics)).toEqual({ area: "not-found" });
+      expect(resolveRoute(role, "", false, leveling)).toEqual({ area: "not-found" });
+      expect(resolveRoute(role, "#/", false, diagnostics)).toEqual({ area: "not-found" });
+    }
+    // The GC's own workspace owns that query state.
+    expect(resolveRoute("gc", "", false, leveling)).toEqual({ area: "procurement" });
+    expect(resolveRoute("gc", "#/procurement", false, diagnostics)).toEqual({ area: "procurement" });
+  });
+
+  test("a removed project's legacy procurement URL is Not found for the removed sub", () => {
+    expect(resolveRoute("sub", "#/procurement", false, "?project=k978yam8&tab=packages")).toEqual({ area: "not-found" });
+  });
+
+  test("the guided demo is a Demo-company area; every other company gets Not found", () => {
+    expect(resolveRoute("gc", "#/judge-demo", true)).toEqual({ area: "judge-demo" });
+    expect(resolveRoute("sub", "#/judge-demo", true)).toEqual({ area: "not-found" });
+    for (const role of ["gc", "sub", "owner"] as const) {
+      expect(resolveRoute(role, "#/judge-demo")).toEqual({ area: "not-found" });
+      expect(navFor(role).some((i) => i.area === "judge-demo")).toBe(false);
+    }
+    expect(navFor("gc", true).some((i) => i.area === "judge-demo")).toBe(true);
+    expect(NAV_BY_ROLE.gc.find((i) => i.area === "judge-demo")?.label).toBe("Guided demo");
+  });
+
+  test("dashboard: GC and owner reach it, a sub's direct route is Not found", () => {
     expect(parseHash("#/dashboard")).toEqual({ area: "dashboard" });
     expect(resolveRoute("gc", "#/dashboard")).toEqual({ area: "dashboard" });
     expect(resolveRoute("owner", "#/dashboard")).toEqual({ area: "dashboard" });
-    expect(resolveRoute("sub", "#/dashboard")).toEqual({ area: "access-denied" });
+    expect(resolveRoute("sub", "#/dashboard")).toEqual({ area: "not-found" });
     expect(NAV_BY_ROLE.sub.some((i) => i.area === "dashboard")).toBe(false);
   });
 
@@ -50,23 +122,64 @@ describe("role navigation", () => {
 
   test("payments workspace and ledger deep links", () => {
     expect(resolveRoute("gc", "#/payments")).toEqual({ area: "payments" });
-    expect(resolveRoute("owner", "#/payments")).toEqual({ area: "owner-portal" });
+    expect(resolveRoute("owner", "#/payments")).toEqual({ area: "not-found" });
     const hash = ledgerHash("k97abc");
     expect(hash).toBe("#/payments/k97abc");
     expect(resolveRoute("sub", hash)).toEqual({ area: "ledger", agreementId: "k97abc" });
   });
 });
 
-describe("sign-in errors", () => {
-  test("wrong password and unknown email both read as invalid credentials", () => {
-    expect(signInErrorMessage(new Error("[CONVEX A(auth:signIn)] Uncaught Error: InvalidSecret"))).toBe(
-      "Invalid email or password.",
-    );
-    expect(signInErrorMessage(new Error("Uncaught Error: InvalidAccountId"))).toBe("Invalid email or password.");
+describe("billing routes", () => {
+  test("GC Billing worklist, sub Pay apps list and the pay app page; owners get Not found", () => {
+    expect(resolveRoute("gc", "#/billing")).toEqual({ area: "billing" });
+    expect(resolveRoute("sub", "#/billing")).toEqual({ area: "not-found" });
+    expect(resolveRoute("sub", "#/pay-apps")).toEqual({ area: "pay-apps" });
+    expect(resolveRoute("gc", "#/pay-apps")).toEqual({ area: "not-found" });
+    expect(resolveRoute("owner", "#/pay-apps")).toEqual({ area: "not-found" });
+    const hash = payAppHash("k97app");
+    expect(hash).toBe("#/pay-apps/k97app");
+    expect(resolveRoute("gc", hash)).toEqual({ area: "pay-app", payAppId: "k97app" });
+    expect(resolveRoute("sub", hash)).toEqual({ area: "pay-app", payAppId: "k97app" });
+    expect(resolveRoute("sub", hash, false, "", "agent")).toEqual({ area: "pay-app", payAppId: "k97app" });
+    expect(resolveRoute("owner", hash)).toEqual({ area: "not-found" });
   });
 
-  test("rate limiting and disabled sign-up get their own messages", () => {
-    expect(signInErrorMessage(new Error("TooManyFailedAttempts"))).toMatch(/Too many failed attempts/);
-    expect(signInErrorMessage(new Error("Self sign-up is disabled."))).toMatch(/sign-up is disabled/);
+  test("owner billing: the GC's Billing tab and the owner's Owner pay apps; subs get neither", () => {
+    expect(resolveRoute("gc", "#/billing/owner-billing")).toEqual({ area: "billing", tab: "owner-billing" });
+    expect(resolveRoute("gc", "#/billing/retainage")).toEqual({ area: "billing", tab: "retainage" });
+    expect(resolveRoute("gc", "#/billing/documents")).toEqual({ area: "billing", tab: "documents" });
+    expect(resolveRoute("gc", "#/billing/forged")).toEqual({ area: "not-found" });
+    expect(resolveRoute("owner", "#/owner-pay-apps")).toEqual({ area: "owner-pay-apps" });
+    for (const hash of ["#/owner-pay-apps", "#/billing/owner-billing"]) {
+      expect(resolveRoute("sub", hash)).toEqual({ area: "not-found" });
+      expect(resolveRoute("sub", hash, false, "", "agent")).toEqual({ area: "not-found" });
+    }
+    expect(resolveRoute("owner", "#/billing/owner-billing")).toEqual({ area: "not-found" });
+    expect(navFor("sub").some((i) => /owner/i.test(i.label))).toBe(false);
+  });
+});
+
+describe("notifications and vendor detail routes", () => {
+  test("every role can open the notifications page", () => {
+    for (const role of ["gc", "sub", "owner"] as const) {
+      expect(resolveRoute(role, "#/notifications")).toEqual({ area: "notifications" });
+    }
+  });
+
+  test("vendor detail is a GC-only route", () => {
+    expect(resolveRoute("gc", "#/vendors/abc123")).toEqual({ area: "vendors", vendorId: "abc123" });
+    expect(resolveRoute("sub", "#/vendors/abc123")).toEqual({ area: "not-found" });
+    expect(resolveRoute("owner", "#/vendors/abc123")).toEqual({ area: "not-found" });
+  });
+});
+
+describe("bid invitations", () => {
+  test("sub company members reach the invitations list and a package; GC, owner and billing agents don't", () => {
+    expect(resolveRoute("sub", "#/bids")).toEqual({ area: "bid-invitations" });
+    expect(resolveRoute("sub", "#/bids/kd7pkg")).toEqual({ area: "bid-invitations", tradePackageId: "kd7pkg" });
+    for (const role of ["gc", "owner"] as const) expect(resolveRoute(role, "#/bids")).toEqual({ area: "not-found" });
+    expect(resolveRoute("sub", "#/bids/kd7pkg", false, "", "agent")).toEqual({ area: "not-found" });
+    expect(navFor("sub", false, "agent").some((i) => i.area === "bid-invitations")).toBe(false);
+    expect(navFor("sub").find((i) => i.area === "bid-invitations")?.label).toBe("Bid invitations");
   });
 });

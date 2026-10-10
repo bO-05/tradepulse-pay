@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
-  <title id="title">TradePulse Pro</title>
+  <title id="title">TradePulse Pay</title>
   <defs>
     <linearGradient id="pulse" x1="0" x2="1" y1="0" y2="1">
       <stop offset="0" stop-color="#34d399" />

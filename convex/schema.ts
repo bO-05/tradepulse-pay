@@ -1,9 +1,70 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { authTables } from "@convex-dev/auth/server";
+import {
+  bidAlternateValidator,
+  bidExclusionValidator,
+  bidLineItemValidator,
+  bidSourceValidator,
+  bidTermsFields,
+  bidUnitPriceValidator,
+  bidVeAlternateValidator,
+} from "./lib/bidValidators";
+import { documentKindValidator, documentRelatedTableValidator, documentSensitivityValidator } from "./documents/kinds";
 
 export const roleValidator = v.union(v.literal("gc"), v.literal("sub"), v.literal("owner"));
 export const actorTypeValidator = v.union(v.literal("human"), v.literal("agent"));
+export const companyKindValidator = roleValidator;
+export const companyMemberRoleValidator = v.union(v.literal("admin"), v.literal("member"));
+export const addressValidator = v.object({
+  line1: v.string(),
+  line2: v.optional(v.string()),
+  city: v.string(),
+  state: v.string(),
+  zip: v.string(),
+});
+
+/** In-app notification events (architecture §18). Notifications are never emailed. */
+export const notificationKindValidator = v.union(
+  v.literal("invite_accepted"),
+  v.literal("payee_change_pending"),
+  v.literal("payee_confirmed"),
+  v.literal("pay_app_submitted"),
+  v.literal("pay_app_reviewed"),
+  v.literal("pay_app_approved"),
+  v.literal("pay_app_revision_requested"),
+  v.literal("pay_app_rejected"),
+  v.literal("payout_sent"),
+  v.literal("payout_failed"),
+  v.literal("waiver_requested"),
+  v.literal("waiver_signed"),
+  v.literal("compliance_expiring"),
+  v.literal("compliance_expired"),
+  v.literal("change_order_submitted"),
+  v.literal("change_order_approved"),
+  v.literal("change_order_rejected"),
+  v.literal("owner_pay_app_ready"),
+  v.literal("owner_pay_app_approved"),
+  v.literal("owner_pay_app_changes_requested"),
+  v.literal("owner_pay_app_paid"),
+);
+
+export const agreementTermsValidator = v.object({
+  retainageBps: v.number(),
+  retainageReductionBpsAt50: v.optional(v.number()),
+  paymentTerms: v.object({ type: v.union(v.literal("net"), v.literal("pay_when_paid")), days: v.number() }),
+  liquidatedDamagesCentsPerDay: v.optional(v.number()),
+  insurance: v.object({
+    glEachOccurrenceCents: v.number(),
+    glAggregateCents: v.number(),
+    autoCents: v.number(),
+    umbrellaCents: v.number(),
+    workersComp: v.boolean(),
+    additionalInsured: v.boolean(),
+  }),
+  warrantyMonths: v.number(),
+  governingState: v.string(),
+});
 
 export const milestoneStatusValidator = v.union(
   v.literal("planned"),
@@ -16,14 +77,69 @@ export const milestoneStatusValidator = v.union(
 );
 
 export const payAppStatusValidator = v.union(
+  v.literal("draft"),
   v.literal("submitted"),
   v.literal("under_review"),
   v.literal("reviewed"),
   v.literal("approved"),
+  v.literal("approved_as_noted"),
+  v.literal("revision_requested"),
   v.literal("rejected"),
   v.literal("withdrawn"),
   v.literal("paid"),
 );
+
+export const g702FiguresValidator = v.object({
+  originalContractSumCents: v.number(),
+  netChangeOrdersCents: v.number(),
+  contractSumToDateCents: v.number(),
+  completedAndStoredCents: v.number(),
+  retainageCents: v.number(),
+  retainageWorkCents: v.number(),
+  retainageStoredCents: v.number(),
+  earnedLessRetainageCents: v.number(),
+  previousCertificatesCents: v.number(),
+  currentPaymentDueCents: v.number(),
+  balanceToFinishInclRetainageCents: v.number(),
+});
+
+/** The GC's decision on one submitted version of a pay app, line by line (§16, §22). */
+export const payAppDecisionValidator = v.object({
+  outcome: v.union(v.literal("approved"), v.literal("approved_as_noted"), v.literal("revision_requested"), v.literal("rejected")),
+  reason: v.optional(v.string()),
+  lines: v.array(
+    v.object({
+      sovLineId: v.id("scheduleOfValues"),
+      action: v.union(v.literal("accept"), v.literal("override"), v.literal("revise")),
+      // The review's code-computed amount and what the GC approved (0 unless approved).
+      recommendedCents: v.number(),
+      approvedCents: v.number(),
+      reason: v.optional(v.string()),
+    }),
+  ),
+  decidedBy: v.id("users"),
+  decidedAt: v.number(),
+});
+
+/** A submitted version of a G703 pay app kept when the sub revises it. */
+export const payAppVersionValidator = v.object({
+  version: v.number(),
+  submittedAt: v.number(),
+  requestedTotalCents: v.number(),
+  notes: v.string(),
+  lines: v.array(
+    v.object({
+      sovLineId: v.id("scheduleOfValues"),
+      previousWorkCents: v.number(),
+      previousStoredCents: v.number(),
+      workThisPeriodCents: v.number(),
+      storedCents: v.number(),
+      note: v.optional(v.string()),
+    }),
+  ),
+  requested: v.optional(g702FiguresValidator),
+  decision: v.optional(payAppDecisionValidator),
+});
 
 export const proposalKindValidator = v.union(
   v.literal("capture"),
@@ -68,10 +184,44 @@ export const paymentStatusValidator = v.union(
 
 export const changeOrderStatusValidator = v.union(
   v.literal("draft"),
+  v.literal("submitted"),
+  v.literal("approved"),
+  v.literal("rejected"),
+  v.literal("void"),
   v.literal("invoiced"),
   v.literal("paid"),
   v.literal("cancelled"),
 );
+
+export const changeOrderScopeValidator = v.union(v.literal("subcontract"), v.literal("prime"));
+
+/** Owner pay app lifecycle (§16): the GC drafts and submits, the owner approves (→ PayPal invoice) or requests changes. */
+export const ownerPayAppStatusValidator = v.union(
+  v.literal("draft"),
+  v.literal("submitted_to_owner"),
+  v.literal("changes_requested"),
+  v.literal("approved"),
+  v.literal("approved_invoiced"),
+  v.literal("paid"),
+);
+
+export const ownerPayAppLineValidator = v.object({
+  // Stable per prime line across applications: "trade:<agreementId>", "gc:<primeLineId>", "pco:<changeOrderId>".
+  key: v.string(),
+  kind: v.union(v.literal("trade"), v.literal("gc"), v.literal("change_order")),
+  agreementId: v.optional(v.id("agreements")),
+  primeLineId: v.optional(v.id("primeLines")),
+  changeOrderId: v.optional(v.id("changeOrders")),
+  description: v.string(),
+  scheduledValueCents: v.number(),
+  previousWorkCents: v.number(),
+  previousStoredCents: v.number(),
+  workThisPeriodCents: v.number(),
+  storedCents: v.number(),
+  retainageBps: v.number(),
+  // Trade lines: the sub's own retainage to date (rounded per SOV line), shown next to the owner-level figure.
+  subRetainageCents: v.optional(v.number()),
+});
 
 export const licenseStatusValidator = v.union(
   v.literal("active"),
@@ -104,6 +254,8 @@ export const payAppReviewValidator = v.object({
       recommendedPctToDate: v.number(),
       approvedCents: v.number(),
       reason: v.string(),
+      /** The model's verdict, stored only when the code rules replaced it. */
+      modelVerdict: v.optional(lineVerdictValidator),
     }),
   ),
   flags: v.object({
@@ -150,25 +302,271 @@ export default defineSchema({
     agentEmail: v.optional(v.string()),
     ownerEmail: v.optional(v.string()),
     ownerName: v.optional(v.string()),
+    // The user's company (role mirrors its kind). Agents carry their linked sub company here.
+    companyId: v.optional(v.id("companies")),
     createdAt: v.number(),
   })
     .index("by_userId", ["userId"])
     .index("by_contractorId", ["contractorId"])
     .index("by_role", ["role"]),
 
+  companies: defineTable({
+    name: v.string(),
+    kind: companyKindValidator,
+    isDemo: v.boolean(),
+    // Stable key of a seeded Demo company ("gc", "sub:rosendin", ...); lets seeds find it by id, never by name.
+    demoKey: v.optional(v.string()),
+    legalName: v.optional(v.string()),
+    address: v.optional(addressValidator),
+    phone: v.optional(v.string()),
+    website: v.optional(v.string()),
+    billingEmail: v.optional(v.string()),
+    payoutPaypalEmail: v.optional(v.string()),
+    defaultRetainageBps: v.optional(v.number()),
+    createdByUserId: v.optional(v.id("users")),
+    createdAt: v.number(),
+  })
+    .index("by_kind", ["kind"])
+    .index("by_isDemo", ["isDemo"]),
+
+  // One active company per user (enforced by the writers, see convex/lib/tenancy.ts).
+  companyMembers: defineTable({
+    companyId: v.id("companies"),
+    userId: v.id("users"),
+    role: companyMemberRoleValidator,
+    status: v.union(v.literal("active"), v.literal("removed")),
+    createdAt: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_userId_and_status", ["userId", "status"])
+    .index("by_companyId", ["companyId"])
+    .index("by_companyId_and_userId", ["companyId", "userId"]),
+
+  // Company-level access to a project. The GC company also has access through projects.gcCompanyId.
+  projectMembers: defineTable({
+    projectId: v.id("projects"),
+    companyId: v.id("companies"),
+    partyRole: roleValidator,
+    contractorId: v.optional(v.id("contractors")),
+    vendorId: v.optional(v.id("vendors")),
+    addedByUserId: v.optional(v.id("users")),
+    removedAt: v.optional(v.number()),
+    removedByUserId: v.optional(v.id("users")),
+    status: v.union(v.literal("active"), v.literal("removed")),
+    createdAt: v.number(),
+  })
+    .index("by_projectId", ["projectId"])
+    .index("by_companyId", ["companyId"])
+    .index("by_project_company_and_status", ["projectId", "companyId", "status"]),
+
+  // The plaintext token exists only in the invite link; only its sha256 hex is stored.
+  invites: defineTable({
+    tokenHash: v.string(),
+    email: v.string(), // lowercased
+    kind: v.union(v.literal("teammate"), v.literal("sub"), v.literal("owner")),
+    inviterCompanyId: v.id("companies"),
+    projectId: v.optional(v.id("projects")),
+    contractorId: v.optional(v.id("contractors")),
+    vendorId: v.optional(v.id("vendors")),
+    // Suggested name for the company the invitee creates (owner invites; editable on accept).
+    companyName: v.optional(v.string()),
+    status: v.union(v.literal("pending"), v.literal("accepted"), v.literal("revoked"), v.literal("expired")),
+    expiresAt: v.number(),
+    acceptedByUserId: v.optional(v.id("users")),
+    acceptedAt: v.optional(v.number()),
+    revokedAt: v.optional(v.number()),
+    emailStatus: v.union(v.literal("sent"), v.literal("bounced"), v.literal("failed"), v.literal("skipped_budget"), v.literal("not_sent")),
+    emailError: v.optional(v.string()),
+    lastSentAt: v.optional(v.number()),
+    // Increments on every token rotation; part of the email idempotency key.
+    tokenVersion: v.optional(v.number()),
+    createdByUserId: v.id("users"),
+    createdAt: v.number(),
+  })
+    .index("by_tokenHash", ["tokenHash"])
+    .index("by_inviterCompanyId", ["inviterCompanyId"])
+    .index("by_inviterCompanyId_and_kind_and_status", ["inviterCompanyId", "kind", "status"])
+    .index("by_email", ["email"])
+    .index("by_projectId", ["projectId"]),
+
+  // Hashes of invite tokens replaced by a resend, so an old link reads "no longer valid" instead of "not valid".
+  retiredInviteTokens: defineTable({
+    tokenHash: v.string(),
+    inviteId: v.id("invites"),
+    retiredAt: v.number(),
+  }).index("by_tokenHash", ["tokenHash"]),
+
+  // A GC company's vendor directory (architecture §14). linkedCompanyId is set when the vendor's sub accepts an invite.
+  vendors: defineTable({
+    companyId: v.id("companies"),
+    name: v.string(),
+    trades: v.array(v.string()), // CSI divisions, e.g. "26 00 00"
+    contactName: v.string(),
+    email: v.string(), // lowercased
+    // Set while `email` is a web-discovered address no GC member has confirmed or edited.
+    discoveredEmail: v.optional(v.string()),
+    // When a GC member last confirmed or entered an address for RFQ use, and which one (lowercased).
+    // Bidders reusing this vendor are emailed only while `email` equals it (lib/vendorDirectory.ts rfqAddressConfirmed).
+    emailConfirmedAt: v.optional(v.number()),
+    emailConfirmedFor: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    licenseNumber: v.optional(v.string()),
+    licenseState: v.optional(v.string()),
+    linkedCompanyId: v.optional(v.id("companies")),
+    payoutEmailConfirmed: v.optional(
+      v.object({ email: v.string(), confirmedByUserId: v.id("users"), confirmedAt: v.number() })
+    ),
+    // "merged": a duplicate folded into mergedIntoVendorId (lib/vendorMerge.ts); hidden from every list.
+    status: v.union(v.literal("active"), v.literal("inactive"), v.literal("merged")),
+    mergedIntoVendorId: v.optional(v.id("vendors")),
+    createdAt: v.number(),
+    // Name, email and trades for the directory search index; written by lib/vendorSearch.ts.
+    searchText: v.optional(v.string()),
+  })
+    .index("by_companyId", ["companyId"])
+    .index("by_companyId_and_name", ["companyId", "name"])
+    .index("by_companyId_and_status_and_name", ["companyId", "status", "name"])
+    .index("by_companyId_and_email", ["companyId", "email"])
+    .index("by_companyId_and_linkedCompanyId", ["companyId", "linkedCompanyId"])
+    .index("by_linkedCompanyId", ["linkedCompanyId"])
+    .searchIndex("search_text", { searchField: "searchText", filterFields: ["companyId", "status"] }),
+
+  // One row per recipient user, written only by convex/lib/notify.ts. companyId is the recipient's company
+  // at creation time; a user only sees rows of their current company.
+  notifications: defineTable({
+    userId: v.id("users"),
+    companyId: v.id("companies"),
+    projectId: v.optional(v.id("projects")),
+    kind: notificationKindValidator,
+    title: v.string(),
+    body: v.string(),
+    link: v.string(), // hash route, e.g. "#/vendors/<id>"
+    readAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_userId_and_companyId_and_createdAt", ["userId", "companyId", "createdAt"])
+    .index("by_userId_and_companyId_and_readAt", ["userId", "companyId", "readAt"]),
+
+  // One row per send attempt key, written only by convex/lib/mailer.ts. Never stores codes or invite tokens.
+  emailOutbox: defineTable({
+    kind: v.union(
+      v.literal("auth_code"),
+      v.literal("invite"),
+      v.literal("rfq"),
+      v.literal("rfi_answer"),
+      v.literal("notification"),
+      v.literal("other")
+    ),
+    to: v.string(), // lowercased
+    fromInbox: v.string(),
+    subject: v.optional(v.string()),
+    companyId: v.optional(v.id("companies")),
+    projectId: v.optional(v.id("projects")),
+    // Charged against the budget: pending (call in flight), sent, uncertain (AgentMail may have accepted it
+    // but the response was lost) and delivery_failed (sent, then bounced or rejected).
+    status: v.union(
+      v.literal("pending"),
+      v.literal("sent"),
+      v.literal("uncertain"),
+      v.literal("delivery_failed"),
+      v.literal("failed"),
+      v.literal("skipped_budget"),
+      // Refused before any provider call: the recipient is outside EMAIL_RECIPIENT_ALLOWLIST on a non-production deployment.
+      v.literal("blocked_recipient")
+    ),
+    idempotencyKey: v.string(),
+    day: v.string(), // UTC yyyy-mm-dd of the latest attempt
+    attempts: v.number(),
+    agentmailMessageId: v.optional(v.string()),
+    threadId: v.optional(v.string()),
+    error: v.optional(v.string()),
+    deliveryEvent: v.optional(v.string()), // last AgentMail delivery webhook: delivered | bounced | complained | rejected
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_idempotencyKey", ["idempotencyKey"])
+    .index("by_day_and_status", ["day", "status"])
+    .index("by_threadId", ["threadId"])
+    .index("by_agentmailMessageId", ["agentmailMessageId"]),
+
+  // Bounces/rejections that arrived before any outbox row carried their message id; finishSend applies them.
+  emailEarlyDeliveryEvents: defineTable({
+    agentmailMessageId: v.string(),
+    event: v.string(), // bounced | rejected
+    receivedAt: v.number(),
+  }).index("by_agentmailMessageId", ["agentmailMessageId"]),
+
+  // Outbound RFQ conversations this deployment started; inbound mail routes by threadId, then by `[TP-<ref>]`.
+  emailThreads: defineTable({
+    ref: v.string(),
+    kind: v.literal("rfq"),
+    projectId: v.id("projects"),
+    companyId: v.optional(v.id("companies")),
+    tradePackageId: v.id("tradePackages"),
+    contractorId: v.id("contractors"),
+    threadId: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_ref", ["ref"])
+    .index("by_threadId", ["threadId"])
+    .index("by_contractorId", ["contractorId"]),
+
+  // Every AgentMail thread recognized as part of an RFQ conversation (each outbound send and each
+  // token-routed inbound thread), so token-free follow-ups on any of them still route.
+  emailThreadLinks: defineTable({
+    threadId: v.string(),
+    emailThreadId: v.id("emailThreads"),
+    contractorId: v.id("contractors"),
+    source: v.union(v.literal("outbound"), v.literal("inbound_token")),
+    createdAt: v.number(),
+  }).index("by_threadId", ["threadId"]),
+
+  // Verified inbound AgentMail messages. "unrouted" rows carry no tenant ids and are never shown to tenants.
+  inboundEmails: defineTable({
+    eventId: v.string(),
+    messageId: v.string(),
+    inboxId: v.string(),
+    threadId: v.string(),
+    from: v.string(), // lowercased address
+    fromName: v.optional(v.string()),
+    subject: v.string(),
+    text: v.string(),
+    inReplyTo: v.optional(v.string()),
+    routing: v.union(v.literal("routed"), v.literal("triage"), v.literal("unrouted")),
+    matchMethod: v.optional(v.union(v.literal("thread"), v.literal("token"))),
+    projectId: v.optional(v.id("projects")),
+    companyId: v.optional(v.id("companies")),
+    tradePackageId: v.optional(v.id("tradePackages")),
+    contractorId: v.optional(v.id("contractors")),
+    attachments: v.optional(v.array(v.any())),
+    receivedAt: v.number(),
+    // Set when a priced reply arrived after bidding closed: kept for the GC, never applied to a bid.
+    lateReason: v.optional(v.string()),
+  })
+    .index("by_eventId", ["eventId"])
+    .index("by_messageId", ["messageId"])
+    .index("by_routing", ["routing"])
+    .index("by_tradePackageId", ["tradePackageId"]),
+
   // GC-managed authorization of AgentID billing agents to act for a sub.
   agentLinks: defineTable({
     agentEmail: v.string(), // lowercased
     contractorId: v.id("contractors"),
+    // Contractor name when the link was made, so the list stays readable after the contractor row is gone.
+    contractorName: v.optional(v.string()),
     agreementId: v.optional(v.id("agreements")),
     status: v.union(v.literal("active"), v.literal("revoked")),
     createdBy: v.id("users"),
     createdAt: v.number(),
     revokedBy: v.optional(v.id("users")),
     revokedAt: v.optional(v.number()),
+    // GC company that created the link, and the sub company of the linked contractor.
+    gcCompanyId: v.optional(v.id("companies")),
+    subCompanyId: v.optional(v.id("companies")),
   })
     .index("by_agentEmail_and_status", ["agentEmail", "status"])
-    .index("by_contractorId", ["contractorId"]),
+    .index("by_contractorId", ["contractorId"])
+    .index("by_gcCompanyId", ["gcCompanyId"]),
 
   // Schedule of values; lines sum exactly to the agreement contract sum.
   scheduleOfValues: defineTable({
@@ -177,10 +575,14 @@ export default defineSchema({
     description: v.string(),
     csiCode: v.optional(v.string()),
     scheduledValueCents: v.number(),
+    // Per-line retainage override; the agreement's rate applies when absent.
+    retainageBps: v.optional(v.number()),
     excludedScope: v.boolean(),
     sourceBidLineRef: v.optional(v.string()),
     // Canonical JSON of the award inputs the SOV and milestones were generated from.
     sourceFingerprint: v.optional(v.string()),
+    // Set on lines added by an approved subcontract change order; such lines are never edited or deleted.
+    changeOrderId: v.optional(v.id("changeOrders")),
   }).index("by_agreementId_and_lineNo", ["agreementId", "lineNo"]),
 
   milestones: defineTable({
@@ -217,6 +619,8 @@ export default defineSchema({
       ownerName: v.optional(v.string()),
     }),
     review: v.optional(payAppReviewValidator),
+    // Token of the review run that holds "under_review"; only that run may store or abandon a review.
+    reviewRunId: v.optional(v.string()),
     // The GC's final approved split, which billing math uses; review.lines keeps the recommendation.
     finalApproval: v.optional(
       v.object({
@@ -226,19 +630,56 @@ export default defineSchema({
         approvedAt: v.number(),
       }),
     ),
+    // The GC's per-line decision on the current version.
+    gcDecision: v.optional(payAppDecisionValidator),
+    // Current version number (1 when absent) and earlier submitted versions, oldest first.
+    version: v.optional(v.number()),
+    versions: v.optional(v.array(payAppVersionValidator)),
     rejectedAt: v.optional(v.number()),
     rejectionReason: v.optional(v.string()),
     withdrawnAt: v.optional(v.number()),
     // The agreement's contractor, copied at submission so the sub portal can page one contractor's
     // pay apps newest first across all its agreements. Older rows: payApps/backfill.ts.
     contractorId: v.optional(v.id("contractors")),
+    // The sub company the contractor was linked to at submission, so the sub portal can page all
+    // of a company's pay apps with one index. Older rows: payApps/backfill.ts.
+    subCompanyId: v.optional(v.id("companies")),
     // Set when the GC's one-click judge demo filed this pay app as a stand-in for the sub or its agent.
     judgeDemo: v.optional(v.object({ runId: v.id("judgeDemoRuns"), filedBy: v.string() })),
+    // G702/G703 applications (§16). Phase-1 rows have none of these and keep billing by `lines` only.
+    applicationNo: v.optional(v.number()),
+    periodStart: v.optional(v.string()), // YYYY-MM-DD
+    periodEnd: v.optional(v.string()),
+    dueDate: v.optional(v.string()),
+    g703: v.optional(
+      v.object({
+        // Every SOV line, including zero ones. previous* are frozen at submission; drafts recompute them.
+        lines: v.array(
+          v.object({
+            sovLineId: v.id("scheduleOfValues"),
+            previousWorkCents: v.number(),
+            previousStoredCents: v.number(),
+            workThisPeriodCents: v.number(),
+            storedCents: v.number(),
+            note: v.optional(v.string()),
+          }),
+        ),
+        originalContractSumCents: v.number(),
+        retainageBps: v.number(),
+        previousCertificatesCents: v.number(),
+        savedAt: v.number(),
+        // G702 figures as submitted, and from the GC-approved amounts once approved.
+        requested: v.optional(g702FiguresValidator),
+        approved: v.optional(g702FiguresValidator),
+      }),
+    ),
+    submittedAt: v.optional(v.number()),
     createdAt: v.number(),
   })
     .index("by_agreementId", ["agreementId"])
     .index("by_agreementId_and_status", ["agreementId", "status"])
     .index("by_contractorId", ["contractorId"])
+    .index("by_subCompanyId", ["subCompanyId"])
     .index("by_subUserId", ["subUserId"])
     .index("by_status", ["status"]),
 
@@ -257,8 +698,8 @@ export default defineSchema({
     paymentId: v.optional(v.id("payments")),
     error: v.optional(v.string()),
     // Who wrote the proposal: the pay agent's model, the code policy filling a required proposal the
-    // model skipped, or a GC release started from the agreement ledger.
-    source: v.optional(v.union(v.literal("agent"), v.literal("code_policy"), v.literal("gc_ledger"))),
+    // model skipped, a GC release started from the agreement ledger (Phase 1), or the GC paying an approved pay app.
+    source: v.optional(v.union(v.literal("agent"), v.literal("code_policy"), v.literal("gc_ledger"), v.literal("gc_payapp"))),
     agentRunId: v.optional(v.string()),
     licenseStatus: v.optional(v.string()),
     licenseCheckId: v.optional(v.id("licenseChecks")),
@@ -309,6 +750,12 @@ export default defineSchema({
     // Payout rows: recipient snapshot at release time, and PayPal's raw item status (e.g. UNCLAIMED).
     receiverEmail: v.optional(v.string()),
     paypalItemStatus: v.optional(v.string()),
+    // Payout rows: set when the payout POST is about to go out and cleared when PayPal definitively
+    // rejects it. While set, PayPal may hold the batch, so the row is re-sent only for reconciliation.
+    payoutSubmittedAt: v.optional(v.number()),
+    // Release rows: set right before the capture POST. Unset means no capture was ever sent for the
+    // release, so resuming it is a new capture that must pass canPay again.
+    captureSubmittedAt: v.optional(v.number()),
     // Payout rows: a "Retry payout" row points at the original release it re-sends (same capture).
     retryOfPaymentId: v.optional(v.id("payments")),
     // Funding rows: honor-period watcher state. PayPal allows one reauthorization per authorization.
@@ -350,15 +797,45 @@ export default defineSchema({
     .index("by_agreementId", ["agreementId"])
     .index("by_paymentId", ["paymentId"]),
 
+  // Change orders (§16). Subcontract COs belong to an agreement and, once the GC approves them, add an SOV
+  // line. Prime COs belong to the project and are decided by the owner; a prime CO may also carry the
+  // agreementId of the subcontract it is billed through (judge demo), which never makes it visible to that sub.
+  // Rows written before scope existed are prime COs on an agreement (see changeOrderBackfill).
   changeOrders: defineTable({
-    agreementId: v.id("agreements"),
+    agreementId: v.optional(v.id("agreements")),
+    projectId: v.optional(v.id("projects")),
+    scope: v.optional(changeOrderScopeValidator),
     number: v.number(),
+    title: v.optional(v.string()),
     description: v.string(),
     amountCents: v.number(),
+    scheduleDays: v.optional(v.number()),
     status: changeOrderStatusValidator,
+    requestedBy: v.optional(v.id("users")),
+    requestedByParty: v.optional(v.union(v.literal("gc"), v.literal("sub"))),
+    linkedChangeOrderId: v.optional(v.id("changeOrders")),
+    submittedAt: v.optional(v.number()),
+    approvedBy: v.optional(v.id("users")),
+    approvedAt: v.optional(v.number()),
+    rejectedBy: v.optional(v.id("users")),
+    rejectedAt: v.optional(v.number()),
+    rejectionReason: v.optional(v.string()),
+    sovLineId: v.optional(v.id("scheduleOfValues")),
+    // The contract sum to date just before and after this CO was approved (subcontract or prime),
+    // captured at approval so documents never depend on draft numbering.
+    contractSumBeforeCents: v.optional(v.number()),
+    contractSumAfterCents: v.optional(v.number()),
+    // Set when "Invoice now" starts billing this prime CO directly; it then stays off owner pay apps.
+    directInvoiceStartedAt: v.optional(v.number()),
+    // Set when the judge demo approved a prime change order as a stand-in for the demo owner.
+    judgeDemo: v.optional(v.object({ runId: v.id("judgeDemoRuns"), approvedFor: v.string() })),
+    updatedAt: v.optional(v.number()),
     paypalInvoiceId: v.optional(v.string()),
     payerViewUrl: v.optional(v.string()),
     recipientEmail: v.optional(v.string()),
+    // Bumped when the project's owner changes before the invoice exists, so the PayPal create
+    // request id changes and PayPal's idempotency cache cannot replay an invoice to the old owner.
+    recipientRevision: v.optional(v.number()),
     paypalInvoiceStatus: v.optional(v.string()),
     error: v.optional(v.string()),
     auditRecorded: v.optional(v.boolean()),
@@ -369,8 +846,83 @@ export default defineSchema({
     statusCheckedAt: v.optional(v.number()),
   })
     .index("by_agreementId_and_number", ["agreementId", "number"])
+    .index("by_projectId_and_scope_and_number", ["projectId", "scope", "number"])
     .index("by_paypalInvoiceId", ["paypalInvoiceId"])
     .index("by_status", ["status"]),
+
+  // GC lines of the prime contract (general conditions, fee, insurance…), defined in project setup (§16).
+  // Trade packages enter the prime SOV from their agreements; these are the GC's own lines.
+  primeLines: defineTable({
+    projectId: v.id("projects"),
+    lineNo: v.number(),
+    description: v.string(),
+    scheduledValueCents: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  }).index("by_projectId_and_lineNo", ["projectId", "lineNo"]),
+
+  // Owner pay applications (§16): the GC's G702/G703 to the owner, rolled up from approved sub pay apps
+  // plus GC-entered lines. Lines and figures are a snapshot; retainage is rounded per prime line (§22).
+  ownerPayApps: defineTable({
+    projectId: v.id("projects"),
+    applicationNo: v.number(),
+    periodStart: v.string(), // YYYY-MM-DD
+    periodEnd: v.string(),
+    status: ownerPayAppStatusValidator,
+    lines: v.array(ownerPayAppLineValidator),
+    retainageBps: v.number(),
+    figures: g702FiguresValidator,
+    // Sub pay apps submitted for this period or earlier that the GC has not approved yet (contribute 0.00).
+    pendingSubPayApps: v.number(),
+    history: v.array(
+      v.object({
+        status: ownerPayAppStatusValidator,
+        at: v.number(),
+        byUserId: v.id("users"),
+        byName: v.string(),
+        comment: v.optional(v.string()),
+      }),
+    ),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    submittedAt: v.optional(v.number()),
+    approvedAt: v.optional(v.number()),
+    approvedBy: v.optional(v.id("users")),
+    changesRequestedComment: v.optional(v.string()),
+    paypalInvoiceId: v.optional(v.string()),
+    payerViewUrl: v.optional(v.string()),
+    recipientEmail: v.optional(v.string()),
+    paypalInvoiceStatus: v.optional(v.string()),
+    invoicedAt: v.optional(v.number()),
+    paidAt: v.optional(v.number()),
+    statusCheckedAt: v.optional(v.number()),
+    error: v.optional(v.string()),
+    auditRecorded: v.optional(v.boolean()),
+  })
+    .index("by_projectId_and_applicationNo", ["projectId", "applicationNo"])
+    .index("by_paypalInvoiceId", ["paypalInvoiceId"]),
+
+  // Generated billing documents (§16). Bytes live in file storage and are served only through the
+  // authenticated /api/documents/ route, never by storage URL. `relatedId` is the record the document
+  // was generated from (its table is fixed per kind); `inputsHash` identifies the data it reflects.
+  documents: defineTable({
+    projectId: v.id("projects"),
+    kind: documentKindValidator,
+    sensitivity: documentSensitivityValidator,
+    storageId: v.id("_storage"),
+    sha256: v.string(),
+    fileName: v.string(),
+    contentType: v.string(),
+    sizeBytes: v.number(),
+    uploadedByUserId: v.optional(v.id("users")),
+    createdAt: v.number(),
+    relatedId: v.optional(v.string()),
+    relatedTable: v.optional(documentRelatedTableValidator),
+    inputsHash: v.optional(v.string()),
+  })
+    .index("by_projectId", ["projectId"])
+    .index("by_kind_and_relatedId", ["kind", "relatedId"]),
 
   // eventId is unique by convention: writers must check by_eventId before insert.
   paypalEvents: defineTable({
@@ -419,8 +971,26 @@ export default defineSchema({
     specDocumentText: v.string(),
     isDemoProject: v.boolean(), // Allows public read access for judges
     generalContractorName: v.optional(v.string()),
+    // Owning GC company. Optional only until every writer sets it; the tenancy migration backfills it.
+    gcCompanyId: v.optional(v.id("companies")),
+    // Owner's name as typed by the GC, and the owner company once its contact accepts an invite.
+    ownerName: v.optional(v.string()),
+    ownerCompanyId: v.optional(v.id("companies")),
+    // Archived projects stay readable by id but are hidden from project lists by default.
+    archived: v.optional(v.boolean()),
+    // §14 setup fields. Optional only because pre-wizard rows lack them; createProject requires them.
+    address: v.optional(addressValidator),
+    state: v.optional(v.string()),
+    contractValueCents: v.optional(v.number()),
+    retainageBps: v.optional(v.number()),
+    billingDay: v.optional(v.number()),
+    startDate: v.optional(v.string()),
+    substantialCompletionDate: v.optional(v.string()),
+    status: v.optional(v.union(v.literal("active"), v.literal("archived"), v.literal("closed"))),
     createdAt: v.number(),
-  }).index("by_demo", ["isDemoProject"]),
+  })
+    .index("by_demo", ["isDemoProject"])
+    .index("by_gcCompanyId", ["gcCompanyId"]),
 
   // CSI MasterFormat Trade Packages
   tradePackages: defineTable({
@@ -436,6 +1006,9 @@ export default defineSchema({
     scopeSummary: v.string(),
     mandatoryInclusions: v.array(v.string()), // ["Crane hoisting", "Seismic bracing", "Temporary power"]
     bidDeadline: v.string(),
+    // Optional "HH:MM" due time in bidDueTimeZone (IANA, recorded with the time); unset means end of day.
+    bidDueTime: v.optional(v.string()),
+    bidDueTimeZone: v.optional(v.string()),
     status: v.string(), // "draft" | "rfqs_dispatched" | "leveling" | "awarded"
     // Existing contractors (discovered for another package) invited to bid on this one.
     invitedContractorIds: v.optional(v.array(v.id("contractors"))),
@@ -450,11 +1023,46 @@ export default defineSchema({
     licenseNumber: v.string(),
     licenseStatus: v.string(),
     sourceUrl: v.string(),
-    rfqStatus: v.string(), // "discovered" | "invited" | "rfi_submitted" | "bid_received"
+    // "discovered" | RFQ email outcome ("sent" | "failed" | "skipped_budget" | "blocked_recipient" | "bounced" | "replied")
+    // | "rfi_submitted" | "bid_received". "invited" is only used by Demo data, which sends no email.
+    rfqStatus: v.string(),
     dispatchedAt: v.optional(v.number()),
+    // RFQ email lifecycle for this bidder, kept separately so a later bid/RFI stage does not hide that the bidder replied.
+    rfqEmailStatus: v.optional(
+      v.union(
+        v.literal("sent"),
+        v.literal("failed"),
+        v.literal("skipped_budget"),
+        v.literal("blocked_recipient"),
+        v.literal("bounced"),
+        v.literal("replied"),
+        v.literal("not_sent")
+      )
+    ),
+    rfqEmailError: v.optional(v.string()),
+    rfqEmailTo: v.optional(v.string()),
+    rfqSentAt: v.optional(v.number()),
+    rfqRepliedAt: v.optional(v.number()),
+    rfqRef: v.optional(v.string()),
+    rfqThreadId: v.optional(v.string()),
+    rfqOutboxId: v.optional(v.id("emailOutbox")),
+    /** Timestamp in the RFQ idempotency key; changes only when a new email (new address, or after a bounce) is needed. */
+    rfqKeyTs: v.optional(v.number()),
+    // Where contactEmail came from. Web-discovered addresses belong to real businesses and are not emailed until a GC confirms them.
+    emailSource: v.optional(v.union(v.literal("web_discovery"), v.literal("gc"), v.literal("directory"), v.literal("document"))),
+    emailConfirmedAt: v.optional(v.number()),
+    // The exact lowercased address a GC member typed, edited or confirmed; RFQs go only to it.
+    emailConfirmedFor: v.optional(v.string()),
+    emailConfirmedByUserId: v.optional(v.id("users")),
     /** A14-02: optimistic-concurrency marker for concurrent edits. */
     updatedAt: v.optional(v.number()),
-  }).index("by_package", ["tradePackageId"]),
+    // The sub company that operates this bidder record, once linked (invite accept or demo migration).
+    linkedCompanyId: v.optional(v.id("companies")),
+    vendorId: v.optional(v.id("vendors")),
+  })
+    .index("by_package", ["tradePackageId"])
+    .index("by_linkedCompanyId", ["linkedCompanyId"])
+    .index("by_vendorId", ["vendorId"]),
 
   // Two-way Pre-Bid RFIs and Clarifications
   conversations: defineTable({
@@ -473,6 +1081,38 @@ export default defineSchema({
     // the bidder can retry instead of losing the RFI.
     analysisError: v.optional(v.string()),
     timestamp: v.number(),
+    // "portal": asked in the bid portal by a signed-in sub member (no email involved).
+    origin: v.optional(v.union(v.literal("email"), v.literal("portal"))),
+    askedByUserId: v.optional(v.id("users")),
+    askedByCompanyId: v.optional(v.id("companies")),
+    // Set when the GC publishes the Q&A to every invited bidder. Published entries never name the asker.
+    publishedAt: v.optional(v.number()),
+    publishedQuestion: v.optional(v.string()),
+    publishedAnswer: v.optional(v.string()),
+    publishedByUserId: v.optional(v.id("users")),
+    // The routed inbound email the RFI came from; the GC's answer is sent as a reply to it.
+    sourceInboundEmailId: v.optional(v.id("inboundEmails")),
+    // The GC-reviewed answer sent by email (convex/rfiAnswers.ts). The AI draft is kept in aiDraft.
+    aiDraft: v.optional(v.string()),
+    answerText: v.optional(v.string()),
+    answerEmailStatus: v.optional(
+      v.union(
+        v.literal("sending"),
+        v.literal("sent"),
+        v.literal("uncertain"),
+        v.literal("failed"),
+        v.literal("skipped_budget"),
+        v.literal("demo_not_sent")
+      )
+    ),
+    answerEmailError: v.optional(v.string()),
+    answerAttempt: v.optional(v.number()),
+    answerClaimedAt: v.optional(v.number()),
+    answerOutboxId: v.optional(v.id("emailOutbox")),
+    answerMessageId: v.optional(v.string()),
+    answeredAt: v.optional(v.number()),
+    answeredByUserId: v.optional(v.id("users")),
+    answeredByName: v.optional(v.string()),
   })
     .index("by_contractor", ["contractorId"])
     .index("by_thread", ["threadId"])
@@ -483,50 +1123,67 @@ export default defineSchema({
     tradePackageId: v.id("tradePackages"),
     contractorId: v.id("contractors"),
     subcontractorName: v.string(),
-    baseBidAmount: v.number(),
-    lineItems: v.array(
-      v.object({
-        item: v.string(),
-        unit: v.string(),
-        quantity: v.number(),
-        unitCost: v.number(),
-        totalCost: v.number(),
-      })
-    ),
-    identifiedExclusions: v.array(
-      v.object({
-        canonicalCode: v.optional(v.string()),
-        description: v.string(),
-        costImpact: v.number(),
-        severity: v.string(), // "critical" | "moderate" | "minor"
-        isWaived: v.optional(v.boolean()),
-      })
-    ),
-    valueEngineeringAlternates: v.optional(
-      v.array(
-        v.object({
-          description: v.string(),
-          costDeduct: v.number(),
-          isAccepted: v.boolean(),
-        })
-      )
-    ),
+    // Money is integer cents. The cents fields are optional only so a deployment holding rows from
+    // before the cents migration still validates; every writer sets them and
+    // `bidCentsMigration:backfillBidCents` fills old rows. The dollar fields are legacy, never read.
+    baseAmountCents: v.optional(v.number()),
+    baseBidAmount: v.optional(v.number()),
+    lineItems: v.array(bidLineItemValidator),
+    identifiedExclusions: v.array(bidExclusionValidator),
+    valueEngineeringAlternates: v.optional(v.array(bidVeAlternateValidator)),
     longLeadEquipmentWeeks: v.number(),
-    leadTimePenalty: v.number(),
+    leadTimePenaltyCents: v.optional(v.number()),
+    leadTimePenalty: v.optional(v.number()),
     /** GC-owned schedule baseline the penalty was computed against (12 Div 26 / 16 Div 22-23). */
     leadTimeTargetWeeks: v.optional(v.number()),
     coiComplianceStatus: v.string(), // "compliant" | "deficiency_detected"
-    coiPenalty: v.number(),
-    leveledTotalCost: v.number(), // True normalized cost = base + un-waived scope gaps + penalties - accepted alternates
+    coiPenaltyCents: v.optional(v.number()),
+    coiPenalty: v.optional(v.number()),
+    // Comparison only: base + un-waived scope gaps + penalties - accepted VE alternates.
+    leveledTotalCents: v.optional(v.number()),
+    leveledTotalCost: v.optional(v.number()),
     isAwarded: v.boolean(),
     sourceFileId: v.optional(v.id("projectFiles")),
-    revisionNumber: v.optional(v.number()), // 1 = first submission; increments on re-ingest
+    revisionNumber: v.optional(v.number()), // 1 = first submission; increments on every revision
     lastRevisedAt: v.optional(v.number()),
     receivedAt: v.number(),
+    // Structured bid terms (bid portal, GC entry, AI parsing); history in bidRevisions.
+    alternates: v.optional(v.array(bidAlternateValidator)),
+    exclusions: v.optional(v.array(v.string())),
+    inclusions: v.optional(v.array(v.string())),
+    unitPrices: v.optional(v.array(bidUnitPriceValidator)),
+    qualifications: v.optional(v.string()),
+    validUntil: v.optional(v.string()),
+    source: v.optional(bidSourceValidator),
+    sourceInboundEmailId: v.optional(v.id("inboundEmails")),
+    submittedByUserId: v.optional(v.id("users")),
+    submittedByName: v.optional(v.string()),
+    submittedByCompanyId: v.optional(v.id("companies")),
+    // An AI-parsed bid stays "needs review" until a GC member edits or confirms it.
+    confirmedByUserId: v.optional(v.id("users")),
+    confirmedByName: v.optional(v.string()),
+    confirmedAt: v.optional(v.number()),
   })
     .index("by_package", ["tradePackageId"])
     .index("by_contractor", ["contractorId"])
-    .index("by_source_file", ["sourceFileId"]),
+    .index("by_source_file", ["sourceFileId"])
+    .index("by_package_and_contractor", ["tradePackageId", "contractorId"]),
+
+  // Every submitted version of a bid, oldest first; the bid row holds the latest.
+  bidRevisions: defineTable({
+    bidId: v.id("bids"),
+    tradePackageId: v.id("tradePackages"),
+    contractorId: v.id("contractors"),
+    revisionNumber: v.number(),
+    source: v.union(bidSourceValidator, v.literal("gc_edit")),
+    ...bidTermsFields,
+    note: v.optional(v.string()),
+    sourceInboundEmailId: v.optional(v.id("inboundEmails")),
+    submittedByUserId: v.optional(v.id("users")),
+    submittedByName: v.string(),
+    submittedByCompanyId: v.optional(v.id("companies")),
+    createdAt: v.number(),
+  }).index("by_bid_and_revision", ["bidId", "revisionNumber"]),
 
   // Persisted cross-trade clash resolution state (deduct credits / assigned voids)
   clashResolutions: defineTable({
@@ -557,8 +1214,33 @@ export default defineSchema({
     csiDivision: v.string(),
     tradeName: v.string(),
     contractSum: v.number(),
+    // Award breakdown (§15): contractSumCents = baseBidCents + accepted alternates − accepted VE deducts.
+    // Leveling plugs and penalties never enter it. Optional only for rows written before the award fix.
+    contractSumCents: v.optional(v.number()),
+    baseBidCents: v.optional(v.number()),
+    acceptedAlternates: v.optional(v.array(v.object({ description: v.string(), amountCents: v.number() }))),
+    declinedAlternates: v.optional(v.array(v.object({ description: v.string(), amountCents: v.number() }))),
+    veDeducts: v.optional(v.array(v.object({ description: v.string(), amountCents: v.number() }))),
+    // "Excluded scope (not in contract)": the awarded bid's exclusions, passed to the pay-app review as notes.
+    excludedScopeNotes: v.optional(v.array(v.string())),
+    // Schedule-of-values state (§16). Missing means draft. `editedAt` is set once the GC changes the
+    // prefilled lines, after which award changes no longer regenerate them.
+    sov: v.optional(
+      v.object({
+        status: v.union(v.literal("draft"), v.literal("approved")),
+        editedAt: v.optional(v.number()),
+        approvedAt: v.optional(v.number()),
+        approvedByUserId: v.optional(v.id("users")),
+        approvedByName: v.optional(v.string()),
+      }),
+    ),
+    // Mirrors of terms.retainageBps / terms.liquidatedDamagesCentsPerDay for legacy readers.
     retainagePercent: v.number(),
     liquidatedDamagesDaily: v.number(),
+    // §14 per-agreement terms; legacy rows without it are resolved from the fields above.
+    terms: v.optional(agreementTermsValidator),
+    // True once the GC picked a governing state other than the project's; otherwise drafts follow the project state.
+    governingStateExplicit: v.optional(v.boolean()),
     scopeSummary: v.string(),
     mandatoryInclusions: v.array(v.string()),
     status: v.string(), // "generated" | "executed"
@@ -584,7 +1266,34 @@ export default defineSchema({
     textContent: v.optional(v.string()),
   })
     .index("by_project", ["projectId"])
+    .index("by_package", ["tradePackageId"])
+    .index("by_storageId", ["storageId"]),
+
+  // A bidder company's acknowledgment that it received an addendum on a package it bids.
+  addendumAcknowledgments: defineTable({
+    projectId: v.id("projects"),
+    projectFileId: v.id("projectFiles"),
+    tradePackageId: v.id("tradePackages"),
+    contractorId: v.id("contractors"),
+    companyId: v.id("companies"),
+    userId: v.id("users"),
+    userName: v.string(),
+    acknowledgedAt: v.number(),
+  })
+    .index("by_package_and_contractor", ["tradePackageId", "contractorId"])
     .index("by_package", ["tradePackageId"]),
+
+  // One per generated upload URL: binds the stored object to the uploader, company and project,
+  // so saveFileRecord only accepts storage ids the caller itself uploaded for that project.
+  uploadIntents: defineTable({
+    userId: v.id("users"),
+    companyId: v.id("companies"),
+    projectId: v.id("projects"),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+    storageId: v.optional(v.id("_storage")),
+    usedAt: v.optional(v.number()),
+  }).index("by_storageId", ["storageId"]),
 
   // Live Reactive Activity Audit Stream
   auditLogs: defineTable({
@@ -610,6 +1319,11 @@ export default defineSchema({
     agentSub: v.optional(v.string()),
     agentEmail: v.optional(v.string()),
     ownerEmail: v.optional(v.string()),
+    // Who acted (set for signed-in actions) and, for vendor-specific events, which contractor the
+    // event concerns. Sub and owner companies only see entries carrying their own ids.
+    actorUserId: v.optional(v.id("users")),
+    actorCompanyId: v.optional(v.id("companies")),
+    contractorId: v.optional(v.id("contractors")),
   })
     .index("by_project", ["projectId"])
     .index("by_package", ["tradePackageId"])
@@ -692,6 +1406,7 @@ export default defineSchema({
     agreementNumber: v.string(),
     honestPayAppId: v.optional(v.id("payApplications")),
     agentPayAppId: v.optional(v.id("payApplications")),
+    changeOrderId: v.optional(v.id("changeOrders")),
     createdAt: v.number(),
   }).index("by_startedBy", ["startedBy"]),
 

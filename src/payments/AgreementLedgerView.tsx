@@ -1,16 +1,18 @@
 import { useQuery } from "convex/react";
 import type { ReactNode } from "react";
 import { api } from "../../convex/_generated/api";
-import { milestoneFundingLabel, milestoneFundingState } from "../../convex/payments/milestoneFundingState";
+import { NotFoundState } from "../ui/NotFoundState";
 import { AgreementChangeOrders } from "./ChangeOrders";
 import { formatCents, formatDate } from "./format";
-import { FundMilestoneControl, FundingProvider, FundingStatus } from "./FundMilestone";
+import { FundingProvider } from "./FundMilestone";
 import { AgreementPayAppReviews } from "./PayAppReviews";
-import { ReleaseControl, ReleaseList } from "./ReleaseMilestone";
+import { payAppHash } from "../auth/navigation";
+import { FundingTranches } from "../billing/FundingTranches";
 import { RetainageReleaseControl, RetainageReleaseList } from "./RetainageRelease";
+import { DocumentDownloadButton } from "../documents/DocumentDownload";
 
 const TOTALS: { key: "contractSumCents" | "billedCents" | "paidCents" | "retainageHeldCents" | "balanceCents"; label: string }[] = [
-  { key: "contractSumCents", label: "Contract sum" },
+  { key: "contractSumCents", label: "Contract sum to date" },
   { key: "billedCents", label: "Billed" },
   { key: "paidCents", label: "Paid" },
   { key: "retainageHeldCents", label: "Retainage held" },
@@ -42,21 +44,9 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
     return <p className="text-sm text-slate-400" role="status">Loading ledger…</p>;
   }
 
-  if (ledger === null) {
-    return (
-      <div className="max-w-xl bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-3" role="alert">
-        <h2 className="text-base font-semibold">Agreement not found</h2>
-        <p className="text-sm text-slate-400">
-          This agreement does not exist or your account does not have access to it.
-        </p>
-        <a href={backHash} className="inline-block text-sm text-emerald-400 hover:text-emerald-300">
-          Back to payments
-        </a>
-      </div>
-    );
-  }
+  if (ledger === null) return <NotFoundState />;
 
-  const { agreement, sov, milestones, totals, canFund, canRelease, retainageLedger, canReleaseRetainage, retainageReleases } = ledger;
+  const { agreement, sov, milestones, totals, canFund, retainageLedger, canReleaseRetainage, retainageReleases } = ledger;
 
   return (
     <div className="max-w-5xl space-y-6">
@@ -75,9 +65,15 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
               {agreement.retainagePercent}%
             </p>
           </div>
-          <span className="text-xs font-semibold uppercase tracking-wide rounded-full px-2.5 py-1 bg-slate-800 border border-slate-700">
-            {agreement.status}
-          </span>
+          <div className="flex flex-col items-end gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wide rounded-full px-2.5 py-1 bg-slate-800 border border-slate-700">
+              {agreement.status}
+            </span>
+            <div className="flex flex-wrap justify-end gap-2">
+              <DocumentDownloadButton kind="subcontract_pdf" relatedId={agreement._id} label="Subcontract PDF" testId="ledger-subcontract-pdf" />
+              <DocumentDownloadButton kind="retainage_ledger_csv" relatedId={agreement._id} label="Retainage CSV" testId="ledger-retainage-csv" />
+            </div>
+          </div>
         </div>
         <dl className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-sm" data-testid="ledger-totals">
           {TOTALS.map((t) => (
@@ -86,6 +82,11 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
               <dd className="font-semibold tabular-nums" data-testid={`ledger-${t.key}`}>
                 {formatCents(totals[t.key])}
               </dd>
+              {t.key === "contractSumCents" && agreement.netChangeOrdersCents !== 0 ? (
+                <dd className="text-xs text-slate-400" data-testid="ledger-original-contract-sum">
+                  Original contract sum <span className="tabular-nums">{formatCents(agreement.originalContractSumCents)}</span>
+                </dd>
+              ) : null}
             </div>
           ))}
         </dl>
@@ -161,59 +162,26 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
             </tfoot>
           </table>
         )}
+        {agreement.excludedScopeNotes.length > 0 && (
+          <div className="mt-4" data-testid="ledger-excluded-scope">
+            <h4 className="text-sm font-semibold">Excluded scope (not in contract)</h4>
+            <p className="text-xs text-slate-400">Excluded in the bid; not billable and not part of the schedule of values.</p>
+            <ul className="mt-1 list-disc pl-5 text-sm text-slate-300">
+              {agreement.excludedScopeNotes.map((note) => (
+                <li key={note}>{note}</li>
+              ))}
+            </ul>
+          </div>
+        )}
       </section>
 
       <section aria-labelledby="ledger-milestones" className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
         <h3 id="ledger-milestones" className="text-base font-semibold mb-3">
-          Milestones
+          Funding tranches
         </h3>
-        {milestones.length === 0 ? (
-          <p className="text-sm text-slate-400">
-            {agreement.status === "executed"
-              ? "No milestones yet."
-              : "Milestones are created when the agreement is executed."}
-          </p>
-        ) : (
-          <MaybeFundingProvider enabled={canFund}>
-            <table className="w-full text-sm" data-testid="ledger-milestones-table">
-              <thead className="text-xs text-slate-400 text-left">
-                <tr>
-                  <th className="py-2 pr-3 font-medium">Milestone</th>
-                  <th className="py-2 pr-3 font-medium">Planned date</th>
-                  <th className="py-2 pr-3 font-medium">Status</th>
-                  <th className="py-2 pr-3 font-medium text-right">Amount</th>
-                  <th className="py-2 pl-3 font-medium">Funding</th>
-                </tr>
-              </thead>
-              <tbody>
-                {milestones.map((m) => (
-                  <tr key={m._id} className="border-t border-slate-800" data-testid="milestone-row">
-                    <td className="py-2 pr-3">{m.name}</td>
-                    <td className="py-2 pr-3">{formatDate(m.plannedDate, { utc: true })}</td>
-                    <td className="py-2 pr-3">
-                      <span
-                        className="text-xs rounded-full px-2 py-0.5 bg-slate-800 border border-slate-700"
-                        data-testid="milestone-status"
-                      >
-                        {m.status}
-                      </span>
-                      <span className="block mt-1 text-xs text-slate-400" data-testid="milestone-funding-state">
-                        {milestoneFundingLabel(milestoneFundingState(m.status, m.funding))}
-                      </span>
-                    </td>
-                    <td className="py-2 pr-3 text-right tabular-nums">{formatCents(m.amountCents)}</td>
-                    <td className="py-2 pl-3 align-top space-y-1">
-                      <FundingStatus milestone={m} />
-                      {canFund && <FundMilestoneControl milestone={m} />}
-                      <ReleaseList milestone={m} canRelease={canRelease} />
-                      {canRelease && <ReleaseControl milestone={m} retainagePercent={agreement.retainagePercent} />}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </MaybeFundingProvider>
-        )}
+        <MaybeFundingProvider enabled={canFund}>
+          <FundingTranches agreementId={agreement._id} ledgerMilestones={milestones} isGc={canFund} />
+        </MaybeFundingProvider>
       </section>
 
       <section aria-labelledby="ledger-retainage" className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
@@ -245,7 +213,7 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
         )}
         <RetainageReleaseList releases={retainageReleases} canRefresh={canReleaseRetainage} />
         {retainageLedger.length === 0 ? (
-          <p className="text-sm text-slate-400">No retainage held yet. Each sub payout withholds {agreement.retainagePercent}%.</p>
+          <p className="text-sm text-slate-400">No retainage held yet. Each paid pay app withholds its approved retainage ({agreement.retainagePercent}% per line).</p>
         ) : (
           <table className="w-full text-sm" data-testid="retainage-ledger-table">
             <thead className="text-xs text-slate-400 text-left">
@@ -259,7 +227,15 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
               {retainageLedger.map((r) => (
                 <tr key={r._id} className="border-t border-slate-800" data-testid="retainage-row">
                   <td className="py-2 pr-3 text-slate-400">{formatDate(r.createdAt)}</td>
-                  <td className="py-2 pr-3">{r.reason}</td>
+                  <td className="py-2 pr-3">
+                    {r.payAppId ? (
+                      <a href={payAppHash(r.payAppId)} className="text-emerald-400 hover:text-emerald-300" data-testid="retainage-row-link">
+                        {r.reason}
+                      </a>
+                    ) : (
+                      r.reason
+                    )}
+                  </td>
                   <td className={`py-2 pr-3 text-right tabular-nums ${r.deltaCents < 0 ? "text-rose-300" : ""}`}>
                     {r.deltaCents > 0 ? "+" : ""}
                     {formatCents(r.deltaCents)}

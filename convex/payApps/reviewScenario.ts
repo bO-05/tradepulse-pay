@@ -1,9 +1,10 @@
 /**
  * Demo fixture for the AI pay-app review: an executed Div 26 agreement for the
  * sub1 demo contractor whose leveled bid excludes seismic bracing, with
- * Mobilization complete and Rough-in under way (milestones support 30% on base
- * lines). The main demo agreement has no excluded scope and is past those
- * milestones, so it cannot show the overbilled/excluded scenarios.
+ * Mobilization complete and Rough-in under way. Every funding tranche lists the
+ * base SOV lines (sovLineIds), so their statuses support 30% on those lines.
+ * The main demo agreement has no excluded scope and is past those tranches, so
+ * it cannot show the overbilled/excluded scenarios.
  *
  *   npx convex run payApps/reviewScenario:seedReviewScenario '{}'
  *   npx convex run payApps/reviewScenario:seedReviewScenario '{"suffix":"02"}'
@@ -16,8 +17,13 @@
 import { ConvexError, v } from "convex/values";
 import { internalMutation, internalQuery } from "../_generated/server";
 import { findDemoContractorId } from "../demoAccounts";
+import { attachProjectToDemo } from "../lib/demoTenancy";
 import { ensureSovAndMilestones } from "../payments/sov";
+import { DEMO_SOV_APPROVER } from "../lib/demoBilling";
 import { RETAINAGE_PERCENT } from "../terms";
+import { seededProposalBidRow } from "../lib/bidMoney";
+import { fromDollars } from "../lib/money";
+import { loadSovRows } from "../lib/sovLines";
 
 export const REVIEW_SCENARIO_AGREEMENT_NUMBER = "A401-DEMO-PAYREVIEW-01";
 const AGREEMENT_PREFIX = "A401-DEMO-PAYREVIEW-";
@@ -59,7 +65,9 @@ export const seedReviewScenario = internalMutation({
     if (!contractorId) throw new ConvexError(`Demo contractor ${contractorName} not found; run demoAccounts:seedDemo first.`);
     const now = Date.now();
     const baseBid = LINE_ITEMS.reduce((a, l) => a + l.totalCost, 0);
-    const contractSum = baseBid + SEISMIC_EXCLUSION.costImpact;
+    // The seismic plug is comparison-only: it sits in the leveled total, never in the contract sum.
+    const leveledTotal = baseBid + SEISMIC_EXCLUSION.costImpact;
+    const contractSum = baseBid;
 
     const projectId = await ctx.db.insert("projects", {
       title: "Demo · Pay-app review scenario",
@@ -84,7 +92,7 @@ export const seedReviewScenario = internalMutation({
       bidDeadline: "2026-09-30",
       status: "awarded",
     });
-    const bidId = await ctx.db.insert("bids", {
+    const bidId = await ctx.db.insert("bids", seededProposalBidRow({
       tradePackageId,
       contractorId,
       subcontractorName: contractorName,
@@ -96,10 +104,10 @@ export const seedReviewScenario = internalMutation({
       leadTimePenalty: 0,
       coiComplianceStatus: "compliant",
       coiPenalty: 0,
-      leveledTotalCost: contractSum,
+      leveledTotalCost: leveledTotal,
       isAwarded: true,
       receivedAt: now,
-    });
+    }));
     const agreementId = await ctx.db.insert("agreements", {
       projectId,
       tradePackageId,
@@ -114,12 +122,19 @@ export const seedReviewScenario = internalMutation({
       csiDivision: "26 00 00",
       tradeName: "Electrical & Lighting Systems",
       contractSum,
+      contractSumCents: fromDollars(contractSum),
+      baseBidCents: fromDollars(baseBid),
+      acceptedAlternates: [],
+      declinedAlternates: [],
+      veDeducts: [],
+      excludedScopeNotes: [SEISMIC_EXCLUSION.description],
       retainagePercent: RETAINAGE_PERCENT,
       liquidatedDamagesDaily: 0,
       scopeSummary: "Div 26 distribution, feeders, grounding and closeout. Seismic bracing is excluded scope (by others).",
       mandatoryInclusions: ["Temporary power", "Testing and commissioning"],
       status: "executed",
       contractText: "Demo subcontract for the AI pay-app review scenario. Not a real contract.",
+      sov: { status: "approved", approvedAt: now, approvedByName: DEMO_SOV_APPROVER },
       executedAt: now,
       createdAt: now,
     });
@@ -141,6 +156,7 @@ export const seedReviewScenario = internalMutation({
       actor: "TradePulse Pay (demo seed)",
       timestamp: now,
     });
+    await attachProjectToDemo(ctx, projectId);
     return { agreementId, agreementNumber, created: true };
   },
 });
@@ -148,17 +164,14 @@ export const seedReviewScenario = internalMutation({
 export const describeReviewScenario = internalQuery({
   args: { agreementId: v.id("agreements") },
   handler: async (ctx, args) => {
-    const sov = await ctx.db
-      .query("scheduleOfValues")
-      .withIndex("by_agreementId_and_lineNo", (q) => q.eq("agreementId", args.agreementId))
-      .take(50);
+    const sov = await loadSovRows(ctx, args.agreementId);
     const milestones = await ctx.db
       .query("milestones")
       .withIndex("by_agreementId_and_order", (q) => q.eq("agreementId", args.agreementId))
       .take(10);
     return {
       sov: sov.map((s) => ({ id: s._id, lineNo: s.lineNo, description: s.description, excludedScope: s.excludedScope, scheduledValueCents: s.scheduledValueCents })),
-      milestones: milestones.map((m) => ({ name: m.name, status: m.status, amountCents: m.amountCents })),
+      milestones: milestones.map((m) => ({ name: m.name, status: m.status, amountCents: m.amountCents, sovLineIds: m.sovLineIds as string[] })),
     };
   },
 });

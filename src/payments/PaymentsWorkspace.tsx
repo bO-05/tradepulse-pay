@@ -29,7 +29,7 @@ export function PaymentsWorkspace() {
                 <th className="py-2 pr-3 font-medium">Agreement</th>
                 <th className="py-2 pr-3 font-medium">Subcontractor</th>
                 <th className="py-2 pr-3 font-medium">Trade</th>
-                <th className="py-2 pr-3 font-medium text-right">Contract sum</th>
+                <th className="py-2 pr-3 font-medium text-right">Contract sum to date</th>
                 <th className="py-2 pr-3 font-medium">Status</th>
                 <th className="py-2 pr-3 font-medium">Executed</th>
               </tr>

@@ -1,7 +1,9 @@
 import { v } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
 import { query } from "../_generated/server";
-import { canViewAgreement, requireRole } from "../lib/roles";
+import { requireRole } from "../lib/roles";
+import { scopedAgreements } from "../lib/agreementScope";
+import { findSubcontractDocScope } from "../lib/projectScope";
 import { loadBillingHistory, unresolvedApprovalMessage } from "../payApps/billingHistory";
 import { isCaptureCollected } from "./captureSettlement";
 import { HISTORY_TRUNCATED_MESSAGE, loadAgreementHistory } from "./agreementHistory";
@@ -9,9 +11,13 @@ import { BALANCE_FORMULA, computeLedgerTotals } from "./ledgerTotals";
 import { attemptsFor, checkRetry } from "./payoutRetryMath";
 import { retainagePercentFor } from "./payoutMath";
 import { releasableRetainageCents } from "./retainageMath";
-import { agreementContractSumCents } from "./sov";
+import { agreementContractSum } from "../billing/changeOrderView";
+import type { ContractSumBreakdown } from "./changeOrderMath";
+import { loadSovRows } from "../lib/sovLines";
+import { loadTranches } from "../lib/trancheRows";
 
-function ledgerAgreementSummary(a: Doc<"agreements">) {
+/** contractSumCents is the contract sum to date (original plus approved change orders). */
+function ledgerAgreementSummary(a: Doc<"agreements">, sum: ContractSumBreakdown) {
   return {
     _id: a._id,
     agreementNumber: a.agreementNumber,
@@ -23,7 +29,10 @@ function ledgerAgreementSummary(a: Doc<"agreements">) {
     tradeName: a.tradeName,
     status: a.status,
     retainagePercent: retainagePercentFor(a),
-    contractSumCents: agreementContractSumCents(a),
+    contractSumCents: sum.toDateCents,
+    originalContractSumCents: sum.originalCents,
+    netChangeOrdersCents: sum.netChangeCents,
+    excludedScopeNotes: a.excludedScopeNotes ?? [],
     executedAt: a.executedAt ?? null,
   };
 }
@@ -66,55 +75,38 @@ function releaseSummary(p: Doc<"payments">, showReceiver: boolean, retry?: { cap
   };
 }
 
-/** Payments workspace list: GC sees every live agreement, a sub only its own contractor's. */
+/** Payments workspace list: the GC sees its projects' live agreements, a sub only its own vendor's. */
 export const listLedgerAgreements = query({
   args: {},
   handler: async (ctx) => {
-    const viewer = await requireRole(ctx, ["gc", "sub"]);
-    let agreements: Doc<"agreements">[];
-    if (viewer.role === "gc") {
-      agreements = await ctx.db.query("agreements").order("desc").take(200);
-    } else {
-      const contractorId = viewer.profile.contractorId;
-      agreements = contractorId
-        ? await ctx.db
-            .query("agreements")
-            .withIndex("by_contractorId", (q) => q.eq("contractorId", contractorId))
-            .take(100)
-        : [];
-    }
-    return agreements
-      .filter((a) => a.status !== "superseded" && canViewAgreement(viewer, a))
-      .map(ledgerAgreementSummary);
+    await requireRole(ctx, ["gc", "sub"]);
+    const { rows } = await scopedAgreements(ctx, { parties: ["gc", "sub"], limit: 200 });
+    const live = rows.filter((r) => r.agreement.status !== "superseded");
+    return await Promise.all(live.map(async (r) => ledgerAgreementSummary(r.agreement, await agreementContractSum(ctx, r.agreement))));
   },
 });
 
 /**
- * One agreement's ledger. Returns null both when the agreement does not exist
- * and when the caller may not see it, so a sub cannot probe other agreements.
+ * One agreement's ledger. Returns null both when the agreement does not exist and when the caller
+ * may not see it (another company, another sub's agreement), so ids cannot be probed. Owner
+ * accounts get "Not found." for every id.
  */
 export const getAgreementLedger = query({
   args: { agreementId: v.string() },
   handler: async (ctx, args) => {
-    const viewer = await requireRole(ctx, ["gc", "sub", "owner"]);
-    const id = ctx.db.normalizeId("agreements", args.agreementId);
-    if (id === null) return null;
-    const agreement = await ctx.db.get(id);
-    if (agreement === null || !canViewAgreement(viewer, agreement)) return null;
+    const scope = await findSubcontractDocScope(ctx, "agreements", args.agreementId, { roles: ["gc", "sub"] });
+    if (scope === null) return null;
+    const agreement = scope.doc;
+    const id = agreement._id;
+    const viewer = scope.viewer;
 
-    const sov = await ctx.db
-      .query("scheduleOfValues")
-      .withIndex("by_agreementId_and_lineNo", (q) => q.eq("agreementId", id))
-      .take(500);
-    const milestones = await ctx.db
-      .query("milestones")
-      .withIndex("by_agreementId_and_order", (q) => q.eq("agreementId", id))
-      .take(50);
+    const sov = await loadSovRows(ctx, id);
+    const milestones = await loadTranches(ctx, id);
     const billing = await loadBillingHistory(ctx, id);
     const history = await loadAgreementHistory(ctx, id);
     const { payments, retainage, changeOrders } = history;
 
-    const summary = ledgerAgreementSummary(agreement);
+    const summary = ledgerAgreementSummary(agreement, await agreementContractSum(ctx, agreement));
     // Latest funding attempt per milestone (payments come back in creation order).
     const latestFunding = new Map<string, Doc<"payments">>();
     for (const p of payments) if (p.kind === "funding" && p.milestoneId) latestFunding.set(p.milestoneId, p);
@@ -130,13 +122,15 @@ export const getAgreementLedger = query({
       payApps: billing.rows,
       payments,
       retainage,
-      changeOrders,
+      // Change-order invoices are between the GC and the owner; a sub's ledger never counts them.
+      changeOrders: isGc ? changeOrders : [],
     });
     const capturedReleaseIds = new Set<string>();
     for (const p of payments) {
       for (const c of p.captures ?? []) if (c.releasePaymentId && isCaptureCollected(c.status)) capturedReleaseIds.add(c.releasePaymentId);
     }
     const payouts = payments.filter((p) => p.kind === "payout");
+    const paymentById = new Map<string, Doc<"payments">>(payments.map((p) => [p._id, p]));
     const retryInfo = (p: Doc<"payments">) => {
       const rootId = p.retryOfPaymentId ?? p._id;
       const captured = capturedReleaseIds.has(rootId);
@@ -165,6 +159,7 @@ export const getAgreementLedger = query({
         deltaCents: r.deltaCents,
         reason: r.reason,
         paymentId: r.paymentId ?? null,
+        payAppId: (r.paymentId ? paymentById.get(r.paymentId)?.payAppId : undefined) ?? null,
         createdAt: r.createdAt,
       })),
       sov: sov.map((line) => ({

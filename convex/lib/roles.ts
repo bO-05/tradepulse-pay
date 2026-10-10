@@ -1,9 +1,10 @@
-import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { ActionCtx, QueryCtx } from "../_generated/server";
 import { internal } from "../_generated/api";
 import { findActiveAgentLink } from "./agentAccess";
+import { getLiveAuthUserId } from "./session";
+import { requireProjectAccess } from "./tenancy";
 
 export type Role = "gc" | "sub" | "owner";
 
@@ -22,9 +23,7 @@ export function forbiddenMessage(roles: readonly Role[]): string {
 
 /** Resolves the signed-in user and their role profile, or null when either is missing. */
 export async function getViewer(ctx: QueryCtx): Promise<Viewer | null> {
-  const rawUserId = await getAuthUserId(ctx);
-  if (rawUserId === null) return null;
-  const userId = ctx.db.normalizeId("users", rawUserId);
+  const userId = await getLiveAuthUserId(ctx);
   if (userId === null) return null;
   const user = await ctx.db.get(userId);
   if (user === null) return null;
@@ -44,16 +43,17 @@ export async function getViewer(ctx: QueryCtx): Promise<Viewer | null> {
 
 /**
  * Throws a ConvexError unless the caller is signed in with one of `roles`.
- * When `projectId` is given the project must exist. All GC and owner accounts
- * currently share every project (single-GC demo tenancy); per-project
- * membership would be enforced here.
+ * When `projectId` is given the check is company-scoped (convex/lib/tenancy.ts):
+ * the caller's company must have access to the project ("Not found." otherwise,
+ * also for missing projects) and `roles` is matched against the caller's party
+ * on that project, which the returned viewer carries as `role`.
  */
 export async function requireRole(
   ctx: QueryCtx,
   roles: readonly Role[],
   projectId?: Id<"projects">,
 ): Promise<Viewer> {
-  const userId = await getAuthUserId(ctx);
+  const userId = await getLiveAuthUserId(ctx);
   if (userId === null) {
     throw new ConvexError({ code: "UNAUTHENTICATED", message: UNAUTHENTICATED_MESSAGE });
   }
@@ -64,14 +64,11 @@ export async function requireRole(
       message: "Forbidden: this account has no TradePulse role assigned.",
     });
   }
+  if (projectId !== undefined) {
+    return (await requireProjectAccess(ctx, projectId, { roles })).viewer;
+  }
   if (!roles.includes(viewer.role)) {
     throw new ConvexError({ code: "FORBIDDEN", message: forbiddenMessage(roles) });
-  }
-  if (projectId !== undefined) {
-    const project = await ctx.db.get(projectId);
-    if (project === null) {
-      throw new ConvexError({ code: "NOT_FOUND", message: "Project not found." });
-    }
   }
   return viewer;
 }
@@ -88,9 +85,10 @@ export async function requireRoleInAction(ctx: ActionCtx, roles: readonly Role[]
   return await ctx.runQuery(internal.profiles.requireRoleForAction, { roles: [...roles] });
 }
 
-/** A sub (human or linked billing agent) may only see agreements of its own contractor. */
+/** A sub (human or linked billing agent) may only see agreements of its own contractor; owners never see subcontracts. */
 export function canViewAgreement(viewer: Viewer, agreement: Doc<"agreements">): boolean {
-  if (viewer.role === "gc" || viewer.role === "owner") return true;
+  if (viewer.role === "gc") return true;
+  if (viewer.role === "owner") return false;
   return viewer.profile.contractorId !== undefined && agreement.contractorId === viewer.profile.contractorId;
 }
 

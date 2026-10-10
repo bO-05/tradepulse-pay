@@ -1,9 +1,11 @@
-import { useAuthActions } from "@convex-dev/auth/react";
 import { useConvexAuth, useQuery } from "convex/react";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { api } from "../../convex/_generated/api";
+import { pendingInviteToken } from "../invites/inviteSession";
+import { SetUpCompanyPage } from "../onboarding/SetUpCompanyPage";
 import { AgentNotAuthorized } from "./AgentNotAuthorized";
 import { RoleShell } from "./RoleShell";
+import { useSignOutAndReset } from "./signOutAndReset";
 import { SignInPage } from "./SignInPage";
 
 function FullScreenStatus({ children }: { children: ReactNode }) {
@@ -18,7 +20,22 @@ function FullScreenStatus({ children }: { children: ReactNode }) {
 export function AuthGate({ procurementApp }: { procurementApp: ReactNode }) {
   const { isLoading, isAuthenticated } = useConvexAuth();
   const me = useQuery(api.profiles.me, isAuthenticated ? {} : "skip");
-  const { signOut } = useAuthActions();
+  const signOut = useSignOutAndReset();
+  const needsCompany = me !== undefined && me !== null && me.actorType !== "agent" && me.company === null;
+  // The token still verifies but the server no longer has its session (e.g. a password reset
+  // elsewhere ended it), so drop the token and go back to sign-in.
+  const sessionEnded = isAuthenticated && me === null;
+
+  useEffect(() => {
+    if (sessionEnded) void signOut();
+  }, [sessionEnded, signOut]);
+
+  // Someone who opened an invite link and then signed up or signed in elsewhere in this tab goes back
+  // to the invite instead of "Set up your company".
+  useEffect(() => {
+    const token = needsCompany ? pendingInviteToken() : null;
+    if (token) window.location.hash = `#/invite/${encodeURIComponent(token)}`;
+  }, [needsCompany]);
 
   if (isLoading) {
     return <FullScreenStatus>Checking your session…</FullScreenStatus>;
@@ -28,6 +45,9 @@ export function AuthGate({ procurementApp }: { procurementApp: ReactNode }) {
   }
   if (me === undefined) {
     return <FullScreenStatus>Loading your workspace…</FullScreenStatus>;
+  }
+  if (sessionEnded) {
+    return <FullScreenStatus>Your session has ended. Signing you out…</FullScreenStatus>;
   }
   if (me !== null && me.role === null && me.actorType === "agent") {
     return (
@@ -41,13 +61,36 @@ export function AuthGate({ procurementApp }: { procurementApp: ReactNode }) {
       </FullScreenStatus>
     );
   }
+  if (me !== null && me.actorType !== "agent" && !me.emailVerified) {
+    // Unverified accounts get no session from the Password provider; this covers older sessions.
+    return (
+      <FullScreenStatus>
+        <div className="max-w-md text-center space-y-3 px-4">
+          <h1 className="text-lg font-semibold">Verify your email</h1>
+          <p className="text-sm text-slate-400">
+            {me.email ?? "This account"} hasn't been verified yet. Sign out, then sign in again to get a new code.
+          </p>
+          <button
+            type="button"
+            onClick={() => void signOut()}
+            className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm hover:bg-slate-800"
+          >
+            Sign out
+          </button>
+        </div>
+      </FullScreenStatus>
+    );
+  }
+  if (me !== null && me.actorType !== "agent" && me.company === null) {
+    return <SetUpCompanyPage email={me.email} wasRemoved={me.wasRemovedFromCompany} />;
+  }
   if (me === null || me.role === null) {
     return (
       <FullScreenStatus>
         <div className="max-w-md text-center space-y-3 px-4">
           <h1 className="text-lg font-semibold">No access yet</h1>
           <p className="text-sm text-slate-400">
-            {me?.email ?? "This account"} is signed in but has no TradePulse role. Ask your general contractor to grant
+            {me?.email ?? "This account"} is signed in but has no TradePulse Pay role. Ask your general contractor to grant
             access.
           </p>
           <button
@@ -61,5 +104,10 @@ export function AuthGate({ procurementApp }: { procurementApp: ReactNode }) {
       </FullScreenStatus>
     );
   }
-  return <RoleShell me={{ ...me, role: me.role }} procurementApp={procurementApp} />;
+  return (
+    <RoleShell
+      me={{ ...me, role: me.role, companyName: me.company?.name ?? null, isDemo: me.company?.isDemo === true }}
+      procurementApp={procurementApp}
+    />
+  );
 }

@@ -35,6 +35,14 @@ describe("retainage split", () => {
     }
   });
 
+  test("stored agreement terms win over the legacy percent field", () => {
+    const agreement = { retainagePercent: 10, terms: { retainageBps: 500 } };
+    expect(retainagePercentFor(agreement)).toBe(5);
+    expect(computePayoutSplit(1_000_000, retainagePercentFor(agreement)).retainageCents).toBe(50_000);
+    expect(computePayoutSplit(1_000_001, retainagePercentFor({ terms: { retainageBps: 250 } })).retainageCents).toBe(25_000);
+    expect(retainagePercentFor({ retainagePercent: 5, terms: { retainageBps: 20_000 } })).toBe(5);
+  });
+
   test("uses the agreement's retainage percentage, falling back to the terms default", () => {
     expect(computePayoutSplit(1_000_000, retainagePercentFor({ retainagePercent: 5 })).retainageCents).toBe(50_000);
     expect(retainagePercentFor({ retainagePercent: null })).toBe(RETAINAGE_PERCENT);

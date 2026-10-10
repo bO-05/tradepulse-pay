@@ -5,10 +5,11 @@ import { api, internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import schema from "../schema";
 import { agentIdProfile, syncAgentProfile } from "../lib/agentAccess";
-import { signInAs } from "../lib/testIdentity";
+import { withSession, signInAs } from "../lib/testIdentity";
 import { clearPayPalTokenCache } from "../payments/paypalClient";
 import { CSLB_FIXTURES } from "../kernel/cslbFixtures";
 import { ANTHROPIC_KEY_PREFIX, CUSTOM_TOOL_NAMES, READ_ONLY_TOOLKIT_TOOLS } from "./tools";
+import { payFromTranche } from "../lib/testPayApp";
 
 const generateTextMock = vi.hoisted(() => vi.fn());
 vi.mock("ai", async (importOriginal) => {
@@ -90,6 +91,7 @@ async function setup(opts: { license?: "active" | "expired" | null; funded?: boo
       .first())!;
   });
   await gc.as.mutation(api.agreements.executeAgreement, { agreementId: agreement._id });
+  await gc.as.mutation(api.billing.sov.approveSov, { agreementId: agreement._id });
   const { sov, milestones } = await t.run(async (ctx) => {
     const milestones = await ctx.db
       .query("milestones")
@@ -363,7 +365,7 @@ describe("GC approval inbox", () => {
       await ctx.db.insert("authAccounts", { userId, provider: "agentid", providerAccountId: id });
       return userId;
     });
-    const agent = s.t.withIdentity({ subject: `${agentUserId}|agent-session`, email: AGENT_EMAIL });
+    const agent = await withSession(s.t, agentUserId, AGENT_EMAIL);
     const payAppId = await submitAndRun(s, agent);
     const before = await state(s, payAppId);
     const payout = before.byKind("payout")!;
@@ -376,7 +378,7 @@ describe("GC approval inbox", () => {
         caller.mutation(api.payApps.proposals.rejectPayApp, { payAppId }),
         caller.query(api.payApps.proposals.listInbox, {}),
       ]) {
-        expect(await errorText(call)).toMatch(/Forbidden/);
+        expect(await errorText(call)).toMatch(/Forbidden|Not found/);
       }
     }
     const after = await state(s, payAppId);
@@ -437,7 +439,7 @@ describe("GC approval inbox", () => {
     const st = await state(s, payAppId);
     expect(st.byKind("capture")!.flags).toContain("milestone_not_funded");
     expect(await errorText(s.gc.as.mutation(api.payApps.proposals.approveProposal, { proposalId: st.byKind("payout")!._id }))).toMatch(
-      /No funded milestone/,
+      /No funded tranche/,
     );
     expect((await state(s, payAppId)).byKind("payout")!.status).toBe("pending");
   });
@@ -445,9 +447,15 @@ describe("GC approval inbox", () => {
   test("rejecting the pay app rejects its proposals, moves nothing, refuses re-approval and the sub sees it", async () => {
     const s = await setup();
     const payAppId = await submitAndRun(s);
-    await s.gc.as.mutation(api.payApps.proposals.rejectPayApp, { payAppId });
+    for (const reason of [undefined, "", "   "]) {
+      expect(await errorText(s.gc.as.mutation(api.payApps.proposals.rejectPayApp, { payAppId, reason }))).toMatch(/A reason is required/);
+    }
+    const untouched = await state(s, payAppId);
+    expect(untouched.payApp.status).toBe("reviewed");
+    expect(untouched.proposals.filter((p) => p.status === "pending").length).toBeGreaterThan(0);
+    await s.gc.as.mutation(api.payApps.proposals.rejectPayApp, { payAppId, reason: "  Work not installed.  " });
     const st = await state(s, payAppId);
-    expect(st.payApp.status).toBe("rejected");
+    expect(st.payApp).toMatchObject({ status: "rejected", rejectionReason: "Work not installed." });
     for (const p of st.proposals) expect(p).toMatchObject({ status: "rejected", decidedBy: s.gc.userId });
     expect(await errorText(s.gc.as.mutation(api.payApps.proposals.approveProposal, { proposalId: st.byKind("payout")!._id }))).toMatch(
       /rejected; it can no longer be approved/,
@@ -459,17 +467,21 @@ describe("GC approval inbox", () => {
     expect(portal.page[0]).toMatchObject({ status: "rejected" });
   });
 
-  test("the ledger Release & pay runs through a GC-approved proposal", async () => {
+  test("the ledger Release & pay is gone; paying an approved pay app records a GC-approved proposal", async () => {
     const s = await setup();
     const funding = (await s.t.run(async (ctx) => ctx.db.query("payments").collect())).find((p: Doc<"payments">) => p.kind === "funding")!;
-    await s.gc.as.action(api.payments.release.releaseAndPay, { milestoneId: funding.milestoneId!, amountCents: 50_000, requestKey: "ledger-key-1" });
+    expect(
+      await errorText(s.gc.as.action(api.payments.release.releaseAndPay, { milestoneId: funding.milestoneId!, amountCents: 50_000, requestKey: "ledger-key-0" })),
+    ).toMatch(/approved pay app is required/);
+    expect(fake.moneyCalls()).toHaveLength(0);
+    await payFromTranche(s.t, s.gc.as, { milestoneId: funding.milestoneId!, amountCents: 50_000, requestKey: "ledger-key-1" });
     const rows = await s.t.run(async (ctx) => ({
       proposals: await ctx.db.query("agentProposals").collect(),
       payouts: (await ctx.db.query("payments").collect()).filter((p) => p.kind === "payout"),
     }));
     expect(rows.payouts).toHaveLength(1);
     const proposal = rows.proposals.find((p) => p._id === rows.payouts[0].proposalId)!;
-    expect(proposal).toMatchObject({ source: "gc_ledger", kind: "payout", status: "executed", decidedBy: s.gc.userId, amountCents: 50_000 });
+    expect(proposal).toMatchObject({ source: "gc_payapp", kind: "payout", status: "executed", decidedBy: s.gc.userId, amountCents: 50_000 });
   });
 });
 
@@ -611,12 +623,19 @@ describe("rejection finalizes the pay app", () => {
     const first = await s.gc.as.mutation(api.payApps.proposals.rejectProposal, { proposalId: st.byKind("payout")!._id });
     expect(first).toEqual({ rejected: 2, payAppRejected: false });
     expect((await state(s, payAppId)).payApp.status).toBe("reviewed");
-    const second = await s.gc.as.mutation(api.payApps.proposals.rejectProposal, { proposalId: st.byKind("hold")!._id });
+    // The last rejection finalizes the pay app, so it needs a GC-entered reason; without one nothing changes.
+    expect(await errorText(s.gc.as.mutation(api.payApps.proposals.rejectProposal, { proposalId: st.byKind("hold")!._id }))).toMatch(
+      /A reason is required/,
+    );
+    const unchanged = await state(s, payAppId);
+    expect(unchanged.payApp.status).toBe("reviewed");
+    expect(unchanged.byKind("hold")!.status).toBe("pending");
+    const second = await s.gc.as.mutation(api.payApps.proposals.rejectProposal, { proposalId: st.byKind("hold")!._id, reason: "License expired." });
     expect(second).toEqual({ rejected: 1, payAppRejected: true });
     const after = await state(s, payAppId);
-    expect(after.payApp).toMatchObject({ status: "rejected", rejectionReason: "The GC rejected the hold proposal." });
+    expect(after.payApp).toMatchObject({ status: "rejected", rejectionReason: "License expired." });
     const portal = await s.sub1.as.query(api.portal.mySubPayApps, { paginationOpts: { numItems: 50, cursor: null } });
-    expect(portal.page.find((p) => p._id === payAppId)).toMatchObject({ status: "rejected", rejectionReason: "The GC rejected the hold proposal." });
+    expect(portal.page.find((p) => p._id === payAppId)).toMatchObject({ status: "rejected", rejectionReason: "License expired." });
     expect(fake.moneyCalls()).toHaveLength(0);
   });
 
@@ -625,7 +644,9 @@ describe("rejection finalizes the pay app", () => {
     const payAppId = await submitAndRun(s);
     const st = await state(s, payAppId);
     expect((await s.gc.as.mutation(api.payApps.proposals.rejectProposal, { proposalId: st.byKind("hold")!._id })).payAppRejected).toBe(false);
-    expect((await s.gc.as.mutation(api.payApps.proposals.rejectProposal, { proposalId: st.byKind("payout")!._id })).payAppRejected).toBe(true);
+    expect(
+      (await s.gc.as.mutation(api.payApps.proposals.rejectProposal, { proposalId: st.byKind("payout")!._id, reason: "Not supported." })).payAppRejected,
+    ).toBe(true);
     expect((await state(s, payAppId)).payApp.status).toBe("rejected");
   });
 
@@ -647,9 +668,11 @@ describe("rejection finalizes the pay app", () => {
       }),
     );
     expect((await s.gc.as.mutation(api.payApps.proposals.rejectProposal, { proposalId: st.byKind("payout")!._id })).payAppRejected).toBe(false);
-    await s.gc.as.mutation(api.payApps.proposals.approveProposal, { proposalId: rescheduleId });
+    expect(await errorText(s.gc.as.mutation(api.payApps.proposals.approveProposal, { proposalId: rescheduleId }))).toMatch(/A reason is required/);
+    expect((await state(s, payAppId)).payApp.status).toBe("reviewed");
+    await s.gc.as.mutation(api.payApps.proposals.approveProposal, { proposalId: rescheduleId, reason: "Bill line 2 next month." });
     const after = await state(s, payAppId);
-    expect(after.payApp).toMatchObject({ status: "rejected", rejectionReason: "The GC accepted the reschedule; no payment was approved." });
+    expect(after.payApp).toMatchObject({ status: "rejected", rejectionReason: "Bill line 2 next month." });
     expect(after.payouts).toHaveLength(0);
   });
 

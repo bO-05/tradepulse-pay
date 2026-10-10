@@ -18,10 +18,17 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { useAction, useMutation } from "convex/react";
+import { useAuthToken } from "@convex-dev/auth/react";
+import { fetchAuthenticatedFile } from "../lib/storedFile.ts";
 import { api } from "../../convex/_generated/api.js";
 import { Conversation, Contractor, TradePackage } from "../types.ts";
 import { MarkdownLite } from "../lib/markdown.tsx";
 import { formatFullDateTime } from "../lib/datetime.ts";
+
+const CONVEX_ENV = {
+  VITE_CONVEX_SITE_URL: import.meta.env.VITE_CONVEX_SITE_URL as string | undefined,
+  VITE_CONVEX_URL: import.meta.env.VITE_CONVEX_URL as string | undefined,
+};
 
 interface PreBidQnAViewProps {
   currentPackage: TradePackage | null;
@@ -36,7 +43,8 @@ interface PreBidQnAViewProps {
     question: string;
     tradePackageId?: string;
   }) => Promise<{ conversationId?: string } | void>;
-  onOpenSimulation: () => void;
+  /** Demo companies only; real companies get no simulation controls. */
+  onOpenSimulation?: () => void;
   projectId?: string;
   projectTitle?: string;
   onRetryRfi?: (conversationId: string) => Promise<void>;
@@ -98,25 +106,33 @@ export const PreBidQnAView: React.FC<PreBidQnAViewProps> = ({
   const [addendumResult, setAddendumResult] = useState<{
     success: boolean;
     fileName: string;
-    storageId: string;
-    downloadUrl?: string;
+    /** Authenticated download route for the filed addendum, e.g. "/api/project-files/<id>". */
+    downloadPath?: string | null;
     addendumText?: string;
     qaCount: number;
     csiDivisionCount: number;
     isLocalPreview?: boolean;
   } | null>(null);
 
+  const authToken = useAuthToken();
   const generatePreBidAddendumAction = useAction(api.files.generatePreBidAddendum);
   const reviewEscalatedRfiMutation = useMutation(api.rfq.reviewEscalatedRfi);
 
-  const handleDownloadAddendumFile = () => {
+  const handleDownloadAddendumFile = async () => {
     if (!addendumResult) return;
-    if (addendumResult.downloadUrl) {
-      window.open(addendumResult.downloadUrl, "_blank");
-      return;
+    let blob: Blob | null = null;
+    if (addendumResult.downloadPath) {
+      try {
+        blob = await fetchAuthenticatedFile(addendumResult, authToken, CONVEX_ENV);
+      } catch (err) {
+        setAddendumError(`the addendum was filed, but its download did not complete (${getErrorMessage(err)}).`);
+        return;
+      }
     }
-    const content = addendumResult.addendumText || "# ADDENDUM NO. 01\nCSI Specifications Addendum";
-    const blob = new Blob([content], { type: "text/markdown;charset=utf-8;" });
+    if (blob === null) {
+      const content = addendumResult.addendumText || "# ADDENDUM NO. 01\nCSI Specifications Addendum";
+      blob = new Blob([content], { type: "text/markdown;charset=utf-8;" });
+    }
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
@@ -273,7 +289,9 @@ export const PreBidQnAView: React.FC<PreBidQnAViewProps> = ({
     setAddendumError(null);
     if (pendingCertificationCount > 0) {
       setIsGeneratingAddendum(false);
-      setAddendumError(`PM certification is required before issuing a binding addendum. Review ${pendingCertificationCount} pending RFI(s).`);
+      setAddendumError(
+        `PM certification is required before issuing a binding addendum. Review ${pendingCertificationCount} pending RFI(s) in: ${currentPackage.csiDivision} ${currentPackage.tradeName}.`
+      );
       return;
     }
     const certifiedCount = addendumConversations.filter((c) => c.status === "clarified" && c.pmCertifiedAt).length;
@@ -283,7 +301,11 @@ export const PreBidQnAView: React.FC<PreBidQnAViewProps> = ({
       return;
     }
     try {
-      const res = await generatePreBidAddendumAction({ projectId: projectId as any });
+      const packageId = (currentPackage as any)?._id as string | undefined;
+      const res = await generatePreBidAddendumAction({
+        projectId: projectId as any,
+        ...(projectConversationsForAddendum === undefined && packageId && !packageId.startsWith("pkg_") ? { tradePackageId: packageId as any } : {}),
+      });
       setAddendumResult(res as any);
     } catch (err: any) {
       if (!projectId.startsWith("proj_")) {
@@ -310,7 +332,7 @@ export const PreBidQnAView: React.FC<PreBidQnAViewProps> = ({
 **Project:** ${title}
 **Trade Scope:** ${div}
 **Issuance Date:** ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
-**Prepared by:** TradePulse Pro Autonomous Pre-Bid Legal Clarification Engine
+**Prepared by:** TradePulse Pay pre-bid clarification log
 **Distribution:** All Registered CSI MasterFormat Trade Subcontractors
 
 ---
@@ -336,7 +358,6 @@ Each proposal submitted must include affirmative written acknowledgement of ADDE
       setAddendumResult({
         success: true,
         fileName: mockFileName,
-        storageId: `local_addendum_${Date.now()}`,
         addendumText: dynamicAddendumText,
         qaCount: activeList.length,
         csiDivisionCount: currentPackage ? 1 : 2,
@@ -446,7 +467,7 @@ Each proposal submitted must include affirmative written acknowledgement of ADDE
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-xs text-slate-400">
-                Subcontractor inquiries answered by the configured AI provider against specifications (live provider status is shown in Evals &amp; Architecture).
+                Subcontractor inquiries answered by the configured AI provider against specifications (answers are drafts a project manager reviews before sending).
               </p>
               <button
                 onClick={() => setShowWhyCare(!showWhyCare)}
@@ -483,13 +504,15 @@ Each proposal submitted must include affirmative written acknowledgement of ADDE
               </span>
             )}
 
-            <button
-              onClick={onOpenSimulation}
-              className="bg-sky-700 hover:bg-sky-600 text-white font-semibold text-xs px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition shadow-sm"
-            >
-              <Sparkles className="w-4 h-4" />
-              Simulate Inbound RFI
-            </button>
+            {onOpenSimulation && (
+              <button
+                onClick={onOpenSimulation}
+                className="bg-sky-700 hover:bg-sky-600 text-white font-semibold text-xs px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition shadow-sm"
+              >
+                <Sparkles className="w-4 h-4" />
+                Simulate Inbound RFI
+              </button>
+            )}
           </div>
         </div>
 
@@ -497,7 +520,7 @@ Each proposal submitted must include affirmative written acknowledgement of ADDE
         {showWhyCare && (
           <div className="mt-3 pt-3 border-t border-slate-800 text-xs text-slate-300 leading-relaxed bg-slate-950/60 rounded-lg p-3 border animate-in fade-in">
             <span className="font-semibold text-sky-300">Addenda Rigor: </span>
-            Verbal clarifications and disjointed email chains create over $300,000 in scope gap claims per commercial project. TradePulse Pro uses the configured AI provider (<strong className="text-sky-300 font-semibold">OpenAI is a BYOK adapter; Gemini/Claude run when configured</strong>) to answer trade RFIs against contract specifications, automatically cites governing CSI articles, and compiles binding <strong className="text-emerald-300 font-semibold">CSI Addendum No. 01</strong> files stored in Convex File Storage (<code className="text-emerald-300 bg-slate-900 px-1 py-0.5 rounded font-mono">_storage</code>).
+            Verbal clarifications and disjointed email chains create over $300,000 in scope gap claims per commercial project. TradePulse Pay uses the configured AI provider (<strong className="text-sky-300 font-semibold">OpenAI is a BYOK adapter; Gemini/Claude run when configured</strong>) to answer trade RFIs against contract specifications, automatically cites governing CSI articles, and compiles binding <strong className="text-emerald-300 font-semibold">CSI Addendum No. 01</strong> files stored in Convex File Storage (<code className="text-emerald-300 bg-slate-900 px-1 py-0.5 rounded font-mono">_storage</code>).
           </div>
         )}
       </div>
@@ -541,26 +564,14 @@ Each proposal submitted must include affirmative written acknowledgement of ADDE
               </p>
             </div>
           </div>
-          {addendumResult.downloadUrl ? (
-            <a
-              href={addendumResult.downloadUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1 shrink-0 transition"
-            >
-              <FileDown className="w-3.5 h-3.5" />
-              Download Addendum
-            </a>
-          ) : (
-            <button
-              type="button"
-              onClick={handleDownloadAddendumFile}
-              className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1 shrink-0 transition"
-            >
-              <FileDown className="w-3.5 h-3.5" />
-              Download Addendum
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => void handleDownloadAddendumFile()}
+            className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1 shrink-0 transition"
+          >
+            <FileDown className="w-3.5 h-3.5" />
+            Download Addendum
+          </button>
         </div>
       )}
       {addendumError && (
@@ -620,7 +631,7 @@ Each proposal submitted must include affirmative written acknowledgement of ADDE
                   <p className="text-slate-300 font-semibold">No pre-bid RFIs yet.</p>
                   <p>
                     Bidders email questions to this package's AgentMail inbox and they appear here automatically, or use
-                    the form on the right to file one manually. Dispatch RFQs from Discovery first to start the round.
+                    the form on the right to file one manually. Send RFQs from Discovery first to start the round.
                   </p>
                 </>
               ) : (

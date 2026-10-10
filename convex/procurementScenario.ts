@@ -1,6 +1,9 @@
 import { ConvexError, v } from "convex/values";
 import { internalMutation } from "./_generated/server";
 import { sub1Account } from "./judgeDemo/runs";
+import { attachProjectToDemo } from "./lib/demoTenancy";
+import { attachBidderVendor } from "./lib/vendorDirectory";
+import { seededProposalBidRow } from "./lib/bidMoney";
 
 /**
  * Internal fixture: a fresh project with one Div 26 trade package in bid leveling, where sub1's
@@ -127,6 +130,7 @@ export const seedProcurementScenario = internalMutation({
       sourceUrl: "https://example.invalid/procurement-scenario",
       rfqStatus: "bid_received",
     });
+    await attachBidderVendor(ctx, competingContractorId);
     const bidBase = {
       tradePackageId,
       valueEngineeringAlternates: [],
@@ -138,7 +142,7 @@ export const seedProcurementScenario = internalMutation({
       revisionNumber: 1,
       receivedAt: now,
     };
-    const sub1BidId = await ctx.db.insert("bids", {
+    const sub1BidId = await ctx.db.insert("bids", seededProposalBidRow({
       ...bidBase,
       contractorId: sub1.contractorId,
       subcontractorName: contractor.companyName,
@@ -147,8 +151,8 @@ export const seedProcurementScenario = internalMutation({
       identifiedExclusions: [{ ...SCENARIO_SUB1_EXCLUSION }],
       longLeadEquipmentWeeks: 8,
       leveledTotalCost: SCENARIO_SUB1_LEVELED,
-    });
-    const competingBidId = await ctx.db.insert("bids", {
+    }));
+    const competingBidId = await ctx.db.insert("bids", seededProposalBidRow({
       ...bidBase,
       contractorId: competingContractorId,
       subcontractorName: SCENARIO_COMPETING_NAME,
@@ -157,7 +161,7 @@ export const seedProcurementScenario = internalMutation({
       identifiedExclusions: [{ ...SCENARIO_COMPETING_EXCLUSION }],
       longLeadEquipmentWeeks: 10,
       leveledTotalCost: SCENARIO_COMPETING_LEVELED,
-    });
+    }));
     await ctx.db.insert("auditLogs", {
       projectId,
       tradePackageId,
@@ -167,6 +171,7 @@ export const seedProcurementScenario = internalMutation({
       actor: "Procurement scenario fixture",
       timestamp: now,
     });
+    await attachProjectToDemo(ctx, projectId);
     return {
       created: true,
       projectId,

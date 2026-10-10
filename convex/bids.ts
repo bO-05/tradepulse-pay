@@ -1,32 +1,66 @@
 import { query, mutation, internalMutation } from "./_generated/server";
-import { requireRole } from "./lib/roles";
+import type { Doc, Id } from "./_generated/dataModel";
+import type { MutationCtx } from "./_generated/server";
+import { auditActor, requireDocOfProject, requireDocScope, requireProjectScope } from "./lib/projectScope";
 import { v, ConvexError } from "convex/values";
 import { deleteAgreementCascade } from "./payments/cascade";
 import { syncAgreementForBid } from "./agreements";
-import { validateNonNegativeAmount, validatePositiveAmount, validateProjectText } from "./validation";
+import { validateProjectText } from "./validation";
 import { leadTimePenaltyFor, targetWeeksForDivision } from "./terms";
 import { contractorCanBidOnPackage } from "./lib/packageContractors";
+import { biddingClosedReason } from "./lib/biddingClosed";
+import { bidExclusionValidator, bidVeAlternateValidator } from "./lib/bidValidators";
+import { formatCents, fromDollars } from "./lib/money";
+import {
+  CLEAR_LEGACY_BID_DOLLARS,
+  acceptedVeDeductCents,
+  bidCents,
+  computeLeveledTotalCents,
+  exclusionPlugCents,
+  type BidExclusionCents,
+  type BidLineItemCents,
+  type BidVeAlternateCents,
+} from "./lib/bidMoney";
+import { recordBidRevision, termsOfBid } from "./lib/bidRevisions";
+import { attributePlugs, cleanPlugNote, exclusionScopeText, keptPlugFields, type PlugActor } from "./lib/levelingPlugs";
+import { ownedLevelingRows, reconcileBidderExclusions } from "./lib/exclusionOwnership";
+import { buildLevelingRows } from "./lib/levelingSummary";
+import { attributeDemoExclusions, findDemoGcPlugActor } from "./lib/demoPlugs";
+import type { ProjectAccess } from "./lib/tenancy";
+
+const MAX_BID_CENTS = 100_000_000_000; // $1,000,000,000.00
 
 /**
- * Plausibility guard for every bid ingestion path. Blocks six/seven-figure data-entry
+ * Plausibility guard for the AI and GC-direct ingestion paths. Blocks six/seven-figure data-entry
  * mistakes and $1 "joke" bids before they can be ranked or awarded.
  */
-function assertBidAmountPlausible(tradePkg: any, baseBidAmount: number): void {
-  if (baseBidAmount < 1000) {
+function assertBidAmountPlausible(tradePkg: Doc<"tradePackages">, baseAmountCents: number): void {
+  if (baseAmountCents < 100_000) {
     throw new ConvexError(
-      `The proposal amount $${baseBidAmount.toLocaleString()} is implausibly low for a commercial trade package (minimum $1,000). Verify the proposal before ingesting.`
+      `The proposal amount ${formatCents(baseAmountCents)} is implausibly low for a commercial trade package (minimum $1,000.00). Verify the proposal before ingesting.`
     );
   }
-  const budget = Number(tradePkg?.budgetEstimate) || 0;
-  const ceiling = Math.max(budget * 5, 5_000_000);
-  if (budget > 0 && baseBidAmount > ceiling) {
+  const budgetCents = Number.isFinite(tradePkg.budgetEstimate) && tradePkg.budgetEstimate > 0 ? fromDollars(tradePkg.budgetEstimate) : 0;
+  const ceilingCents = Math.max(budgetCents * 5, 500_000_000);
+  if (budgetCents > 0 && baseAmountCents > ceilingCents) {
     throw new ConvexError(
-      `The proposal amount $${baseBidAmount.toLocaleString()} exceeds the plausibility ceiling of $${ceiling.toLocaleString()} (5x the $${budget.toLocaleString()} package budget, with a $5,000,000 minimum ceiling). Verify the proposal before ingesting.`
+      `The proposal amount ${formatCents(baseAmountCents)} exceeds the plausibility ceiling of ${formatCents(ceilingCents)} (5x the ${formatCents(budgetCents)} package budget, with a $5,000,000.00 minimum ceiling). Verify the proposal before ingesting.`
     );
   }
 }
 
 const ALLOWED_COI_STATUSES = new Set(["compliant", "deficiency_detected"]);
+
+function centsArg(value: number, label: string, { positive = false }: { positive?: boolean } = {}): number {
+  if (!Number.isSafeInteger(value) || value < 0 || (positive && value === 0) || value > MAX_BID_CENTS) {
+    throw new ConvexError(
+      positive
+        ? `${label} must be a whole number of cents greater than zero and no more than $1,000,000,000.00.`
+        : `${label} must be a whole number of cents, zero or greater, and no more than $1,000,000,000.00.`,
+    );
+  }
+  return value;
+}
 
 /** A10-05: all writers must enforce the same long-lead bounds as insertParsedBid. */
 function validateLongLeadWeeks(value: number): number {
@@ -36,20 +70,26 @@ function validateLongLeadWeeks(value: number): number {
   return value;
 }
 
+const lineItemCentsArg = v.object({
+  item: v.string(),
+  unit: v.string(),
+  quantity: v.number(),
+  unitCostCents: v.number(),
+  totalCostCents: v.number(),
+});
+
 /** A10-06: reject non-finite or negative line-item math on public writers. */
-function assertLineItemsNonNegative(
-  items: ReadonlyArray<{ quantity: number; unitCost: number; totalCost: number }> | undefined
-): void {
+function assertLineItemsNonNegative(items: ReadonlyArray<BidLineItemCents> | undefined): void {
   for (const item of items ?? []) {
     if (
       !Number.isFinite(item.quantity) ||
-      !Number.isFinite(item.unitCost) ||
-      !Number.isFinite(item.totalCost) ||
       item.quantity < 0 ||
-      item.unitCost < 0 ||
-      item.totalCost < 0
+      !Number.isSafeInteger(item.unitCostCents) ||
+      !Number.isSafeInteger(item.totalCostCents) ||
+      item.unitCostCents < 0 ||
+      item.totalCostCents < 0
     ) {
-      throw new ConvexError("Line items must use non-negative numeric quantity, unit cost, and total cost.");
+      throw new ConvexError("Line items must use a non-negative quantity and whole-cent, non-negative unit and total costs.");
     }
   }
 }
@@ -59,29 +99,64 @@ function assertLineItemsNonNegative(
  * COI status or negative scope impact cannot slip through a sibling mutation.
  */
 function assertBidLevelingInputs(
-  exclusions: ReadonlyArray<{ costImpact: number }>,
-  veAlternates: ReadonlyArray<{ costDeduct: number }>,
+  exclusions: ReadonlyArray<{ costImpactCents?: number }>,
+  veAlternates: ReadonlyArray<{ costDeductCents?: number }>,
   coiComplianceStatus?: string
 ): void {
   if (coiComplianceStatus !== undefined && !ALLOWED_COI_STATUSES.has(coiComplianceStatus)) {
     throw new ConvexError("COI status must be 'compliant' or 'deficiency_detected'.");
   }
   for (const exc of exclusions) {
-    if (!Number.isFinite(exc.costImpact) || exc.costImpact < 0) {
-      throw new ConvexError("Scope exclusion cost impacts must be zero or positive dollar amounts.");
+    const c = exc.costImpactCents ?? 0;
+    if (!Number.isSafeInteger(c) || c < 0) {
+      throw new ConvexError("Scope exclusion cost impacts must be zero or positive whole-cent amounts.");
     }
   }
   for (const ve of veAlternates) {
-    if (!Number.isFinite(ve.costDeduct) || ve.costDeduct < 0) {
-      throw new ConvexError("Value-engineering deducts must be zero or positive dollar amounts.");
+    const c = ve.costDeductCents ?? 0;
+    if (!Number.isSafeInteger(c) || c < 0) {
+      throw new ConvexError("Value-engineering deducts must be zero or positive whole-cent amounts.");
     }
   }
+}
+
+// The arg validators still accept the legacy dollar keys so a migrated row can be sent back
+// unchanged, but a dollar amount without its cents twin would silently become $0.
+function assertCentsPresent(items: ReadonlyArray<object>, centsKey: string, dollarKey: string): void {
+  for (const item of items as ReadonlyArray<Record<string, unknown>>) {
+    if (item[centsKey] === undefined && item[dollarKey] !== undefined) {
+      throw new ConvexError(`Send ${dollarKey} as integer cents (${centsKey}).`);
+    }
+  }
+}
+
+function normalizeExclusions(items: ReadonlyArray<Doc<"bids">["identifiedExclusions"][number]>): BidExclusionCents[] {
+  assertCentsPresent(items, "costImpactCents", "costImpact");
+  return items.map((e) => ({
+    ...(e.canonicalCode ? { canonicalCode: e.canonicalCode } : {}),
+    description: e.description,
+    costImpactCents: e.costImpactCents ?? 0,
+    severity: e.severity,
+    ...(e.isWaived !== undefined ? { isWaived: e.isWaived } : {}),
+    ...(e.plugNote !== undefined ? { plugNote: e.plugNote } : {}),
+  }));
+}
+
+function plugActor(access: Pick<ProjectAccess, "user" | "viewer" | "company">): PlugActor {
+  const a = auditActor(access);
+  return { userId: a.actorUserId, name: a.actor };
+}
+
+function normalizeVe(items: ReadonlyArray<NonNullable<Doc<"bids">["valueEngineeringAlternates"]>[number]>): BidVeAlternateCents[] {
+  assertCentsPresent(items, "costDeductCents", "costDeduct");
+  return items.map((a) => ({ description: a.description, costDeductCents: a.costDeductCents ?? 0, isAccepted: a.isAccepted }));
 }
 
 export const listByPackage = query({
   args: { tradePackageId: v.id("tradePackages") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc", "owner"]);
+    // Bid amounts are GC-internal: owners and subs never read the leveling matrix.
+    await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"] });
     return await ctx.db
       .query("bids")
       .withIndex("by_package", (q) => q.eq("tradePackageId", args.tradePackageId))
@@ -92,7 +167,7 @@ export const listByPackage = query({
 export const listAllProjectBids = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc", "owner"]);
+    await requireProjectScope(ctx, args.projectId, { roles: ["gc"] });
     const packages = await ctx.db
       .query("tradePackages")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
@@ -116,20 +191,99 @@ export const listAllProjectBids = query({
   },
 });
 
+/** GC leveling view: apparent low vs leveled low, plugs with who entered them, and award status per bidder. */
+export const getLevelingSummary = query({
+  args: { tradePackageId: v.id("tradePackages") },
+  handler: async (ctx, args) => {
+    const access = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"] });
+    const pkg = access.doc;
+    const bids = await ctx.db
+      .query("bids")
+      .withIndex("by_package", (q) => q.eq("tradePackageId", args.tradePackageId))
+      .take(200);
+    const rows = buildLevelingRows(pkg, bids);
+    const awarded = rows.find((r) => r.status === "awarded") ?? null;
+    return {
+      packageStatus: pkg.status,
+      csiDivision: pkg.csiDivision,
+      tradeName: pkg.tradeName,
+      awardedTo: awarded ? awarded.subcontractorName : null,
+      apparentLowBidId: rows.find((r) => r.isApparentLow)?.bidId ?? null,
+      leveledLowBidId: rows.find((r) => r.isLeveledLow)?.bidId ?? null,
+      rows,
+    };
+  },
+});
+
+/**
+ * Sets (or clears, with 0) the GC's comparison plug on one bid exclusion. The plug changes only the
+ * leveled total; the bid's base, the contract sum and the SOV never include it.
+ */
+export const setExclusionPlug = mutation({
+  args: {
+    bidId: v.id("bids"),
+    exclusionIndex: v.number(),
+    amountCents: v.number(),
+    note: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const access = await requireDocScope(ctx, "bids", args.bidId, { roles: ["gc"], write: true });
+    const bid = access.doc;
+    if (bid.isAwarded) {
+      throw new ConvexError({ code: "CLOSED", message: "This bid is awarded; plugs are locked. Unaward it first to change leveling." });
+    }
+    const exclusion = Number.isInteger(args.exclusionIndex) ? bid.identifiedExclusions[args.exclusionIndex] : undefined;
+    if (!exclusion) throw new ConvexError({ code: "INVALID", message: "That exclusion is not on this bid." });
+    if (!Number.isSafeInteger(args.amountCents) || args.amountCents < 0 || args.amountCents > MAX_BID_CENTS) {
+      throw new ConvexError({
+        code: "INVALID",
+        field: "amount",
+        message: "Enter the plug as a dollar amount of $0.00 or more (whole cents).",
+      });
+    }
+    const note = cleanPlugNote(args.note);
+    const next = bid.identifiedExclusions.map((e, i) =>
+      i === args.exclusionIndex ? { ...e, costImpactCents: args.amountCents, plugNote: note, isWaived: false } : e,
+    );
+    const exclusions = attributePlugs(bid.identifiedExclusions, next, plugActor(access), Date.now());
+    const c = bidCents(bid);
+    const leveledTotalCents = computeLeveledTotalCents({
+      baseAmountCents: c.baseAmountCents,
+      exclusions,
+      veAlternates: bid.valueEngineeringAlternates ?? [],
+      leadTimePenaltyCents: c.leadTimePenaltyCents,
+      coiPenaltyCents: c.coiPenaltyCents,
+    });
+    await ctx.db.patch(bid._id, { ...CLEAR_LEGACY_BID_DOLLARS, ...c, identifiedExclusions: exclusions, leveledTotalCents });
+    const pkg = await ctx.db.get(bid.tradePackageId);
+    await ctx.db.insert("auditLogs", {
+      projectId: access.project._id,
+      tradePackageId: bid.tradePackageId,
+      eventType: "bid_leveled",
+      title: `Leveling plug ${args.amountCents > 0 ? "set" : "cleared"}: ${bid.subcontractorName}`,
+      description:
+        args.amountCents > 0
+          ? `Comparison-only plug of ${formatCents(args.amountCents)} on "${exclusion.description}"${pkg ? ` (Division ${pkg.csiDivision})` : ""}. Base bid stays ${formatCents(c.baseAmountCents)}; leveled total ${formatCents(leveledTotalCents)}. Plugs never enter the contract sum.`
+          : `Plug removed from "${exclusion.description}". Leveled total ${formatCents(leveledTotalCents)}.`,
+      ...auditActor(access),
+      timestamp: Date.now(),
+    });
+    return { leveledTotalCents };
+  },
+});
+
 export const awardContract = mutation({
   args: {
     bidId: v.id("bids"),
     tradePackageId: v.id("tradePackages"),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const awardedBid = await ctx.db.get(args.bidId);
-    if (!awardedBid) throw new Error("Bid not found");
+    const access = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"], write: true });
+    const tradePkg = access.doc;
+    const awardedBid = await requireDocOfProject(ctx, access, "bids", args.bidId);
     if (awardedBid.tradePackageId !== args.tradePackageId) {
       throw new Error("The selected bid is not part of this trade package.");
     }
-    const tradePkg = await ctx.db.get(args.tradePackageId);
-    if (!tradePkg) throw new Error("Trade package not found");
     const contractor = await ctx.db.get(awardedBid.contractorId);
     if (!contractor || !contractorCanBidOnPackage(contractor, tradePkg)) {
       throw new Error("The selected bid is not linked to a contractor in this trade package.");
@@ -172,23 +326,18 @@ export const awardContract = mutation({
       }
     }
 
-    // Mark this bid awarded
     await ctx.db.patch(args.bidId, { isAwarded: true });
-
-    // Update trade package status to awarded
     await ctx.db.patch(args.tradePackageId, { status: "awarded" });
 
-    if (tradePkg) {
-      await ctx.db.insert("auditLogs", {
-        projectId: tradePkg.projectId,
-        tradePackageId: tradePkg._id,
-        eventType: "contract_awarded",
-        title: `Subcontract Awarded: ${awardedBid.subcontractorName}`,
-        description: `Awarded Division ${tradePkg.csiDivision} to ${awardedBid.subcontractorName} at leveled cost of $${awardedBid.leveledTotalCost.toLocaleString()}.`,
-        actor: "Lead Project Manager / Executive",
-        timestamp: Date.now(),
-      });
-    }
+    await ctx.db.insert("auditLogs", {
+      projectId: tradePkg.projectId,
+      tradePackageId: tradePkg._id,
+      eventType: "contract_awarded",
+      title: `Subcontract Awarded: ${awardedBid.subcontractorName}`,
+      description: `Awarded Division ${tradePkg.csiDivision} to ${awardedBid.subcontractorName}; contract sum ${formatCents(existingAgreement.contractSumCents ?? fromDollars(existingAgreement.contractSum))} (base bid plus accepted alternates; leveling plugs excluded).`,
+      ...auditActor(access),
+      timestamp: Date.now(),
+    });
 
     return {
       success: true,
@@ -203,14 +352,12 @@ export const unawardContract = mutation({
     tradePackageId: v.id("tradePackages"),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const bid = await ctx.db.get(args.bidId);
-    if (!bid) throw new Error("Bid not found");
+    const access = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"], write: true });
+    const tradePkg = access.doc;
+    const bid = await requireDocOfProject(ctx, access, "bids", args.bidId);
     if (bid.tradePackageId !== args.tradePackageId) {
       throw new Error("The selected bid is not part of this trade package.");
     }
-    const tradePkg = await ctx.db.get(args.tradePackageId);
-    if (!tradePkg) throw new Error("Trade package not found");
 
     await ctx.db.patch(args.bidId, { isAwarded: false });
     await ctx.db.patch(args.tradePackageId, { status: "leveling" });
@@ -229,17 +376,15 @@ export const unawardContract = mutation({
       }
     }
 
-    if (tradePkg) {
-      await ctx.db.insert("auditLogs", {
-        projectId: tradePkg.projectId,
-        tradePackageId: tradePkg._id,
-        eventType: "contract_awarded",
-        title: `Subcontract Un-Awarded: ${bid.subcontractorName}`,
-        description: `Reopened Division ${tradePkg.csiDivision} bid leveling matrix. Removed award flag from ${bid.subcontractorName}.`,
-        actor: "Lead Project Manager",
-        timestamp: Date.now(),
-      });
-    }
+    await ctx.db.insert("auditLogs", {
+      projectId: tradePkg.projectId,
+      tradePackageId: tradePkg._id,
+      eventType: "contract_awarded",
+      title: `Subcontract Un-Awarded: ${bid.subcontractorName}`,
+      description: `Reopened Division ${tradePkg.csiDivision} bid leveling matrix. Removed award flag from ${bid.subcontractorName}.`,
+      ...auditActor(access),
+      timestamp: Date.now(),
+    });
 
     return { success: true };
   },
@@ -250,9 +395,8 @@ export const deleteBid = mutation({
     bidId: v.id("bids"),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const bid = await ctx.db.get(args.bidId);
-    if (!bid) throw new Error("Bid not found");
+    const access = await requireDocScope(ctx, "bids", args.bidId, { roles: ["gc"], write: true });
+    const bid = access.doc;
 
     const tradePkg = await ctx.db.get(bid.tradePackageId);
 
@@ -268,6 +412,11 @@ export const deleteBid = mutation({
       await deleteAgreementCascade(ctx, a._id);
     }
 
+    const revisions = await ctx.db
+      .query("bidRevisions")
+      .withIndex("by_bid_and_revision", (q) => q.eq("bidId", args.bidId))
+      .take(500);
+    for (const r of revisions) await ctx.db.delete(r._id);
     await ctx.db.delete(args.bidId);
 
     // Check remaining bids
@@ -288,8 +437,8 @@ export const deleteBid = mutation({
         tradePackageId: tradePkg._id,
         eventType: "bid_leveled",
         title: `Bid Removed: ${bid.subcontractorName}`,
-        description: `Deleted proposal from ${bid.subcontractorName} ($${bid.baseBidAmount.toLocaleString()}) from Division ${tradePkg.csiDivision} leveling matrix.`,
-        actor: "Estimator / Procurement Team",
+        description: `Deleted proposal from ${bid.subcontractorName} (${formatCents(bidCents(bid).baseAmountCents)}) from Division ${tradePkg.csiDivision} leveling matrix.`,
+        ...auditActor(access),
         timestamp: Date.now(),
       });
     }
@@ -298,173 +447,99 @@ export const deleteBid = mutation({
   },
 });
 
-export const updateBidLeveling = mutation({
+const levelingArgs = {
+  identifiedExclusions: v.optional(v.array(bidExclusionValidator)),
+  valueEngineeringAlternates: v.optional(v.array(bidVeAlternateValidator)),
+  leadTimePenaltyCents: v.optional(v.number()),
+  longLeadEquipmentWeeks: v.optional(v.number()),
+  coiPenaltyCents: v.optional(v.number()),
+  coiComplianceStatus: v.optional(v.string()),
+};
+
+/** Shared by the GC leveling writers: validates, recomputes the leveled total in cents and audits. */
+async function applyLeveling(
+  ctx: MutationCtx,
+  access: Awaited<ReturnType<typeof requireDocScope<"bids">>>,
   args: {
-    bidId: v.id("bids"),
-    baseBidAmount: v.optional(v.number()),
-    identifiedExclusions: v.optional(
-      v.array(
-        v.object({
-          canonicalCode: v.optional(v.string()),
-          description: v.string(),
-          costImpact: v.number(),
-          severity: v.string(),
-          isWaived: v.optional(v.boolean()),
-        })
-      )
-    ),
-    valueEngineeringAlternates: v.optional(
-      v.array(
-        v.object({
-          description: v.string(),
-          costDeduct: v.number(),
-          isAccepted: v.boolean(),
-        })
-      )
-    ),
-    leadTimePenalty: v.optional(v.number()),
-    longLeadEquipmentWeeks: v.optional(v.number()),
-    coiPenalty: v.optional(v.number()),
-    coiComplianceStatus: v.optional(v.string()),
+    baseAmountCents?: number;
+    identifiedExclusions?: Doc<"bids">["identifiedExclusions"];
+    valueEngineeringAlternates?: Doc<"bids">["valueEngineeringAlternates"];
+    leadTimePenaltyCents?: number;
+    longLeadEquipmentWeeks?: number;
+    coiPenaltyCents?: number;
+    coiComplianceStatus?: string;
   },
-  handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const bid = await ctx.db.get(args.bidId);
-    if (!bid) throw new Error("Bid not found");
+  label: { title: string; verb: string },
+) {
+  const bid = access.doc;
+  const current = bidCents(bid);
+  const baseAmountCents = centsArg(args.baseAmountCents ?? current.baseAmountCents, "Base bid amount", { positive: true });
+  const exclusions = args.identifiedExclusions
+    ? ownedLevelingRows(bid, attributePlugs(bid.identifiedExclusions, normalizeExclusions(args.identifiedExclusions), plugActor(access), Date.now()))
+    : bid.identifiedExclusions;
+  const veAlternates = normalizeVe(args.valueEngineeringAlternates ?? bid.valueEngineeringAlternates ?? []);
+  assertBidLevelingInputs(exclusions, veAlternates, args.coiComplianceStatus);
+  const leadTimePenaltyCents = centsArg(args.leadTimePenaltyCents ?? current.leadTimePenaltyCents, "Lead time penalty");
+  const coiPenaltyCents = centsArg(args.coiPenaltyCents ?? current.coiPenaltyCents, "COI penalty");
+  const longLeadEquipmentWeeks =
+    args.longLeadEquipmentWeeks !== undefined ? validateLongLeadWeeks(args.longLeadEquipmentWeeks) : bid.longLeadEquipmentWeeks;
 
-    const baseBidAmount = validatePositiveAmount(args.baseBidAmount ?? bid.baseBidAmount, "Base bid amount");
-    const exclusions = args.identifiedExclusions ?? bid.identifiedExclusions;
-    const veAlternates = args.valueEngineeringAlternates ?? bid.valueEngineeringAlternates ?? [];
-    assertBidLevelingInputs(exclusions, veAlternates, args.coiComplianceStatus);
-    const leadTimePenalty = validateNonNegativeAmount(args.leadTimePenalty !== undefined ? args.leadTimePenalty : bid.leadTimePenalty, "Lead time penalty");
-    const coiPenalty = validateNonNegativeAmount(args.coiPenalty !== undefined ? args.coiPenalty : bid.coiPenalty, "COI penalty");
-    const longLeadEquipmentWeeks =
-      args.longLeadEquipmentWeeks !== undefined
-        ? validateLongLeadWeeks(args.longLeadEquipmentWeeks)
-        : bid.longLeadEquipmentWeeks;
+  const leveledTotalCents = computeLeveledTotalCents({
+    baseAmountCents,
+    exclusions,
+    veAlternates,
+    leadTimePenaltyCents,
+    coiPenaltyCents,
+  });
 
-    // ADR-0003 Formula:
-    // Leveled Cost = Base Bid + Sum(Un-waived Exclusions) + Lead Time Penalty + COI Penalty - Sum(Accepted Alternates)
-    const activeExclusionsCost = exclusions.reduce((sum, exc) => (exc.isWaived ? sum : sum + (exc.costImpact || 0)), 0);
-    const acceptedAlternatesDeduct = veAlternates.reduce((sum, ve) => (ve.isAccepted ? sum + (ve.costDeduct || 0) : sum), 0);
-    const leveledTotalCost = Math.max(0, baseBidAmount + activeExclusionsCost + leadTimePenalty + coiPenalty - acceptedAlternatesDeduct);
+  await ctx.db.patch(bid._id, {
+    ...CLEAR_LEGACY_BID_DOLLARS,
+    baseAmountCents,
+    identifiedExclusions: exclusions,
+    valueEngineeringAlternates: veAlternates,
+    leadTimePenaltyCents,
+    longLeadEquipmentWeeks,
+    coiPenaltyCents,
+    coiComplianceStatus: args.coiComplianceStatus ?? bid.coiComplianceStatus,
+    leveledTotalCents,
+  });
 
-    await ctx.db.patch(args.bidId, {
-      baseBidAmount,
-      identifiedExclusions: exclusions,
-      valueEngineeringAlternates: veAlternates,
-      leadTimePenalty,
-      longLeadEquipmentWeeks,
-      coiPenalty,
-      coiComplianceStatus: args.coiComplianceStatus ?? bid.coiComplianceStatus,
-      leveledTotalCost,
+  if (bid.isAwarded) {
+    await syncAgreementForBid(ctx, bid._id);
+  }
+
+  const tradePkg = await ctx.db.get(bid.tradePackageId);
+  if (tradePkg) {
+    const waivedCount = exclusions.filter((e) => e.isWaived).length;
+    const acceptedVeCount = veAlternates.filter((a) => a.isAccepted).length;
+    await ctx.db.insert("auditLogs", {
+      projectId: tradePkg.projectId,
+      tradePackageId: tradePkg._id,
+      eventType: "bid_leveled",
+      title: `${label.title}: ${bid.subcontractorName}`,
+      description: `${label.verb} Base ${formatCents(baseAmountCents)} → Leveled Total: ${formatCents(leveledTotalCents)} (${waivedCount} exclusions waived, ${acceptedVeCount} VE alternates accepted, -${formatCents(acceptedVeDeductCents(veAlternates))} deduct).`,
+      ...auditActor(access),
+      timestamp: Date.now(),
     });
+  }
+  return { success: true, leveledTotalCents };
+}
 
-    if (bid.isAwarded) {
-      await syncAgreementForBid(ctx, bid._id);
-    }
-
-    const tradePkg = await ctx.db.get(bid.tradePackageId);
-    if (tradePkg) {
-      const waivedCount = exclusions.filter((e) => e.isWaived).length;
-      const acceptedVeCount = veAlternates.filter((v) => v.isAccepted).length;
-      await ctx.db.insert("auditLogs", {
-        projectId: tradePkg.projectId,
-        tradePackageId: tradePkg._id,
-        eventType: "bid_leveled",
-        title: `Bid Leveling Recalculated: ${bid.subcontractorName}`,
-        description: `Normalized leveling recalculated. Base $${baseBidAmount.toLocaleString()} → Leveled Total: $${leveledTotalCost.toLocaleString()} (${waivedCount} exclusions waived, ${acceptedVeCount} VE alternates accepted, -$${acceptedAlternatesDeduct.toLocaleString()} deduct).`,
-        actor: "Lead Cost Estimator (ADR-0003)",
-        timestamp: Date.now(),
-      });
-    }
-
-    return {
-      success: true,
-      leveledTotalCost,
-    };
+export const updateBidLeveling = mutation({
+  args: { bidId: v.id("bids"), baseAmountCents: v.optional(v.number()), ...levelingArgs },
+  handler: async (ctx, args) => {
+    const access = await requireDocScope(ctx, "bids", args.bidId, { roles: ["gc"], write: true });
+    const { bidId: _bidId, ...rest } = args;
+    return await applyLeveling(ctx, access, rest, { title: "Bid Leveling Recalculated", verb: "Normalized leveling recalculated." });
   },
 });
 
 export const updateBidAdjustments = mutation({
-  args: {
-    bidId: v.id("bids"),
-    identifiedExclusions: v.array(
-      v.object({
-        canonicalCode: v.optional(v.string()),
-        description: v.string(),
-        costImpact: v.number(),
-        severity: v.string(),
-        isWaived: v.optional(v.boolean()),
-      })
-    ),
-    valueEngineeringAlternates: v.optional(
-      v.array(
-        v.object({
-          description: v.string(),
-          costDeduct: v.number(),
-          isAccepted: v.boolean(),
-        })
-      )
-    ),
-    leadTimePenalty: v.optional(v.number()),
-    longLeadEquipmentWeeks: v.optional(v.number()),
-    coiPenalty: v.optional(v.number()),
-    coiComplianceStatus: v.optional(v.string()),
-  },
+  args: { bidId: v.id("bids"), ...levelingArgs, identifiedExclusions: v.array(bidExclusionValidator) },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const bid = await ctx.db.get(args.bidId);
-    if (!bid) throw new Error("Bid not found");
-
-    assertBidLevelingInputs(args.identifiedExclusions, args.valueEngineeringAlternates ?? [], args.coiComplianceStatus);
-
-    const exclusions = args.identifiedExclusions;
-    const veAlternates = args.valueEngineeringAlternates ?? bid.valueEngineeringAlternates ?? [];
-    const leadTimePenalty = validateNonNegativeAmount(args.leadTimePenalty !== undefined ? args.leadTimePenalty : bid.leadTimePenalty, "Lead time penalty");
-    const coiPenalty = validateNonNegativeAmount(args.coiPenalty !== undefined ? args.coiPenalty : bid.coiPenalty, "COI penalty");
-    const longLeadEquipmentWeeks =
-      args.longLeadEquipmentWeeks !== undefined
-        ? validateLongLeadWeeks(args.longLeadEquipmentWeeks)
-        : bid.longLeadEquipmentWeeks;
-
-    const activeExclusionsCost = exclusions.reduce((sum, exc) => (exc.isWaived ? sum : sum + (exc.costImpact || 0)), 0);
-    const acceptedAlternatesDeduct = veAlternates.reduce((sum, ve) => (ve.isAccepted ? sum + (ve.costDeduct || 0) : sum), 0);
-    const leveledTotalCost = Math.max(0, bid.baseBidAmount + activeExclusionsCost + leadTimePenalty + coiPenalty - acceptedAlternatesDeduct);
-
-    await ctx.db.patch(args.bidId, {
-      identifiedExclusions: exclusions,
-      valueEngineeringAlternates: veAlternates,
-      leadTimePenalty,
-      longLeadEquipmentWeeks,
-      coiPenalty,
-      coiComplianceStatus: args.coiComplianceStatus ?? bid.coiComplianceStatus,
-      leveledTotalCost,
-    });
-
-    if (bid.isAwarded) {
-      await syncAgreementForBid(ctx, bid._id);
-    }
-
-    const tradePkg = await ctx.db.get(bid.tradePackageId);
-    if (tradePkg) {
-      const waivedCount = exclusions.filter((e) => e.isWaived).length;
-      const acceptedVeCount = veAlternates.filter((v) => v.isAccepted).length;
-      await ctx.db.insert("auditLogs", {
-        projectId: tradePkg.projectId,
-        tradePackageId: tradePkg._id,
-        eventType: "bid_leveled",
-        title: `Bid Leveling Adjusted: ${bid.subcontractorName}`,
-        description: `Manual leveling adjustments applied. Leveled Total: $${leveledTotalCost.toLocaleString()} (${waivedCount} exclusions waived, ${acceptedVeCount} VE alternates accepted, -$${acceptedAlternatesDeduct.toLocaleString()} deduct).`,
-        actor: "Lead Cost Estimator",
-        timestamp: Date.now(),
-      });
-    }
-
-    return {
-      success: true,
-      leveledTotalCost,
-    };
+    const access = await requireDocScope(ctx, "bids", args.bidId, { roles: ["gc"], write: true });
+    const { bidId: _bidId, ...rest } = args;
+    return await applyLeveling(ctx, access, rest, { title: "Bid Leveling Adjusted", verb: "Manual leveling adjustments applied." });
   },
 });
 
@@ -473,56 +548,37 @@ export const submitDirectBid = mutation({
     tradePackageId: v.id("tradePackages"),
     contractorId: v.id("contractors"),
     subcontractorName: v.string(),
-    baseBidAmount: v.number(),
-    lineItems: v.optional(
-      v.array(
-        v.object({
-          item: v.string(),
-          unit: v.string(),
-          quantity: v.number(),
-          unitCost: v.number(),
-          totalCost: v.number(),
-        })
-      )
-    ),
-    identifiedExclusions: v.optional(
-      v.array(
-        v.object({
-          canonicalCode: v.optional(v.string()),
-          description: v.string(),
-          costImpact: v.number(),
-          severity: v.string(),
-          isWaived: v.optional(v.boolean()),
-        })
-      )
-    ),
-    valueEngineeringAlternates: v.optional(
-      v.array(
-        v.object({
-          description: v.string(),
-          costDeduct: v.number(),
-          isAccepted: v.boolean(),
-        })
-      )
-    ),
+    baseAmountCents: v.number(),
+    lineItems: v.optional(v.array(lineItemCentsArg)),
+    identifiedExclusions: v.optional(v.array(bidExclusionValidator)),
+    valueEngineeringAlternates: v.optional(v.array(bidVeAlternateValidator)),
     longLeadEquipmentWeeks: v.optional(v.number()),
-    leadTimePenalty: v.optional(v.number()),
+    leadTimePenaltyCents: v.optional(v.number()),
     coiComplianceStatus: v.optional(v.string()),
-    coiPenalty: v.optional(v.number()),
-    leveledTotalCost: v.optional(v.number()),
+    coiPenaltyCents: v.optional(v.number()),
     rawProposalText: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const tradePkg = await ctx.db.get(args.tradePackageId);
-    if (!tradePkg) throw new Error("Trade package not found");
-    const contractor = await ctx.db.get(args.contractorId);
-    if (!contractor || contractor.tradePackageId !== tradePkg._id) {
+    const access = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"], write: true });
+    const tradePkg = access.doc;
+    const contractor = await requireDocOfProject(ctx, access, "contractors", args.contractorId);
+    if (contractor.tradePackageId !== tradePkg._id) {
       throw new Error("The contractor is not assigned to this trade package.");
     }
-    const baseBidAmount = validatePositiveAmount(args.baseBidAmount, "Base bid amount");
-    assertBidAmountPlausible(tradePkg, baseBidAmount);
-    assertBidLevelingInputs(args.identifiedExclusions ?? [], args.valueEngineeringAlternates ?? [], args.coiComplianceStatus);
+    const baseAmountCents = centsArg(args.baseAmountCents, "Base bid amount", { positive: true });
+    assertBidAmountPlausible(tradePkg, baseAmountCents);
+    const existingForPlugs = await ctx.db
+      .query("bids")
+      .withIndex("by_package_and_contractor", (q) => q.eq("tradePackageId", args.tradePackageId).eq("contractorId", args.contractorId))
+      .first();
+    const exclusions = attributePlugs(
+      existingForPlugs?.identifiedExclusions ?? [],
+      normalizeExclusions(args.identifiedExclusions ?? []),
+      plugActor(access),
+      Date.now(),
+    );
+    const veAlternates = normalizeVe(args.valueEngineeringAlternates ?? []);
+    assertBidLevelingInputs(exclusions, veAlternates, args.coiComplianceStatus);
     assertLineItemsNonNegative(args.lineItems);
     // A12-08: keep one canonical bidder name per contractor so leveling, CSV,
     // contracts, and the tour cannot disagree.
@@ -530,54 +586,46 @@ export const submitDirectBid = mutation({
       contractor.companyName.trim() || args.subcontractorName,
       "Subcontractor name"
     );
-    // 1. Mark contractor as bid_received
     await ctx.db.patch(args.contractorId, { rfqStatus: "bid_received" });
-
-    // 2. Set trade package status to leveling
     await ctx.db.patch(args.tradePackageId, { status: "leveling" });
 
-    // 3. Remove any previous bid from this contractor for this package
-    const existing = (await ctx.db
+    const existing = await ctx.db
       .query("bids")
-      .withIndex("by_package", (q) => q.eq("tradePackageId", args.tradePackageId))
-      .collect()).find((bid) => bid.contractorId === args.contractorId);
+      .withIndex("by_package_and_contractor", (q) => q.eq("tradePackageId", args.tradePackageId).eq("contractorId", args.contractorId))
+      .first();
 
-    const lineItems = args.lineItems ?? [
-      {
-        item: "Base Commercial Package Scope",
-        unit: "LS",
-        quantity: 1,
-        unitCost: baseBidAmount,
-        totalCost: baseBidAmount,
-      },
+    const lineItems: BidLineItemCents[] = args.lineItems ?? [
+      { item: "Base Commercial Package Scope", unit: "LS", quantity: 1, unitCostCents: baseAmountCents, totalCostCents: baseAmountCents },
     ];
-    const exclusions = args.identifiedExclusions ?? [];
-    const veAlternates = args.valueEngineeringAlternates ?? [];
     const leadWeeks = args.longLeadEquipmentWeeks ?? 12;
     if (!Number.isInteger(leadWeeks) || leadWeeks < 0 || leadWeeks > 520) {
       throw new Error("Long-lead equipment weeks must be a whole number between 0 and 520.");
     }
-    const leadPenalty = validateNonNegativeAmount(args.leadTimePenalty ?? 0, "Lead time penalty");
+    const leadTimePenaltyCents = centsArg(args.leadTimePenaltyCents ?? 0, "Lead time penalty");
     const coiStatus = args.coiComplianceStatus ?? "compliant";
-    const coiPenalty = validateNonNegativeAmount(args.coiPenalty ?? 0, "COI penalty");
+    const coiPenaltyCents = centsArg(args.coiPenaltyCents ?? 0, "COI penalty");
+    const leveledTotalCents = computeLeveledTotalCents({
+      baseAmountCents,
+      exclusions,
+      veAlternates,
+      leadTimePenaltyCents,
+      coiPenaltyCents,
+    });
+    const money = {
+      ...CLEAR_LEGACY_BID_DOLLARS,
+      subcontractorName,
+      baseAmountCents,
+      lineItems,
+      identifiedExclusions: exclusions,
+      valueEngineeringAlternates: veAlternates,
+      longLeadEquipmentWeeks: leadWeeks,
+      leadTimePenaltyCents,
+      coiComplianceStatus: coiStatus,
+      coiPenaltyCents,
+      leveledTotalCents,
+    };
 
-    // ADR-0003 Formula:
-    // Leveled Cost = Base Bid + Sum(Active Exclusions) + Lead Penalty + COI Penalty - Sum(Accepted VE Alternates)
-    const activeExclusionsCost = exclusions.reduce(
-      (sum, exc) => (exc.isWaived ? sum : sum + exc.costImpact),
-      0
-    );
-    const acceptedVeDeduct = veAlternates.reduce(
-      (sum, ve) => (ve.isAccepted ? sum + ve.costDeduct : sum),
-      0
-    );
-    const computedLeveledTotal = Math.max(
-      0,
-      baseBidAmount + activeExclusionsCost + leadPenalty + coiPenalty - acceptedVeDeduct
-    );
-
-    // 3. Update existing bid in-place or insert new to preserve agreement references
-    let bidId: any;
+    let bidId: Id<"bids">;
     if (existing) {
       bidId = existing._id;
       if (existing.isAwarded) {
@@ -591,16 +639,9 @@ export const submitDirectBid = mutation({
         }
       }
       await ctx.db.patch(existing._id, {
-        subcontractorName,
-        baseBidAmount,
-        lineItems,
-        identifiedExclusions: exclusions,
-        valueEngineeringAlternates: veAlternates,
-        longLeadEquipmentWeeks: leadWeeks,
-        leadTimePenalty: leadPenalty,
-        coiComplianceStatus: coiStatus,
-        coiPenalty,
-        leveledTotalCost: computedLeveledTotal,
+        ...money,
+        exclusions: exclusions.map((e) => e.description),
+        source: "gc_entered",
         revisionNumber: (existing.revisionNumber ?? 1) + 1,
         lastRevisedAt: Date.now(),
         receivedAt: Date.now(),
@@ -614,84 +655,64 @@ export const submitDirectBid = mutation({
       bidId = await ctx.db.insert("bids", {
         tradePackageId: args.tradePackageId,
         contractorId: args.contractorId,
-        subcontractorName,
-        baseBidAmount,
-        lineItems,
-        identifiedExclusions: exclusions,
-        valueEngineeringAlternates: veAlternates,
-        longLeadEquipmentWeeks: leadWeeks,
-        leadTimePenalty: leadPenalty,
-        coiComplianceStatus: coiStatus,
-        coiPenalty,
-        leveledTotalCost: computedLeveledTotal,
+        ...money,
+        exclusions: exclusions.map((e) => e.description),
+        source: "gc_entered",
         isAwarded: false,
         revisionNumber: 1,
         receivedAt: Date.now(),
       });
     }
+    const saved = (await ctx.db.get(bidId))!;
+    const actor = auditActor(access);
+    await recordBidRevision(ctx, saved, {
+      source: "gc_entered",
+      terms: termsOfBid(saved),
+      submittedByUserId: access.user._id,
+      submittedByName: actor.actor,
+      submittedByCompanyId: access.company?._id,
+    });
 
-    if (tradePkg) {
-      await ctx.db.insert("auditLogs", {
-        projectId: tradePkg.projectId,
-        tradePackageId: tradePkg._id,
-        eventType: "quote_received",
-        title: `Direct Bid Ingested: ${subcontractorName}`,
-        description: `Direct proposal ingested for Division ${tradePkg.csiDivision}: Base $${baseBidAmount.toLocaleString()} → Leveled $${computedLeveledTotal.toLocaleString()} (${exclusions.length} exclusions, ${veAlternates.length} VE alternates).`,
-        actor: "General Contractor / Estimator",
-        timestamp: Date.now(),
-      });
-    }
+    await ctx.db.insert("auditLogs", {
+      projectId: tradePkg.projectId,
+      tradePackageId: tradePkg._id,
+      eventType: "quote_received",
+      title: `Direct Bid Ingested: ${subcontractorName}`,
+      description: `Direct proposal ingested for Division ${tradePkg.csiDivision}: Base ${formatCents(baseAmountCents)} → Leveled ${formatCents(leveledTotalCents)} (${exclusions.length} exclusions, ${veAlternates.length} VE alternates).`,
+      ...actor,
+      timestamp: Date.now(),
+    });
 
     return {
       success: true,
       bidId,
       subcontractorName,
-      baseBidAmount,
-      leveledTotalCost: computedLeveledTotal,
+      baseAmountCents,
+      leveledTotalCents,
     };
   },
 });
 
+/**
+ * Stores an AI-parsed proposal (bidder email or quote file). The parser works in dollars; this is
+ * the storage boundary where its amounts become integer cents. The bid stays "needs review" until a
+ * GC member confirms or edits it.
+ */
 export const insertParsedBid = internalMutation({
   args: {
     tradePackageId: v.id("tradePackages"),
     contractorId: v.id("contractors"),
     subcontractorName: v.string(),
-    baseBidAmount: v.number(),
-    lineItems: v.array(
-      v.object({
-        item: v.string(),
-        unit: v.string(),
-        quantity: v.number(),
-        unitCost: v.number(),
-        totalCost: v.number(),
-      })
-    ),
-    identifiedExclusions: v.array(
-      v.object({
-        canonicalCode: v.optional(v.string()),
-        description: v.string(),
-        costImpact: v.number(),
-        severity: v.string(),
-        isWaived: v.optional(v.boolean()),
-      })
-    ),
-    valueEngineeringAlternates: v.optional(
-      v.array(
-        v.object({
-          description: v.string(),
-          costDeduct: v.number(),
-          isAccepted: v.boolean(),
-        })
-      )
-    ),
+    baseAmountCents: v.number(),
+    lineItems: v.array(lineItemCentsArg),
+    identifiedExclusions: v.array(bidExclusionValidator),
+    valueEngineeringAlternates: v.optional(v.array(bidVeAlternateValidator)),
     longLeadEquipmentWeeks: v.number(),
-    leadTimePenalty: v.number(),
     leadTimeTargetWeeks: v.optional(v.number()),
     coiComplianceStatus: v.string(),
-    coiPenalty: v.number(),
-    leveledTotalCost: v.number(),
+    coiPenaltyCents: v.number(),
     sourceFileId: v.optional(v.id("projectFiles")),
+    sourceInboundEmailId: v.optional(v.id("inboundEmails")),
     /** Extraction path recorded in the bid_leveled audit entry (e.g. "Anthropic claude-sonnet-5" or the deterministic engine). */
     levelingProvider: v.optional(v.string()),
   },
@@ -699,17 +720,42 @@ export const insertParsedBid = internalMutation({
     const tradePkg = await ctx.db.get(args.tradePackageId);
     if (!tradePkg) throw new Error("Trade package not found");
     const contractor = await ctx.db.get(args.contractorId);
-    if (!contractor || contractor.tradePackageId !== tradePkg._id) {
+    if (!contractor || !contractorCanBidOnPackage(contractor, tradePkg)) {
       throw new Error("The contractor is not assigned to this trade package.");
     }
     if (args.sourceFileId) {
-      const sourceFile: any = await ctx.db.get(args.sourceFileId);
+      const sourceFile = await ctx.db.get(args.sourceFileId);
       if (!sourceFile || sourceFile.projectId !== tradePkg.projectId || sourceFile.tradePackageId !== tradePkg._id) {
         throw new Error("The source quote file does not belong to this project and trade package.");
       }
     }
-    const baseBidAmount = validatePositiveAmount(args.baseBidAmount, "Base bid amount");
-    assertBidAmountPlausible(tradePkg, baseBidAmount);
+    const message = args.sourceInboundEmailId ? await ctx.db.get(args.sourceInboundEmailId) : null;
+    if (args.sourceInboundEmailId) {
+      if (!message || message.tradePackageId !== tradePkg._id || message.contractorId !== contractor._id) {
+        throw new Error("The source email does not belong to this bidder and trade package.");
+      }
+    }
+    // Checked here, in the same transaction as the write, because the award can land between the
+    // email arriving and its parse finishing. The Demo simulator (no source email or file) is exempt.
+    const hasSource = args.sourceInboundEmailId !== undefined || args.sourceFileId !== undefined;
+    const closed = hasSource ? biddingClosedReason(tradePkg, await ctx.db.get(tradePkg.projectId)) : null;
+    if (closed !== null) {
+      if (!message) throw new ConvexError({ code: "CLOSED" as const, message: closed });
+      await ctx.db.patch(message._id, { lateReason: closed });
+      await ctx.db.insert("auditLogs", {
+        projectId: tradePkg.projectId,
+        tradePackageId: tradePkg._id,
+        contractorId: contractor._id,
+        eventType: "quote_received",
+        title: `Late proposal email kept: ${contractor.companyName}`,
+        description: `${contractor.companyName} emailed a priced proposal after bidding closed. ${closed} The message is kept in Bidder messages; no bid was changed.`,
+        actor: "Forensic Leveling Engine (ADR-0003)",
+        timestamp: Date.now(),
+      });
+      return null;
+    }
+    const baseAmountCents = centsArg(args.baseAmountCents, "Base bid amount", { positive: true });
+    assertBidAmountPlausible(tradePkg, baseAmountCents);
     const longLeadEquipmentWeeks = validateLongLeadWeeks(args.longLeadEquipmentWeeks);
     // A6-05r/A6-54: the schedule penalty is always derived in code from the stored
     // weeks and the GC-owned division baseline (or an explicit target), never from
@@ -718,80 +764,94 @@ export const insertParsedBid = internalMutation({
       Number.isFinite(args.leadTimeTargetWeeks) && (args.leadTimeTargetWeeks as number) > 0
         ? (args.leadTimeTargetWeeks as number)
         : targetWeeksForDivision(tradePkg.csiDivision);
-    const leadTimePenalty = leadTimePenaltyFor(longLeadEquipmentWeeks, leadTimeTargetWeeks);
-    const coiPenalty = validateNonNegativeAmount(args.coiPenalty, "COI penalty");
+    const leadTimePenaltyCents = fromDollars(leadTimePenaltyFor(longLeadEquipmentWeeks, leadTimeTargetWeeks));
+    const coiPenaltyCents = Number.isSafeInteger(args.coiPenaltyCents) && args.coiPenaltyCents > 0 ? args.coiPenaltyCents : 0;
     // A10-06: normalize model-extracted line items instead of persisting negative math.
-    const safeLineItems = args.lineItems.map((item) => ({
+    const safeLineItems: BidLineItemCents[] = args.lineItems.map((item) => ({
       ...item,
       quantity: Math.max(0, Number(item.quantity) || 0),
-      unitCost: Math.max(0, Number(item.unitCost) || 0),
-      totalCost: Math.max(0, Number(item.totalCost) || 0),
+      unitCostCents: Number.isSafeInteger(item.unitCostCents) ? Math.max(0, item.unitCostCents) : 0,
+      totalCostCents: Number.isSafeInteger(item.totalCostCents) ? Math.max(0, item.totalCostCents) : 0,
     }));
-    // 1. Mark contractor as bid_received
     await ctx.db.patch(args.contractorId, { rfqStatus: "bid_received" });
-
-    // 2. Set trade package status to leveling
     await ctx.db.patch(args.tradePackageId, { status: "leveling" });
 
-    // 3. Remove any previous bid from this contractor for this package to keep clean latest bid
     const existingBySource = args.sourceFileId
       ? await ctx.db.query("bids").withIndex("by_source_file", (q) => q.eq("sourceFileId", args.sourceFileId)).first()
       : null;
-    const existing = existingBySource || (await ctx.db
-      .query("bids")
-      .withIndex("by_package", (q) => q.eq("tradePackageId", args.tradePackageId))
-      .collect()).find((bid) => bid.contractorId === args.contractorId);
+    const existing =
+      existingBySource ||
+      (await ctx.db
+        .query("bids")
+        .withIndex("by_package_and_contractor", (q) => q.eq("tradePackageId", args.tradePackageId).eq("contractorId", args.contractorId))
+        .first());
     if (existingBySource && (existingBySource.tradePackageId !== args.tradePackageId || existingBySource.contractorId !== args.contractorId)) {
       throw new Error("This quote file is already linked to a different contractor or trade package.");
     }
 
-    // 4. Calculate deterministic leveled cost with VE alternates & waived exclusions.
     // A7-03: normalize model output here so an invalid COI string or negative
     // impact can never reach storage even from the internal ingestion path.
     const safeCoiStatus = ALLOWED_COI_STATUSES.has(args.coiComplianceStatus) ? args.coiComplianceStatus : "compliant";
-    const safeExclusions = args.identifiedExclusions.map((exc) => ({
-      ...exc,
-      costImpact: Math.max(0, Number(exc.costImpact) || 0),
+    // Plugs are GC-entered (§15): for real companies the parser's benchmark or stated amounts are
+    // never stored as plugs. The Demo company keeps them so its seeded leveling scenarios still work.
+    const project = await ctx.db.get(tradePkg.projectId);
+    const gcCompany = project?.gcCompanyId ? await ctx.db.get(project.gcCompanyId) : null;
+    const keepParsedPlugs = gcCompany ? gcCompany.isDemo : true;
+    const parsedExclusions = normalizeExclusions(args.identifiedExclusions).map(({ plugNote: _note, ...parsed }) => {
+      const e = keepParsedPlugs ? parsed : { ...parsed, description: exclusionScopeText(parsed.description) };
+      const gcPlug = existing?.identifiedExclusions.find((p) => p.description.trim() === e.description.trim() && p.plugEnteredAt !== undefined);
+      if (gcPlug) return { ...e, ...keptPlugFields(gcPlug) };
+      return {
+        ...e,
+        costImpactCents: keepParsedPlugs && Number.isSafeInteger(e.costImpactCents) ? Math.max(0, e.costImpactCents) : 0,
+      };
+    });
+    const demoActor = gcCompany?.isDemo === true ? await findDemoGcPlugActor(ctx) : null;
+    const bidderExclusions = demoActor ? attributeDemoExclusions(parsedExclusions, demoActor, Date.now()).next : parsedExclusions;
+    const safeExclusions = reconcileBidderExclusions(existing, bidderExclusions);
+    const safeVeAlternates = normalizeVe(args.valueEngineeringAlternates ?? []).map((a) => ({
+      ...a,
+      costDeductCents: Number.isSafeInteger(a.costDeductCents) ? Math.max(0, a.costDeductCents) : 0,
     }));
-    const safeVeAlternates = (args.valueEngineeringAlternates || []).map((ve) => ({
-      ...ve,
-      costDeduct: Math.max(0, Number(ve.costDeduct) || 0),
-    }));
-    const activeExclusionsCost = safeExclusions.reduce(
-      (sum, exc) => (exc.isWaived ? sum : sum + exc.costImpact),
-      0
-    );
-    const acceptedVeDeduct = safeVeAlternates.reduce(
-      (sum, ve) => (ve.isAccepted ? sum + ve.costDeduct : sum),
-      0
-    );
-    const computedLeveledTotal = Math.max(
-      0,
-      baseBidAmount +
-      activeExclusionsCost +
-      leadTimePenalty +
-      coiPenalty -
-      acceptedVeDeduct
-    );
+    const leveledTotalCents = computeLeveledTotalCents({
+      baseAmountCents,
+      exclusions: safeExclusions,
+      veAlternates: safeVeAlternates,
+      leadTimePenaltyCents,
+      coiPenaltyCents,
+    });
+    const source: "email_ai" | "document_ai" = args.sourceInboundEmailId ? "email_ai" : "document_ai";
+    const fields = {
+      ...CLEAR_LEGACY_BID_DOLLARS,
+      subcontractorName: args.subcontractorName,
+      baseAmountCents,
+      lineItems: safeLineItems,
+      identifiedExclusions: safeExclusions,
+      exclusions: bidderExclusions.map((e) => e.description),
+      valueEngineeringAlternates: safeVeAlternates,
+      longLeadEquipmentWeeks,
+      leadTimePenaltyCents,
+      leadTimeTargetWeeks,
+      coiComplianceStatus: safeCoiStatus,
+      coiPenaltyCents,
+      leveledTotalCents,
+      source,
+      sourceInboundEmailId: args.sourceInboundEmailId,
+      submittedByUserId: undefined,
+      submittedByName: undefined,
+      submittedByCompanyId: undefined,
+      confirmedByUserId: undefined,
+      confirmedByName: undefined,
+      confirmedAt: undefined,
+      ...(args.sourceFileId ? { sourceFileId: args.sourceFileId } : {}),
+    };
 
-    // 5. Update existing bid in-place or insert new to preserve agreement references
-    let bidId: any;
+    let bidId: Id<"bids">;
     if (existing) {
       bidId = existing._id;
       await ctx.db.patch(existing._id, {
-        subcontractorName: args.subcontractorName,
-        baseBidAmount,
-        lineItems: safeLineItems,
-        identifiedExclusions: safeExclusions,
-        valueEngineeringAlternates: safeVeAlternates,
-        longLeadEquipmentWeeks,
-        leadTimePenalty,
-        leadTimeTargetWeeks,
-        coiComplianceStatus: safeCoiStatus,
-        coiPenalty,
-        leveledTotalCost: computedLeveledTotal,
-        ...(args.sourceFileId ? { sourceFileId: args.sourceFileId } : {}),
-        revisionNumber: ((existing as any).revisionNumber ?? 1) + 1,
+        ...fields,
+        revisionNumber: (existing.revisionNumber ?? 1) + 1,
         lastRevisedAt: Date.now(),
         receivedAt: Date.now(),
       });
@@ -802,37 +862,32 @@ export const insertParsedBid = internalMutation({
       bidId = await ctx.db.insert("bids", {
         tradePackageId: args.tradePackageId,
         contractorId: args.contractorId,
-        subcontractorName: args.subcontractorName,
-        baseBidAmount,
-        lineItems: safeLineItems,
-        identifiedExclusions: safeExclusions,
-        valueEngineeringAlternates: safeVeAlternates,
-        longLeadEquipmentWeeks,
-        leadTimePenalty,
-        leadTimeTargetWeeks,
-        coiComplianceStatus: safeCoiStatus,
-        coiPenalty,
-        leveledTotalCost: computedLeveledTotal,
+        ...fields,
         isAwarded: false,
         revisionNumber: 1,
-        ...(args.sourceFileId ? { sourceFileId: args.sourceFileId } : {}),
         receivedAt: Date.now(),
       });
     }
+    const saved = (await ctx.db.get(bidId))!;
+    await recordBidRevision(ctx, saved, {
+      source,
+      terms: termsOfBid(saved),
+      submittedByName: args.levelingProvider ? `AI parser (${args.levelingProvider})` : "AI parser",
+      sourceInboundEmailId: args.sourceInboundEmailId,
+    });
 
-    if (tradePkg) {
-      const exclusionsCount = args.identifiedExclusions.length;
-      const providerNote = args.levelingProvider ? ` Model path: ${args.levelingProvider}.` : "";
-      await ctx.db.insert("auditLogs", {
-        projectId: tradePkg.projectId,
-        tradePackageId: tradePkg._id,
-        eventType: "bid_leveled",
-        title: `Forensic Bid Leveled: ${args.subcontractorName}`,
-        description: `Normalized proposal: Base $${baseBidAmount.toLocaleString()} → Leveled $${computedLeveledTotal.toLocaleString()} (${exclusionsCount} exclusions totaling +$${activeExclusionsCost.toLocaleString()}).${providerNote}`,
-        actor: "Forensic Leveling Engine (ADR-0003)",
-        timestamp: Date.now(),
-      });
-    }
+    const exclusionsCount = safeExclusions.length;
+    const gapsCents = safeExclusions.reduce((s, e) => s + exclusionPlugCents(e), 0);
+    const providerNote = args.levelingProvider ? ` Model path: ${args.levelingProvider}.` : "";
+    await ctx.db.insert("auditLogs", {
+      projectId: tradePkg.projectId,
+      tradePackageId: tradePkg._id,
+      eventType: "bid_leveled",
+      title: `Forensic Bid Leveled: ${args.subcontractorName}`,
+      description: `Normalized proposal: Base ${formatCents(baseAmountCents)} → Leveled ${formatCents(leveledTotalCents)} (${exclusionsCount} exclusions totaling +${formatCents(gapsCents)}).${providerNote}`,
+      actor: "Forensic Leveling Engine (ADR-0003)",
+      timestamp: Date.now(),
+    });
 
     return bidId;
   },

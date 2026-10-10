@@ -5,6 +5,7 @@ import type { Doc } from "../_generated/dataModel";
 import { action, env, type ActionCtx } from "../_generated/server";
 import { formatCents, toPayPalString } from "../lib/money";
 import { requireRoleInAction } from "../lib/roles";
+import { requireDemoCompanyInAction } from "../lib/tenancyAction";
 import { payPalClientForAction } from "./paypalClient";
 import { MAX_TOP_UP_CENTS, MIN_TOP_UP_CENTS, topUpStatusForCapture } from "./sandboxTopUpDb";
 
@@ -13,6 +14,7 @@ import { MAX_TOP_UP_CENTS, MIN_TOP_UP_CENTS, topUpStatusForCapture } from "./san
  * paid by the guest test card. PayPal keeps ~3.5% + $0.49 of every capture, so after paying subs 90% the
  * platform holds less than the retainage it owes, and a retainage release would fail with
  * INSUFFICIENT_FUNDS. The top-up is not linked to any agreement and never counts in ledger totals.
+ * The platform account is shared, so the in-app panel is Demo company chrome only.
  */
 
 function assertSandbox() {
@@ -27,6 +29,7 @@ export const createTopUpOrder = action({
   handler: async (ctx, { amountCents }): Promise<{ paypalOrderId: string; approveUrl: string }> => {
     assertSandbox();
     const viewer = await requireRoleInAction(ctx, ["gc"]);
+    await requireDemoCompanyInAction(ctx, ["gc"]);
     if (!Number.isSafeInteger(amountCents) || amountCents < MIN_TOP_UP_CENTS || amountCents > MAX_TOP_UP_CENTS) {
       throw new ConvexError({
         code: "INVALID_AMOUNT",
@@ -75,6 +78,7 @@ export const captureTopUpOrder = action({
   handler: async (ctx, { paypalOrderId }): Promise<{ status: string; paypalCaptureId: string | null; message: string }> => {
     assertSandbox();
     const viewer = await requireRoleInAction(ctx, ["gc"]);
+    await requireDemoCompanyInAction(ctx, ["gc"]);
     const row: Doc<"sandboxTopUps"> | null = await ctx.runQuery(internal.payments.sandboxTopUpDb.topUpByOrder, { paypalOrderId });
     if (row === null) throw new ConvexError({ code: "NOT_FOUND", message: "Top-up order not found." });
     if (row.status === "captured") {
