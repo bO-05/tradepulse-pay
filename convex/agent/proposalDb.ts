@@ -8,6 +8,7 @@ import { latestCompletedCheck } from "../kernel/licenseChecks";
 import { projectGcCompanyName } from "../lib/gcCompanyName";
 import { planProposals, requiredKinds, type PlanLicenseStatus, type PlanMilestone, type ProposalPlan } from "./proposalMath";
 import { loadSovRows } from "../lib/sovLines";
+import { loadTranches } from "../lib/trancheRows";
 
 /**
  * Database side of the pay agent. The agent's propose* tools end here, and this file only ever inserts
@@ -21,10 +22,7 @@ const PROPOSABLE_KINDS = v.union(v.literal("capture"), v.literal("payout"), v.li
 type ProposableKind = "capture" | "payout" | "reschedule" | "hold";
 
 export async function milestonePlanRows(ctx: QueryCtx, agreementId: Id<"agreements">): Promise<PlanMilestone[]> {
-  const milestones = await ctx.db
-    .query("milestones")
-    .withIndex("by_agreementId_and_order", (q) => q.eq("agreementId", agreementId))
-    .take(50);
+  const milestones = await loadTranches(ctx, agreementId);
   const rows: PlanMilestone[] = [];
   for (const m of milestones) {
     const payments = await ctx.db

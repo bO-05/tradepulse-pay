@@ -170,6 +170,23 @@ export const releaseRow = internalQuery({
   },
 });
 
+/**
+ * The durable capture gate, called right before the capture POST once OAuth has succeeded. From here on
+ * PayPal may hold the capture, so a resume only reconciles it under the same PayPal-Request-Id; before
+ * it, a resume is a new capture and must pass canPay again (resumeDb.continueRelease).
+ */
+export const markCaptureSending = internalMutation({
+  args: { releasePaymentId: v.id("payments") },
+  returns: v.union(v.object({ state: v.literal("ready") }), v.object({ state: v.literal("closed"), status: v.string(), error: v.optional(v.string()) })),
+  handler: async (ctx, { releasePaymentId }) => {
+    const release = await ctx.db.get(releasePaymentId);
+    if (release === null || release.kind !== "payout") throw new ConvexError({ code: "NOT_FOUND", message: "Release not found." });
+    if (release.status !== "created") return { state: "closed" as const, status: release.status, error: release.error };
+    if (release.captureSubmittedAt === undefined) await ctx.db.patch(release._id, { captureSubmittedAt: Date.now() });
+    return { state: "ready" as const };
+  },
+});
+
 const beginCaptureResult = v.union(
   v.object({ state: v.literal("done"), captureId: v.string(), finalCapture: v.boolean(), captureStatus: v.string() }),
   v.object({

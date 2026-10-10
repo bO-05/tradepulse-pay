@@ -7,6 +7,7 @@ import { notFound } from "../lib/tenancy";
 import { isCaptureCollected } from "../payments/captureSettlement";
 import { attemptsFor, checkRetry } from "../payments/payoutRetryMath";
 import { evaluatePayGate, type PayGate } from "./payGate";
+import { loadTranches } from "../lib/trancheRows";
 
 /**
  * canPay for clients and convex-run: structured reasons for one pay app. The GC and the pay app's
@@ -72,6 +73,7 @@ export const paymentPanel = query({
         error: latest.error ?? null,
         captured: wasCaptured,
         canRetryPayout: isGc && checkRetry(attempts, rootId, wasCaptured).ok,
+        createdAt: latest.createdAt,
         updatedAt: latest.updatedAt ?? latest.createdAt,
       };
     }
@@ -80,10 +82,7 @@ export const paymentPanel = query({
       .query("retainageLedger")
       .withIndex("by_agreementId", (q) => q.eq("agreementId", agreement._id))
       .take(500);
-    const fundedTranches = await ctx.db
-      .query("milestones")
-      .withIndex("by_agreementId_and_order", (q) => q.eq("agreementId", agreement._id))
-      .take(50);
+    const fundedTranches = await loadTranches(ctx, agreement._id);
 
     return {
       viewerRole: scope.partyRole,

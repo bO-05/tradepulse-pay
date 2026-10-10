@@ -12,11 +12,14 @@ import {
   checkTrancheTotal,
   defaultTranchePlannedDate,
   isCalendarDate,
+  MAX_TRANCHES_PER_AGREEMENT,
   plannedDateWarning,
   projectStartMs,
+  TRANCHE_LIMIT_MESSAGE,
   type TrancheCheck,
 } from "./trancheRules";
 import { loadSovRows } from "../lib/sovLines";
+import { loadTranches } from "../lib/trancheRows";
 
 /**
  * GC-defined funding tranches (architecture §16), stored as `milestones` rows. The GC adds, renames,
@@ -56,10 +59,7 @@ export async function contractSumToDateCents(ctx: QueryCtx, agreementId: Id<"agr
 }
 
 async function tranchesOf(ctx: QueryCtx, agreementId: Id<"agreements">): Promise<Doc<"milestones">[]> {
-  return await ctx.db
-    .query("milestones")
-    .withIndex("by_agreementId_and_order", (q) => q.eq("agreementId", agreementId))
-    .take(50);
+  return await loadTranches(ctx, agreementId);
 }
 
 async function audit(ctx: MutationCtx, access: ProjectAccess, agreement: Doc<"agreements">, title: string, description: string) {
@@ -138,6 +138,7 @@ export const createTranche = mutation({
     const amount = checkTrancheAmount(args.amountCents);
     if (!amount.ok) throw invalid(amount);
     const existing = await tranchesOf(ctx, agreement._id);
+    if (existing.length >= MAX_TRANCHES_PER_AGREEMENT) throw new ConvexError({ code: "TRANCHE_LIMIT", message: TRANCHE_LIMIT_MESSAGE });
     const sum = await contractSumToDateCents(ctx, agreement._id);
     const total = checkTrancheTotal(
       existing.map((t) => t.amountCents),

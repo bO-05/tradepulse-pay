@@ -1,5 +1,5 @@
 import { useAction, useQuery } from "convex/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { FunctionReturnType } from "convex/server";
 import type { Id } from "../../convex/_generated/dataModel";
@@ -81,13 +81,17 @@ function GcPaymentPanel({ panel, payAppId }: { panel: Panel; payAppId: string })
   const pay = useAction(api.billing.pay.payPayApp);
   const refresh = useAction(api.payments.release.refreshPayoutStatus);
   const retry = useAction(api.payments.payoutRetry.retryPayout);
-  const [confirm, setConfirm] = useState(false);
+  const resume = useAction(api.payments.release.resumeRelease);
+  const [confirm, setConfirm] = useState<"pay" | "retry" | "resume" | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const payment = panel.payment;
   const figures = panel.figures;
   const paid = payment?.status === "success";
+  const now = useNow(payment?.status === "created");
+  const stuck = payment !== null && payment.status === "created" && now - payment.createdAt > STUCK_AFTER_MS;
+  const payee = panel.payeeEmail ?? "No confirmed payee: the server refuses until a GC confirms one";
 
   async function run(fn: () => Promise<unknown>, done?: string) {
     setBusy(true);
@@ -132,7 +136,7 @@ function GcPaymentPanel({ panel, payAppId }: { panel: Panel; payAppId: string })
         {payment ? <PaymentDetail payment={payment} /> : null}
         <div className="flex flex-wrap gap-2">
           {!paid ? (
-            <Button onClick={() => setConfirm(true)} disabled={!panel.canPay || busy} data-testid="pay-sub-button">
+            <Button onClick={() => setConfirm("pay")} disabled={!panel.canPay || busy} data-testid="pay-sub-button">
               Pay {panel.subcontractorName}
             </Button>
           ) : null}
@@ -149,11 +153,16 @@ function GcPaymentPanel({ panel, payAppId }: { panel: Panel; payAppId: string })
           {payment?.canRetryPayout ? (
             <Button
               variant="secondary"
-              loading={busy}
-              onClick={() => void run(() => retry({ paymentId: payment.paymentId }), "Payout sent again.")}
+              disabled={busy}
+              onClick={() => setConfirm("retry")}
               data-testid="payment-retry"
             >
               Retry payout
+            </Button>
+          ) : null}
+          {stuck ? (
+            <Button variant="secondary" disabled={busy} onClick={() => setConfirm("resume")} data-testid="payment-resume">
+              Retry payment
             </Button>
           ) : null}
         </div>
@@ -170,7 +179,7 @@ function GcPaymentPanel({ panel, payAppId }: { panel: Panel; payAppId: string })
       </div>
       {figures && panel.tranche ? (
         <ConfirmDialog
-          open={confirm}
+          open={confirm === "pay"}
           title={`Pay ${panel.subcontractorName}?`}
           amountCents={figures.netCents}
           amountLabel="Net to sub"
@@ -183,10 +192,10 @@ function GcPaymentPanel({ panel, payAppId }: { panel: Panel; payAppId: string })
           ]}
           effect={`Captures ${formatCents(figures.grossCents)} from ${panel.tranche.name} and sends a PayPal payout of ${formatCents(figures.netCents)}. This can't be undone.`}
           confirmLabel={`Pay ${formatCents(figures.netCents)}`}
-          onCancel={() => setConfirm(false)}
+          onCancel={() => setConfirm(null)}
           onConfirm={async () => {
             const out = await pay({ payAppId: payAppId as Id<"payApplications"> });
-            setConfirm(false);
+            setConfirm(null);
             setNotice(
               out.state === "busy"
                 ? "This payment is already being processed."
@@ -197,8 +206,67 @@ function GcPaymentPanel({ panel, payAppId }: { panel: Panel; payAppId: string })
           }}
         />
       ) : null}
+      {payment ? (
+        <ConfirmDialog
+          open={confirm === "retry"}
+          title={`Retry the payout to ${panel.subcontractorName}?`}
+          amountCents={payment.netCents}
+          amountLabel="Payout (net to sub)"
+          payee={payee}
+          payeeLabel="Payee (confirmed PayPal email)"
+          details={[
+            { label: "Approved gross", value: formatCents(payment.grossCents) },
+            { label: "Retainage held", value: formatCents(payment.retainageCents) },
+            { label: "Funding", value: "Already captured; held in the platform account" },
+          ]}
+          effect={`Sends a new PayPal payout of ${formatCents(payment.netCents)} to ${payee} from the amount already captured for this pay app. Nothing new is captured. The server re-checks canPay first and refuses if the pay app is no longer approved or the payee is not confirmed. This can't be undone.`}
+          confirmLabel={`Send ${formatCents(payment.netCents)} payout`}
+          onCancel={() => setConfirm(null)}
+          onConfirm={async () => {
+            await retry({ paymentId: payment.paymentId });
+            setConfirm(null);
+            setNotice("Payout sent again. The status updates here when PayPal settles it.");
+          }}
+        />
+      ) : null}
+      {payment && stuck ? (
+        <ConfirmDialog
+          open={confirm === "resume"}
+          title={`Retry the payment to ${panel.subcontractorName}?`}
+          amountCents={payment.netCents}
+          amountLabel="Payout (net to sub)"
+          payee={payee}
+          payeeLabel="Payee (confirmed PayPal email)"
+          details={[
+            { label: "Capture", value: payment.captured ? `${formatCents(payment.grossCents)} already captured` : `${formatCents(payment.grossCents)}${payment.trancheName ? ` from ${payment.trancheName}` : ""}` },
+            { label: "Retainage held", value: formatCents(payment.retainageCents) },
+          ]}
+          effect={`Finishes this interrupted payment: ${payment.captured ? "nothing new is captured" : `captures ${formatCents(payment.grossCents)}`} and sends a PayPal payout of ${formatCents(payment.netCents)} to ${payee}. A step PayPal may already have received is re-sent under the same request id, so it is never done twice; a step never sent needs the approved pay app to pass canPay again. This can't be undone.`}
+          confirmLabel={`Retry ${formatCents(payment.netCents)} payment`}
+          onCancel={() => setConfirm(null)}
+          onConfirm={async () => {
+            await resume({ paymentId: payment.paymentId });
+            setConfirm(null);
+            setNotice("Payment resumed. The status updates here when PayPal settles the payout.");
+          }}
+        />
+      ) : null}
     </Card>
   );
+}
+
+const STUCK_AFTER_MS = 60_000;
+
+/** Re-renders every 15 s while `active`, so a stuck payment becomes retryable without a data change. */
+function useNow(active: boolean): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) return;
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), 15_000);
+    return () => clearInterval(id);
+  }, [active]);
+  return now;
 }
 
 function SubPaymentPanel({ panel }: { panel: Panel }) {

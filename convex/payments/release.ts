@@ -7,6 +7,7 @@ import { captureApproved, voidRemainder } from "./captures";
 import { payoutSub, refreshPayout } from "./payouts";
 import { payPalClientForAction } from "./paypalClient";
 import { approvedPayAppRequired, type BeginRelease } from "./releaseDb";
+import type { ContinueRelease } from "./resumeDb";
 
 /**
  * Paying an approved pay app (architecture §16): capture the approved gross from a funded tranche's
@@ -31,7 +32,7 @@ export const actorForUser = internalQuery({
   handler: async (ctx, { userId }) => (await ctx.db.get(userId))?.email ?? `user:${userId}`,
 });
 
-/** Runs (or resumes) the capture and payout for an existing release payment. */
+/** Runs the capture and payout of a release payment beginRelease just created (canPay already passed). */
 async function executeRelease(ctx: ActionCtx, paymentId: Id<"payments">, actor: string): Promise<ReleaseResult> {
   const row = await ctx.runQuery(internal.payments.releaseDb.releaseRow, { paymentId });
   if (row === null || row.kind !== "payout") throw new ConvexError({ code: "NOT_FOUND", message: "Release not found." });
@@ -45,11 +46,6 @@ async function executeRelease(ctx: ActionCtx, paymentId: Id<"payments">, actor: 
     };
   }
   if (row.fundingPaymentId === null) throw new ConvexError({ code: "INVALID_STATE", message: "This release has no funding authorization." });
-  if (row.retryOfPaymentId !== null) {
-    // A payout retry pays from the original release's capture (beginPayout checks it); capturing here
-    // would take the gross from the authorization a second time.
-    return await sendPayout(ctx, paymentId, actor);
-  }
   const capture = await captureApproved(ctx, {
     paymentId: row.fundingPaymentId,
     amountCents: row.grossCents,
@@ -57,16 +53,51 @@ async function executeRelease(ctx: ActionCtx, paymentId: Id<"payments">, actor: 
     actor,
     releasePaymentId: paymentId,
   });
-  if (capture.captureStatus === "PENDING") {
-    return {
-      state: "pending",
-      paymentId,
-      status: "capture_pending",
-      captureId: capture.captureId,
-      message:
-        "Capture pending: PayPal has not completed the capture yet, so the sub was not paid. The payout is sent automatically when PayPal completes it; use Refresh status to check.",
-    };
-  }
+  if (capture.captureStatus === "PENDING") return capturePending(paymentId, capture.captureId);
+  return await sendPayout(ctx, paymentId, actor, capture.captureId);
+}
+
+function capturePending(paymentId: Id<"payments">, captureId: string): ReleaseResult {
+  return {
+    state: "pending",
+    paymentId,
+    status: "capture_pending",
+    captureId,
+    message:
+      "Capture pending: PayPal has not completed the capture yet, so the sub was not paid. The payout is sent automatically when PayPal completes it; use Refresh status to check.",
+  };
+}
+
+/** The next step of an existing release, or the result to return when there is none. Refusals throw. */
+type Step = Extract<ContinueRelease, { state: "capture" | "payout" }>;
+
+async function nextStep(ctx: ActionCtx, paymentId: Id<"payments">): Promise<{ step: Step } | { done: ReleaseResult }> {
+  const next: ContinueRelease = await ctx.runMutation(internal.payments.resumeDb.continueRelease, { paymentId });
+  if (next.state === "refused") throw new ConvexError({ code: next.code, message: next.message });
+  if (next.state === "closed") return { done: { state: "already_processed", paymentId, status: next.status, message: next.error } };
+  return { step: next };
+}
+
+/**
+ * Continues a release that did not finish. Each step that may already be at PayPal is reconciled under
+ * its original request id; a step never sent is a new money write and is re-checked against canPay
+ * first (resumeDb.continueRelease), including the payout after a reconciled capture.
+ */
+async function continueExisting(ctx: ActionCtx, paymentId: Id<"payments">, actor: string): Promise<ReleaseResult> {
+  const firstStep = await nextStep(ctx, paymentId);
+  if ("done" in firstStep) return firstStep.done;
+  const first = firstStep.step;
+  if (first.state === "payout") return await sendPayout(ctx, paymentId, actor);
+  const capture = await captureApproved(ctx, {
+    paymentId: first.fundingPaymentId,
+    amountCents: first.grossCents,
+    requestKey: first.requestKey,
+    actor,
+    releasePaymentId: paymentId,
+  });
+  if (capture.captureStatus === "PENDING") return capturePending(paymentId, capture.captureId);
+  const second = await nextStep(ctx, paymentId);
+  if ("done" in second) return second.done;
   return await sendPayout(ctx, paymentId, actor, capture.captureId);
 }
 
@@ -130,13 +161,13 @@ export const releaseAndPay = action({
   },
 });
 
-/** Retries a release whose capture or payout did not finish (e.g. after a network error). */
+/** Retries a release whose capture or payout did not finish (e.g. after a network error); see continueExisting. */
 export const resumeRelease = action({
   args: { paymentId: v.id("payments") },
   returns: releaseResult,
   handler: async (ctx, { paymentId }): Promise<ReleaseResult> => {
     const scope = await requireProjectScopeInAction(ctx, { docs: [{ table: "payments", id: paymentId }] }, { roles: ["gc"], write: true });
-    return await executeRelease(ctx, paymentId, scope.actor);
+    return await continueExisting(ctx, paymentId, scope.actor);
   },
 });
 

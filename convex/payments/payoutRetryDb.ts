@@ -5,6 +5,7 @@ import { formatCents } from "../lib/money";
 import { isCaptureCollected } from "./captureSettlement";
 import { attemptsFor, checkRetry, retryKey } from "./payoutRetryMath";
 import { payoutBlockedMessage, payoutReceiverForContractor } from "../lib/payee";
+import { CAPTURED_NOT_PAID_EFFECT, initiationRefusal } from "./resumeDb";
 
 /**
  * Creates the retry payout row for a captured-but-unpaid release (see payoutRetryMath.ts). Runs in one
@@ -45,6 +46,9 @@ export const beginPayoutRetry = internalMutation({
         message: payoutBlockedMessage(agreement.subcontractorName, receiver.reason, "Nothing was paid."),
       });
     }
+    // A retry sends a new payout batch: a new money write, so the release's pay app must still pass canPay.
+    const refusal = await initiationRefusal(ctx, root, CAPTURED_NOT_PAID_EFFECT);
+    if (refusal !== null) throw new ConvexError(refusal);
     const receiverEmail = receiver.email;
     const idempotencyKey = retryKey(root.idempotencyKey, check.n);
     const now = Date.now();

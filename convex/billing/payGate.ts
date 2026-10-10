@@ -4,7 +4,9 @@ import { formatCents } from "../lib/money";
 import { PAYEE_REASON, type PayoutReceiver } from "../lib/payee";
 import { isCaptureCollected } from "../payments/captureSettlement";
 import { computePayoutSplit, remainingAuthorizedCents, retainagePercentFor } from "../payments/payoutMath";
+import { releasableRetainageCents } from "../payments/retainageMath";
 import { complianceBlockers, waiverBlockers } from "./payGateHooks";
+import { loadTranches } from "../lib/trancheRows";
 
 /**
  * canPay (architecture §16): a payout runs only for an approved pay app with a confirmed payee, no
@@ -21,6 +23,7 @@ export type PayGateCode =
   | "NOTHING_TO_PAY"
   | "NO_PAYEE"
   | "NOT_FUNDED"
+  | "RETAINAGE_SHORTFALL"
   | (string & {});
 
 export type PayGateReason = { code: PayGateCode; message: string };
@@ -58,8 +61,11 @@ export const PAYEE_MISSING_MESSAGE = "No confirmed payee: the sub has not set a 
 
 /**
  * Gross is this period's approved increment; net is the approved G702 current payment due, so the
- * retainage withheld is exactly the approved per-line retainage of this period. Pay apps without
- * G702 figures (Phase-1 rows) withhold the agreement's retainage percent from the gross.
+ * retainage is exactly this period's change in the approved per-line retainage. With mixed per-line
+ * rates that change can be negative (a credit at a higher rate than the work billed with it): the
+ * payout is then more than the gross and the difference comes out of retainage already held.
+ * A G702 pay app whose payment due is not positive has nothing to pay. Pay apps without G702 figures
+ * (Phase-1 rows) withhold the agreement's retainage percent from the gross.
  */
 export function payFiguresFor(payApp: Doc<"payApplications">, agreement: Doc<"agreements">): PayFigures | null {
   if (!APPROVED.has(payApp.status) && payApp.status !== "paid") return null;
@@ -68,9 +74,30 @@ export function payFiguresFor(payApp: Doc<"payApplications">, agreement: Doc<"ag
   const approved = payApp.g703?.approved;
   if (approved !== undefined) {
     const net = approved.currentPaymentDueCents;
-    if (Number.isSafeInteger(net) && net >= 0 && net <= gross) return { grossCents: gross, retainageCents: gross - net, netCents: net };
+    if (!Number.isSafeInteger(net) || net <= 0) return null;
+    return { grossCents: gross, retainageCents: gross - net, netCents: net };
   }
   return computePayoutSplit(gross, retainagePercentFor(agreement));
+}
+
+function nothingToPayMessage(payApp: Doc<"payApplications">): string {
+  const due = payApp.g703?.approved?.currentPaymentDueCents;
+  return due !== undefined && (payApp.finalApproval?.totalCents ?? 0) > 0
+    ? `Nothing to pay: the current payment due is ${formatCents(due)}`
+    : "Nothing to pay: the approved amount is $0.00";
+}
+
+/** Retainage the agreement holds that a payout may release now (the closeout release's rule). */
+async function releasableHeldCents(ctx: QueryCtx, agreementId: Id<"agreements">): Promise<number> {
+  const payments = await ctx.db
+    .query("payments")
+    .withIndex("by_agreementId", (q) => q.eq("agreementId", agreementId))
+    .take(500);
+  const ledger = await ctx.db
+    .query("retainageLedger")
+    .withIndex("by_agreementId", (q) => q.eq("agreementId", agreementId))
+    .take(1000);
+  return releasableRetainageCents(payments, ledger);
 }
 
 export function payeeReasonMessage(reason: string): string {
@@ -81,10 +108,7 @@ export function payeeReasonMessage(reason: string): string {
 
 /** Every funded tranche of the agreement with what its authorization can still capture, in tranche order. */
 export async function fundingSources(ctx: QueryCtx, agreementId: Id<"agreements">): Promise<FundingSource[]> {
-  const milestones = await ctx.db
-    .query("milestones")
-    .withIndex("by_agreementId_and_order", (q) => q.eq("agreementId", agreementId))
-    .take(50);
+  const milestones = await loadTranches(ctx, agreementId);
   const out: FundingSource[] = [];
   for (const m of milestones) {
     const rows = await ctx.db
@@ -145,6 +169,14 @@ export async function payAppPayouts(ctx: QueryCtx, payAppId: Id<"payApplications
   return rows.filter((p) => p.kind === "payout");
 }
 
+export type PayGateOptions = {
+  /**
+   * Re-checking the gate to continue one existing release (resume, payout retry): that release's own
+   * attempts are not blockers, and its funding authorization is already chosen (beginCapture checks it).
+   */
+  continuingReleaseId?: Id<"payments">;
+};
+
 /**
  * Evaluates every pay condition. `receiver` resolves the confirmed payee (the read-only lookup in
  * queries; the mutation lookup, which also attaches the vendor record, where money moves).
@@ -154,10 +186,13 @@ export async function evaluatePayGate(
   payApp: Doc<"payApplications">,
   agreement: Doc<"agreements">,
   receiver: (contractorId: Id<"contractors">) => Promise<PayoutReceiver>,
+  opts: PayGateOptions = {},
 ): Promise<PayGate> {
   const reasons: PayGateReason[] = [];
   const payouts = await payAppPayouts(ctx, payApp._id);
-  const prior = await payoutBlockers(ctx, payouts);
+  const continuing = opts.continuingReleaseId;
+  const others = continuing === undefined ? payouts : payouts.filter((p) => p._id !== continuing && p.retryOfPaymentId !== continuing);
+  const prior = await payoutBlockers(ctx, others);
   const paid = payApp.status === "paid" || prior.some((r) => r.code === "ALREADY_PAID");
   if (paid) reasons.push({ code: "ALREADY_PAID", message: ALREADY_PAID_MESSAGE });
   else {
@@ -167,7 +202,16 @@ export async function evaluatePayGate(
 
   const figures = payFiguresFor(payApp, agreement);
   if (!paid && APPROVED.has(payApp.status) && figures === null) {
-    reasons.push({ code: "NOTHING_TO_PAY", message: "Nothing to pay: the approved amount is $0.00" });
+    reasons.push({ code: "NOTHING_TO_PAY", message: nothingToPayMessage(payApp) });
+  }
+  if (!paid && figures !== null && figures.retainageCents < 0) {
+    const held = await releasableHeldCents(ctx, agreement._id);
+    if (held < -figures.retainageCents) {
+      reasons.push({
+        code: "RETAINAGE_SHORTFALL",
+        message: `Not enough retainage held: the payment due releases ${formatCents(-figures.retainageCents)} of retainage but ${formatCents(held)} is held`,
+      });
+    }
   }
 
   const payee = await receiver(agreement.contractorId);
@@ -181,7 +225,7 @@ export async function evaluatePayGate(
   const sources = await fundingSources(ctx, agreement._id);
   const availableCents = sources.reduce((max, s) => Math.max(max, s.availableCents), 0);
   let tranche: FundingSource | null = null;
-  if (figures !== null && !paid) {
+  if (figures !== null && !paid && continuing === undefined) {
     tranche = sources.find((s) => s.availableCents >= figures.grossCents) ?? null;
     if (tranche === null) {
       reasons.push({

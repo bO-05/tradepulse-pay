@@ -492,3 +492,140 @@ describe("canPay", () => {
     expect(gate.tranche?.name).toBe("Gear & fixtures");
   });
 });
+
+describe("tranche capacity", () => {
+  test("an agreement holds at most 50 tranches: the 51st is refused, the cap counts all 50 and every order position is unique", async () => {
+    const s = await setup();
+    const dana = s.f.gcA.admin.as;
+    for (let i = 0; i < 50; i++) {
+      await dana.mutation(api.billing.tranches.createTranche, { agreementId: s.agreementId, name: `T${i + 1}`, amountCents: 100 });
+    }
+    expect(await errorOf(dana.mutation(api.billing.tranches.createTranche, { agreementId: s.agreementId, name: "T51", amountCents: 100 }))).toBe(
+      "An agreement can have at most 50 funding tranches. Combine or delete a tranche before adding another.",
+    );
+    const list = (await dana.query(api.billing.tranches.listTranches, { agreementId: s.agreementId }))!;
+    expect(list.tranches).toHaveLength(50);
+    expect(list.trancheTotalCents).toBe(5_000);
+    expect(new Set(list.tranches.map((x) => x.order)).size).toBe(50);
+
+    // Re-pricing the last tranche is checked against all 50, not a truncated read.
+    const last = list.tranches[49]._id;
+    expect(await errorOf(dana.mutation(api.billing.tranches.updateTranche, { trancheId: last, amountCents: 17_240_000 - 4_900 + 1 }))).toBe(
+      "Tranches total $172,400.01, more than the contract sum to date $172,400.00",
+    );
+    await dana.mutation(api.billing.tranches.updateTranche, { trancheId: last, amountCents: 17_240_000 - 4_900 });
+    await dana.mutation(api.billing.tranches.deleteTranche, { trancheId: list.tranches[0]._id });
+    expect(await errorOf(dana.mutation(api.billing.tranches.createTranche, { agreementId: s.agreementId, name: "Over", amountCents: 101 }))).toBe(
+      "Tranches total $172,400.01, more than the contract sum to date $172,400.00",
+    );
+    await dana.mutation(api.billing.tranches.createTranche, { agreementId: s.agreementId, name: "Fits", amountCents: 100 });
+    const after = (await dana.query(api.billing.tranches.listTranches, { agreementId: s.agreementId }))!;
+    expect(after.tranches).toHaveLength(50);
+    expect(after.trancheTotalCents).toBe(17_240_000);
+    expect(new Set(after.tranches.map((x) => x.order)).size).toBe(50);
+  });
+
+  test("an agreement already holding more than 50 tranches is refused everywhere instead of being read partially", async () => {
+    const s = await setup();
+    await s.t.run(async (ctx) => {
+      for (let i = 0; i < 51; i++) {
+        await ctx.db.insert("milestones", { agreementId: s.agreementId, name: `L${i}`, order: i + 1, plannedDate: Date.now(), amountCents: 100, status: "planned", sovLineIds: [] });
+      }
+    });
+    const dana = s.f.gcA.admin.as;
+    const capacity = /more than 50 funding tranches/;
+    expect(await errorOf(dana.mutation(api.billing.tranches.createTranche, { agreementId: s.agreementId, name: "X", amountCents: 100 }))).toMatch(capacity);
+    expect(await errorOf(dana.query(api.billing.tranches.listTranches, { agreementId: s.agreementId }))).toMatch(capacity);
+  });
+});
+
+/** A G703 pay app on sov[0] and sov[1] with the given per-line retainage, reviewed as requested and approved. */
+async function approvedMixedRatePayApp(s: Setup, bps: [number, number], work: [number, number]) {
+  await s.t.run(async (ctx) => {
+    await ctx.db.patch(s.sov[0], { retainageBps: bps[0] });
+    await ctx.db.patch(s.sov[1], { retainageBps: bps[1] });
+  });
+  const kim = s.f.sub.admin.as;
+  const { payAppId } = await kim.mutation(api.payApps.g703.startPayApp, { agreementId: s.agreementId });
+  await kim.mutation(api.payApps.g703.submitPayApp, { payAppId, lines: [entry(s.sov[0], work[0]), entry(s.sov[1], work[1])] });
+  await s.t.run(async (ctx) => {
+    const p = (await ctx.db.get(payAppId))!;
+    const lines = p.lines.map((l) => ({
+      sovLineId: l.sovLineId,
+      verdict: "ok" as const,
+      recommendedPctToDate: l.pctCompleteToDate / 100,
+      approvedCents: l.requestedCents,
+      reason: "Fixture review.",
+    }));
+    await ctx.db.patch(payAppId, {
+      status: "reviewed",
+      review: {
+        engine: "Offline rules engine",
+        provider: "Offline rules engine",
+        model: "none",
+        lines,
+        flags: { lienWaiverMissing: false, licenseIssue: false, notes: "" },
+        approvedTotalCents: lines.reduce((a, l) => a + l.approvedCents, 0),
+        reviewedAt: Date.now(),
+      },
+    });
+  });
+  await s.f.gcA.admin.as.mutation(api.payApps.decisions.decidePayApp, { payAppId, decision: "approve" });
+  return payAppId;
+}
+
+describe("payout figures follow the approved G702 when lines carry different retainage rates", () => {
+  test("10% and 2.5% lines: the payout, the ledger entry and the Payment panel equal the G702 payment due and retainage", async () => {
+    const s = await setup();
+    const { t1 } = await addTranches(s);
+    await fundTranche(s, t1, 6_000_000);
+    const payAppId = await approvedMixedRatePayApp(s, [1_000, 250], [800_000, 480_010]);
+    const app = await s.t.run(async (ctx) => (await ctx.db.get(payAppId))!);
+    // 10% of 8,000.00 = 800.00; 2.5% of 4,800.10 = 120.0025 -> 120.00. A flat 5% split would withhold 640.01.
+    expect(app.g703!.approved).toMatchObject({ retainageCents: 92_000, currentPaymentDueCents: 1_188_010 });
+    const dana = s.f.gcA.admin.as;
+    const figures = { grossCents: 1_280_010, retainageCents: 92_000, netCents: 1_188_010 };
+    expect((await dana.query(api.billing.canPay.paymentPanel, { payAppId }))!.figures).toEqual(figures);
+
+    await dana.action(api.billing.pay.payPayApp, { payAppId });
+    expect(fake.posts(/\/capture$/)[0].body).toMatchObject({ amount: { value: "12800.10" } });
+    expect((fake.posts(/^\/v1\/payments\/payouts$/)[0].body as { items: { amount: { value: string } }[] }).items[0].amount.value).toBe("11880.10");
+    const rows = await paymentRows(s);
+    expect(rows.payouts[0]).toMatchObject(figures);
+    expect(rows.ledger.map((l) => l.deltaCents)).toEqual([92_000]);
+    const panel = (await s.f.sub.admin.as.query(api.billing.canPay.paymentPanel, { payAppId }))!;
+    expect(panel.payment).toMatchObject(figures);
+    expect(panel.totalRetainageHeldCents).toBe(92_000);
+  });
+
+  test("when the G702 retainage goes down this period, the payout is the payment due and the ledger is debited, only from held retainage", async () => {
+    const s = await setup();
+    const { t1 } = await addTranches(s);
+    await fundTranche(s, t1, 6_000_000);
+    const payAppId = await approvedMixedRatePayApp(s, [1_000, 250], [800_000, 480_010]);
+    // A credit line at a higher rate than the work it is billed with lowers the retainage to date by 120.00.
+    await s.t.run(async (ctx) => {
+      const p = (await ctx.db.get(payAppId))!;
+      await ctx.db.patch(payAppId, { g703: { ...p.g703!, approved: { ...p.g703!.approved!, currentPaymentDueCents: 1_292_010 } } });
+    });
+    const dana = s.f.gcA.admin.as;
+    const gate = await dana.query(api.billing.canPay.canPay, { payAppId });
+    expect(gate.figures).toEqual({ grossCents: 1_280_010, retainageCents: -12_000, netCents: 1_292_010 });
+    expect(gate.reasons).toEqual([
+      { code: "RETAINAGE_SHORTFALL", message: "Not enough retainage held: the payment due releases $120.00 of retainage but $0.00 is held" },
+    ]);
+    expect(await errorOf(dana.action(api.billing.pay.payPayApp, { payAppId }))).toMatch(/Not enough retainage held/);
+    expect(fake.calls).toHaveLength(0);
+
+    await s.t.run(async (ctx) => {
+      await ctx.db.insert("retainageLedger", { agreementId: s.agreementId, deltaCents: 50_000, reason: "Held from an earlier period", createdAt: Date.now() });
+    });
+    expect((await dana.query(api.billing.canPay.canPay, { payAppId })).ok).toBe(true);
+    await dana.action(api.billing.pay.payPayApp, { payAppId });
+    expect(fake.posts(/\/capture$/)[0].body).toMatchObject({ amount: { value: "12800.10" } });
+    expect((fake.posts(/^\/v1\/payments\/payouts$/)[0].body as { items: { amount: { value: string } }[] }).items[0].amount.value).toBe("12920.10");
+    const rows = await paymentRows(s);
+    expect(rows.ledger.map((l) => l.deltaCents).sort((a, b) => a - b)).toEqual([-12_000, 50_000]);
+    expect((await dana.query(api.billing.canPay.paymentPanel, { payAppId }))!.totalRetainageHeldCents).toBe(38_000);
+  });
+});

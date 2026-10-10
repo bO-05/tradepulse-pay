@@ -197,6 +197,22 @@ export const recordPayoutCreated = internalMutation({
         });
       }
     }
+    // The approved G702 retainage went down this period, so the payout includes held retainage.
+    if (p.kind === "payout" && p.retainageCents < 0) {
+      const rows = await ledgerRowsFor(ctx, p);
+      if (!rows.some((r) => r.deltaCents < 0)) {
+        const payApp = p.payAppId ? await ctx.db.get(p.payAppId) : null;
+        await ctx.db.insert("retainageLedger", {
+          agreementId: p.agreementId,
+          paymentId: p._id,
+          deltaCents: p.retainageCents,
+          reason: `${payApp?.applicationNo !== undefined ? `Pay app #${payApp.applicationNo}` : "Pay app"}: approved retainage to date went down by ${formatCents(
+            -p.retainageCents,
+          )}, paid with the ${formatCents(p.netCents)} payment due (payout batch ${args.batchId})`,
+          createdAt: now,
+        });
+      }
+    }
     if (p.kind === "retainage_release" && p.netCents > 0) {
       const rows = await ledgerRowsFor(ctx, p);
       if (!rows.some((r) => r.deltaCents < 0)) {
@@ -317,7 +333,7 @@ export async function applyPayoutStatusTo(
     const rows = await ledgerRowsFor(ctx, p);
     const net = rows.reduce((a, r) => a + r.deltaCents, 0);
     // A failed payout gives back its credit; a failed retainage release puts the released amount back on hold.
-    const reversing = p.kind === "payout" ? net > 0 : net < 0;
+    const reversing = p.kind === "payout" ? net !== 0 : net < 0;
     if (reversing) {
       await ctx.db.insert("retainageLedger", {
         agreementId: p.agreementId,
@@ -325,7 +341,7 @@ export async function applyPayoutStatusTo(
         deltaCents: -net,
         reason:
           p.kind === "payout"
-            ? `Retainage credit reversed: payout ${to} (${args.itemStatus ?? to.toUpperCase()})`
+            ? `Retainage ${net > 0 ? "credit" : "debit"} reversed: payout ${to} (${args.itemStatus ?? to.toUpperCase()})`
             : `Retainage release ${to} (${args.itemStatus ?? to.toUpperCase()}): the amount is held again`,
         createdAt: now,
       });

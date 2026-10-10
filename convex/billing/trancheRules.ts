@@ -7,6 +7,11 @@ import { formatCents } from "../lib/money";
  */
 
 export const MAX_TRANCHE_NAME_LENGTH = 80;
+
+/** One documented capacity: every read of an agreement's tranches loads all of them or refuses. */
+export const MAX_TRANCHES_PER_AGREEMENT = 50;
+export const TRANCHE_LIMIT_MESSAGE = `An agreement can have at most ${MAX_TRANCHES_PER_AGREEMENT} funding tranches. Combine or delete a tranche before adding another.`;
+export const TRANCHE_CAPACITY_MESSAGE = `This agreement has more than ${MAX_TRANCHES_PER_AGREEMENT} funding tranches, more than TradePulse supports. Delete unfunded tranches until at most ${MAX_TRANCHES_PER_AGREEMENT} remain.`;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export type TrancheCheck = { ok: true } | { ok: false; message: string };

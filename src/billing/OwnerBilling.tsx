@@ -173,24 +173,22 @@ function InvoicePanel({ app }: { app: Detail }) {
   const refresh = useAction(api.billing.ownerInvoices.refreshOwnerPayAppStatus);
   const resume = useAction(api.billing.ownerInvoices.sendOwnerPayAppInvoice);
   const toast = useToast();
-  const [busy, setBusy] = useState<"refresh" | "send" | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [confirmSend, setConfirmSend] = useState(false);
   if (app.paypalInvoiceId === null && !app.controls.sendInvoice && app.error === null) return null;
-  async function run(kind: "refresh" | "send") {
-    setBusy(kind);
+  async function refreshStatus() {
+    setBusy(true);
     try {
-      if (kind === "refresh") {
-        const out = await refresh({ ownerPayAppId: app._id });
-        toast.success(out.changed ? "Status updated." : `PayPal shows ${out.paypalInvoiceStatus ?? "no change"}.`);
-      } else {
-        await resume({ ownerPayAppId: app._id });
-        toast.success("Invoice sent.");
-      }
+      const out = await refresh({ ownerPayAppId: app._id });
+      toast.success(out.changed ? "Status updated." : `PayPal shows ${out.paypalInvoiceStatus ?? "no change"}.`);
     } catch (err) {
       toast.error(getErrorMessage(err, "PayPal could not be reached."));
     } finally {
-      setBusy(null);
+      setBusy(false);
     }
   }
+  const amount = formatCents(app.figures.currentPaymentDueCents);
+  const recipient = app.recipientEmail ?? "the owner's billing email";
   return (
     <div className="space-y-2 rounded-lg border border-line p-3 text-sm" data-testid="owner-invoice-panel">
       <p className="font-medium">PayPal invoice</p>
@@ -213,16 +211,33 @@ function InvoicePanel({ app }: { app: Detail }) {
       ) : null}
       <div className="flex flex-wrap gap-2">
         {app.controls.refreshStatus ? (
-          <Button variant="secondary" size="sm" loading={busy === "refresh"} onClick={() => void run("refresh")} data-testid="owner-invoice-refresh">
+          <Button variant="secondary" size="sm" loading={busy} onClick={() => void refreshStatus()} data-testid="owner-invoice-refresh">
             Refresh status
           </Button>
         ) : null}
         {app.controls.sendInvoice && app.party === "gc" ? (
-          <Button variant="secondary" size="sm" loading={busy === "send"} onClick={() => void run("send")} data-testid="owner-invoice-resume">
+          <Button variant="secondary" size="sm" disabled={busy} onClick={() => setConfirmSend(true)} data-testid="owner-invoice-resume">
             Send invoice
           </Button>
         ) : null}
       </div>
+      <ConfirmDialog
+        open={confirmSend}
+        title={`Send the PayPal invoice for owner pay app #${app.applicationNo}?`}
+        amountCents={app.figures.currentPaymentDueCents}
+        amountLabel="Invoice amount (current payment due)"
+        payee={recipient}
+        payeeLabel="Billed to (owner billing email)"
+        details={[{ label: "Retainage", value: formatCents(app.figures.retainageCents) }]}
+        effect={`Creates and sends a PayPal invoice for ${amount} to ${recipient}, asking the owner to pay it. If an earlier attempt already created or sent this invoice, PayPal returns that invoice instead of a second one.`}
+        confirmLabel={`Send ${amount} invoice`}
+        onCancel={() => setConfirmSend(false)}
+        onConfirm={async () => {
+          await resume({ ownerPayAppId: app._id });
+          setConfirmSend(false);
+          toast.success("Invoice sent.");
+        }}
+      />
     </div>
   );
 }

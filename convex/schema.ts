@@ -751,6 +751,9 @@ export default defineSchema({
     // Payout rows: set when the payout POST is about to go out and cleared when PayPal definitively
     // rejects it. While set, PayPal may hold the batch, so the row is re-sent only for reconciliation.
     payoutSubmittedAt: v.optional(v.number()),
+    // Release rows: set right before the capture POST. Unset means no capture was ever sent for the
+    // release, so resuming it is a new capture that must pass canPay again.
+    captureSubmittedAt: v.optional(v.number()),
     // Payout rows: a "Retry payout" row points at the original release it re-sends (same capture).
     retryOfPaymentId: v.optional(v.id("payments")),
     // Funding rows: honor-period watcher state. PayPal allows one reauthorization per authorization.

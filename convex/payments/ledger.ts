@@ -13,6 +13,7 @@ import { retainagePercentFor } from "./payoutMath";
 import { releasableRetainageCents } from "./retainageMath";
 import { agreementContractSumCents } from "./sov";
 import { loadSovRows } from "../lib/sovLines";
+import { loadTranches } from "../lib/trancheRows";
 
 function ledgerAgreementSummary(a: Doc<"agreements">) {
   return {
@@ -95,10 +96,7 @@ export const getAgreementLedger = query({
     const viewer = scope.viewer;
 
     const sov = await loadSovRows(ctx, id);
-    const milestones = await ctx.db
-      .query("milestones")
-      .withIndex("by_agreementId_and_order", (q) => q.eq("agreementId", id))
-      .take(50);
+    const milestones = await loadTranches(ctx, id);
     const billing = await loadBillingHistory(ctx, id);
     const history = await loadAgreementHistory(ctx, id);
     const { payments, retainage, changeOrders } = history;

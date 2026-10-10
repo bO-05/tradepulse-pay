@@ -10,6 +10,7 @@ import {
   splitMilestoneAmounts,
 } from "./sovMath";
 import { assertBaseLineCapacity, loadSovRows } from "../lib/sovLines";
+import { loadTranches } from "../lib/trancheRows";
 
 /**
  * Demo and Phase-1 seed projects (flagged demo, owned by the Demo company, or created by seeds before
@@ -48,10 +49,7 @@ export async function hasMoneyActivity(ctx: MutationCtx, agreementId: Id<"agreem
 
 async function loadRows(ctx: MutationCtx, agreementId: Id<"agreements">) {
   const sovRows = await loadSovRows(ctx, agreementId);
-  const milestoneRows = await ctx.db
-    .query("milestones")
-    .withIndex("by_agreementId_and_order", (q) => q.eq("agreementId", agreementId))
-    .take(50);
+  const milestoneRows = await loadTranches(ctx, agreementId);
   return { sovRows, milestoneRows };
 }
 

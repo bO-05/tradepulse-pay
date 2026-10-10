@@ -13,6 +13,7 @@ import { buildReviewContext } from "./reviewContext";
 import type { ReviewContext } from "./reviewMath";
 import { runPayAppReview, type ReviewRun } from "./reviewModel";
 import { loadSovRows } from "../lib/sovLines";
+import { loadTranches } from "../lib/trancheRows";
 
 type ReviewInputs = {
   context: ReviewContext;
@@ -37,10 +38,7 @@ export const loadReviewInputs = internalQuery({
     const agreement = await ctx.db.get(payApp.agreementId);
     if (agreement === null) return null;
     const sov = await loadSovRows(ctx, agreement._id);
-    const milestones = await ctx.db
-      .query("milestones")
-      .withIndex("by_agreementId_and_order", (q) => q.eq("agreementId", agreement._id))
-      .take(50);
+    const milestones = await loadTranches(ctx, agreement._id);
     const agreementPayApps = await billingPayAppHistory(ctx, agreement._id);
     const license = await latestCompletedCheck(ctx, agreement.contractorId);
     const project = await ctx.db.get(agreement.projectId);

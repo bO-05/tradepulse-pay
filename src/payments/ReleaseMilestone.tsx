@@ -41,12 +41,13 @@ export const BADGE: Record<string, { label: string; cls: string }> = {
   failed: { label: "Failed", cls: "bg-rose-950 text-rose-200 border-rose-800" },
 };
 
-/** Releases (capture + payout) recorded for a milestone; GC gets refresh/retry controls. */
+/**
+ * Releases (capture + payout) recorded for a funding tranche. Read-only apart from status refreshes:
+ * subcontract payments are started and retried only from the approved pay app's Payment panel.
+ */
 export function ReleaseList({ milestone, canRelease }: { milestone: ReleasableMilestone; canRelease: boolean }) {
   const refresh = useAction(api.payments.release.refreshPayoutStatus);
   const refreshCapture = useAction(api.payments.release.refreshCaptureStatus);
-  const resume = useAction(api.payments.release.resumeRelease);
-  const retryPayout = useAction(api.payments.payoutRetry.retryPayout);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   if (milestone.releases.length === 0) return null;
@@ -122,27 +123,10 @@ export function ReleaseList({ milestone, canRelease }: { milestone: ReleasableMi
                 {busyId === r.paymentId ? "Refreshing…" : "Refresh status"}
               </button>
             )}
-            {canRelease && r.canRetryPayout && (
-              <button
-                type="button"
-                data-testid="retry-payout-button"
-                disabled={busyId !== null}
-                onClick={() => void run(r.paymentId, () => retryPayout({ paymentId: r.paymentId }))}
-                className="rounded px-2 py-0.5 border border-amber-700 text-amber-200 disabled:opacity-50"
-              >
-                {busyId === r.paymentId ? "Sending…" : "Retry payout"}
-              </button>
-            )}
-            {canRelease && r.status === "created" && Date.now() - r.createdAt > 60_000 && (
-              <button
-                type="button"
-                data-testid="resume-release-button"
-                disabled={busyId !== null}
-                onClick={() => void run(r.paymentId, () => resume({ paymentId: r.paymentId }))}
-                className="rounded px-2 py-0.5 border border-amber-700 text-amber-200 disabled:opacity-50"
-              >
-                {busyId === r.paymentId ? "Retrying…" : "Retry release"}
-              </button>
+            {canRelease && (r.canRetryPayout || r.status === "created") && (
+              <p className="text-slate-400" data-testid="release-recovery-hint">
+                Retry this payment from the approved pay app&apos;s Payment panel.
+              </p>
             )}
           </div>
         );
