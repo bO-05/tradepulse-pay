@@ -8,6 +8,7 @@ import {
   g703Line,
   g703LineErrors,
   lineIncrementCents,
+  lineRemainingCents,
   percentHundredths,
   type G702Summary,
 } from "../../convex/payApps/g703Math";
@@ -236,6 +237,11 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
         {view.basis === "approved" ? (
           <p className="mt-3 text-xs text-ink-subtle">Figures below are the GC-approved amounts.</p>
         ) : null}
+        {view.unverifiedReason ? (
+          <p className="mt-3 text-sm text-amber-300" role="status" data-testid="payapp-unverified">
+            {view.unverifiedReason}
+          </p>
+        ) : null}
         {view.rejectionReason ? (
           <p className="mt-3 text-sm text-rose-300" data-testid="payapp-rejection-reason">
             Rejected: {view.rejectionReason}
@@ -382,7 +388,7 @@ function ContinuationSheet({
                   <td className="px-2 py-2 align-top">
                     <span className="block">{l.description}</span>
                     {l.csiCode ? <span className="block text-xs text-ink-subtle">{l.csiCode}</span> : null}
-                    {editable && (l.workThisPeriodCents > 0 || l.storedCents > 0) ? (
+                    {editable && (l.workThisPeriodCents !== 0 || l.storedCents > 0) ? (
                       <TextInput
                         className="mt-2"
                         label={<span className="text-xs">Note: work this period or stored material (line {l.lineNo})</span>}
@@ -412,6 +418,14 @@ function ContinuationSheet({
                         className="min-w-[8.5rem]"
                         label={<span className="sr-only">Line {l.lineNo} work this period (E)</span>}
                         value={l.workThisPeriodCents}
+                        allowNegative={l.scheduledValueCents < 0}
+                        hint={
+                          l.scheduledValueCents < 0 ? (
+                            <span className="text-xs" data-testid="g703-credit-hint">
+                              Credit: enter {formatCents(lineRemainingCents(l))} to $0.00
+                            </span>
+                          ) : undefined
+                        }
                         error={error ? " " : undefined}
                         onChange={(cents) => onChange(l.sovLineId, { workThisPeriodCents: cents ?? 0 })}
                       />

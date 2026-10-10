@@ -101,6 +101,51 @@ describe("excluded-scope keyword match", () => {
     });
   });
 
+  describe("mixed included and excluded scope in the pay-app notes", () => {
+    const mixedLines = [
+      { sovLineId: "m1", lineNo: 1, description: "Seismic bracing of conduit", requestedCents: 100_00 },
+      { sovLineId: "m2", lineNo: 2, description: "Switchgear and equipment", requestedCents: 100_00 },
+    ];
+
+    test("included conduit bracing on line 1 does not hide equipment bracing claimed on line 2", () => {
+      const res = excludedScopeClaims({
+        lines: mixedLines,
+        payAppNotes: "Line 2: equipment seismic bracing installed this period.",
+        excludedScopeNotes: NOTES,
+      });
+      expect([...res.byLine.entries()]).toEqual([["m2", NOTES[0]]]);
+    });
+
+    test("the same claim flags line 2 whether it is in the pay-app notes or the line note", () => {
+      const viaLineNote = excludedScopeClaims({
+        lines: [mixedLines[0], { ...mixedLines[1], note: "Equipment seismic bracing installed this period" }],
+        payAppNotes: "",
+        excludedScopeNotes: NOTES,
+      });
+      expect([...viaLineNote.byLine.entries()]).toEqual([["m2", NOTES[0]]]);
+    });
+
+    test("a clause on the included line stays contract scope while the excluded clause still flags", () => {
+      const res = excludedScopeClaims({
+        lines: mixedLines,
+        payAppNotes: "Line 1: seismic bracing of conduit installed on level 2. Line 2: seismic bracing at the equipment pads.",
+        excludedScopeNotes: NOTES,
+      });
+      expect([...res.byLine.entries()]).toEqual([["m2", NOTES[0]]]);
+      expect(res.unattributed).toEqual([]);
+    });
+
+    test("a clause naming only the included line's scope flags nothing", () => {
+      const res = excludedScopeClaims({
+        lines: mixedLines,
+        payAppNotes: "Line 1: seismic bracing of conduit complete.",
+        excludedScopeNotes: NOTES,
+      });
+      expect(res.byLine.size).toBe(0);
+      expect(res.unattributed).toEqual([]);
+    });
+  });
+
   test("no exclusion notes means no claims", () => {
     const res = excludedScopeClaims({ lines, payAppNotes: "Seismic bracing", excludedScopeNotes: [" "] });
     expect(res.byLine.size).toBe(0);

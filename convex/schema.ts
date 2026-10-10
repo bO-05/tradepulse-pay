@@ -617,6 +617,8 @@ export default defineSchema({
       ownerName: v.optional(v.string()),
     }),
     review: v.optional(payAppReviewValidator),
+    // Token of the review run that holds "under_review"; only that run may store or abandon a review.
+    reviewRunId: v.optional(v.string()),
     // The GC's final approved split, which billing math uses; review.lines keeps the recommendation.
     finalApproval: v.optional(
       v.object({

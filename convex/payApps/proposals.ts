@@ -16,6 +16,7 @@ import { computePayoutSplit, retainagePercentFor } from "../payments/payoutMath"
 import { finishProposal, syncProposalForPayment } from "./proposalSync";
 import { allocateFinalApproval } from "./billingHistory";
 import { approvedG702Figures } from "./g703";
+import { REJECTION_REASON_REQUIRED } from "./decisions";
 import { payAppView, sovMapFor } from "./review";
 
 /**
@@ -56,9 +57,19 @@ async function moneyPair(ctx: MutationCtx, p: Doc<"agentProposals">) {
 
 const MAX_REJECTION_REASON_LENGTH = 500;
 
-function rejectionReason(given: string | undefined, fallback: string): string {
-  const trimmed = (given ?? "").trim().slice(0, MAX_REJECTION_REASON_LENGTH);
-  return trimmed === "" ? fallback : trimmed;
+/** The GC-entered rejection reason, trimmed; "" when none was entered. */
+function enteredReason(given: string | undefined): string {
+  const trimmed = (given ?? "").trim();
+  if (trimmed.length > MAX_REJECTION_REASON_LENGTH) {
+    throw new ConvexError({ code: "INVALID_DECISION", message: `A reason must be at most ${MAX_REJECTION_REASON_LENGTH} characters.` });
+  }
+  return trimmed;
+}
+
+export const FINALIZING_REASON_REQUIRED = `${REJECTION_REASON_REQUIRED}. This decision leaves nothing to pay on the pay application, so it rejects it; enter the reason the sub will see.`;
+
+function reasonRequired(message: string): ConvexError<{ code: string; message: string }> {
+  return new ConvexError({ code: "INVALID_DECISION", message });
 }
 
 /** The final per-line split of an approved total, or a readable INVALID_AMOUNT error. */
@@ -70,7 +81,8 @@ async function finalAllocation(ctx: MutationCtx, payApp: Doc<"payApplications">,
 
 /**
  * Once a reviewed pay app has no pending proposal left and no approved payment, it is finalized as
- * rejected so it stops reserving scheduled value. Moves no money.
+ * rejected with the GC's reason so it stops reserving scheduled value. Moves no money. Without a
+ * GC-entered reason it throws, which rolls back the proposal decision that led here.
  */
 async function finalizeIfNothingActionable(
   ctx: MutationCtx,
@@ -83,6 +95,7 @@ async function finalizeIfNothingActionable(
   const rows = (await payAppProposals(ctx, payAppId)).filter((r) => r.status !== "cancelled");
   if (rows.some((r) => r.status === "pending")) return false;
   if (rows.some((r) => MONEY_KINDS.has(r.kind) && (r.status === "approved" || r.status === "executed"))) return false;
+  if (reason === "") throw reasonRequired(FINALIZING_REASON_REQUIRED);
   await ctx.db.patch(payApp._id, { status: "rejected", rejectedAt: Date.now(), rejectionReason: reason });
   await audit(
     ctx,
@@ -247,7 +260,7 @@ export const getAgentTrace = query({
  * A payout held for the license needs `overrideLicenseHold`.
  */
 export const approveProposal = mutation({
-  args: { proposalId: v.string(), overrideLicenseHold: v.optional(v.boolean()) },
+  args: { proposalId: v.string(), overrideLicenseHold: v.optional(v.boolean()), reason: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const scope = await requireDocScope(ctx, "agentProposals", args.proposalId, { roles: ["gc"], write: true });
     const viewer = scope.viewer;
@@ -268,7 +281,7 @@ export const approveProposal = mutation({
       await finishProposal(ctx, { ...p, status: "approved" }, "executed", {
         detail: `${p.kind} accepted by the GC; no money moved.`,
       });
-      await finalizeIfNothingActionable(ctx, payApp._id, `The GC accepted the ${p.kind}; no payment was approved.`, actor);
+      await finalizeIfNothingActionable(ctx, payApp._id, enteredReason(args.reason), actor);
       return { scheduled: false };
     }
 
@@ -395,7 +408,7 @@ export const rejectProposal = mutation({
     const kinds = rows.map((r) => r.kind).join(" + ");
     await audit(ctx, p.agreementId, "proposal_rejected", "Proposal rejected", `GC rejected the ${kinds} proposal; no money moved.`, actor);
     const payAppRejected = p.payAppId
-      ? await finalizeIfNothingActionable(ctx, p.payAppId, rejectionReason(args.reason, `The GC rejected the ${kinds} proposal.`), actor)
+      ? await finalizeIfNothingActionable(ctx, p.payAppId, enteredReason(args.reason), actor)
       : false;
     return { rejected: rows.length, payAppRejected };
   },
@@ -411,13 +424,15 @@ export const rejectPayApp = mutation({
     if (!["submitted", "under_review", "reviewed"].includes(payApp.status)) {
       throw new ConvexError({ code: "INVALID_STATE", message: `The pay application is ${payApp.status} and can no longer be rejected.` });
     }
+    const reason = enteredReason(args.reason);
+    if (reason === "") throw reasonRequired(REJECTION_REASON_REQUIRED);
     const pending = (await payAppProposals(ctx, payApp._id)).filter((r) => r.status === "pending");
     await rejectRows(ctx, pending, viewer.userId);
     const nothingApproved = await approvedG702Figures(ctx, payApp, []);
     await ctx.db.patch(payApp._id, {
       status: "rejected",
       rejectedAt: Date.now(),
-      rejectionReason: rejectionReason(args.reason, "The GC rejected the pay application."),
+      rejectionReason: reason,
       ...(payApp.g703 && nothingApproved ? { g703: { ...payApp.g703, approved: nothingApproved } } : {}),
     });
     await audit(

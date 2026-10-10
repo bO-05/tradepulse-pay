@@ -228,12 +228,16 @@ export function g703LineErrors(lines: readonly G703EntryLine[]): G703LineError[]
 /**
  * How a GC-approved line increment splits into work (E) and stored material (F): the approved E + F is
  * the increment plus the previous stored amount, and stored material is kept first, up to what was
- * claimed as stored.
+ * claimed as stored. A negative increment is a deductive change-order credit (no stored material) and
+ * stays negative work.
  */
 export function approvedWorkAndStored(
   l: { previousStoredCents: number; workThisPeriodCents: number; storedCents: number },
   approvedIncrementCents: number,
 ): { workThisPeriodCents: number; storedCents: number } {
+  if (approvedIncrementCents < 0 && l.previousStoredCents === 0 && l.storedCents === 0) {
+    return { storedCents: 0, workThisPeriodCents: approvedIncrementCents };
+  }
   const approvedClaim = Math.max(0, approvedIncrementCents + l.previousStoredCents);
   const storedCents = Math.min(l.storedCents, approvedClaim);
   return { storedCents, workThisPeriodCents: approvedClaim - storedCents };

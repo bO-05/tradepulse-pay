@@ -122,8 +122,15 @@ function PrimeSheet({
                     label={<span className="sr-only">This period for {l.description}</span>}
                     value={amounts[l.key] ?? null}
                     onChange={(cents) => onAmount(l.key, cents)}
+                    allowNegative={l.scheduledValueCents < 0}
                     error={errors[l.key]}
-                    hint={<span className="text-xs">Up to {formatCents(l.remainingCents)}</span>}
+                    hint={
+                      <span className="text-xs">
+                        {l.scheduledValueCents < 0
+                          ? `Credit: ${formatCents(l.remainingCents)} to $0.00`
+                          : `Up to ${formatCents(l.remainingCents)}`}
+                      </span>
+                    }
                     className="ml-auto w-36"
                     data-testid="owner-line-amount"
                   />

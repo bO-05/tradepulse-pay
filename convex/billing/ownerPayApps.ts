@@ -109,7 +109,11 @@ function lineView(l: Doc<"ownerPayApps">["lines"][number], index: number, party:
     percentHundredths: f.percentHundredths,
     balanceCents: f.balanceCents,
     retainageCents: f.retainageCents,
-    remainingCents: Math.max(0, l.scheduledValueCents - l.previousWorkCents - l.previousStoredCents),
+    // A deductive change-order line (negative value) has a remaining deduction, at most 0.00.
+    remainingCents:
+      l.scheduledValueCents < 0
+        ? Math.min(0, l.scheduledValueCents - l.previousWorkCents - l.previousStoredCents)
+        : Math.max(0, l.scheduledValueCents - l.previousWorkCents - l.previousStoredCents),
     // Sub-level detail stays with the GC.
     subRetainageCents: party === "gc" ? (l.subRetainageCents ?? null) : null,
     agreementId: party === "gc" ? (l.agreementId ?? null) : null,

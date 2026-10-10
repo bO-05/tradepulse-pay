@@ -5,6 +5,7 @@
  * authors dollar amounts; every cent here is computed by code.
  */
 
+import { formatCents } from "../lib/money";
 import { excludedScopeClaims, type ExcludedScopeClaims } from "./excludedScope";
 
 export { OFFLINE_RULES_ENGINE } from "../lib/aiLabels";
@@ -244,7 +245,8 @@ export function buildReviewLines(input: {
   for (const line of input.lines) {
     const sov = byId.get(line.sovLineId);
     if (!sov) continue;
-    const others = input.sov.filter((s) => s._id !== sov._id && !s.excludedScope);
+    // Deductive change-order lines (negative value) are credits, not progress on the job.
+    const others = input.sov.filter((s) => s._id !== sov._id && !s.excludedScope && s.scheduledValueCents > 0);
     const otherValue = others.reduce((a, s) => a + s.scheduledValueCents, 0);
     const otherProgress =
       otherValue > 0 ? others.reduce((a, s) => a + s.scheduledValueCents * progressOf(s), 0) / otherValue : 0;
@@ -387,6 +389,25 @@ export function rulesEngineJudgement(context: ReviewContext): ReviewJudgement {
   return { lines, lienWaiverMissing: !context.payApp.lienWaiver, licenseIssue, notes };
 }
 
+/** A deductive change-order credit: a negative request on a negative scheduled-value line. */
+export function isCreditLine(line: Pick<ReviewLine, "requestedCents" | "scheduledValueCents">): boolean {
+  return line.requestedCents < 0 && line.scheduledValueCents < 0;
+}
+
+/**
+ * Credits are decided by code, not judged: the whole credit is applied, because reducing it would
+ * raise the payment above what the approved change order allows.
+ */
+function creditReviewLine(line: ReviewLine): FinalReviewLine {
+  return {
+    sovLineId: line.sovLineId,
+    verdict: "ok",
+    recommendedPctToDate: line.claimedPctToDate,
+    approvedCents: line.requestedCents,
+    reason: `Line ${line.lineNo} is a deductive change-order credit of ${formatCents(line.requestedCents)}; it is applied in full and reduces the payment.`,
+  };
+}
+
 export class IncompleteJudgementError extends Error {
   override name = "IncompleteJudgementError";
 }
@@ -404,11 +425,12 @@ export function finalizeReview(context: ReviewContext, judgement: ReviewJudgemen
   for (const l of judgement.lines) {
     if (!verdicts.has(l.sovLineId)) verdicts.set(l.sovLineId, l);
   }
-  const missing = context.lines.filter((l) => !verdicts.has(l.sovLineId));
+  const missing = context.lines.filter((l) => !isCreditLine(l) && !verdicts.has(l.sovLineId));
   if (missing.length > 0) {
     throw new IncompleteJudgementError(`No verdict for line(s) ${missing.map((l) => l.lineNo).join(", ")}.`);
   }
   const lines: FinalReviewLine[] = context.lines.map((line) => {
+    if (isCreditLine(line)) return creditReviewLine(line);
     const j = verdicts.get(line.sovLineId)!;
     let verdict: LineVerdict = (LINE_VERDICTS as readonly string[]).includes(j.verdict) ? j.verdict : "ok";
     let reason = j.reason.trim() || "No reason given.";

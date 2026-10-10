@@ -202,7 +202,11 @@ export function GcReviewPanel({ view }: { view: PayAppView }) {
                       {formatCents(l.approvedCents)}
                     </td>
                     <td className="px-2 py-2">
-                      {!view.canApprove && !view.canRequestRevision ? null : !isBilled ? (
+                      {!view.canApprove && !view.canRequestRevision ? null : l.requestedCents < 0 ? (
+                        <span className="text-xs text-ink-subtle" data-testid="review-line-credit">
+                          Change-order credit, applied in full
+                        </span>
+                      ) : !isBilled ? (
                         <span className="text-xs text-ink-subtle">Not billed this period</span>
                       ) : (
                         <LineDecision

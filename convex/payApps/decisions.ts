@@ -116,6 +116,13 @@ async function approvalLines(
   const recommended = new Map((payApp.review?.lines ?? []).map((l) => [l.sovLineId as string, l.approvedCents]));
   return caps.map((c) => {
     const d = byId.get(c.sovLineId);
+    if (c.capCents < 0) {
+      // A deductive change-order credit is applied in full; lowering it would overstate the payment.
+      if (d !== undefined && d.action !== "accept") {
+        throw invalid(`Line ${c.lineNo} is a deductive change-order credit of ${formatCents(c.capCents)}; it is applied in full and cannot be changed.`);
+      }
+      return { sovLineId: c.sovLineId, action: "accept" as const, recommendedCents: c.capCents, approvedCents: c.capCents };
+    }
     const rec = Math.min(recommended.get(c.sovLineId) ?? 0, c.capCents);
     if (d === undefined || d.action === "accept") {
       return { sovLineId: c.sovLineId, action: "accept" as const, recommendedCents: rec, approvedCents: rec };
@@ -151,6 +158,11 @@ async function approve(
   const lines = await approvalLines(ctx, payApp, given);
   const outcome = lines.some((l) => l.action === "override") ? ("approved_as_noted" as const) : ("approved" as const);
   const totalCents = lines.reduce((acc, l) => acc + l.approvedCents, 0);
+  if (totalCents < 0) {
+    throw invalid(
+      `The deductive change-order credits exceed the work approved: the net approved would be ${formatCents(totalCents)}. Request a revision or reject the pay app.`,
+    );
+  }
   const now = Date.now();
   const finalLines = lines.map((l) => ({ sovLineId: l.sovLineId, approvedCents: l.approvedCents }));
   const figures = await approvedG702Figures(ctx, payApp, finalLines);
@@ -348,6 +360,7 @@ export const revisePayApp = mutation({
       gcDecision: undefined,
       finalApproval: undefined,
       review: undefined,
+      reviewRunId: undefined,
       g703: { ...g703, savedAt: now },
     });
     await audit(ctx, scope, payApp, "pay_app_revision_started", "Pay application revision started", `${payApp.periodLabel}: version ${version + 1} opened as a draft; version ${version} kept.`);

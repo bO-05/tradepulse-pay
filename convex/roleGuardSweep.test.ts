@@ -361,7 +361,7 @@ describe("GC-only money and admin functions reject every other caller", () => {
     expect((await t.run((ctx) => ctx.db.get(ids.proposalId)))!.editedAmountCents).toBe(5_000);
     await gc.mutation(api.agentLinks.revokeAgentLink, { linkId: ids.linkId });
     expect((await t.run((ctx) => ctx.db.get(ids.linkId)))!.status).toBe("revoked");
-    await gc.mutation(api.payApps.proposals.rejectProposal, { proposalId: ids.proposalId });
+    await gc.mutation(api.payApps.proposals.rejectProposal, { proposalId: ids.proposalId, reason: "Not supported" });
     expect((await t.run((ctx) => ctx.db.get(ids.proposalId)))!.status).toBe("rejected");
   });
 });

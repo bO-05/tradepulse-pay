@@ -133,12 +133,12 @@ async function subPayAppDocument(ctx: QueryCtx, payApp: Doc<"payApplications">):
   const { agreement, sheet, lines, totals } = await payAppSheet(ctx, payApp);
   const project = await projectOf(ctx, agreement.projectId);
   const changeOrders = await payAppChangeOrderSummary(ctx, payApp, new Set(sheet.lines.map((l) => l.sovLineId as string)));
-  const approved = sheet.basis === "approved" ? payApp.finalApproval : undefined;
+  const approved = sheet.basis === "approved" ? sheet.finalApproval : undefined;
   const isDraft = payApp.status === "draft";
   return {
     projectId: project._id,
     fileName: `${fileSlug(agreement.agreementNumber)}-${payAppNoText(payApp)}.pdf`,
-    asOf: payApp.finalApproval?.approvedAt ?? payApp.submittedAt ?? payApp.g703?.savedAt ?? payApp.createdAt,
+    asOf: approved?.approvedAt ?? payApp.submittedAt ?? payApp.g703?.savedAt ?? payApp.createdAt,
     input: {
       kind: "sub_pay_app_pdf",
       data: {
@@ -154,7 +154,13 @@ async function subPayAppDocument(ctx: QueryCtx, payApp: Doc<"payApplications">):
         periodEnd: payApp.periodEnd ?? null,
         dueDate: payApp.dueDate ?? null,
         statusLabel: statusText(payApp.status),
-        basisLabel: approved ? "GC-approved amounts" : isDraft ? "Draft, not submitted" : "As submitted by the subcontractor",
+        basisLabel: approved
+          ? "GC-approved amounts"
+          : sheet.basis === "unverified"
+            ? "Approved amounts cannot be verified; as submitted by the subcontractor"
+            : isDraft
+              ? "Draft, not submitted"
+              : "As submitted by the subcontractor",
         retainageBps: payApp.g703?.retainageBps ?? (lines.length > 0 ? sheet.lines[0].retainageBps : 0),
         figures: figuresOf(sheet.summary),
         lines,

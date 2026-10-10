@@ -517,7 +517,7 @@ describe("the owning GC company still works (control)", () => {
     const priya = fx.gcB.admin.as;
     const ledger = await priya.query(api.payments.ledger.getAgreementLedger, { agreementId: fx.gcB.project.agreementId });
     expect(ledger).not.toBeNull();
-    await priya.mutation(api.payApps.proposals.rejectProposal, { proposalId: extra.sonoran.proposalId });
+    await priya.mutation(api.payApps.proposals.rejectProposal, { proposalId: extra.sonoran.proposalId, reason: "Not yet" });
   });
 });
 

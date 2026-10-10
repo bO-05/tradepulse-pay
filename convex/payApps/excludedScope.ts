@@ -100,8 +100,9 @@ const LINE_REF = /\b(?:line|item)\s*(?:no\.?\s*)?#?\s*(\d{1,4})\b/gi;
  * The SOV line description itself is never matched: the GC approved that line into the schedule of
  * values, so it is contract scope even when it reads like an exclusion note (for example "Low-voltage &
  * data" next to the exclusion "Low-voltage cabling"). A note that only restates a line's description
- * ("low-voltage pulled on level 2" on that line) is therefore not a claim either. The description is
- * otherwise used only to attribute a pay-app clause to a line.
+ * ("low-voltage pulled on level 2" on that line) is therefore not a claim either. For a pay-app clause
+ * only the description of the line the clause is attributed to counts as contract scope: conduit
+ * bracing included on line 1 does not include equipment bracing claimed on line 2.
  */
 export function excludedScopeClaims(input: {
   lines: readonly ExclusionLine[];
@@ -119,22 +120,28 @@ export function excludedScopeClaims(input: {
   const billed = input.lines.filter((l) => l.requestedCents > 0);
   const allDescriptions = input.lines.map((l) => l.description);
   for (const clause of noteClauses(input.payAppNotes)) {
-    const hit = matchExcludedScope([clause], notes, allDescriptions);
-    if (hit === null) continue;
+    // Attribute the clause to a line first; only that line's own description can make the claimed
+    // phrase contract scope. Included scope on an unrelated line does not include it here.
+    const anyHit = matchExcludedScope([clause], notes);
+    if (anyHit === null) continue;
     const referenced = new Set<number>();
     for (const m of clause.matchAll(LINE_REF)) referenced.add(Number(m[1]));
     let targets = input.lines.filter((l) => referenced.has(l.lineNo));
     if (targets.length === 0) {
-      const exclusionWords = new Set(significantTokens(hit));
+      const exclusionWords = new Set(significantTokens(anyHit));
       const clauseWords = new Set(significantTokens(clause).filter((w) => !exclusionWords.has(w)));
       targets = billed.filter((l) => significantTokens(l.description).some((w) => clauseWords.has(w)));
     }
     if (targets.length === 0 && billed.length === 1) targets = billed;
     if (targets.length === 0) {
-      unattributed.push({ clause, note: hit });
+      const hit = matchExcludedScope([clause], notes, allDescriptions);
+      if (hit !== null) unattributed.push({ clause, note: hit });
       continue;
     }
-    for (const l of targets) if (!byLine.has(l.sovLineId)) byLine.set(l.sovLineId, hit);
+    for (const l of targets) {
+      const hit = matchExcludedScope([clause], notes, [l.description]);
+      if (hit !== null && !byLine.has(l.sovLineId)) byLine.set(l.sovLineId, hit);
+    }
   }
   return { byLine, unattributed };
 }

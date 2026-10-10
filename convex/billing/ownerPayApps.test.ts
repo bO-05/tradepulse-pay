@@ -387,6 +387,46 @@ describe("owner pay app roll-up", () => {
   });
 });
 
+describe("deductive prime change orders on the owner pay app", () => {
+  test("a -$1,200.00 prime CO credit is enterable and lowers the payment due with its retainage", async () => {
+    const s = await setup();
+    const { ownerPayAppId, gc } = await ownerPayApp1(s);
+    await s.dana.mutation(api.billing.ownerPayApps.submitOwnerPayApp, { ownerPayAppId });
+    await s.mendez.action(api.billing.ownerInvoices.approveOwnerPayApp, { ownerPayAppId: ownerPayAppId as Id<"ownerPayApps"> });
+    const { changeOrderId } = await s.dana.mutation(api.billing.changeOrders.createChangeOrder, {
+      scope: "prime",
+      projectId: s.projectId,
+      title: "Delete 2 exterior fixtures",
+      amountCents: -120_000,
+    });
+    await s.dana.mutation(api.billing.changeOrders.submitChangeOrder, { changeOrderId });
+    await s.mendez.mutation(api.billing.changeOrders.approveChangeOrder, { changeOrderId });
+
+    const { ownerPayAppId: second } = await s.dana.mutation(api.billing.ownerPayApps.createOwnerPayApp, { projectId: s.projectId });
+    const app2 = await s.dana.query(api.billing.ownerPayApps.getOwnerPayApp, { ownerPayAppId: second });
+    const credit = app2.lines.find((l) => l.kind === "change_order")!;
+    expect(credit).toMatchObject({ scheduledValueCents: -120_000, remainingCents: -120_000 });
+    const gcKey = `gc:${gc["General conditions"]}`;
+
+    const workOnly = await s.dana.mutation(api.billing.ownerPayApps.saveOwnerPayApp, { ownerPayAppId: second, entries: [{ key: gcKey, workThisPeriodCents: 200_000 }] });
+    await expect(
+      s.dana.mutation(api.billing.ownerPayApps.saveOwnerPayApp, { ownerPayAppId: second, entries: [{ key: credit.key, workThisPeriodCents: -120_001 }] }),
+    ).rejects.toThrow(/remains to deduct/);
+    const withCredit = await s.dana.mutation(api.billing.ownerPayApps.saveOwnerPayApp, {
+      ownerPayAppId: second,
+      entries: [
+        { key: gcKey, workThisPeriodCents: 200_000 },
+        { key: credit.key, workThisPeriodCents: -120_000 },
+      ],
+    });
+    // The credit less its 5% retainage (6,000) comes off the payment due.
+    expect(workOnly.currentPaymentDueCents - withCredit.currentPaymentDueCents).toBe(114_000);
+    const saved = await s.dana.query(api.billing.ownerPayApps.getOwnerPayApp, { ownerPayAppId: second });
+    expect(saved.lines.find((l) => l.key === credit.key)).toMatchObject({ workThisPeriodCents: -120_000, totalCents: -120_000, remainingCents: -120_000 });
+    expect(saved.figures.currentPaymentDueCents).toBe(withCredit.currentPaymentDueCents);
+  });
+});
+
 describe("owner billing isolation", () => {
   test("only the project GC writes, only its owner approves, and outsiders get Not found", async () => {
     const s = await setup();

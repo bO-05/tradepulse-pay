@@ -266,10 +266,12 @@ describe("GC review access", () => {
   test("a pay app withdrawn while under review keeps its withdrawn status", async () => {
     const s = await setup();
     const payAppId = await s.sub1.as.mutation(api.payApps.submit.submitPayApplication, overbilledArgs(s));
-    expect(await s.t.mutation(internal.payApps.review.beginReview, { payAppId, rerun: false })).toBe(true);
+    const reviewRunId = await s.t.mutation(internal.payApps.review.beginReview, { payAppId, rerun: false });
+    expect(reviewRunId).toMatch(/^v1:/);
     await s.sub1.as.mutation(api.payApps.submit.withdrawPayApplication, { payAppId });
     const res = await s.t.mutation(internal.payApps.review.storeReview, {
       payAppId,
+      reviewRunId: reviewRunId!,
       review: {
         engine: "Offline rules engine",
         provider: "Offline rules engine",

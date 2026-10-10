@@ -29,10 +29,11 @@ type ReviewInputs = {
 
 /** Everything the reviewer needs for one pay app, or null when it is missing. */
 export const loadReviewInputs = internalQuery({
-  args: { payAppId: v.id("payApplications") },
+  args: { payAppId: v.id("payApplications"), reviewRunId: v.optional(v.string()) },
   handler: async (ctx, args): Promise<ReviewInputs | null> => {
     const payApp = await ctx.db.get(args.payAppId);
     if (payApp === null) return null;
+    if (args.reviewRunId !== undefined && !holdsReview(payApp, args.reviewRunId)) return null;
     const agreement = await ctx.db.get(payApp.agreementId);
     if (agreement === null) return null;
     const sov = await loadSovRows(ctx, agreement._id);
@@ -61,25 +62,48 @@ export const loadReviewInputs = internalQuery({
 
 const REVIEWABLE = new Set(["submitted", "under_review", "reviewed"]);
 
-/** Moves a pay app to under_review. A plain run only starts from "submitted"; a GC re-run may also restart a reviewed one. */
+/** "v<version>:<time>:<random>"; the version prefix ties a run to the submission it was started for. */
+function newReviewRunId(payApp: Doc<"payApplications">): string {
+  return `v${payApp.version ?? 1}:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/**
+ * True while `reviewRunId` is the run the pay app is under review for, on the same submitted version.
+ * A revision, resubmission or a newer run replaces the token, so a late result of an earlier run is refused.
+ */
+export function holdsReview(payApp: Doc<"payApplications">, reviewRunId: string): boolean {
+  return (
+    payApp.status === "under_review" &&
+    payApp.reviewRunId === reviewRunId &&
+    reviewRunId.startsWith(`v${payApp.version ?? 1}:`)
+  );
+}
+
+/**
+ * Moves a pay app to under_review and returns the token of this review run, or null when it may not
+ * start. A plain run only starts from "submitted"; a GC re-run may also restart a reviewed one.
+ */
 export const beginReview = internalMutation({
   args: { payAppId: v.id("payApplications"), rerun: v.boolean() },
-  handler: async (ctx, args): Promise<boolean> => {
+  handler: async (ctx, args): Promise<string | null> => {
     const payApp = await ctx.db.get(args.payAppId);
-    if (payApp === null) return false;
+    if (payApp === null) return null;
     const allowed = args.rerun ? REVIEWABLE.has(payApp.status) : payApp.status === "submitted";
-    if (!allowed) return false;
-    if (payApp.status !== "under_review") await ctx.db.patch(payApp._id, { status: "under_review" });
-    return true;
+    if (!allowed) return null;
+    const reviewRunId = newReviewRunId(payApp);
+    await ctx.db.patch(payApp._id, { status: "under_review", reviewRunId });
+    return reviewRunId;
   },
 });
 
-/** Returns a stuck pay app to "submitted" so it can be reviewed again. */
+/** Returns a stuck pay app to "submitted" so it can be reviewed again, if `reviewRunId` still holds the review. */
 export const abandonReview = internalMutation({
-  args: { payAppId: v.id("payApplications") },
+  args: { payAppId: v.id("payApplications"), reviewRunId: v.string() },
   handler: async (ctx, args) => {
     const payApp = await ctx.db.get(args.payAppId);
-    if (payApp?.status === "under_review") await ctx.db.patch(payApp._id, { status: "submitted" });
+    if (payApp !== null && holdsReview(payApp, args.reviewRunId)) {
+      await ctx.db.patch(payApp._id, { status: "submitted", reviewRunId: undefined });
+    }
     return null;
   },
 });
@@ -87,6 +111,7 @@ export const abandonReview = internalMutation({
 export const storeReview = internalMutation({
   args: {
     payAppId: v.id("payApplications"),
+    reviewRunId: v.string(),
     review: payAppReviewValidator,
     trace: v.object({
       runId: v.string(),
@@ -115,9 +140,10 @@ export const storeReview = internalMutation({
       timestamp: now,
     });
     const payApp = await ctx.db.get(args.payAppId);
-    // A pay app withdrawn while the model was running keeps its withdrawn status and gets no review.
-    if (payApp === null || payApp.status !== "under_review") return { stored: false };
-    await ctx.db.patch(payApp._id, { review: args.review, status: "reviewed" });
+    // A pay app withdrawn, sent back, revised or re-reviewed while the model was running gets no
+    // review from this run.
+    if (payApp === null || !holdsReview(payApp, args.reviewRunId)) return { stored: false };
+    await ctx.db.patch(payApp._id, { review: args.review, status: "reviewed", reviewRunId: undefined });
     const agreement = await ctx.db.get(payApp.agreementId);
     await ctx.db.insert("auditLogs", {
       projectId: agreement?.projectId,
@@ -156,13 +182,13 @@ async function performReview(
   payAppId: Id<"payApplications">,
   rerun: boolean,
 ): Promise<ReviewOutcome> {
-  const started: boolean = await ctx.runMutation(internal.payApps.review.beginReview, { payAppId, rerun });
-  if (!started) return { reviewed: false, reason: "Pay application is not awaiting review." };
+  const reviewRunId: string | null = await ctx.runMutation(internal.payApps.review.beginReview, { payAppId, rerun });
+  if (reviewRunId === null) return { reviewed: false, reason: "Pay application is not awaiting review." };
   try {
-    const inputs: ReviewInputs | null = await ctx.runQuery(internal.payApps.review.loadReviewInputs, { payAppId });
+    const inputs: ReviewInputs | null = await ctx.runQuery(internal.payApps.review.loadReviewInputs, { payAppId, reviewRunId });
     if (inputs === null) {
-      await ctx.runMutation(internal.payApps.review.abandonReview, { payAppId });
-      return { reviewed: false, reason: "Pay application not found." };
+      await ctx.runMutation(internal.payApps.review.abandonReview, { payAppId, reviewRunId });
+      return { reviewed: false, reason: "Pay application not found, or a newer submission or review replaced this review." };
     }
     const run = await runPayAppReview(inputs.context, {
       apiKey: process.env.ANTHROPIC_API_KEY,
@@ -172,6 +198,7 @@ async function performReview(
     const review = reviewRecord(run, traceRunId);
     const { stored }: { stored: boolean } = await ctx.runMutation(internal.payApps.review.storeReview, {
       payAppId,
+      reviewRunId,
       review,
       trace: {
         runId: traceRunId,
@@ -195,7 +222,7 @@ async function performReview(
     });
     return { reviewed: stored, engine: run.engine, approvedTotalCents: run.review.approvedTotalCents, traceRunId };
   } catch (err) {
-    await ctx.runMutation(internal.payApps.review.abandonReview, { payAppId });
+    await ctx.runMutation(internal.payApps.review.abandonReview, { payAppId, reviewRunId });
     throw err;
   }
 }

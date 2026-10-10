@@ -339,6 +339,98 @@ describe("GC per-line decisions", () => {
   });
 });
 
+describe("review runs are bound to the submitted version", () => {
+  const TRACE = {
+    runId: "late-run",
+    csiDivision: "26",
+    contractorName: "Eastbay Electric",
+    provider: "Offline rules engine",
+    model: "none",
+    rawPrompt: "",
+    systemPrompt: "",
+    rawResponse: "",
+    parsedOutput: null,
+    metrics: null,
+    latencyMs: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+  };
+  const reviewWithTotal = (approvedTotalCents: number) => ({
+    engine: "Offline rules engine",
+    provider: "Offline rules engine",
+    model: "none",
+    lines: [],
+    flags: { lienWaiverMissing: false, licenseIssue: false, notes: `total ${approvedTotalCents}` },
+    approvedTotalCents,
+    reviewedAt: Date.now(),
+  });
+
+  test("a v1 review that finishes after the GC sent v1 back and the sub resubmitted v2 never overwrites v2's review", async () => {
+    const s = await setup();
+    const kim = s.f.sub.admin.as;
+    const dana = s.f.gcA.admin.as;
+    const payAppId = await submit(s);
+    const runV1 = await s.t.mutation(internal.payApps.review.beginReview, { payAppId, rerun: false });
+    expect(runV1).toMatch(/^v1:/);
+
+    // While v1's model call is still running, the GC sends it back and the sub revises and resubmits.
+    await dana.mutation(api.payApps.decisions.decidePayApp, { payAppId, decision: "request_revision", reason: "Bill line 5 as installed work" });
+    await kim.mutation(api.payApps.decisions.revisePayApp, { payAppId });
+    await kim.mutation(api.payApps.g703.submitPayApp, { payAppId, lines: [entry(s.sov[4], 1_800_000, 0, "Switchboard set and energized")] });
+
+    // v1's late result arrives before v2's review starts: refused, v2 stays submitted.
+    expect(await s.t.mutation(internal.payApps.review.storeReview, { payAppId, reviewRunId: runV1!, review: reviewWithTotal(111), trace: TRACE })).toEqual({
+      stored: false,
+    });
+    expect((await s.t.run(async (ctx) => ctx.db.get(payAppId)))!).toMatchObject({ status: "submitted", version: 2 });
+
+    const runV2 = await s.t.mutation(internal.payApps.review.beginReview, { payAppId, rerun: false });
+    expect(runV2).toMatch(/^v2:/);
+    expect(await s.t.query(internal.payApps.review.loadReviewInputs, { payAppId, reviewRunId: runV1! })).toBeNull();
+
+    // v1's late result arrives while v2 is under review: refused, and its abandon does not reset v2.
+    expect(await s.t.mutation(internal.payApps.review.storeReview, { payAppId, reviewRunId: runV1!, review: reviewWithTotal(111), trace: TRACE })).toEqual({
+      stored: false,
+    });
+    await s.t.mutation(internal.payApps.review.abandonReview, { payAppId, reviewRunId: runV1! });
+    let row = (await s.t.run(async (ctx) => ctx.db.get(payAppId)))!;
+    expect(row.status).toBe("under_review");
+    expect(row.review).toBeUndefined();
+
+    expect(await s.t.mutation(internal.payApps.review.storeReview, { payAppId, reviewRunId: runV2!, review: reviewWithTotal(222), trace: TRACE })).toEqual({
+      stored: true,
+    });
+    // A v1 result arriving after v2 was reviewed is refused as well.
+    expect(await s.t.mutation(internal.payApps.review.storeReview, { payAppId, reviewRunId: runV1!, review: reviewWithTotal(111), trace: TRACE })).toEqual({
+      stored: false,
+    });
+    row = (await s.t.run(async (ctx) => ctx.db.get(payAppId)))!;
+    expect(row).toMatchObject({ status: "reviewed", version: 2 });
+    expect(row.review!.approvedTotalCents).toBe(222);
+    expect(row.reviewRunId).toBeUndefined();
+  });
+
+  test("the scheduled v2 review stores v2's lines although the v1 run never finished", async () => {
+    const s = await setup();
+    const kim = s.f.sub.admin.as;
+    const payAppId = await submit(s);
+    const runV1 = await s.t.mutation(internal.payApps.review.beginReview, { payAppId, rerun: false });
+    await s.f.gcA.admin.as.mutation(api.payApps.decisions.decidePayApp, { payAppId, decision: "request_revision", reason: "Bill line 5 only" });
+    await kim.mutation(api.payApps.decisions.revisePayApp, { payAppId });
+    await kim.mutation(api.payApps.g703.submitPayApp, {
+      payAppId,
+      lines: v1Entries(s.sov).map((e) => (e.sovLineId === s.sov[4] ? e : { ...e, workThisPeriodCents: 0 })),
+    });
+    const res = await s.t.action(internal.payApps.review.reviewPayApp, { payAppId });
+    expect(res).toMatchObject({ reviewed: true });
+    await s.t.mutation(internal.payApps.review.abandonReview, { payAppId, reviewRunId: runV1! });
+    const row = (await s.t.run(async (ctx) => ctx.db.get(payAppId)))!;
+    expect(row.status).toBe("reviewed");
+    const billed = row.review!.lines.filter((l) => l.approvedCents > 0).map((l) => l.sovLineId);
+    expect(billed).toEqual([s.sov[4]]);
+  });
+});
+
 describe("AI review of a G703 pay app", () => {
   test("offline review gives every line a verdict, computes dollars from the percent, and sees excluded-scope notes", async () => {
     const s = await setup();

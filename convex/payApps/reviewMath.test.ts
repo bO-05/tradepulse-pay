@@ -142,6 +142,44 @@ describe("funding tranches cap only the lines they list", () => {
   });
 });
 
+describe("pay-app notes with mixed included and excluded scope", () => {
+  const f = fixture("payapp_honest");
+  const sov = [
+    { _id: "a", lineNo: 1, description: "Seismic bracing of conduit", excludedScope: false, scheduledValueCents: 1_000_000 },
+    { _id: "b", lineNo: 2, description: "Switchgear and equipment", excludedScope: false, scheduledValueCents: 1_000_000 },
+  ];
+  const contextWith = (notes: string) => ({
+    ...f.context,
+    agreement: { ...f.context.agreement, excludedScopeNotes: ["Seismic bracing of conduit and equipment"] },
+    tranches: [],
+    payApp: { ...f.context.payApp, notes },
+    lines: buildReviewLines({
+      sov,
+      milestones: [],
+      prior: new Map(),
+      lines: [
+        { sovLineId: "a", pctCompleteThisPeriod: 10, pctCompleteToDate: 10, requestedCents: 100_000 },
+        { sovLineId: "b", pctCompleteThisPeriod: 10, pctCompleteToDate: 10, requestedCents: 100_000 },
+      ],
+    }),
+  });
+
+  test("an excluded claim on line 2 gets $0 although line 1 includes similar scope", () => {
+    const context = contextWith("Line 2: equipment seismic bracing installed this period.");
+    const review = finalizeReview(context, rulesEngineJudgement(context));
+    expect(review.lines[0]).toMatchObject({ verdict: "ok", approvedCents: 100_000 });
+    expect(review.lines[1]).toMatchObject({ verdict: "excluded_scope", approvedCents: 0 });
+    expect(review.approvedTotalCents).toBe(100_000);
+  });
+
+  test("the included line's own bracing note stays billable", () => {
+    const context = contextWith("Line 1: seismic bracing of conduit installed on level 2.");
+    const review = finalizeReview(context, rulesEngineJudgement(context));
+    expect(review.lines.map((l) => l.verdict)).toEqual(["ok", "ok"]);
+    expect(review.approvedTotalCents).toBe(200_000);
+  });
+});
+
 describe("rules engine on the eval fixtures", () => {
   for (const f of PAY_APP_REVIEW_FIXTURES) {
     test(`${f.fixtureId} gets the expected verdict on every line`, () => {

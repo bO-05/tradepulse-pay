@@ -13,7 +13,13 @@ import { SOV_NOT_APPROVED_MESSAGE } from "../lib/sovRules";
 import type { g702FiguresValidator } from "../schema";
 import { agreementContractSumCents, sovIsApproved } from "../payments/sov";
 import { retainagePercentFor } from "../payments/payoutMath";
-import { billingPayAppHistory } from "./billingHistory";
+import {
+  BILLING_HISTORY_TOO_LARGE,
+  billingPayAppHistory,
+  loadBillingHistory,
+  unresolvedApprovalMessage,
+  type UnresolvedApproval,
+} from "./billingHistory";
 import {
   APPROVED_PAY_APP_STATUSES,
   MAX_NOTES_LENGTH,
@@ -110,7 +116,8 @@ export async function g703Context(
   const lines: G703ContextLine[] = sov.map((s) => {
     const p = prior.get(s._id);
     const totalPrev = p?.approvedCents ?? 0;
-    const fPrev = Math.min(storedPrev.get(s._id) ?? 0, totalPrev);
+    // A deductive line's approved total to date is negative and carries no stored material.
+    const fPrev = Math.max(0, Math.min(storedPrev.get(s._id) ?? 0, totalPrev));
     return {
       sovLineId: s._id,
       lineNo: s.lineNo,
@@ -254,6 +261,45 @@ export type PayAppSheetLine = G703ContextLine & {
   requestedStoredCents: number | null;
 };
 
+/** "unverified": an approved application whose final approved amounts cannot be established. */
+export type SheetBasis = "approved" | "requested" | "unverified";
+
+/**
+ * For a Phase-1 application: its final approval (stored or rebuilt from the GC's recorded decision),
+ * the approved applications before it, and why the figures cannot be verified when that is the case.
+ */
+async function legacyApprovedBasis(ctx: QueryCtx, agreementId: Id<"agreements">, payApp: Doc<"payApplications">) {
+  let history: Awaited<ReturnType<typeof loadBillingHistory>>;
+  try {
+    history = await loadBillingHistory(ctx, agreementId);
+  } catch (e) {
+    if (e instanceof ConvexError && (e.data as { code?: string }).code === "BILLING_HISTORY_TOO_LARGE") {
+      return { before: [] as Doc<"payApplications">[], finalApproval: undefined, unverifiedReason: BILLING_HISTORY_TOO_LARGE };
+    }
+    throw e;
+  }
+  const isApproved = APPROVED_PAY_APP_STATUSES.has(payApp.status);
+  const own = isApproved ? history.rows.find((p) => p._id === payApp._id) : undefined;
+  const ownUnresolved = history.unresolved.find((u) => u.payAppId === payApp._id);
+  const earlierUnresolved: UnresolvedApproval[] = [];
+  for (const u of history.unresolved) {
+    if (u.payAppId === payApp._id) continue;
+    const row = await ctx.db.get(u.payAppId);
+    if (row !== null && createdOrder(row, payApp) < 0) earlierUnresolved.push(u);
+  }
+  const before = history.rows.filter((p) => APPROVED_PAY_APP_STATUSES.has(p.status) && createdOrder(p, payApp) < 0);
+  const reason = ownUnresolved ?? earlierUnresolved[0];
+  return {
+    before,
+    finalApproval: ownUnresolved ? undefined : (own?.finalApproval ?? (isApproved ? payApp.finalApproval : undefined)),
+    unverifiedReason: reason
+      ? ownUnresolved
+        ? `${unresolvedApprovalMessage(reason)} The figures below are as submitted, not approved.`
+        : `${unresolvedApprovalMessage(reason)} Previous applications on this sheet leave it out.`
+      : null,
+  };
+}
+
 function sheetSummary(lines: readonly PayAppSheetLine[], originalContractSumCents: number, previousCerts: number): G702Summary {
   return g702Summary(lines, { originalContractSumCents, previousCertificatesCents: previousCerts });
 }
@@ -270,13 +316,14 @@ export async function buildSheet(ctx: QueryCtx, agreement: Doc<"agreements">, pa
   const approvedBasis = APPROVED_PAY_APP_STATUSES.has(payApp.status) && payApp.finalApproval !== undefined;
 
   if (payApp.g703 === undefined) {
-    const history = await billingPayAppHistory(ctx, agreement._id).catch(() => [] as Doc<"payApplications">[]);
-    const before = history.filter((p) => APPROVED_PAY_APP_STATUSES.has(p.status) && createdOrder(p, payApp) < 0);
-    const prior = priorBillingByLine(before);
+    const legacy = await legacyApprovedBasis(ctx, agreement._id, payApp);
+    const prior = priorBillingByLine(legacy.before);
     const requested = new Map(payApp.lines.map((l) => [l.sovLineId as string, l.requestedCents]));
+    const effective = legacy.finalApproval ? { ...payApp, finalApproval: legacy.finalApproval } : payApp;
+    const legacyApproved = legacy.finalApproval !== undefined;
     const lines: PayAppSheetLine[] = sov.map((s) => {
       const req = requested.get(s._id) ?? 0;
-      const work = approvedBasis ? approvedIncrementOf(payApp, s._id) : req;
+      const work = legacyApproved ? approvedIncrementOf(effective, s._id) : req;
       return {
         sovLineId: s._id,
         lineNo: s.lineNo,
@@ -290,7 +337,7 @@ export async function buildSheet(ctx: QueryCtx, agreement: Doc<"agreements">, pa
         workThisPeriodCents: work,
         storedCents: 0,
         note: null,
-        requestedWorkCents: approvedBasis && work !== req ? req : null,
+        requestedWorkCents: legacyApproved && work !== req ? req : null,
         requestedStoredCents: null,
       };
     });
@@ -298,7 +345,16 @@ export async function buildSheet(ctx: QueryCtx, agreement: Doc<"agreements">, pa
       lines.map((l) => ({ previousTotalCents: l.previousWorkCents, retainageBps: l.retainageBps })),
     );
     const summary = sheetSummary(lines, agreementContractSumCents(agreement), previousCerts);
-    return { lines, summary, requestedSummary: null as G702Summary | null, basis: approvedBasis ? "approved" : "requested", errors: [] };
+    const basis: SheetBasis = legacyApproved ? "approved" : legacy.unverifiedReason !== null && APPROVED_PAY_APP_STATUSES.has(payApp.status) ? "unverified" : "requested";
+    return {
+      lines,
+      summary,
+      requestedSummary: null as G702Summary | null,
+      basis,
+      finalApproval: legacy.finalApproval,
+      unverifiedReason: legacy.unverifiedReason,
+      errors: [],
+    };
   }
 
   const g = payApp.g703;
@@ -353,7 +409,17 @@ export async function buildSheet(ctx: QueryCtx, agreement: Doc<"agreements">, pa
         })),
       )
     : [];
-  if (!approvedBasis) return { lines: requestedLines, summary: requestedSummary, requestedSummary: null, basis: "requested", errors };
+  if (!approvedBasis) {
+    return {
+      lines: requestedLines,
+      summary: requestedSummary,
+      requestedSummary: null,
+      basis: "requested" as SheetBasis,
+      finalApproval: undefined,
+      unverifiedReason: null,
+      errors,
+    };
+  }
 
   const lines: PayAppSheetLine[] = requestedLines.map((l) => {
     const split = approvedWorkAndStored(l, approvedIncrementOf(payApp, l.sovLineId));
@@ -365,7 +431,15 @@ export async function buildSheet(ctx: QueryCtx, agreement: Doc<"agreements">, pa
       requestedStoredCents: changed ? l.storedCents : null,
     };
   });
-  return { lines, summary: sheetSummary(lines, originalSum, previousCerts), requestedSummary, basis: "approved", errors };
+  return {
+    lines,
+    summary: sheetSummary(lines, originalSum, previousCerts),
+    requestedSummary,
+    basis: "approved" as SheetBasis,
+    finalApproval: payApp.finalApproval,
+    unverifiedReason: null,
+    errors,
+  };
 }
 
 type VersionLines = readonly { sovLineId: string; workThisPeriodCents: number; storedCents: number; note?: string }[];
@@ -525,6 +599,7 @@ async function payAppView(ctx: QueryCtx, scope: ProjectAccess & { doc: Doc<"payA
       subcontractorName: await subNameOf(ctx, agreement, payApp),
     },
     basis: sheet.basis,
+    unverifiedReason: sheet.unverifiedReason,
     retainageBps: payApp.g703?.retainageBps ?? agreementRetainageBps(agreement),
     lines: sheet.lines,
     summary: sheet.summary,
@@ -832,7 +907,8 @@ export const submitPayApp = mutation({
     const legacyLines = lines.flatMap((l) => {
       const c = ctxById.get(l.sovLineId)!;
       const inc = lineIncrementCents(l);
-      if (inc <= 0) return [];
+      // Negative increments only pass the line checks on deductive change-order lines: they are credits.
+      if (inc === 0) return [];
       const toDate = l.previousWorkCents + l.workThisPeriodCents + l.storedCents;
       return [
         {
@@ -844,7 +920,13 @@ export const submitPayApp = mutation({
       ];
     });
     const requestedTotalCents = legacyLines.reduce((acc, l) => acc + l.requestedCents, 0);
-    if (requestedTotalCents <= 0) throw invalid("Enter work completed or materials stored on at least one line.");
+    if (requestedTotalCents <= 0) {
+      throw invalid(
+        legacyLines.some((l) => l.requestedCents < 0)
+          ? `The deductive change-order credits (${formatCents(legacyLines.filter((l) => l.requestedCents < 0).reduce((a, l) => a + l.requestedCents, 0))}) must be billed with more work than they deduct; the net requested is ${formatCents(requestedTotalCents)}.`
+          : "Enter work completed or materials stored on at least one line.",
+      );
+    }
     const summary = g702Summary(
       lines.map((l) => ({ ...l, scheduledValueCents: ctxById.get(l.sovLineId)!.scheduledValueCents, retainageBps: ctxById.get(l.sovLineId)!.retainageBps })),
       { originalContractSumCents: live.originalContractSumCents, previousCertificatesCents: live.previousCertificatesCents },
