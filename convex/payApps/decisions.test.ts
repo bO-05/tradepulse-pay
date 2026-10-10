@@ -432,6 +432,63 @@ describe("review runs are bound to the submitted version", () => {
 });
 
 describe("AI review of a G703 pay app", () => {
+  test("worked example: the rules review keeps lines 1, 2 and 4-8 as requested; the line 3 override reaches the exact figures; app 2 is plain Approved", async () => {
+    const s = await setup();
+    const dana = s.f.gcA.admin.as;
+    const kim = s.f.sub.admin.as;
+    const payAppId = await submit(s);
+    await s.t.action(internal.payApps.review.reviewPayApp, { payAppId });
+    const row = (await s.t.run(async (ctx) => ctx.db.get(payAppId)))!;
+    const requested = new Map(row.lines.map((l) => [l.sovLineId as string, l.requestedCents]));
+    const byLine = new Map(row.review!.lines.map((l) => [l.sovLineId as string, l]));
+    for (const i of [0, 1, 3, 4, 5, 6, 7]) {
+      expect(byLine.get(s.sov[i])!.verdict, `line ${i + 1}`).toBe("ok");
+      expect(byLine.get(s.sov[i])!.approvedCents, `line ${i + 1}`).toBe(requested.get(s.sov[i]) ?? 0);
+    }
+    const line3 = byLine.get(s.sov[2])!;
+    expect(line3.verdict).not.toBe("ok");
+    expect(line3.approvedCents).toBeLessThan(1_400_000);
+
+    const res = await dana.mutation(api.payApps.decisions.decidePayApp, { payAppId, decision: "approve", lines: overrideLine3(s, OVERRIDE_REASON) });
+    expect(res).toMatchObject({ status: "approved_as_noted", approvedTotalCents: 4_341_260, currentPaymentDueCents: 4_124_196 });
+    const approved = (await s.t.run(async (ctx) => ctx.db.get(payAppId)))!;
+    expect(approved.g703!.approved).toMatchObject({ completedAndStoredCents: 4_341_260, retainageCents: 217_064, currentPaymentDueCents: 4_124_196 });
+
+    const line9 = await s.t.run(async (ctx) =>
+      ctx.db.insert("scheduleOfValues", {
+        agreementId: s.agreementId,
+        lineNo: 9,
+        description: "CO #1 – Add 6 dedicated 20A circuits for dental chairs",
+        scheduledValueCents: 875_000,
+        excludedScope: false,
+      }),
+    );
+    const { payAppId: app2 } = await kim.mutation(api.payApps.g703.startPayApp, { agreementId: s.agreementId });
+    await kim.mutation(api.payApps.g703.submitPayApp, {
+      payAppId: app2,
+      lines: [
+        entry(s.sov[1], 159_990),
+        entry(s.sov[2], 945_000),
+        entry(s.sov[3], 1_910_000),
+        entry(s.sov[4], 1_500_000, 600_000),
+        entry(s.sov[5], 0, 950_000, "Fixtures stored in the tenant space"),
+        entry(line9, 437_500),
+      ],
+    });
+    await s.t.action(internal.payApps.review.reviewPayApp, { payAppId: app2 });
+    const row2 = (await s.t.run(async (ctx) => ctx.db.get(app2)))!;
+    const requested2 = new Map(row2.lines.map((l) => [l.sovLineId as string, l.requestedCents]));
+    for (const l of row2.review!.lines) {
+      expect(l.verdict, l.sovLineId).toBe("ok");
+      expect(l.approvedCents, l.sovLineId).toBe(requested2.get(l.sovLineId) ?? 0);
+    }
+    expect(row2.review!.approvedTotalCents).toBe(4_702_490);
+    expect(await dana.mutation(api.payApps.decisions.decidePayApp, { payAppId: app2, decision: "approve" })).toMatchObject({
+      status: "approved",
+      currentPaymentDueCents: 4_467_366,
+    });
+  });
+
   test("offline review gives every line a verdict, computes dollars from the percent, and sees excluded-scope notes", async () => {
     const s = await setup();
     const payAppId = await submit(s, [
@@ -451,7 +508,9 @@ describe("AI review of a G703 pay app", () => {
       const expected =
         l.verdict === "excluded_scope"
           ? 0
-          : approvedCentsFor({
+          : l.verdict === "ok"
+            ? requested
+            : approvedCentsFor({
               scheduledValueCents: s0.scheduledValueCents,
               recommendedPctToDate: l.recommendedPctToDate,
               previouslyBilledCents: 0,

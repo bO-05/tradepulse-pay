@@ -18,7 +18,11 @@ export type FixtureScore = {
   checks: string[];
 };
 
-/** Score = share of lines with the expected verdict; a fixture passes when every line matches and every zero-approval holds. */
+/**
+ * Score = share of lines where the model's own verdict (before the code rules replace a
+ * disagreeing one) is the expected verdict; a fixture passes when every line matches and every
+ * zero-approval holds.
+ */
 export function scoreFixture(fixture: PayAppReviewFixture, run: ReviewRun): FixtureScore {
   const byId = new Map(run.review.lines.map((l) => [l.sovLineId, l]));
   const checks: string[] = [];
@@ -26,9 +30,10 @@ export function scoreFixture(fixture: PayAppReviewFixture, run: ReviewRun): Fixt
   let matched = 0;
   for (const id of expectedIds) {
     const got = byId.get(id);
-    const ok = got?.verdict === fixture.expected[id];
+    const verdict = got ? (got.modelVerdict ?? got.verdict) : undefined;
+    const ok = verdict === fixture.expected[id];
     if (ok) matched++;
-    checks.push(`${id}: expected ${fixture.expected[id]}, got ${got?.verdict ?? "none"}${ok ? "" : " (miss)"}`);
+    checks.push(`${id}: expected ${fixture.expected[id]}, got ${verdict ?? "none"}${ok ? "" : " (miss)"}`);
   }
   let zeroOk = true;
   for (const id of fixture.expectZeroApproved) {

@@ -90,6 +90,13 @@ export function buildReviewContext(input: {
         sovLineIds: m.sovLineIds,
       })),
       prior,
+      ...(payApp.g703
+        ? {
+            workInPlaceToDateCents: new Map(
+              payApp.g703.lines.map((l) => [l.sovLineId as string, l.previousWorkCents + l.workThisPeriodCents]),
+            ),
+          }
+        : {}),
       lines: payApp.lines.map((l) => ({ ...l, note: g703Notes.get(l.sovLineId) ?? null })),
     }),
     unbilledLines: unbilledLines.sort((a, b) => a.lineNo - b.lineNo),

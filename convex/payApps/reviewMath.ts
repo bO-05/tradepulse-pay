@@ -27,6 +27,14 @@ const ACTIVE_TRANCHE_CREDIT = 0.5;
 const FRONT_LOAD_MIN_GAP = 0.15;
 const FRONT_LOAD_MIN_RATIO = 2;
 
+/**
+ * Work normally billed at the start of a job (mobilization, general conditions, temporary
+ * facilities, bonds, insurance, permits): billing it ahead of the rest of the job is expected,
+ * so these lines are never judged front-loaded.
+ */
+const EARLY_PHASE_WORK =
+  /\b(?:(?:de)?mobili[sz]ation|general (?:conditions|requirements)|temporary|temp\.?\s+(?:power|lighting|facilities|utilities)|bonds?|insurance|permits?)\b/i;
+
 const CLOSEOUT_WORK = /\b(close-?out|commissioning|testing|o&m|operation(?:s)? (?:and|&) maintenance|as-?builts?|punch(?:\s?list)?|training|start-?up)\b/i;
 
 export type ReviewMilestone = {
@@ -53,13 +61,18 @@ export type ReviewLine = {
   /** Fractions 0-1 as submitted on this pay app. */
   claimedPctThisPeriod: number;
   claimedPctToDate: number;
+  /**
+   * Fraction 0-1: work in place to date (G703 columns D + E) over scheduled value, leaving stored
+   * materials (F) out. Equals claimedPctToDate when the pay app carries no G703 detail.
+   */
+  claimedWorkInPlacePctToDate: number;
   requestedCents: number;
   /**
    * Fraction 0-1: the most progress the statuses of the funding tranches that list this line support.
    * Null when no tranche lists the line: tranche status then says nothing about it (only the 100% cap applies).
    */
   trancheCeilingPctToDate: number | null;
-  /** Fraction 0-1: scheduled-value-weighted progress of the agreement's other base-scope lines. */
+  /** Fraction 0-1: scheduled-value-weighted work in place (D + E) of the agreement's other base-scope lines. */
   otherLinesProgressPct: number;
   /** True when this is closeout-phase work and, of the tranches that list this line, an earlier one is not complete. */
   closeoutWorkBeforeEarlierTranches: boolean;
@@ -115,6 +128,8 @@ export type FinalReviewLine = {
   recommendedPctToDate: number;
   approvedCents: number;
   reason: string;
+  /** The model's own verdict, present only when the code rules replaced it. */
+  modelVerdict?: LineVerdict;
 };
 
 export type FinalReview = {
@@ -162,11 +177,18 @@ export function approvedCentsFor(input: {
   previouslyBilledCents: number;
   pendingRequestedCents?: number;
   requestedCents: number;
+  /** Extra cents allowed for a line approved as claimed: the error of storing its percent to basis points. */
+  roundingToleranceCents?: number;
 }): number {
   const bps = BigInt(toBasisPoints(input.recommendedPctToDate));
   const earned = Number((BigInt(input.scheduledValueCents) * bps + 5_000n) / 10_000n);
-  const due = earned - input.previouslyBilledCents - (input.pendingRequestedCents ?? 0);
+  const due = earned - input.previouslyBilledCents - (input.pendingRequestedCents ?? 0) + (input.roundingToleranceCents ?? 0);
   return Math.min(Math.max(due, 0), Math.max(0, input.requestedCents));
+}
+
+/** Half a basis point of the scheduled value, rounded up: how far a basis-point percent can be off in cents. */
+export function basisPointToleranceCents(scheduledValueCents: number): number {
+  return Math.ceil(Math.abs(scheduledValueCents) / 20_000);
 }
 
 function tranchesCovering(sovLineId: string, tranches: readonly ReviewMilestone[]): ReviewMilestone[] {
@@ -192,6 +214,10 @@ export function trancheCeilingFor(sovLineId: string, tranches: readonly ReviewMi
 /** The ceiling a claim is checked against: the tranche ceiling, or 100% when no tranche lists the line. */
 export function effectiveCeiling(line: Pick<ReviewLine, "trancheCeilingPctToDate">): number {
   return line.trancheCeilingPctToDate ?? 1;
+}
+
+export function isEarlyPhaseWork(description: string): boolean {
+  return EARLY_PHASE_WORK.test(description);
 }
 
 export function isCloseoutWork(description: string): boolean {
@@ -226,6 +252,8 @@ export function buildReviewLines(input: {
   sov: readonly SovRowInput[];
   milestones: readonly ReviewMilestone[];
   prior: ReadonlyMap<string, ReviewPrior>;
+  /** Work in place to date in cents (G703 D + E, no stored materials) by SOV line, when the pay app has G703 detail. */
+  workInPlaceToDateCents?: ReadonlyMap<string, number>;
   lines: readonly {
     sovLineId: string;
     pctCompleteThisPeriod: number;
@@ -236,7 +264,9 @@ export function buildReviewLines(input: {
 }): ReviewLine[] {
   const byId = new Map(input.sov.map((s) => [s._id, s]));
   const submitted = new Map(input.lines.map((l) => [l.sovLineId, l]));
-  const progressOf = (s: SovRowInput) => {
+  const workInPlaceOf = (s: SovRowInput) => {
+    const wip = input.workInPlaceToDateCents?.get(s._id);
+    if (wip !== undefined && s.scheduledValueCents > 0) return clamp01(wip / s.scheduledValueCents);
     const line = submitted.get(s._id);
     if (line) return clamp01(line.pctCompleteToDate / 100);
     return clamp01((input.prior.get(s._id)?.previousPctToDate ?? 0) / 100);
@@ -249,7 +279,7 @@ export function buildReviewLines(input: {
     const others = input.sov.filter((s) => s._id !== sov._id && !s.excludedScope && s.scheduledValueCents > 0);
     const otherValue = others.reduce((a, s) => a + s.scheduledValueCents, 0);
     const otherProgress =
-      otherValue > 0 ? others.reduce((a, s) => a + s.scheduledValueCents * progressOf(s), 0) / otherValue : 0;
+      otherValue > 0 ? others.reduce((a, s) => a + s.scheduledValueCents * workInPlaceOf(s), 0) / otherValue : 0;
     const prior = input.prior.get(sov._id) ?? NO_PRIOR;
     out.push({
       sovLineId: sov._id,
@@ -262,6 +292,7 @@ export function buildReviewLines(input: {
       pendingRequestedCents: prior.pendingRequestedCents,
       claimedPctThisPeriod: normalizePct(line.pctCompleteThisPeriod / 100),
       claimedPctToDate: normalizePct(line.pctCompleteToDate / 100),
+      claimedWorkInPlacePctToDate: Math.min(normalizePct(line.pctCompleteToDate / 100), normalizePct(workInPlaceOf(sov))),
       requestedCents: line.requestedCents,
       trancheCeilingPctToDate: sov.excludedScope ? 0 : trancheCeilingFor(sov._id, input.milestones),
       otherLinesProgressPct: normalizePct(otherProgress),
@@ -275,14 +306,25 @@ export function buildReviewLines(input: {
 
 const pct = (f: number) => `${(Math.round(f * 1000) / 10).toString()}%`;
 
+/**
+ * Front-loading compares work in place (D + E) with the rest of the job's work in place: stored
+ * materials are paid for delivery, not progress. Early-phase lines are exempt.
+ */
 export function isFrontLoaded(line: ReviewLine): boolean {
   const other = line.otherLinesProgressPct;
+  const wip = line.claimedWorkInPlacePctToDate;
   return (
+    !isEarlyPhaseWork(line.description) &&
     other > 0 &&
     line.claimedPctToDate <= effectiveCeiling(line) + 1e-9 &&
-    line.claimedPctToDate >= other * FRONT_LOAD_MIN_RATIO &&
-    line.claimedPctToDate - other >= FRONT_LOAD_MIN_GAP
+    wip >= other * FRONT_LOAD_MIN_RATIO &&
+    wip - other >= FRONT_LOAD_MIN_GAP
   );
+}
+
+/** Stored materials on the line (F), as a fraction of its scheduled value. */
+function storedPctOf(line: ReviewLine): number {
+  return Math.max(0, line.claimedPctToDate - line.claimedWorkInPlacePctToDate);
 }
 
 /** Status of the latest completed check; unknown values are treated as unverified. */
@@ -356,12 +398,13 @@ export function rulesEngineJudgement(context: ReviewContext): ReviewJudgement {
       };
     }
     if (isFrontLoaded(line)) {
-      const recommended = Math.max(line.previousPctToDate, line.otherLinesProgressPct);
+      // Work in place is cut to the job-wide pace; stored materials on the line stay billable.
+      const recommended = Math.max(line.previousPctToDate, line.otherLinesProgressPct + storedPctOf(line));
       return {
         sovLineId: line.sovLineId,
         verdict: "front_loaded" as const,
-        recommendedPctToDate: Math.min(recommended, line.claimedPctToDate),
-        reason: `Line ${line.lineNo} claims ${pct(line.claimedPctToDate)} while the rest of the job is at ${pct(line.otherLinesProgressPct)}; reduced to the job-wide progress.`,
+        recommendedPctToDate: normalizePct(Math.min(recommended, line.claimedPctToDate)),
+        reason: `Line ${line.lineNo} claims ${pct(line.claimedWorkInPlacePctToDate)} work in place while the rest of the job is at ${pct(line.otherLinesProgressPct)}; work in place reduced to the job-wide progress.`,
       };
     }
     return {
@@ -412,12 +455,22 @@ export class IncompleteJudgementError extends Error {
   override name = "IncompleteJudgementError";
 }
 
+const VERDICT_TEXT: Record<LineVerdict, string> = {
+  ok: "OK",
+  overbilled: "Overbilled",
+  excluded_scope: "Excluded scope",
+  front_loaded: "Front-loaded",
+  out_of_sequence: "Out of sequence",
+};
+
 /**
  * Applies code policy to a judgement and computes every dollar figure.
- * Requires exactly one verdict per submitted line. Excluded-scope SOV lines are
- * always "excluded_scope" with 0 approved; an "overbilled" recommendation never
- * exceeds the tranche ceiling of a covered line; no recommendation exceeds what was claimed.
- * The lien-waiver and license flags are decided by code, never by the model:
+ * Requires exactly one entry per submitted line. The verdict and recommended percent of every
+ * line come from the deterministic rules (rulesEngineJudgement); the model supplies only the
+ * explanation. When the model's verdict differs from the rules, the rules verdict is kept, the
+ * reason says so and the line records `modelVerdict`. A line approved as claimed is approved at
+ * the requested cents (within the basis-point rounding of the stored percent), so rounding the
+ * percent never trims an honest request. The lien-waiver and license flags are decided by code:
  * the license flag is set unless the latest completed check is active.
  */
 export function finalizeReview(context: ReviewContext, judgement: ReviewJudgement): FinalReview {
@@ -429,16 +482,20 @@ export function finalizeReview(context: ReviewContext, judgement: ReviewJudgemen
   if (missing.length > 0) {
     throw new IncompleteJudgementError(`No verdict for line(s) ${missing.map((l) => l.lineNo).join(", ")}.`);
   }
+  const rules = new Map(rulesEngineJudgement(context).lines.map((l) => [l.sovLineId, l]));
+  const replaced: number[] = [];
   const lines: FinalReviewLine[] = context.lines.map((line) => {
     if (isCreditLine(line)) return creditReviewLine(line);
     const j = verdicts.get(line.sovLineId)!;
-    let verdict: LineVerdict = (LINE_VERDICTS as readonly string[]).includes(j.verdict) ? j.verdict : "ok";
-    let reason = j.reason.trim() || "No reason given.";
-    if (line.excludedScope && verdict !== "excluded_scope") {
-      verdict = "excluded_scope";
-      reason = `Excluded scope per the leveled bid. ${reason}`;
-    }
-    let recommended = normalizePct(j.recommendedPctToDate);
+    const rule = rules.get(line.sovLineId)!;
+    const verdict = rule.verdict;
+    const modelVerdict = (LINE_VERDICTS as readonly string[]).includes(j.verdict) ? j.verdict : null;
+    const agrees = modelVerdict === verdict;
+    const reason = agrees
+      ? j.reason.trim() || rule.reason
+      : `${rule.reason} The model's verdict (${modelVerdict ? VERDICT_TEXT[modelVerdict] : "none"}) was replaced by the code rules.`;
+    if (!agrees) replaced.push(line.lineNo);
+    let recommended = normalizePct(rule.recommendedPctToDate);
     // Excluded work earns nothing: an excluded SOV line stays at 0%, any other line at its previous percent.
     if (verdict === "excluded_scope") recommended = line.excludedScope ? 0 : line.previousPctToDate;
     if (verdict === "overbilled") recommended = Math.min(recommended, effectiveCeiling(line));
@@ -446,6 +503,7 @@ export function finalizeReview(context: ReviewContext, judgement: ReviewJudgemen
     // Work certified on earlier applications stays earned, so the percent to date never drops below it.
     if (!line.excludedScope) recommended = Math.max(recommended, line.previousPctToDate);
     recommended = normalizePct(recommended);
+    const asClaimed = verdict === "ok" && recommended >= line.claimedPctToDate;
     const approvedCents =
       verdict === "excluded_scope"
         ? 0
@@ -455,8 +513,16 @@ export function finalizeReview(context: ReviewContext, judgement: ReviewJudgemen
             previouslyBilledCents: line.previouslyBilledCents,
             pendingRequestedCents: line.pendingRequestedCents,
             requestedCents: line.requestedCents,
+            ...(asClaimed ? { roundingToleranceCents: basisPointToleranceCents(line.scheduledValueCents) } : {}),
           });
-    return { sovLineId: line.sovLineId, verdict, recommendedPctToDate: recommended, approvedCents, reason };
+    return {
+      sovLineId: line.sovLineId,
+      verdict,
+      recommendedPctToDate: recommended,
+      approvedCents,
+      reason,
+      ...(!agrees && modelVerdict ? { modelVerdict } : {}),
+    };
   });
   const lineNo = new Map<string, number>(context.lines.map((l) => [l.sovLineId, l.lineNo]));
   for (const u of context.unbilledLines ?? []) {
@@ -471,13 +537,21 @@ export function finalizeReview(context: ReviewContext, judgement: ReviewJudgemen
     });
   }
   lines.sort((a, b) => (lineNo.get(a.sovLineId) ?? 0) - (lineNo.get(b.sovLineId) ?? 0));
+  const notes = [
+    judgement.notes.trim(),
+    replaced.length > 0
+      ? `Code rules replaced the model's verdict on line${replaced.length === 1 ? "" : "s"} ${replaced.join(", ")}.`
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
   return {
     lines,
     flags: {
       lienWaiverMissing: !context.payApp.lienWaiver,
       licenseIssue: licenseHasIssue(context.license),
       licenseStatus: reviewLicenseStatus(context.license),
-      notes: judgement.notes.trim(),
+      notes,
     },
     approvedTotalCents: lines.reduce((a, l) => a + l.approvedCents, 0),
   };

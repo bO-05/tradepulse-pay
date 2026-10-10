@@ -11,6 +11,7 @@ import { workingOnBehalfOf } from "../lib/gcCompanyName";
 import {
   contextExcludedScopeClaims,
   finalizeReview,
+  isEarlyPhaseWork,
   LINE_VERDICTS,
   OFFLINE_RULES_ENGINE,
   rulesEngineJudgement,
@@ -45,15 +46,17 @@ ${REVIEW_INSTRUCTIONS}`;
 
 const REVIEW_INSTRUCTIONS = `You review construction subcontractor pay applications (AIA G702/G703 style) for the general contractor.
 For every submitted line return exactly one entry with the line's sovLineId, a verdict, a recommended cumulative percent complete to date as a FRACTION between 0 and 1, and a short reason that cites the numbers.
-Never output dollar amounts; code computes all money from your fractions.
+Never output dollar amounts. Code applies the rules below to decide each line's final verdict and recommended percent and computes all money; your reason is the explanation the general contractor reads. If your verdict differs from the rules, code keeps the rules verdict and records that yours was replaced, so apply the rules exactly as written.
 linesNotBilledThisPeriod are context only: return no entry for them.
 
 Verdicts, checked in this order:
 - "excluded_scope": the line has excludedScope true, or the sub's claimed work for this period, meaning the line's note (the sub's work-this-period or stored-material note) or the pay-app notes, describes work listed in agreement.excludedScopeNotes ("Excluded scope (not in contract)": scope the subcontractor excluded in its bid). Every line's description is a schedule-of-values line the GC approved, so it is contract scope by definition: never flag a line because its description resembles an exclusion note (for example a "Low-voltage & data" line next to an exclusion "Low-voltage cabling"), and a note that only restates the line's own description is not a claim of excluded work. matchesExcludedScopeNote is a keyword hint from code, not a verdict. Recommend the previous percent to date (0 for an excludedScope line): excluded work earns nothing.
 - "out_of_sequence": closeout-phase work (closeout, testing, commissioning, O&M manuals, as-builts, punch list, training, start-up) billed this period while closeoutWorkBeforeEarlierTranches is true (an earlier funding tranche that covers the line is not complete). Recommend the previous percent to date (no new progress).
 - "overbilled": trancheCeilingPctToDate is a number and the claimed percent to date exceeds it. trancheCeilingPctToDate is the most progress supported by the statuses of the funding tranches that list this line. Recommend at most trancheCeilingPctToDate.
-- "front_loaded": within the ceiling (100% when trancheCeilingPctToDate is null), but the claim is at least double otherLinesProgressPct (the progress of the rest of the job) and at least 15 percentage points above it, with otherLinesProgressPct above 0. Recommend about otherLinesProgressPct (never below the previous percent to date).
+- "front_loaded": earlyPhaseWork is false, the claim is within the ceiling (100% when trancheCeilingPctToDate is null), and claimedWorkInPlacePctToDate (work in place, G703 columns D + E, without stored materials) is at least double otherLinesProgressPct (the work in place of the rest of the job) and at least 15 percentage points above it, with otherLinesProgressPct above 0. Recommend otherLinesProgressPct plus the line's stored-materials share (claimedPctToDate minus claimedWorkInPlacePctToDate), never more than the claim and never below the previous percent to date.
 - "ok": none of the above. Recommend the claimed percent to date.
+
+Lines with earlyPhaseWork true (mobilization, general conditions, temporary power, lighting, facilities or utilities, bonds, insurance, permits) are normally billed ahead of the rest of the job: never flag them front_loaded. Stored materials (column F) are paid on delivery and are not progress: a line billing mostly stored materials is not front-loaded because of them.
 
 Funding tranches are GC-defined funding buckets, not work phases: a tranche's name, order or status says nothing about a line it does not list in coversLineNos. When trancheCeilingPctToDate is null, no tranche covers the line, so it has no tranche ceiling: never treat a planned or unfunded tranche (for example a "Mobilization" tranche) as evidence that the line is overbilled or out of sequence. Judge such a line on the other checks only.
 
@@ -103,15 +106,17 @@ export function buildReviewPrompt(context: ReviewContext): string {
       pendingEarlierRequests: formatCents(l.pendingRequestedCents),
       claimedPctThisPeriod: l.claimedPctThisPeriod,
       claimedPctToDate: l.claimedPctToDate,
+      claimedWorkInPlacePctToDate: l.claimedWorkInPlacePctToDate,
+      earlyPhaseWork: isEarlyPhaseWork(l.description),
       requested: formatCents(l.requestedCents),
       trancheCeilingPctToDate: l.trancheCeilingPctToDate,
       otherLinesProgressPct: l.otherLinesProgressPct,
       closeoutWorkBeforeEarlierTranches: l.closeoutWorkBeforeEarlierTranches,
-      summary: `claims ${pctLabel(l.claimedPctToDate)} to date; ${
+      summary: `claims ${pctLabel(l.claimedPctToDate)} to date (${pctLabel(l.claimedWorkInPlacePctToDate)} work in place); ${
         l.trancheCeilingPctToDate === null
           ? "no funding tranche covers this line (no tranche ceiling)"
           : `covering funding tranches support ${pctLabel(l.trancheCeilingPctToDate)}`
-      }; rest of job at ${pctLabel(l.otherLinesProgressPct)}`,
+      }; rest of job at ${pctLabel(l.otherLinesProgressPct)} work in place`,
     })),
     linesNotBilledThisPeriod: (context.unbilledLines ?? []).map((l) => ({ lineNo: l.lineNo, previousPctToDate: l.previousPctToDate })),
   };

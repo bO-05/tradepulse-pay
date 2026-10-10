@@ -132,7 +132,7 @@ describe("pay-app review on submit", () => {
     expect(row.review!.lines.find((l) => l.sovLineId === s.excludedLineId)).toMatchObject({ verdict: "excluded_scope", approvedCents: 0 });
   });
 
-  test("Anthropic structured output drives the verdicts; code computes the cents and stores provenance", async () => {
+  test("Anthropic structured output explains the lines; code decides verdicts and cents and stores provenance", async () => {
     vi.stubEnv("ANTHROPIC_API_KEY", "test-key-not-real");
     vi.stubEnv("ANTHROPIC_MODEL", "claude-sonnet-5-5");
     const s = await setup();
@@ -143,13 +143,13 @@ describe("pay-app review on submit", () => {
       return {
         output: {
           lines: [
-            { sovLineId: a._id, verdict: "ok", recommendedPctToDate: 0.2, reason: "Within ceiling." },
+            { sovLineId: a._id, verdict: "front_loaded", recommendedPctToDate: 0.1, reason: "Ahead of the job." },
             { sovLineId: b._id, verdict: "overbilled", recommendedPctToDate: 0.28, reason: "60% claimed vs 30% supported." },
             { sovLineId: s.excludedLineId, verdict: "excluded_scope", recommendedPctToDate: 0, reason: "Seismic bracing excluded." },
           ],
           lienWaiverMissing: true,
           licenseIssue: false,
-          notes: "Two lines flagged.",
+          notes: "Three lines flagged.",
         },
         usage: { inputTokens: 1200, outputTokens: 300 },
         response: { modelId: "claude-sonnet-5-5" },
@@ -158,9 +158,17 @@ describe("pay-app review on submit", () => {
     const { row, traces } = await submitAndReview(s);
     expect(generateTextMock).toHaveBeenCalledTimes(1);
     expect(row.review).toMatchObject({ provider: "Anthropic", model: "claude-sonnet-5-5", engine: "Anthropic claude-sonnet-5-5" });
+    // The model's percent does not set money: the rules hold line 2 at the 30% tranche ceiling.
     const line = row.review!.lines.find((l) => l.sovLineId === b._id)!;
-    expect(line).toMatchObject({ verdict: "overbilled", recommendedPctToDate: 0.28 });
-    expect(line.approvedCents).toBe(Math.round(b.scheduledValueCents * 0.28));
+    expect(line).toMatchObject({ verdict: "overbilled", recommendedPctToDate: 0.3, reason: "60% claimed vs 30% supported." });
+    expect(line).not.toHaveProperty("modelVerdict");
+    expect(line.approvedCents).toBe(Math.round(b.scheduledValueCents * 0.3));
+    // A model verdict that disagrees with the rules is replaced, and the stored review says so.
+    const lineA = row.review!.lines.find((l) => l.sovLineId === a._id)!;
+    const requestedA = row.lines.find((l) => l.sovLineId === a._id)!.requestedCents;
+    expect(lineA).toMatchObject({ verdict: "ok", modelVerdict: "front_loaded", approvedCents: requestedA });
+    expect(lineA.reason).toContain("The model's verdict (Front-loaded) was replaced by the code rules.");
+    expect(row.review!.flags.notes).toBe("Three lines flagged. Code rules replaced the model's verdict on line 1.");
     expect(traces[0]).toMatchObject({ provider: "Anthropic", model: "claude-sonnet-5-5", inputTokens: 1200, outputTokens: 300 });
     expect(JSON.stringify(traces[0])).not.toContain("test-key-not-real");
   });

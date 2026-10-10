@@ -254,6 +254,8 @@ export const payAppReviewValidator = v.object({
       recommendedPctToDate: v.number(),
       approvedCents: v.number(),
       reason: v.string(),
+      /** The model's verdict, stored only when the code rules replaced it. */
+      modelVerdict: v.optional(lineVerdictValidator),
     }),
   ),
   flags: v.object({

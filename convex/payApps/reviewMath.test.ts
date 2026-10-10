@@ -4,6 +4,8 @@ import {
   buildReviewLines,
   finalizeReview,
   IncompleteJudgementError,
+  isEarlyPhaseWork,
+  isFrontLoaded,
   rulesEngineJudgement,
   trancheCeilingFor,
   type ReviewJudgement,
@@ -11,6 +13,7 @@ import {
 } from "./reviewMath";
 import { PAY_APP_REVIEW_FIXTURES } from "./reviewEvalFixtures";
 import { buildReviewPrompt } from "./reviewModel";
+import { percentHundredths } from "./g703Math";
 
 const fixture = (id: string) => PAY_APP_REVIEW_FIXTURES.find((f) => f.fixtureId === id)!;
 
@@ -285,13 +288,22 @@ describe("finalizeReview applies code policy to model output", () => {
     expect(line).toMatchObject({ verdict: "excluded_scope", approvedCents: 0, recommendedPctToDate: 0 });
   });
 
-  test("a model verdict of excluded_scope on a base line approves 0 and keeps the previous percent", () => {
-    const review = finalizeReview(f.context, base({ "fx-sov-1": { verdict: "excluded_scope", recommendedPctToDate: 0.25 } }));
-    expect(review.lines.find((l) => l.sovLineId === "fx-sov-1")).toMatchObject({
-      verdict: "excluded_scope",
-      approvedCents: 0,
-      recommendedPctToDate: 0.1,
-    });
+  test("a model verdict the rules do not support is replaced by the rules verdict and recorded", () => {
+    const review = finalizeReview(f.context, base({ "fx-sov-1": { verdict: "excluded_scope", recommendedPctToDate: 0.05 } }));
+    const ctx = f.context.lines.find((l) => l.sovLineId === "fx-sov-1")!;
+    const line = review.lines.find((l) => l.sovLineId === "fx-sov-1")!;
+    expect(line).toMatchObject({ verdict: "ok", modelVerdict: "excluded_scope", recommendedPctToDate: 0.25, approvedCents: ctx.requestedCents });
+    expect(line.reason).toContain("The model's verdict (Excluded scope) was replaced by the code rules.");
+    expect(review.flags.notes).toBe("note Code rules replaced the model's verdict on lines 1, 3.");
+  });
+
+  test("the rules verdict holds when the model calls an excluded-scope claim ok; its percent never sets money", () => {
+    const review = finalizeReview(f.context, base({ "fx-sov-2": { recommendedPctToDate: 0.05, reason: "Feeders pulled." } }));
+    const excluded = review.lines.find((l) => l.sovLineId === "fx-sov-3")!;
+    expect(excluded).toMatchObject({ verdict: "excluded_scope", modelVerdict: "ok", approvedCents: 0 });
+    const agreed = review.lines.find((l) => l.sovLineId === "fx-sov-2")!;
+    expect(agreed).toMatchObject({ verdict: "ok", recommendedPctToDate: 0.22, reason: "Feeders pulled." });
+    expect(agreed).not.toHaveProperty("modelVerdict");
   });
 
   test("lines with nothing billed get a code-recorded OK verdict at their previous percent and $0", () => {
@@ -369,12 +381,201 @@ describe("finalizeReview applies code policy to model output", () => {
   });
 
   test("recommended fractions are stored to basis points and reproduce approved cents", () => {
-    const review = finalizeReview(f.context, base({ "fx-sov-1": { recommendedPctToDate: 0.2345678 } }));
-    const line = review.lines.find((l) => l.sovLineId === "fx-sov-1")!;
-    const ctx = f.context.lines.find((l) => l.sovLineId === "fx-sov-1")!;
-    expect(line.recommendedPctToDate).toBe(0.2346);
+    const fl = fixture("payapp_front_loaded");
+    const review = finalizeReview(fl.context, rulesEngineJudgement(fl.context));
+    const line = review.lines.find((l) => l.sovLineId === "fx-sov-3")!;
+    const ctx = fl.context.lines.find((l) => l.sovLineId === "fx-sov-3")!;
+    expect(line.verdict).toBe("front_loaded");
+    expect(Number.isInteger(line.recommendedPctToDate * 10_000)).toBe(true);
+    expect(line.recommendedPctToDate).toBe(ctx.otherLinesProgressPct);
     expect(line.approvedCents).toBe(
       Math.min(Math.max(Math.round(ctx.scheduledValueCents * line.recommendedPctToDate) - ctx.previouslyBilledCents, 0), ctx.requestedCents),
     );
+  });
+});
+
+describe("front-loading judges work in place and exempts early-phase lines", () => {
+  test("early-phase descriptions are recognized; ordinary work is not", () => {
+    for (const d of [
+      "Mobilization & general conditions",
+      "Temporary power & lighting",
+      "Temp facilities",
+      "Temporary utilities",
+      "Payment & performance bonds",
+      "Builder's risk insurance",
+      "Permits & fees",
+      "General requirements",
+      "Demobilization",
+    ]) {
+      expect(isEarlyPhaseWork(d), d).toBe(true);
+    }
+    for (const d of ["Underground & slab conduit rough-in", "Grounding & bonding system", "Switchboard & panelboards", "Testing, closeout & as-builts"]) {
+      expect(isEarlyPhaseWork(d), d).toBe(false);
+    }
+  });
+
+  const sov = [
+    { _id: "a", lineNo: 1, description: "Mobilization & general conditions", excludedScope: false, scheduledValueCents: 1_000_000 },
+    { _id: "b", lineNo: 2, description: "Switchboard & panelboards", excludedScope: false, scheduledValueCents: 1_000_000 },
+    { _id: "c", lineNo: 3, description: "Branch wiring rough-in", excludedScope: false, scheduledValueCents: 8_000_000 },
+  ];
+  const lines = (opts: { stored: boolean }) =>
+    buildReviewLines({
+      sov,
+      milestones: [],
+      prior: new Map(),
+      workInPlaceToDateCents: new Map([
+        ["a", 1_000_000],
+        ["b", opts.stored ? 50_000 : 500_000],
+        ["c", 800_000],
+      ]),
+      lines: [
+        { sovLineId: "a", pctCompleteThisPeriod: 100, pctCompleteToDate: 100, requestedCents: 1_000_000 },
+        { sovLineId: "b", pctCompleteThisPeriod: 50, pctCompleteToDate: 50, requestedCents: 500_000 },
+        { sovLineId: "c", pctCompleteThisPeriod: 10, pctCompleteToDate: 10, requestedCents: 800_000 },
+      ],
+    });
+
+  test("a mobilization line at 100% is not front-loaded", () => {
+    const [a] = lines({ stored: false });
+    expect(a.claimedWorkInPlacePctToDate).toBe(1);
+    expect(isFrontLoaded(a)).toBe(false);
+  });
+
+  test("stored materials do not count as progress: a line that is mostly stored gear is not front-loaded", () => {
+    const stored = lines({ stored: true })[1];
+    expect(stored).toMatchObject({ claimedPctToDate: 0.5, claimedWorkInPlacePctToDate: 0.05 });
+    expect(isFrontLoaded(stored)).toBe(false);
+    const installed = lines({ stored: false })[1];
+    expect(installed.claimedWorkInPlacePctToDate).toBe(0.5);
+    expect(isFrontLoaded(installed)).toBe(true);
+  });
+
+  test("other lines' progress counts their work in place only", () => {
+    // Line 3's peers: a at 100% and b at 5% work in place (b's stored gear left out).
+    expect(lines({ stored: true })[2].otherLinesProgressPct).toBe(0.525);
+  });
+
+  test("a front-loaded line keeps its stored materials and is cut only on work in place", () => {
+    const l = buildReviewLines({
+      sov,
+      milestones: [],
+      prior: new Map(),
+      workInPlaceToDateCents: new Map([
+        ["a", 0],
+        ["b", 600_000],
+        ["c", 800_000],
+      ]),
+      lines: [{ sovLineId: "b", pctCompleteThisPeriod: 80, pctCompleteToDate: 80, requestedCents: 800_000 }],
+    });
+    // Peers' work in place: 800,000 of 9,000,000 = 8.89%; stored on line 2 = 20%.
+    const j = rulesEngineJudgement({ ...fixture("payapp_honest").context, tranches: [], lines: l });
+    expect(j.lines[0]).toMatchObject({ verdict: "front_loaded", recommendedPctToDate: 0.2889 });
+  });
+});
+
+/**
+ * The Billing worked example (Eastbay Electric, $172,400.00 SOV, no funding tranche lists a line).
+ * Lines, previous and work-in-place figures are as the G703 submission stores them.
+ */
+describe("Billing worked example", () => {
+  const WE_SOV = [
+    { _id: "l1", lineNo: 1, description: "Mobilization & general conditions", excludedScope: false, scheduledValueCents: 800_000 },
+    { _id: "l2", lineNo: 2, description: "Temporary power & lighting", excludedScope: false, scheduledValueCents: 640_000 },
+    { _id: "l3", lineNo: 3, description: "Underground & slab conduit rough-in", excludedScope: false, scheduledValueCents: 3_150_000 },
+    { _id: "l4", lineNo: 4, description: "Branch wiring rough-in", excludedScope: false, scheduledValueCents: 3_820_000 },
+    { _id: "l5", lineNo: 5, description: "Switchboard & panelboards", excludedScope: false, scheduledValueCents: 4_200_000 },
+    { _id: "l6", lineNo: 6, description: "Lighting fixtures & controls", excludedScope: false, scheduledValueCents: 2_860_000 },
+    { _id: "l7", lineNo: 7, description: "Devices & trim-out", excludedScope: false, scheduledValueCents: 1_270_000 },
+    { _id: "l8", lineNo: 8, description: "Testing, closeout & as-builts", excludedScope: false, scheduledValueCents: 500_000 },
+  ];
+  const WE_TRANCHES: ReviewMilestone[] = [
+    { milestoneId: "t1", name: "Rough-in", order: 1, status: "funded", amountCents: 6_000_000, sovLineIds: [] },
+    { milestoneId: "t2", name: "Gear & fixtures", order: 2, status: "planned", amountCents: 7_000_000, sovLineIds: [] },
+    { milestoneId: "t3", name: "Trim & closeout", order: 3, status: "planned", amountCents: 4_240_000, sovLineIds: [] },
+  ];
+  const pctHundredths = (part: number, whole: number) => (percentHundredths(part, whole) ?? 0) / 100;
+  const contextFor = (input: {
+    sov: typeof WE_SOV;
+    prior: Map<string, { previouslyBilledCents: number; previousPctToDate: number; pendingRequestedCents: number }>;
+    entries: { id: string; d: number; e: number; f: number; prevStored: number }[];
+  }) => {
+    const byId = new Map(input.sov.map((s) => [s._id, s]));
+    const billed = input.entries.filter((x) => x.e + x.f - x.prevStored !== 0);
+    const submitted = billed.map((x) => {
+      const c = byId.get(x.id)!.scheduledValueCents;
+      const inc = x.e + x.f - x.prevStored;
+      return { sovLineId: x.id, pctCompleteThisPeriod: pctHundredths(inc, c), pctCompleteToDate: pctHundredths(x.d + x.e + x.f, c), requestedCents: inc };
+    });
+    const base = fixture("payapp_honest").context;
+    return {
+      ...base,
+      agreement: { ...base.agreement, excludedScopeNotes: [] },
+      tranches: WE_TRANCHES.map((m) => ({ ...m, coversLineNos: [] })),
+      payApp: { ...base.payApp, notes: "", requestedTotalCents: submitted.reduce((a, l) => a + l.requestedCents, 0) },
+      lines: buildReviewLines({
+        sov: input.sov,
+        milestones: WE_TRANCHES,
+        prior: input.prior,
+        workInPlaceToDateCents: new Map(input.entries.map((x) => [x.id, x.d + x.e])),
+        lines: submitted,
+      }),
+      unbilledLines: input.entries
+        .filter((x) => !billed.includes(x))
+        .map((x) => ({ sovLineId: x.id, lineNo: byId.get(x.id)!.lineNo, previousPctToDate: (input.prior.get(x.id)?.previousPctToDate ?? 0) / 100 })),
+    };
+  };
+
+  test("pay app 1: lines 1, 2 and 4-8 are OK at their requested amounts; line 3 is flagged below its claim", () => {
+    const entries = WE_SOV.map((s) => ({ id: s._id, d: 0, e: 0, f: 0, prevStored: 0 }));
+    entries[0].e = 800_000;
+    entries[1].e = 480_010;
+    entries[2].e = 1_400_000;
+    entries[4].f = 1_800_000;
+    const context = contextFor({ sov: WE_SOV, prior: new Map(), entries });
+    const review = finalizeReview(context, rulesEngineJudgement(context));
+    const requested = new Map(context.lines.map((l) => [l.sovLineId, l.requestedCents]));
+    for (const id of ["l1", "l2", "l4", "l5", "l6", "l7", "l8"]) {
+      const line = review.lines.find((l) => l.sovLineId === id)!;
+      expect(line.verdict, id).toBe("ok");
+      expect(line.approvedCents, id).toBe(requested.get(id) ?? 0);
+    }
+    expect(review.lines.find((l) => l.sovLineId === "l2")!.approvedCents).toBe(480_010);
+    expect(review.lines.find((l) => l.sovLineId === "l5")!.approvedCents).toBe(1_800_000);
+    const line3 = review.lines.find((l) => l.sovLineId === "l3")!;
+    expect(line3.verdict).toBe("front_loaded");
+    expect(line3.approvedCents).toBeLessThan(1_400_000);
+    // Accepting lines 1, 2, 4-8 and overriding line 3 to 12,612.50 gives the worked-example gross.
+    const accepted = review.lines.filter((l) => l.sovLineId !== "l3").reduce((a, l) => a + l.approvedCents, 0);
+    expect(accepted + 1_261_250).toBe(4_341_260);
+  });
+
+  test("pay app 2 version 2: every line is OK at its requested amount, $47,024.90 in total", () => {
+    const sov = [
+      ...WE_SOV,
+      { _id: "l9", lineNo: 9, description: "CO #1 – Add 6 dedicated 20A circuits for dental chairs", excludedScope: false, scheduledValueCents: 875_000 },
+    ];
+    const prior = new Map([
+      ["l1", { previouslyBilledCents: 800_000, previousPctToDate: 100, pendingRequestedCents: 0 }],
+      ["l2", { previouslyBilledCents: 480_010, previousPctToDate: 75, pendingRequestedCents: 0 }],
+      ["l3", { previouslyBilledCents: 1_261_250, previousPctToDate: 40.04, pendingRequestedCents: 0 }],
+      ["l5", { previouslyBilledCents: 1_800_000, previousPctToDate: 42.86, pendingRequestedCents: 0 }],
+    ]);
+    const entries = sov.map((s) => ({ id: s._id, d: 0, e: 0, f: 0, prevStored: 0 }));
+    const set = (i: number, v: Partial<(typeof entries)[number]>) => Object.assign(entries[i], v);
+    set(0, { d: 800_000 });
+    set(1, { d: 480_010, e: 159_990 });
+    set(2, { d: 1_261_250, e: 945_000 });
+    set(3, { e: 1_910_000 });
+    set(4, { e: 1_500_000, f: 600_000, prevStored: 1_800_000 });
+    set(5, { f: 950_000 });
+    set(8, { e: 437_500 });
+    const context = contextFor({ sov, prior, entries });
+    const review = finalizeReview(context, rulesEngineJudgement(context));
+    for (const l of review.lines) expect(l.verdict, l.sovLineId).toBe("ok");
+    const requested = new Map(context.lines.map((l) => [l.sovLineId, l.requestedCents]));
+    for (const l of review.lines) expect(l.approvedCents, l.sovLineId).toBe(requested.get(l.sovLineId) ?? 0);
+    expect(review.lines.find((l) => l.sovLineId === "l2")).toMatchObject({ verdict: "ok", approvedCents: 159_990 });
+    expect(review.approvedTotalCents).toBe(4_702_490);
   });
 });
