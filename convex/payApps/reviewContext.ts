@@ -46,7 +46,13 @@ export function buildReviewContext(input: {
       mandatoryInclusions: agreement.mandatoryInclusions,
       excludedScopeNotes: agreement.excludedScopeNotes ?? [],
     },
-    milestones: milestones.map((m) => ({ name: m.name, order: m.order, status: m.status, amountCents: m.amountCents })),
+    tranches: milestones.map((m) => ({
+      name: m.name,
+      order: m.order,
+      status: m.status,
+      amountCents: m.amountCents,
+      coversLineNos: m.sovLineIds.flatMap((id) => sovById.get(id)?.lineNo ?? []).sort((a, b) => a - b),
+    })),
     priorPayApps: earlier.map((p) => ({
       periodLabel: p.periodLabel,
       status: p.status,

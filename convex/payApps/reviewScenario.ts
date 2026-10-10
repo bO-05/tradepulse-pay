@@ -1,9 +1,10 @@
 /**
  * Demo fixture for the AI pay-app review: an executed Div 26 agreement for the
  * sub1 demo contractor whose leveled bid excludes seismic bracing, with
- * Mobilization complete and Rough-in under way (milestones support 30% on base
- * lines). The main demo agreement has no excluded scope and is past those
- * milestones, so it cannot show the overbilled/excluded scenarios.
+ * Mobilization complete and Rough-in under way. Every funding tranche lists the
+ * base SOV lines (sovLineIds), so their statuses support 30% on those lines.
+ * The main demo agreement has no excluded scope and is past those tranches, so
+ * it cannot show the overbilled/excluded scenarios.
  *
  *   npx convex run payApps/reviewScenario:seedReviewScenario '{}'
  *   npx convex run payApps/reviewScenario:seedReviewScenario '{"suffix":"02"}'
@@ -172,7 +173,7 @@ export const describeReviewScenario = internalQuery({
       .take(10);
     return {
       sov: sov.map((s) => ({ id: s._id, lineNo: s.lineNo, description: s.description, excludedScope: s.excludedScope, scheduledValueCents: s.scheduledValueCents })),
-      milestones: milestones.map((m) => ({ name: m.name, status: m.status, amountCents: m.amountCents })),
+      milestones: milestones.map((m) => ({ name: m.name, status: m.status, amountCents: m.amountCents, sovLineIds: m.sovLineIds as string[] })),
     };
   },
 });

@@ -50,10 +50,12 @@ linesNotBilledThisPeriod are context only: return no entry for them.
 
 Verdicts, checked in this order:
 - "excluded_scope": the line has excludedScope true, or the sub's claimed work for this period, meaning the line's note (the sub's work-this-period or stored-material note) or the pay-app notes, describes work listed in agreement.excludedScopeNotes ("Excluded scope (not in contract)": scope the subcontractor excluded in its bid). Every line's description is a schedule-of-values line the GC approved, so it is contract scope by definition: never flag a line because its description resembles an exclusion note (for example a "Low-voltage & data" line next to an exclusion "Low-voltage cabling"), and a note that only restates the line's own description is not a claim of excluded work. matchesExcludedScopeNote is a keyword hint from code, not a verdict. Recommend the previous percent to date (0 for an excludedScope line): excluded work earns nothing.
-- "out_of_sequence": closeout-phase work (closeout, testing, commissioning, O&M manuals, as-builts, punch list, training, start-up) billed this period while the milestones before Closeout are not complete (closeoutWorkBeforeEarlierMilestones true), or other work that clearly belongs to a later milestone than the ones under way. Recommend the previous percent to date (no new progress).
-- "overbilled": claimed percent to date exceeds milestoneCeilingPctToDate, the most progress the milestone statuses support. Recommend at most milestoneCeilingPctToDate.
-- "front_loaded": within the ceiling, but the claim is at least double otherLinesProgressPct (the progress of the rest of the job) and at least 15 percentage points above it, with otherLinesProgressPct above 0. Recommend about otherLinesProgressPct (never below the previous percent to date).
+- "out_of_sequence": closeout-phase work (closeout, testing, commissioning, O&M manuals, as-builts, punch list, training, start-up) billed this period while closeoutWorkBeforeEarlierTranches is true (an earlier funding tranche that covers the line is not complete). Recommend the previous percent to date (no new progress).
+- "overbilled": trancheCeilingPctToDate is a number and the claimed percent to date exceeds it. trancheCeilingPctToDate is the most progress supported by the statuses of the funding tranches that list this line. Recommend at most trancheCeilingPctToDate.
+- "front_loaded": within the ceiling (100% when trancheCeilingPctToDate is null), but the claim is at least double otherLinesProgressPct (the progress of the rest of the job) and at least 15 percentage points above it, with otherLinesProgressPct above 0. Recommend about otherLinesProgressPct (never below the previous percent to date).
 - "ok": none of the above. Recommend the claimed percent to date.
+
+Funding tranches are GC-defined funding buckets, not work phases: a tranche's name, order or status says nothing about a line it does not list in coversLineNos. When trancheCeilingPctToDate is null, no tranche covers the line, so it has no tranche ceiling: never treat a planned or unfunded tranche (for example a "Mobilization" tranche) as evidence that the line is overbilled or out of sequence. Judge such a line on the other checks only.
 
 previouslyBilled and previousPctToDate are what the GC approved on earlier pay apps (approved cents over scheduled value), not what earlier requests claimed. pendingEarlierRequests is requested on earlier pay apps not yet decided; it is not progress to date.
 
@@ -68,11 +70,12 @@ export function buildReviewPrompt(context: ReviewContext): string {
       ...context.agreement,
       contractSum: formatCents(context.agreement.contractSumCents),
     },
-    milestones: context.milestones.map((m) => ({
+    fundingTranches: context.tranches.map((m) => ({
       name: m.name,
       order: m.order,
       status: m.status,
       amount: formatCents(m.amountCents),
+      coversLineNos: m.coversLineNos,
     })),
     priorPayApps: context.priorPayApps.map((p) => ({
       periodLabel: p.periodLabel,
@@ -101,10 +104,14 @@ export function buildReviewPrompt(context: ReviewContext): string {
       claimedPctThisPeriod: l.claimedPctThisPeriod,
       claimedPctToDate: l.claimedPctToDate,
       requested: formatCents(l.requestedCents),
-      milestoneCeilingPctToDate: l.milestoneCeilingPctToDate,
+      trancheCeilingPctToDate: l.trancheCeilingPctToDate,
       otherLinesProgressPct: l.otherLinesProgressPct,
-      closeoutWorkBeforeEarlierMilestones: l.closeoutWorkBeforeEarlierMilestones,
-      summary: `claims ${pctLabel(l.claimedPctToDate)} to date; milestones support ${pctLabel(l.milestoneCeilingPctToDate)}; rest of job at ${pctLabel(l.otherLinesProgressPct)}`,
+      closeoutWorkBeforeEarlierTranches: l.closeoutWorkBeforeEarlierTranches,
+      summary: `claims ${pctLabel(l.claimedPctToDate)} to date; ${
+        l.trancheCeilingPctToDate === null
+          ? "no funding tranche covers this line (no tranche ceiling)"
+          : `covering funding tranches support ${pctLabel(l.trancheCeilingPctToDate)}`
+      }; rest of job at ${pctLabel(l.otherLinesProgressPct)}`,
     })),
     linesNotBilledThisPeriod: (context.unbilledLines ?? []).map((l) => ({ lineNo: l.lineNo, previousPctToDate: l.previousPctToDate })),
   };

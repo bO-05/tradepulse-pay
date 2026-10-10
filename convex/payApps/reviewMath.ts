@@ -12,11 +12,15 @@ export { OFFLINE_RULES_ENGINE } from "../lib/aiLabels";
 export const LINE_VERDICTS = ["ok", "overbilled", "excluded_scope", "front_loaded", "out_of_sequence"] as const;
 export type LineVerdict = (typeof LINE_VERDICTS)[number];
 
-/** Milestone statuses that count as finished work, and those that count as work under way. */
-const DONE_MILESTONE = new Set(["complete", "paid"]);
-const ACTIVE_MILESTONE = new Set(["funded", "in_progress"]);
-/** An under-way milestone is credited at half its share: we know it started, not how far it got. */
-const ACTIVE_MILESTONE_CREDIT = 0.5;
+/**
+ * Funding tranches (the `milestones` table) are GC-defined funding buckets, not work phases. A
+ * tranche's status says something about a line's progress only when the tranche lists that line in
+ * `sovLineIds`. Statuses that count as finished work, and those that count as work under way:
+ */
+const DONE_TRANCHE = new Set(["complete", "paid"]);
+const ACTIVE_TRANCHE = new Set(["funded", "in_progress"]);
+/** An under-way tranche is credited at half its share: we know it started, not how far it got. */
+const ACTIVE_TRANCHE_CREDIT = 0.5;
 
 /** Front-loading threshold: well above, and at least double, the rest of the job's progress. */
 const FRONT_LOAD_MIN_GAP = 0.15;
@@ -49,12 +53,15 @@ export type ReviewLine = {
   claimedPctThisPeriod: number;
   claimedPctToDate: number;
   requestedCents: number;
-  /** Fraction 0-1: the most progress the milestone statuses support for this line. */
-  milestoneCeilingPctToDate: number;
+  /**
+   * Fraction 0-1: the most progress the statuses of the funding tranches that list this line support.
+   * Null when no tranche lists the line: tranche status then says nothing about it (only the 100% cap applies).
+   */
+  trancheCeilingPctToDate: number | null;
   /** Fraction 0-1: scheduled-value-weighted progress of the agreement's other base-scope lines. */
   otherLinesProgressPct: number;
-  /** True when this is closeout-phase work and the milestones before Closeout are not all complete. */
-  closeoutWorkBeforeEarlierMilestones: boolean;
+  /** True when this is closeout-phase work and, of the tranches that list this line, an earlier one is not complete. */
+  closeoutWorkBeforeEarlierTranches: boolean;
   /** The sub's note on this line (work this period or stored material), if any. */
   note?: string | null;
 };
@@ -78,7 +85,8 @@ export type ReviewContext = {
     /** The awarded bid's exclusions: "Excluded scope (not in contract)". Never SOV lines. */
     excludedScopeNotes?: readonly string[];
   };
-  milestones: readonly { name: string; order: number; status: string; amountCents: number }[];
+  /** Funding tranches in order, with the line numbers each one lists (empty: covers no line). */
+  tranches: readonly { name: string; order: number; status: string; amountCents: number; coversLineNos: readonly number[] }[];
   priorPayApps: readonly {
     periodLabel: string;
     status: string;
@@ -160,28 +168,41 @@ export function approvedCentsFor(input: {
   return Math.min(Math.max(due, 0), Math.max(0, input.requestedCents));
 }
 
-/** The most progress (fraction) the milestone statuses support for a line; 1 when no milestone covers it. */
-export function milestoneCeilingFor(sovLineId: string, milestones: readonly ReviewMilestone[]): number {
-  const covering = milestones.filter((m) => m.sovLineIds.includes(sovLineId));
+function tranchesCovering(sovLineId: string, tranches: readonly ReviewMilestone[]): ReviewMilestone[] {
+  return tranches.filter((m) => m.sovLineIds.includes(sovLineId));
+}
+
+/**
+ * The most progress (fraction) the statuses of the tranches that list this line support; null when
+ * no tranche lists it (or the listing tranches carry no amount), so tranche status sets no ceiling.
+ */
+export function trancheCeilingFor(sovLineId: string, tranches: readonly ReviewMilestone[]): number | null {
+  const covering = tranchesCovering(sovLineId, tranches);
   const total = covering.reduce((a, m) => a + m.amountCents, 0);
-  if (covering.length === 0 || total <= 0) return 1;
+  if (covering.length === 0 || total <= 0) return null;
   let earned = 0;
   for (const m of covering) {
-    if (DONE_MILESTONE.has(m.status)) earned += m.amountCents;
-    else if (ACTIVE_MILESTONE.has(m.status)) earned += m.amountCents * ACTIVE_MILESTONE_CREDIT;
+    if (DONE_TRANCHE.has(m.status)) earned += m.amountCents;
+    else if (ACTIVE_TRANCHE.has(m.status)) earned += m.amountCents * ACTIVE_TRANCHE_CREDIT;
   }
   return normalizePct(earned / total);
+}
+
+/** The ceiling a claim is checked against: the tranche ceiling, or 100% when no tranche lists the line. */
+export function effectiveCeiling(line: Pick<ReviewLine, "trancheCeilingPctToDate">): number {
+  return line.trancheCeilingPctToDate ?? 1;
 }
 
 export function isCloseoutWork(description: string): boolean {
   return CLOSEOUT_WORK.test(description);
 }
 
-/** True unless every milestone before the last one (Closeout) is complete or paid. */
-export function earlierMilestonesIncomplete(milestones: readonly ReviewMilestone[]): boolean {
-  if (milestones.length === 0) return false;
-  const lastOrder = Math.max(...milestones.map((m) => m.order));
-  return milestones.some((m) => m.order < lastOrder && !DONE_MILESTONE.has(m.status));
+/** True when, among the tranches that list this line, one before the last is not complete or paid. */
+export function earlierTranchesIncomplete(sovLineId: string, tranches: readonly ReviewMilestone[]): boolean {
+  const covering = tranchesCovering(sovLineId, tranches);
+  if (covering.length === 0) return false;
+  const lastOrder = Math.max(...covering.map((m) => m.order));
+  return covering.some((m) => m.order < lastOrder && !DONE_TRANCHE.has(m.status));
 }
 
 export type SovRowInput = {
@@ -219,7 +240,6 @@ export function buildReviewLines(input: {
     if (line) return clamp01(line.pctCompleteToDate / 100);
     return clamp01((input.prior.get(s._id)?.previousPctToDate ?? 0) / 100);
   };
-  const closeoutBlocked = earlierMilestonesIncomplete(input.milestones);
   const out: ReviewLine[] = [];
   for (const line of input.lines) {
     const sov = byId.get(line.sovLineId);
@@ -241,9 +261,10 @@ export function buildReviewLines(input: {
       claimedPctThisPeriod: normalizePct(line.pctCompleteThisPeriod / 100),
       claimedPctToDate: normalizePct(line.pctCompleteToDate / 100),
       requestedCents: line.requestedCents,
-      milestoneCeilingPctToDate: sov.excludedScope ? 0 : milestoneCeilingFor(sov._id, input.milestones),
+      trancheCeilingPctToDate: sov.excludedScope ? 0 : trancheCeilingFor(sov._id, input.milestones),
       otherLinesProgressPct: normalizePct(otherProgress),
-      closeoutWorkBeforeEarlierMilestones: !sov.excludedScope && closeoutBlocked && isCloseoutWork(sov.description),
+      closeoutWorkBeforeEarlierTranches:
+        !sov.excludedScope && isCloseoutWork(sov.description) && earlierTranchesIncomplete(sov._id, input.milestones),
       ...(line.note ? { note: line.note } : {}),
     });
   }
@@ -256,7 +277,7 @@ export function isFrontLoaded(line: ReviewLine): boolean {
   const other = line.otherLinesProgressPct;
   return (
     other > 0 &&
-    line.claimedPctToDate <= line.milestoneCeilingPctToDate + 1e-9 &&
+    line.claimedPctToDate <= effectiveCeiling(line) + 1e-9 &&
     line.claimedPctToDate >= other * FRONT_LOAD_MIN_RATIO &&
     line.claimedPctToDate - other >= FRONT_LOAD_MIN_GAP
   );
@@ -315,20 +336,21 @@ export function rulesEngineJudgement(context: ReviewContext): ReviewJudgement {
         reason: `Line ${line.lineNo} bills work the agreement lists as excluded scope (not in contract): "${claim}". That work is not billable under this agreement.`,
       };
     }
-    if (line.closeoutWorkBeforeEarlierMilestones && line.claimedPctThisPeriod > 0) {
+    if (line.closeoutWorkBeforeEarlierTranches && line.claimedPctThisPeriod > 0) {
       return {
         sovLineId: line.sovLineId,
         verdict: "out_of_sequence" as const,
         recommendedPctToDate: line.previousPctToDate,
-        reason: `Line ${line.lineNo} is closeout-phase work billed before the earlier milestones are complete; held at the previous ${pct(line.previousPctToDate)} to date.`,
+        reason: `Line ${line.lineNo} is closeout-phase work billed before the earlier funding tranches that cover it are complete; held at the previous ${pct(line.previousPctToDate)} to date.`,
       };
     }
-    if (line.claimedPctToDate > line.milestoneCeilingPctToDate + 1e-9) {
+    const ceiling = line.trancheCeilingPctToDate;
+    if (ceiling !== null && line.claimedPctToDate > ceiling + 1e-9) {
       return {
         sovLineId: line.sovLineId,
         verdict: "overbilled" as const,
-        recommendedPctToDate: line.milestoneCeilingPctToDate,
-        reason: `Line ${line.lineNo} claims ${pct(line.claimedPctToDate)} complete to date, but the milestone statuses support at most ${pct(line.milestoneCeilingPctToDate)}.`,
+        recommendedPctToDate: ceiling,
+        reason: `Line ${line.lineNo} claims ${pct(line.claimedPctToDate)} complete to date, but the funding-tranche statuses that cover this line support at most ${pct(ceiling)}.`,
       };
     }
     if (isFrontLoaded(line)) {
@@ -344,7 +366,10 @@ export function rulesEngineJudgement(context: ReviewContext): ReviewJudgement {
       sovLineId: line.sovLineId,
       verdict: "ok" as const,
       recommendedPctToDate: line.claimedPctToDate,
-      reason: `Line ${line.lineNo} claims ${pct(line.claimedPctToDate)}, within the ${pct(line.milestoneCeilingPctToDate)} the milestones support.`,
+      reason:
+        ceiling === null
+          ? `Line ${line.lineNo} claims ${pct(line.claimedPctToDate)}; no funding tranche covers this line, so tranche status sets no ceiling.`
+          : `Line ${line.lineNo} claims ${pct(line.claimedPctToDate)}, within the ${pct(ceiling)} the covering funding tranches support.`,
     };
   });
   const licenseIssue = licenseHasIssue(context.license);
@@ -370,7 +395,7 @@ export class IncompleteJudgementError extends Error {
  * Applies code policy to a judgement and computes every dollar figure.
  * Requires exactly one verdict per submitted line. Excluded-scope SOV lines are
  * always "excluded_scope" with 0 approved; an "overbilled" recommendation never
- * exceeds the milestone ceiling; no recommendation exceeds what was claimed.
+ * exceeds the tranche ceiling of a covered line; no recommendation exceeds what was claimed.
  * The lien-waiver and license flags are decided by code, never by the model:
  * the license flag is set unless the latest completed check is active.
  */
@@ -394,7 +419,7 @@ export function finalizeReview(context: ReviewContext, judgement: ReviewJudgemen
     let recommended = normalizePct(j.recommendedPctToDate);
     // Excluded work earns nothing: an excluded SOV line stays at 0%, any other line at its previous percent.
     if (verdict === "excluded_scope") recommended = line.excludedScope ? 0 : line.previousPctToDate;
-    if (verdict === "overbilled") recommended = Math.min(recommended, line.milestoneCeilingPctToDate);
+    if (verdict === "overbilled") recommended = Math.min(recommended, effectiveCeiling(line));
     recommended = Math.min(recommended, line.claimedPctToDate);
     // Work certified on earlier applications stays earned, so the percent to date never drops below it.
     if (!line.excludedScope) recommended = Math.max(recommended, line.previousPctToDate);

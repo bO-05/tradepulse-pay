@@ -115,13 +115,30 @@ describe("pay-app review on submit", () => {
     for (const banned of ["gpt-4o", "openai", "claude"]) expect(text).not.toContain(banned);
   });
 
+  test("tranches that list no SOV lines set no ceiling: the 60% line is not overbilled", async () => {
+    const s = await setup();
+    await s.t.run(async (ctx) => {
+      const tranches = await ctx.db
+        .query("milestones")
+        .withIndex("by_agreementId_and_order", (q) => q.eq("agreementId", s.agreement._id))
+        .collect();
+      for (const m of tranches) await ctx.db.patch(m._id, { sovLineIds: [], status: "planned" });
+    });
+    const { row } = await submitAndReview(s);
+    const b = s.sov[1];
+    const line = row.review!.lines.find((l) => l.sovLineId === b._id)!;
+    expect(line.verdict).not.toBe("overbilled");
+    expect(line.reason).not.toMatch(/ceiling is 0%|support at most/);
+    expect(row.review!.lines.find((l) => l.sovLineId === s.excludedLineId)).toMatchObject({ verdict: "excluded_scope", approvedCents: 0 });
+  });
+
   test("Anthropic structured output drives the verdicts; code computes the cents and stores provenance", async () => {
     vi.stubEnv("ANTHROPIC_API_KEY", "test-key-not-real");
     vi.stubEnv("ANTHROPIC_MODEL", "claude-sonnet-5-5");
     const s = await setup();
     const [a, b] = s.sov;
     generateTextMock.mockImplementation(async (opts: { prompt: string }) => {
-      expect(opts.prompt).toContain("milestoneCeilingPctToDate");
+      expect(opts.prompt).toContain("trancheCeilingPctToDate");
       expect(opts.prompt).toContain(String(s.excludedLineId));
       return {
         output: {
@@ -287,7 +304,7 @@ describe("GC review access", () => {
 });
 
 describe("review scenario seed", () => {
-  test("creates one executed sub1 agreement with seismic bracing as excluded-scope notes and a 30% milestone ceiling", async () => {
+  test("creates one executed sub1 agreement with seismic bracing as excluded-scope notes and tranches linked to its SOV lines (30% ceiling)", async () => {
     const t = convexTest(schema, modules);
     await t.mutation(internal.projects.seedInitialDataInternal, { force: false });
     const first = await t.mutation(internal.payApps.reviewScenario.seedReviewScenario, {});
@@ -304,6 +321,8 @@ describe("review scenario seed", () => {
     const seeded = (await t.run(async (ctx) => ctx.db.get(first.agreementId)))!;
     expect(seeded.excludedScopeNotes).toEqual([expect.stringMatching(/seismic bracing/i)]);
     expect(d.milestones.map((m) => m.status)).toEqual(["complete", "in_progress", "planned", "planned"]);
+    const baseIds = d.sov.filter((s) => !s.excludedScope).map((s) => s.id as string).sort();
+    for (const m of d.milestones) expect([...m.sovLineIds].sort()).toEqual(baseIds);
     const conduit = d.sov.find((s) => /conduit/i.test(s.description))!;
     const sub1 = await signInAs(t, "sub", {
       contractorId: (await t.run(async (ctx) => ctx.db.get(first.agreementId)))!.contractorId,

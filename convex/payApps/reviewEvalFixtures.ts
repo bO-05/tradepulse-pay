@@ -1,6 +1,7 @@
 /**
- * Pay-app review eval fixtures: one Div 26 agreement whose Mobilization is
- * complete and Rough-in is under way (milestones support 30% on base lines),
+ * Pay-app review eval fixtures: one Div 26 agreement whose funding tranches
+ * all list the base SOV lines; Mobilization is complete and Rough-in is under
+ * way, so the tranche statuses support 30% on those lines,
  * billed four ways. Each fixture lists the verdict expected on every line.
  * As in Phase 2, the sub's bid exclusion (seismic bracing) is an
  * "Excluded scope (not in contract)" note on the agreement, never an SOV line.
@@ -58,7 +59,13 @@ function fixtureContext(lines: FixtureLine[], opts: { lienWaiver: boolean; notes
       mandatoryInclusions: ["Temporary power", "Crane hoisting"],
       excludedScopeNotes: EXCLUDED_SCOPE_NOTES,
     },
-    milestones: MILESTONES.map(({ name, order, status, amountCents }) => ({ name, order, status, amountCents })),
+    tranches: MILESTONES.map(({ name, order, status, amountCents, sovLineIds }) => ({
+      name,
+      order,
+      status,
+      amountCents,
+      coversLineNos: sovLineIds.map((id) => SOV.find((s) => s._id === id)!.lineNo),
+    })),
     priorPayApps: [
       { periodLabel: "Pay app #1 (demo)", status: "approved", requestedTotalCents: 6_400_000, approvedTotalCents: 6_400_000 },
     ],
@@ -85,7 +92,7 @@ export type PayAppReviewFixture = {
 export const PAY_APP_REVIEW_FIXTURES: PayAppReviewFixture[] = [
   {
     fixtureId: "payapp_honest",
-    description: "Every line billed within the 30% the milestones support, in proportion.",
+    description: "Every line billed within the 30% the covering funding tranches support, in proportion.",
     context: fixtureContext(
       [
         { sovLineId: "fx-sov-1", pctToDate: 25 },
@@ -99,7 +106,7 @@ export const PAY_APP_REVIEW_FIXTURES: PayAppReviewFixture[] = [
   },
   {
     fixtureId: "payapp_overbilled",
-    description: "Branch conduit claims 60% to date while the milestones support 30%.",
+    description: "Branch conduit claims 60% to date while the funding-tranche statuses that cover it support 30%.",
     context: fixtureContext(
       [
         { sovLineId: "fx-sov-1", pctToDate: 25 },
