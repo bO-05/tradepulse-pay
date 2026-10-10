@@ -1,6 +1,7 @@
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { OWNER_BILLING_HASH, ledgerHash, payAppHash } from "../auth/navigation";
+import { DocumentDownloadButton } from "../documents/DocumentDownload";
 import { Card, EmptyState, formatCents } from "../ui";
 
 /** Billing → Retainage: per project, retainage the GC holds from each sub, kept apart from what the owner holds. */
@@ -79,6 +80,9 @@ export function RetainageView() {
                   <th scope="col" className="py-2 pr-3 font-medium">Trade</th>
                   <th scope="col" className="py-2 pr-3 font-medium">Pay apps</th>
                   <th scope="col" className="py-2 pr-3 text-right font-medium">Held</th>
+                  <th scope="col" className="py-2 pr-3 font-medium">
+                    <span className="sr-only">Export</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -109,6 +113,9 @@ export function RetainageView() {
                           ))}
                     </td>
                     <td className="py-2 pr-3 text-right font-semibold tabular-nums">{formatCents(a.heldCents)}</td>
+                    <td className="py-2 pr-3 text-right">
+                      <DocumentDownloadButton kind="retainage_ledger_csv" relatedId={a.agreementId} label="Ledger CSV" variant="ghost" testId="retainage-ledger-csv" />
+                    </td>
                   </tr>
                 ))}
               </tbody>

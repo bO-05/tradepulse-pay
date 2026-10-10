@@ -568,6 +568,7 @@ describe("static guard sweep over convex/**", () => {
       "billing/ownerPayApps",
       "billing/ownerInvoices",
       "billing/primeLines",
+      "documents/documents",
       "payApps/review",
       "payApps/proposals",
       "payApps/reviewEvals",
@@ -580,12 +581,14 @@ describe("static guard sweep over convex/**", () => {
     }
   });
 
-  test("exported httpActions are the PayPal and AgentMail webhooks, the auth-gated Studio AI proxy and the authenticated project file download", () => {
+  test("exported httpActions are the PayPal and AgentMail webhooks, the auth-gated Studio AI proxy and the authenticated file and document downloads", () => {
     const http = publicExports().filter((f) => f.kind === "httpAction");
     expect(http.map((f) => f.name).sort()).toEqual([
       "agentmailWebhook:agentmailWebhook",
       "dashboard/studioProxy:studioPreflight",
       "dashboard/studioProxy:studioProxy",
+      "documents/download:documentDownload",
+      "documents/download:documentPreflight",
       "payments/webhook:paypalWebhook",
       "projectFileDownload:projectFileDownload",
       "projectFileDownload:projectFilePreflight",
@@ -623,6 +626,16 @@ describe("static guard sweep over convex/**", () => {
     expect(storageAt).toBeGreaterThan(authorizeAt);
     expect(download).not.toMatch(/runMutation|runAction/);
     expect(byName.get("projectFileDownload:projectFilePreflight")!).not.toMatch(/ctx\.|fetch\(/);
+
+    const doc = byName.get("documents/download:documentDownload")!;
+    const docSessionAt = doc.search(/getUserIdentity/);
+    const docAuthorizeAt = doc.search(/internal\.documents\.download\.authorizeDocument/);
+    const docStorageAt = doc.search(/ctx\.storage/);
+    expect(docSessionAt).toBeGreaterThan(-1);
+    expect(docAuthorizeAt).toBeGreaterThan(docSessionAt);
+    expect(docStorageAt).toBeGreaterThan(docAuthorizeAt);
+    expect(doc).not.toMatch(/runMutation|runAction|getUrl/);
+    expect(byName.get("documents/download:documentPreflight")!).not.toMatch(/ctx\.|fetch\(/);
   });
 
   test("seed and test-only helpers are internal functions", () => {

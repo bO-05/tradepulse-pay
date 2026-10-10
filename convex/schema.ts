@@ -10,6 +10,7 @@ import {
   bidUnitPriceValidator,
   bidVeAlternateValidator,
 } from "./lib/bidValidators";
+import { documentKindValidator, documentRelatedTableValidator, documentSensitivityValidator } from "./documents/kinds";
 
 export const roleValidator = v.union(v.literal("gc"), v.literal("sub"), v.literal("owner"));
 export const actorTypeValidator = v.union(v.literal("human"), v.literal("agent"));
@@ -888,6 +889,27 @@ export default defineSchema({
   })
     .index("by_projectId_and_applicationNo", ["projectId", "applicationNo"])
     .index("by_paypalInvoiceId", ["paypalInvoiceId"]),
+
+  // Generated billing documents (§16). Bytes live in file storage and are served only through the
+  // authenticated /api/documents/ route, never by storage URL. `relatedId` is the record the document
+  // was generated from (its table is fixed per kind); `inputsHash` identifies the data it reflects.
+  documents: defineTable({
+    projectId: v.id("projects"),
+    kind: documentKindValidator,
+    sensitivity: documentSensitivityValidator,
+    storageId: v.id("_storage"),
+    sha256: v.string(),
+    fileName: v.string(),
+    contentType: v.string(),
+    sizeBytes: v.number(),
+    uploadedByUserId: v.optional(v.id("users")),
+    createdAt: v.number(),
+    relatedId: v.optional(v.string()),
+    relatedTable: v.optional(documentRelatedTableValidator),
+    inputsHash: v.optional(v.string()),
+  })
+    .index("by_projectId", ["projectId"])
+    .index("by_kind_and_relatedId", ["kind", "relatedId"]),
 
   // eventId is unique by convention: writers must check by_eventId before insert.
   paypalEvents: defineTable({

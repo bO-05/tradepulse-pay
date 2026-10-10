@@ -207,7 +207,7 @@ function figuresOf(s: G702Summary): G702Figures {
 }
 
 /** The display name the GC knows the sub by: its company, else the vendor record, else the agreement. */
-async function subNameOf(ctx: QueryCtx, agreement: Doc<"agreements">, payApp?: Doc<"payApplications">): Promise<string> {
+export async function subNameOf(ctx: QueryCtx, agreement: Doc<"agreements">, payApp?: Doc<"payApplications">): Promise<string> {
   const company = payApp?.subCompanyId ? await ctx.db.get(payApp.subCompanyId) : null;
   if (company) return company.name;
   const contractor = await ctx.db.get(agreement.contractorId);
@@ -265,7 +265,7 @@ function sheetSummary(lines: readonly PayAppSheetLine[], originalContractSumCent
  * applications use the values frozen at submission; approved ones show the GC-approved E and F. Phase-1
  * applications map their per-line request to E with no stored material.
  */
-async function buildSheet(ctx: QueryCtx, agreement: Doc<"agreements">, payApp: Doc<"payApplications">) {
+export async function buildSheet(ctx: QueryCtx, agreement: Doc<"agreements">, payApp: Doc<"payApplications">) {
   const sov = await sovRows(ctx, agreement._id);
   const sovById = new Map(sov.map((s) => [s._id as string, s]));
   const bps = payApp.g703?.retainageBps ?? agreementRetainageBps(agreement);

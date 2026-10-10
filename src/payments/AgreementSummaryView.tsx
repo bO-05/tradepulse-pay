@@ -6,6 +6,7 @@ import { formatDate } from "./format";
 import { formatCents } from "../ui/format";
 import { MilestoneFundingTable } from "./MilestoneFundingSummary";
 import { AgreementTermsPanel } from "../contracts/AgreementTermsPanel";
+import { DocumentDownloadButton } from "../documents/DocumentDownload";
 
 export function AgreementSummaryView({ agreementId, backHash }: { agreementId: string; backHash: string }) {
   const agreement = useQuery(api.portal.getAgreementSummary, { agreementId });
@@ -26,9 +27,12 @@ export function AgreementSummaryView({ agreementId, backHash }: { agreementId: s
             {agreement.projectTitle} · Division {agreement.csiDivision} {agreement.tradeName}
           </p>
         </div>
-        <span className="text-xs font-semibold uppercase tracking-wide rounded-full px-2.5 py-1 bg-slate-800 border border-slate-700">
-          {agreement.status}
-        </span>
+        <div className="flex flex-col items-end gap-2">
+          <span className="text-xs font-semibold uppercase tracking-wide rounded-full px-2.5 py-1 bg-slate-800 border border-slate-700">
+            {agreement.status}
+          </span>
+          <DocumentDownloadButton kind="subcontract_pdf" relatedId={agreementId} label="Subcontract PDF" testId="agreement-subcontract-pdf" />
+        </div>
       </div>
       <dl className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
         <div>

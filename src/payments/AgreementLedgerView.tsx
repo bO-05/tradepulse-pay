@@ -9,6 +9,7 @@ import { AgreementPayAppReviews } from "./PayAppReviews";
 import { payAppHash } from "../auth/navigation";
 import { FundingTranches } from "../billing/FundingTranches";
 import { RetainageReleaseControl, RetainageReleaseList } from "./RetainageRelease";
+import { DocumentDownloadButton } from "../documents/DocumentDownload";
 
 const TOTALS: { key: "contractSumCents" | "billedCents" | "paidCents" | "retainageHeldCents" | "balanceCents"; label: string }[] = [
   { key: "contractSumCents", label: "Contract sum" },
@@ -64,9 +65,15 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
               {agreement.retainagePercent}%
             </p>
           </div>
-          <span className="text-xs font-semibold uppercase tracking-wide rounded-full px-2.5 py-1 bg-slate-800 border border-slate-700">
-            {agreement.status}
-          </span>
+          <div className="flex flex-col items-end gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wide rounded-full px-2.5 py-1 bg-slate-800 border border-slate-700">
+              {agreement.status}
+            </span>
+            <div className="flex flex-wrap justify-end gap-2">
+              <DocumentDownloadButton kind="subcontract_pdf" relatedId={agreement._id} label="Subcontract PDF" testId="ledger-subcontract-pdf" />
+              <DocumentDownloadButton kind="retainage_ledger_csv" relatedId={agreement._id} label="Retainage CSV" testId="ledger-retainage-csv" />
+            </div>
+          </div>
         </div>
         <dl className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-sm" data-testid="ledger-totals">
           {TOTALS.map((t) => (

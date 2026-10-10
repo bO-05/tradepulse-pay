@@ -5,6 +5,7 @@ import type { FunctionReturnType } from "convex/server";
 import { payAppHash } from "../auth/navigation";
 import { getErrorMessage } from "../lib/errors";
 import { Button, Card, EmptyState, PageHeader, StatusPill, formatCents, formatDate } from "../ui";
+import { DocumentDownloadButton } from "../documents/DocumentDownload";
 import { payAppTitle } from "./PayAppPage";
 
 type AgreementRow = FunctionReturnType<typeof api.payApps.g703.mySubPayAppAgreements>[number];
@@ -122,6 +123,11 @@ function AgreementPayApps({ row }: { row: AgreementRow }) {
           </table>
         </div>
       ) : null}
+      <div className="mt-3 flex flex-wrap items-start gap-2 border-t border-line pt-3" data-testid="sub-agreement-documents">
+        <DocumentDownloadButton kind="subcontract_pdf" relatedId={row.agreementId} label="Subcontract PDF" variant="ghost" />
+        <DocumentDownloadButton kind="sov_csv" relatedId={row.agreementId} label="SOV CSV" variant="ghost" />
+        <DocumentDownloadButton kind="retainage_ledger_csv" relatedId={row.agreementId} label="Retainage CSV" variant="ghost" />
+      </div>
     </Card>
   );
 }

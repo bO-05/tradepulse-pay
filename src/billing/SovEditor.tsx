@@ -9,6 +9,7 @@ import {
   Upload,
 } from "lucide-react";
 import { api } from "../../convex/_generated/api";
+import { DocumentDownloadButton } from "../documents/DocumentDownload";
 import {
   SOV_FILE_TOO_LARGE,
   SOV_MAX_FILE_BYTES,
@@ -73,7 +74,7 @@ function SovEditor({ sov }: { sov: SovData }) {
   const [importOpen, setImportOpen] = useState(false);
   const [confirmApprove, setConfirmApprove] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
-  const [exporting, setExporting] = useState<"csv" | "xlsx" | null>(null);
+  const [exporting, setExporting] = useState(false);
   const moveLine = useMutation(api.billing.sov.moveSovLine);
   const deleteLine = useMutation(api.billing.sov.deleteSovLine);
   const approve = useMutation(api.billing.sov.approveSov);
@@ -91,8 +92,8 @@ function SovEditor({ sov }: { sov: SovData }) {
     }
   }
 
-  async function exportFile(kind: "csv" | "xlsx") {
-    setExporting(kind);
+  async function exportXlsx() {
+    setExporting(true);
     setError(null);
     try {
       const file = await import("./sovFile");
@@ -102,22 +103,11 @@ function SovEditor({ sov }: { sov: SovData }) {
         csiCode: l.csiCode,
         scheduledValueCents: l.scheduledValueCents,
       }));
-      if (kind === "csv") {
-        const csv = await file.sovToCsv(lines);
-        file.downloadBlob(
-          file.sovFileName(sov.agreementNumber, "csv"),
-          new Blob([`\uFEFF${csv}\r\n`], { type: "text/csv;charset=utf-8" }),
-        );
-      } else {
-        file.downloadBlob(
-          file.sovFileName(sov.agreementNumber, "xlsx"),
-          await file.sovToXlsxBlob(lines),
-        );
-      }
+      file.downloadBlob(file.sovFileName(sov.agreementNumber, "xlsx"), await file.sovToXlsxBlob(lines));
     } catch (err) {
       setError(getErrorMessage(err, "The export failed. Please try again."));
     } finally {
-      setExporting(null);
+      setExporting(false);
     }
   }
 
@@ -232,23 +222,16 @@ function SovEditor({ sov }: { sov: SovData }) {
       ) : null}
       {isGcView || approved ? (
         <div className="mt-2 flex flex-wrap gap-2">
+          {sov.lines.length > 0 ? (
+            <DocumentDownloadButton kind="sov_csv" relatedId={sov.agreementId} label="Export CSV" variant="ghost" testId="sov-export-csv" />
+          ) : null}
           <Button
             size="sm"
             variant="ghost"
             leadingIcon={<Download className="h-4 w-4" />}
-            loading={exporting === "csv"}
+            loading={exporting}
             disabled={sov.lines.length === 0}
-            onClick={() => void exportFile("csv")}
-          >
-            Export CSV
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            leadingIcon={<Download className="h-4 w-4" />}
-            loading={exporting === "xlsx"}
-            disabled={sov.lines.length === 0}
-            onClick={() => void exportFile("xlsx")}
+            onClick={() => void exportXlsx()}
           >
             Export XLSX
           </Button>

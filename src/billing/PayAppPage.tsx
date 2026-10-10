@@ -12,6 +12,7 @@ import {
   type G702Summary,
 } from "../../convex/payApps/g703Math";
 import { getErrorMessage } from "../lib/errors";
+import { DocumentDownloadButton } from "../documents/DocumentDownload";
 import { Button, Card, ConfirmDialog, MoneyInput, PageHeader, StatusPill, TextInput, formatCents, formatDate, formatDateTime } from "../ui";
 import { DecisionCard, GcReviewPanel, VersionHistory } from "./PayAppDecision";
 import { PaymentPanel } from "./PaymentPanel";
@@ -167,19 +168,23 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
         description={`${view.agreement.subcontractorName} · ${view.agreement.projectTitle} · ${view.agreement.agreementNumber}`}
         meta={<StatusPill status={view.status} />}
         actions={
-          editable ? (
-            <Button onClick={() => setConfirm("submit")} disabled={!canSubmit} data-testid="payapp-submit">
-              Submit pay app
-            </Button>
-          ) : view.canRevise ? (
-            <Button onClick={() => setConfirm("revise")} data-testid="payapp-revise">
-              Revise
-            </Button>
-          ) : view.canWithdraw ? (
-            <Button variant="secondary" onClick={() => setConfirm("withdraw")} data-testid="payapp-withdraw">
-              Withdraw
-            </Button>
-          ) : null
+          <div className="flex flex-wrap items-start gap-2">
+            <DocumentDownloadButton kind="sub_pay_app_pdf" relatedId={view._id} label="Download PDF" testId="payapp-download-pdf" />
+            <DocumentDownloadButton kind="pay_app_lines_csv" relatedId={view._id} label="Export lines CSV" testId="payapp-export-csv" />
+            {editable ? (
+              <Button onClick={() => setConfirm("submit")} disabled={!canSubmit} data-testid="payapp-submit">
+                Submit pay app
+              </Button>
+            ) : view.canRevise ? (
+              <Button onClick={() => setConfirm("revise")} data-testid="payapp-revise">
+                Revise
+              </Button>
+            ) : view.canWithdraw ? (
+              <Button variant="secondary" onClick={() => setConfirm("withdraw")} data-testid="payapp-withdraw">
+                Withdraw
+              </Button>
+            ) : null}
+          </div>
         }
       />
 

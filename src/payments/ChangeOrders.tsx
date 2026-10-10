@@ -1,6 +1,7 @@
 import { useAction, useMutation, useQuery } from "convex/react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api } from "../../convex/_generated/api";
+import { DocumentDownloadButton } from "../documents/DocumentDownload";
 import type { Id } from "../../convex/_generated/dataModel";
 import type { ChangeOrderRowView } from "../../convex/billing/changeOrderView";
 import type { ContractSumBreakdown } from "../../convex/payments/changeOrderMath";
@@ -368,6 +369,7 @@ function ChangeOrderRow({ co, showAgreement, recipientEmail }: { co: ChangeOrder
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
+        <DocumentDownloadButton kind="change_order_pdf" relatedId={co._id} label="PDF" variant="ghost" testId="change-order-pdf" />
         {co.canEdit ? (
           <Button size="sm" variant="secondary" onClick={() => setEditing(true)} disabled={busy} data-testid="change-order-edit">
             Edit

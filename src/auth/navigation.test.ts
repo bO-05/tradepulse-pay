@@ -147,6 +147,7 @@ describe("billing routes", () => {
   test("owner billing: the GC's Billing tab and the owner's Owner pay apps; subs get neither", () => {
     expect(resolveRoute("gc", "#/billing/owner-billing")).toEqual({ area: "billing", tab: "owner-billing" });
     expect(resolveRoute("gc", "#/billing/retainage")).toEqual({ area: "billing", tab: "retainage" });
+    expect(resolveRoute("gc", "#/billing/documents")).toEqual({ area: "billing", tab: "documents" });
     expect(resolveRoute("gc", "#/billing/forged")).toEqual({ area: "not-found" });
     expect(resolveRoute("owner", "#/owner-pay-apps")).toEqual({ area: "owner-pay-apps" });
     for (const hash of ["#/owner-pay-apps", "#/billing/owner-billing"]) {

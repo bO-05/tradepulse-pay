@@ -3,7 +3,7 @@ import { api } from "../../convex/_generated/api";
 import type { FunctionReturnType } from "convex/server";
 import { billingTabHash, payAppHash, type BillingTab } from "../auth/navigation";
 import { Card, EmptyState, PageHeader, StatusPill, Tabs, formatCents, formatDate } from "../ui";
-import { GcOwnerBilling } from "./OwnerBilling";
+import { GcBillingDocuments, GcOwnerBilling } from "./OwnerBilling";
 import { RetainageView } from "./RetainageView";
 
 type Row = FunctionReturnType<typeof api.payApps.g703.gcBillingWorklist>["rows"][number];
@@ -45,7 +45,7 @@ export function BillingWorklist({ tab = "pay-apps" }: { tab?: BillingTab }) {
   );
   return (
     <div className="max-w-5xl space-y-4">
-      <PageHeader title="Billing" description="Sub pay applications, owner billing and the retainage held on each project." />
+      <PageHeader title="Billing" description="Sub pay applications, owner billing, the retainage held on each project and billing documents." />
       <Tabs
         label="Billing"
         value={tab}
@@ -56,6 +56,7 @@ export function BillingWorklist({ tab = "pay-apps" }: { tab?: BillingTab }) {
           { id: "pay-apps", label: "Pay apps", content: payApps },
           { id: "owner-billing", label: "Owner billing", content: <GcOwnerBilling /> },
           { id: "retainage", label: "Retainage", content: <RetainageView /> },
+          { id: "documents", label: "Documents", content: <GcBillingDocuments /> },
         ]}
       />
     </div>

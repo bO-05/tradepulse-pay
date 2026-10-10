@@ -3,6 +3,7 @@ import type { FunctionReturnType } from "convex/server";
 import { useEffect, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
+import { DocumentDownloadButton, ProjectDocumentsList } from "../documents/DocumentDownload";
 import { getErrorMessage } from "../lib/errors";
 import { Button, Card, ConfirmDialog, Dialog, EmptyState, MoneyInput, PageHeader, StatusPill, formatBps, formatCents, formatDate, useToast } from "../ui";
 import { Field, inputClass } from "../ui/Field";
@@ -227,6 +228,7 @@ function AppHeader({ app }: { app: Detail }) {
       </h3>
       <StatusPill status={app.status} />
       <span className="text-sm text-ink-subtle">{percent(app.percentCompleteHundredths)} complete</span>
+      <DocumentDownloadButton kind="owner_pay_app_pdf" relatedId={app._id} label="Download PDF" testId="owner-pay-app-download-pdf" />
     </div>
   );
 }
@@ -452,6 +454,21 @@ export function GcOwnerBilling() {
   );
 }
 
+/** GC Billing → Documents: the generated PDFs and CSV exports on a project. */
+export function GcBillingDocuments() {
+  const { loading, empty, selected, picker } = useOwnerBillingProject("gc");
+  if (loading) return <p className="text-sm text-ink-subtle" role="status">Loading projects…</p>;
+  if (empty) return <EmptyState title="No projects yet" description="Documents appear once you have a project." headingLevel={3} />;
+  return (
+    <Card title="Documents" description="Pay app, owner pay app, change order and subcontract PDFs and CSV exports. Downloads require your sign-in.">
+      <div className="space-y-4" data-testid="gc-billing-documents">
+        {picker}
+        {selected ? <ProjectDocumentsList key={selected} projectId={selected} /> : null}
+      </div>
+    </Card>
+  );
+}
+
 // ---- Owner ---------------------------------------------------------------------------------------
 
 function RequestChangesDialog({ app, open, onClose }: { app: Detail; open: boolean; onClose: () => void }) {
@@ -583,6 +600,12 @@ function OwnerProjectPayApps({ projectId }: { projectId: string }) {
           {current ? <OwnerPayAppView key={current} ownerPayAppId={current} /> : null}
         </>
       )}
+      <section className="space-y-2" aria-labelledby="owner-documents-heading" data-testid="owner-documents">
+        <h3 id="owner-documents-heading" className="text-base font-semibold">
+          Documents
+        </h3>
+        <ProjectDocumentsList projectId={projectId} />
+      </section>
     </div>
   );
 }

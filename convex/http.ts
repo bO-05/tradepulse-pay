@@ -8,6 +8,7 @@ import { auth } from "./auth";
 import { paypalWebhook } from "./payments/webhook";
 import { studioPreflight, studioProxy } from "./dashboard/studioProxy";
 import { projectFileDownload, projectFilePreflight } from "./projectFileDownload";
+import { documentDownload, documentPreflight } from "./documents/download";
 import { buildLlmsTxt, PRODUCT_NAME } from "./lib/llmsTxt";
 
 const http = httpRouter();
@@ -173,6 +174,10 @@ http.route({
 // Project uploads: bytes only for callers with access to the file's project (bearer token).
 http.route({ pathPrefix: "/api/project-files/", method: "GET", handler: projectFileDownload });
 http.route({ pathPrefix: "/api/project-files/", method: "OPTIONS", handler: projectFilePreflight });
+
+// Generated billing documents: bytes only for parties who may see the source record (bearer token).
+http.route({ pathPrefix: "/api/documents/", method: "GET", handler: documentDownload });
+http.route({ pathPrefix: "/api/documents/", method: "OPTIONS", handler: documentPreflight });
 
 // 5. Universal Document Access Endpoints
 http.route({

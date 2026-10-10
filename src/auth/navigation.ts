@@ -43,8 +43,8 @@ export type Route = {
   tab?: BillingTab;
 };
 
-export type BillingTab = "pay-apps" | "owner-billing" | "retainage";
-const BILLING_TABS: readonly BillingTab[] = ["pay-apps", "owner-billing", "retainage"];
+export type BillingTab = "pay-apps" | "owner-billing" | "retainage" | "documents";
+const BILLING_TABS: readonly BillingTab[] = ["pay-apps", "owner-billing", "retainage", "documents"];
 
 /** GC Billing tabs: `#/billing` is the pay apps worklist. */
 export function billingTabHash(tab: BillingTab): string {

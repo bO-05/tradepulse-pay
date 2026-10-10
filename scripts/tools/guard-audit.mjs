@@ -52,6 +52,7 @@ const NO_PROJECT_DATA = new Map([
   ["agentmailWebhook:agentmailWebhook", "AgentMail-signed delivery; no caller session. Routing by stored thread or ref; unmatched mail carries no tenant ids"],
   ["dashboard/studioProxy:studioPreflight", "CORS preflight"],
   ["projectFileDownload:projectFilePreflight", "CORS preflight"],
+  ["documents/download:documentPreflight", "CORS preflight"],
 ]);
 // The app-shell identity query: it reads only the caller's own users row (by getLiveAuthUserId) and
 // returns role null for accounts without a profile, so it cannot expose other users' data.
@@ -68,6 +69,7 @@ const INLINE_ROUTES = [
   ["GET /llms.txt", "Public by design; static manifest, no data access"],
   ["GET /api/health", "Public by design; static status, no data access"],
   ["GET /api/project-files/*", "projectFileDownload: Convex Auth bearer token + project access; 401 without a session, 404 \"Not found.\" otherwise"],
+  ["GET /api/documents/*", "documents/download: Convex Auth bearer token + access to the document's source record; 401 without a session, 404 \"Not found.\" otherwise"],
   ["GET /specs/*, /drawings/*, /quotes/*, /insurance/*, /files/*, /api/files/*", "Public demo PDFs bundled in code; no data access"],
   ["GET/POST /api/*, /agentmail/* (unknown paths)", "JSON 404, no data access"],
   ["/api/auth/* (auth.addHttpRoutes)", "Convex Auth routes; exempt"],
@@ -117,7 +119,15 @@ for (const file of walk(ROOT).sort()) {
       if (identityAt === -1 || authorizeAt < identityAt || storageAt < authorizeAt) {
         problems.push(`${fnName}: storage read is not behind the session and project check`);
       }
-    } else if (fnName === "projectFileDownload:projectFilePreflight") {
+    } else if (fnName === "documents/download:documentDownload") {
+      const identityAt = body.search(/getUserIdentity/);
+      const authorizeAt = body.search(/runQuery\(internal\.documents\.download\.authorizeDocument/);
+      const storageAt = body.search(/ctx\.storage/);
+      guardText = "Bearer token, then authorizeDocument (requireDocScope + document visibility) before ctx.storage";
+      if (identityAt === -1 || authorizeAt < identityAt || storageAt < authorizeAt || /getUrl/.test(body)) {
+        problems.push(`${fnName}: storage read is not behind the session and record check`);
+      }
+    } else if (fnName === "projectFileDownload:projectFilePreflight" || fnName === "documents/download:documentPreflight") {
       guardText = "CORS preflight only, no data access";
       if (access || /\bfetch\(/.test(body)) problems.push(`${fnName}: preflight touches data`);
     } else if (fnName === "payments/webhook:paypalWebhook") {
@@ -162,6 +172,7 @@ for (const file of walk(ROOT).sort()) {
     const tenancy = body.match(TENANCY);
     let tenancyText;
     if (fnName === "projectFileDownload:projectFileDownload") tenancyText = "requireDocScope() via authorizeDownload";
+    else if (fnName === "documents/download:documentDownload") tenancyText = "requireDocScope() via authorizeDocument";
     else if (fnName === "dashboard/studioProxy:studioProxy") {
       tenancyText = "requireCompanyMember() via authorizeStudioCaller; reads no app data itself";
     }

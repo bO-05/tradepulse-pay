@@ -13,7 +13,7 @@ function allowedOrigins(): string[] {
   );
 }
 
-function corsHeaders(req: Request): Record<string, string> {
+export function corsHeaders(req: Request): Record<string, string> {
   const origin = req.headers.get("Origin");
   if (!origin || !allowedOrigins().includes(origin)) return {};
   return {
@@ -26,7 +26,7 @@ function corsHeaders(req: Request): Record<string, string> {
   };
 }
 
-function textResponse(req: Request, status: number, body: string): Response {
+export function textResponse(req: Request, status: number, body: string): Response {
   return new Response(body, {
     status,
     headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", ...corsHeaders(req) },
