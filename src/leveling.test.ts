@@ -23,16 +23,16 @@ const pkg = (id: string, budget: number, status: TradePackage["status"] = "level
   status,
 });
 
-const bid = (over: Partial<Bid> & { _id: string; tradePackageId: string; leveledTotalCost: number }): Bid => ({
+const bid = (over: Partial<Bid> & { _id: string; tradePackageId: string; leveledTotalCents: number }): Bid => ({
   contractorId: "c1",
   subcontractorName: "Sub",
-  baseBidAmount: over.leveledTotalCost,
+  baseAmountCents: over.leveledTotalCents,
   lineItems: [],
   identifiedExclusions: [],
   longLeadEquipmentWeeks: 10,
-  leadTimePenalty: 0,
+  leadTimePenaltyCents: 0,
   coiComplianceStatus: "compliant",
-  coiPenalty: 0,
+  coiPenaltyCents: 0,
   isAwarded: false,
   receivedAt: 0,
   ...over,
@@ -65,46 +65,46 @@ const agreement = (tradePackageId: string, status: Agreement["status"]): Agreeme
 test("Headline numbers reconcile with the seeded demo data set", () => {
   const packages = [pkg("p26", 1_250_000), pkg("p23", 1_850_000), pkg("p22", 950_000)];
   const bids: Bid[] = [
-    bid({ _id: "b1", tradePackageId: "p26", subcontractorName: "Rosendin Electric, Inc.", baseBidAmount: 1_225_000, leveledTotalCost: 1_225_000 }),
+    bid({ _id: "b1", tradePackageId: "p26", subcontractorName: "Rosendin Electric, Inc.", baseAmountCents: 122_500_000, leveledTotalCents: 122_500_000 }),
     bid({
       _id: "b2",
       tradePackageId: "p26",
       subcontractorName: "Alterman, Inc.",
-      baseBidAmount: 1_100_000,
-      leveledTotalCost: 1_286_000,
+      baseAmountCents: 110_000_000,
+      leveledTotalCents: 128_600_000,
       identifiedExclusions: [
-        { description: "Crane hoisting", costImpact: 45_000, severity: "critical" },
-        { description: "Firestop", costImpact: 22_000, severity: "critical" },
-        { description: "Seismic", costImpact: 55_000, severity: "critical" },
-        { description: "Overtime", costImpact: 25_000, severity: "moderate" },
+        { description: "Crane hoisting", costImpactCents: 4_500_000, severity: "critical" },
+        { description: "Firestop", costImpactCents: 2_200_000, severity: "critical" },
+        { description: "Seismic", costImpactCents: 5_500_000, severity: "critical" },
+        { description: "Overtime", costImpactCents: 2_500_000, severity: "moderate" },
       ],
-      leadTimePenalty: 24_000,
-      coiPenalty: 15_000,
+      leadTimePenaltyCents: 2_400_000,
+      coiPenaltyCents: 1_500_000,
       coiComplianceStatus: "deficiency_detected",
       longLeadEquipmentWeeks: 16,
     }),
-    bid({ _id: "b3", tradePackageId: "p23", subcontractorName: "TDIndustries, Inc.", leveledTotalCost: 1_820_000 }),
+    bid({ _id: "b3", tradePackageId: "p23", subcontractorName: "TDIndustries, Inc.", leveledTotalCents: 182_000_000 }),
     bid({
       _id: "b4",
       tradePackageId: "p23",
       subcontractorName: "The Brandt Companies, LLC",
-      baseBidAmount: 1_650_000,
-      leveledTotalCost: 1_785_000,
-      identifiedExclusions: [{ description: "Exclusions", costImpact: 108_000, severity: "critical" }],
-      leadTimePenalty: 12_000,
-      coiPenalty: 15_000,
+      baseAmountCents: 165_000_000,
+      leveledTotalCents: 178_500_000,
+      identifiedExclusions: [{ description: "Exclusions", costImpactCents: 10_800_000, severity: "critical" }],
+      leadTimePenaltyCents: 1_200_000,
+      coiPenaltyCents: 1_500_000,
       coiComplianceStatus: "deficiency_detected",
     }),
-    bid({ _id: "b5", tradePackageId: "p22", subcontractorName: "Clarke Kent Plumbing", leveledTotalCost: 935_000 }),
+    bid({ _id: "b5", tradePackageId: "p22", subcontractorName: "Clarke Kent Plumbing", leveledTotalCents: 93_500_000 }),
     bid({
       _id: "b6",
       tradePackageId: "p22",
       subcontractorName: "Limbach Facility Services LLC",
-      baseBidAmount: 820_000,
-      leveledTotalCost: 908_500,
-      identifiedExclusions: [{ description: "Exclusions", costImpact: 61_500, severity: "critical" }],
-      leadTimePenalty: 12_000,
-      coiPenalty: 15_000,
+      baseAmountCents: 82_000_000,
+      leveledTotalCents: 90_850_000,
+      identifiedExclusions: [{ description: "Exclusions", costImpactCents: 6_150_000, severity: "critical" }],
+      leadTimePenaltyCents: 1_200_000,
+      coiPenaltyCents: 1_500_000,
       coiComplianceStatus: "deficiency_detected",
     }),
   ];
@@ -118,7 +118,7 @@ test("Headline numbers reconcile with the seeded demo data set", () => {
   // "Hidden gaps exposed" reconciles with the flagged Alterman card components:
   // 147,000 exclusions + 24,000 lead + 15,000 COI = 186,000.
   expect(metrics.gapsCaught).toBe(186_000);
-  expect(getNormalizationBreakdown(bids[1]).totalUplift).toBe(186_000);
+  expect(getNormalizationBreakdown(bids[1]).totalUpliftCents).toBe(18_600_000);
   // Award count comes from the agreement, so KPI and stepper cannot disagree.
   expect(metrics.awardedPackages).toBe(1);
   expect(metrics.totalPackages).toBe(3);
@@ -131,7 +131,7 @@ test("Headline numbers reconcile with the seeded demo data set", () => {
 
 test("Superseded agreements do not count as awards", () => {
   const packages = [pkg("p26", 1_000_000, "leveling")];
-  const bids = [bid({ _id: "b1", tradePackageId: "p26", leveledTotalCost: 900_000 })];
+  const bids = [bid({ _id: "b1", tradePackageId: "p26", leveledTotalCents: 90_000_000 })];
   const metrics = computeProcurementMetrics({ estBudget: 1_000_000 }, packages, bids, [agreement("p26", "superseded")]);
   expect(metrics.awardedPackages).toBe(0);
 });
@@ -153,7 +153,7 @@ test("Packages without bids use their budget estimate and expose no gaps", () =>
 
 test("F2: a mixed portfolio reports the budget share and never claims all-bid variance", () => {
   const packages = [pkg("p26", 1_000_000, "leveling"), pkg("p23", 2_000_000, "draft")];
-  const bids = [bid({ _id: "b1", tradePackageId: "p26", leveledTotalCost: 950_000 })];
+  const bids = [bid({ _id: "b1", tradePackageId: "p26", leveledTotalCents: 95_000_000 })];
   const metrics = computeProcurementMetrics({ estBudget: 3_500_000 }, packages, bids, []);
   expect(metrics.totalLeveledBuyout).toBe(2_950_000);
   expect(metrics.leveledBasis).toBe("mixed");
@@ -174,8 +174,8 @@ test("Buyout equals budget when a project has no packages and no bids", () => {
 test("Out-of-band low bids are flagged below 50% of the package budget", () => {
   const packages = [pkg("p26", 1_250_000, "leveling")];
   const bids = [
-    bid({ _id: "b1", tradePackageId: "p26", baseBidAmount: 1_225_000, leveledTotalCost: 1_225_000 }),
-    bid({ _id: "b2", tradePackageId: "p26", baseBidAmount: 250_000, leveledTotalCost: 250_000 }),
+    bid({ _id: "b1", tradePackageId: "p26", baseAmountCents: 122_500_000, leveledTotalCents: 122_500_000 }),
+    bid({ _id: "b2", tradePackageId: "p26", baseAmountCents: 25_000_000, leveledTotalCents: 25_000_000 }),
   ];
   const flagged = getSuspiciouslyLowBidIds(bids, packages[0].budgetEstimate);
   expect(flagged.has("b2")).toBe(true);
@@ -206,18 +206,18 @@ test("Division baselines are 12 weeks electrical and 16 weeks mechanical/plumbin
 });
 
 test("Bid cards use the persisted target, and older records fall back to the division baseline", () => {
-  const persisted = bid({ _id: "b1", tradePackageId: "p22", leveledTotalCost: 1, longLeadEquipmentWeeks: 17, leadTimePenalty: 6_000, leadTimeTargetWeeks: 16 });
+  const persisted = bid({ _id: "b1", tradePackageId: "p22", leveledTotalCents: 100, longLeadEquipmentWeeks: 17, leadTimePenaltyCents: 600_000, leadTimeTargetWeeks: 16 });
   expect(leadTargetWeeksFor(persisted, "22 00 00")).toBe(16);
-  const legacy = bid({ _id: "b2", tradePackageId: "p22", leveledTotalCost: 1, longLeadEquipmentWeeks: 17, leadTimePenalty: 6_000 });
+  const legacy = bid({ _id: "b2", tradePackageId: "p22", leveledTotalCents: 100, longLeadEquipmentWeeks: 17, leadTimePenaltyCents: 600_000 });
   expect(leadTargetWeeksFor(legacy, "22 00 00")).toBe(16);
   expect(leadTargetWeeksFor(legacy, "26 00 00")).toBe(12);
 });
 
 test("Lead-time arithmetic is rendered from the persisted numbers", () => {
-  const div22 = bid({ _id: "b1", tradePackageId: "p22", leveledTotalCost: 1, longLeadEquipmentWeeks: 17, leadTimePenalty: 6_000, leadTimeTargetWeeks: 16 });
+  const div22 = bid({ _id: "b1", tradePackageId: "p22", leveledTotalCents: 100, longLeadEquipmentWeeks: 17, leadTimePenaltyCents: 600_000, leadTimeTargetWeeks: 16 });
   expect(leadPenaltyArithmetic(div22, "22 00 00")).toBe("(17 − 16) × $6,000 = +$6,000");
-  const div26 = bid({ _id: "b2", tradePackageId: "p26", leveledTotalCost: 1, longLeadEquipmentWeeks: 16, leadTimePenalty: 24_000, leadTimeTargetWeeks: 12 });
+  const div26 = bid({ _id: "b2", tradePackageId: "p26", leveledTotalCents: 100, longLeadEquipmentWeeks: 16, leadTimePenaltyCents: 2_400_000, leadTimeTargetWeeks: 12 });
   expect(leadPenaltyArithmetic(div26, "26 00 00")).toBe("(16 − 12) × $6,000 = +$24,000");
-  const onTrack = bid({ _id: "b3", tradePackageId: "p26", leveledTotalCost: 1, longLeadEquipmentWeeks: 16, leadTimePenalty: 0, leadTimeTargetWeeks: 16 });
+  const onTrack = bid({ _id: "b3", tradePackageId: "p26", leveledTotalCents: 100, longLeadEquipmentWeeks: 16, leadTimePenaltyCents: 0, leadTimeTargetWeeks: 16 });
   expect(leadPenaltyArithmetic(onTrack, "23 00 00")).toBe("within 16-wk baseline");
 });

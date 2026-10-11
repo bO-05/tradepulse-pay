@@ -1,16 +1,19 @@
 import { ConvexError, v, type Infer } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx } from "../_generated/server";
+import { cannotPay, payGateForMutation } from "../billing/payGateDb";
+import { formatCents } from "../lib/money";
 import { syncProposalForPayment } from "../payApps/proposalSync";
 import { isCaptureDenied, settleRelease, takeEarlySettlement } from "./captureSettlement";
 import { assertPaymentTransition, canTransitionMilestone, canTransitionPayment, type MilestoneStatus } from "./stateMachine";
-import {
-  checkCaptureAmount,
-  computePayoutSplit,
-  isValidRequestKey,
-  remainingAuthorizedCents,
-  retainagePercentFor,
-} from "./payoutMath";
+import { checkCaptureAmount, isValidRequestKey, remainingAuthorizedCents } from "./payoutMath";
+
+export const APPROVED_PAY_APP_REQUIRED_MESSAGE =
+  "An approved pay app is required: money moves only from an approved pay app's Payment panel. Nothing was captured or paid.";
+
+export function approvedPayAppRequired(): ConvexError<{ code: string; message: string }> {
+  return new ConvexError({ code: "APPROVED_PAY_APP_REQUIRED", message: APPROVED_PAY_APP_REQUIRED_MESSAGE });
+}
 
 /**
  * Database side of "Release & pay" (architecture §4 steps 2–3): one payout payment per release,
@@ -55,16 +58,6 @@ async function milestonePayouts(ctx: MutationCtx, milestoneId: Id<"milestones">)
     .withIndex("by_milestoneId", (q) => q.eq("milestoneId", milestoneId))
     .take(200);
   return rows.filter((p) => p.kind === "payout");
-}
-
-/** The sub's payout address: the human sub profile linked to the agreement's contractor. */
-export async function receiverFor(ctx: MutationCtx, contractorId: Id<"contractors">): Promise<string | undefined> {
-  const profiles = await ctx.db
-    .query("userProfiles")
-    .withIndex("by_contractorId", (q) => q.eq("contractorId", contractorId))
-    .take(50);
-  const sub = profiles.find((p) => p.role === "sub" && p.actorType !== "agent" && p.paypalEmail);
-  return sub?.paypalEmail?.trim() || undefined;
 }
 
 const beginReleaseResult = v.union(
@@ -112,13 +105,25 @@ export const beginRelease = internalMutation({
     const inFlight = (await milestonePayouts(ctx, milestone._id)).find((p) => IN_FLIGHT_RELEASE.includes(p.status));
     if (inFlight) return { state: "busy", paymentId: inFlight._id, actor: args.actor };
 
+    if (args.payAppId === undefined) throw approvedPayAppRequired();
+    const payApp = await ctx.db.get(args.payAppId);
+    if (payApp === null || payApp.agreementId !== agreement._id) throw approvedPayAppRequired();
+    const gate = await payGateForMutation(ctx, payApp, agreement);
+    if (!gate.ok || gate.figures === null || gate.payeeEmail === null) throw cannotPay(gate.reasons);
+    if (gate.figures.grossCents !== args.amountCents) {
+      throw new ConvexError({
+        code: "CONFLICT",
+        message: `The approved amount is ${formatCents(gate.figures.grossCents)}, not ${formatCents(args.amountCents)}; nothing was captured or paid.`,
+      });
+    }
+
     const funding = await fundedPaymentFor(ctx, milestone._id);
     if (funding === null || !CAPTURABLE.includes(funding.status)) {
       throw new ConvexError({
         code: "NOT_RELEASABLE",
         message:
           funding === null
-            ? "This milestone is not funded. Fund it before releasing payment."
+            ? "This tranche is not funded. Fund it before paying."
             : notCapturableMessage(funding),
       });
     }
@@ -126,14 +131,8 @@ export const beginRelease = internalMutation({
     const check = checkCaptureAmount(args.amountCents, remainingAuthorizedCents(funding));
     if (!check.ok) throw new ConvexError({ code: "INVALID_AMOUNT", message: check.message });
 
-    const receiverEmail = await receiverFor(ctx, agreement.contractorId);
-    if (!receiverEmail) {
-      throw new ConvexError({
-        code: "NO_PAYOUT_ACCOUNT",
-        message: `${agreement.subcontractorName} has no PayPal payout email on file. Nothing was captured or paid.`,
-      });
-    }
-    const split = computePayoutSplit(args.amountCents, retainagePercentFor(agreement));
+    const receiverEmail = gate.payeeEmail;
+    const split = gate.figures;
     const paymentId = await ctx.db.insert("payments", {
       agreementId: agreement._id,
       milestoneId: milestone._id,
@@ -168,6 +167,23 @@ export const releaseRow = internalQuery({
       paypalPayoutBatchId: p.paypalPayoutBatchId ?? null,
       error: p.error ?? null,
     };
+  },
+});
+
+/**
+ * The durable capture gate, called right before the capture POST once OAuth has succeeded. From here on
+ * PayPal may hold the capture, so a resume only reconciles it under the same PayPal-Request-Id; before
+ * it, a resume is a new capture and must pass canPay again (resumeDb.continueRelease).
+ */
+export const markCaptureSending = internalMutation({
+  args: { releasePaymentId: v.id("payments") },
+  returns: v.union(v.object({ state: v.literal("ready") }), v.object({ state: v.literal("closed"), status: v.string(), error: v.optional(v.string()) })),
+  handler: async (ctx, { releasePaymentId }) => {
+    const release = await ctx.db.get(releasePaymentId);
+    if (release === null || release.kind !== "payout") throw new ConvexError({ code: "NOT_FOUND", message: "Release not found." });
+    if (release.status !== "created") return { state: "closed" as const, status: release.status, error: release.error };
+    if (release.captureSubmittedAt === undefined) await ctx.db.patch(release._id, { captureSubmittedAt: Date.now() });
+    return { state: "ready" as const };
   },
 });
 

@@ -81,12 +81,15 @@ try {
 
   projectId = await http.mutation("projects:createProject", {
     title: FIXTURE,
-    location: "Austin, TX",
+    ownerName: "QA Smoke Owner LLC",
+    address: { line1: "100 Congress Ave", city: "Austin", zip: "78701" },
+    state: "TX",
+    contractValueCents: 240_000_000,
+    retainageBps: 1000,
+    billingDay: 25,
+    startDate: "2026-10-01",
     projectType: "Class-A Commercial Mixed-Use",
-    estBudget: 2_400_000,
-    targetCompletionWeeks: 52,
     specDocumentText: "QA smoke fixture. Division 26 and 23 MEP scopes.",
-    isDemoProject: false,
   });
 
   const elecId = await http.mutation("tradePackages:createTradePackage", {

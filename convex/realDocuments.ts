@@ -1,5 +1,5 @@
 /**
- * TradePulse Pro — Real-World Construction Document Engine
+ * TradePulse Pay — Real-World Construction Document Engine
  * Generates and serves authentic, 100% standard-compliant CSI MasterFormat specifications,
  * architectural switchgear blueprints, subcontractor AIA proposals, and ACORD 25 insurance certificates.
  * Zero hallucinated/dummy data: contains real ASTM standards, NEC 2023 codes, IBC 2024 seismic requirements,
@@ -60,7 +60,7 @@ export function buildPdfFromDocument(
 
   // Footer
   streamContent += `BT\n/F2 8 Tf\n50 35 Td\n(${escapePdfText(
-    "TradePulse Pro Certified Construction Document Register | Austin, TX | CSI MasterFormat 2024 Compliance"
+    "TradePulse Pay Construction Document Register | Austin, TX | CSI MasterFormat 2024 Compliance"
   )}) Tj\nET\n`;
 
   const streamBytes = new TextEncoder().encode(streamContent);

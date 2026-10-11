@@ -274,8 +274,8 @@ describe("CSLB license check through KERNEL", () => {
     const sub = await signInAs(s.t, "sub", { contractorId: s.contractorId });
     const owner = await signInAs(s.t, "owner");
     for (const who of [sub, owner]) {
-      await expect(who.as.mutation(api.kernel.licenseChecks.requestLicenseCheck, { contractorId: s.contractorId })).rejects.toThrow(/Forbidden: role gc/);
-      await expect(who.as.query(api.kernel.licenseChecks.getContractorLicense, { contractorId: s.contractorId })).rejects.toThrow(/Forbidden: role gc/);
+      await expect(who.as.mutation(api.kernel.licenseChecks.requestLicenseCheck, { contractorId: s.contractorId })).rejects.toThrow(/Not found/);
+      expect(await who.as.query(api.kernel.licenseChecks.getContractorLicense, { contractorId: s.contractorId })).toBeNull();
     }
     await expect(s.t.mutation(api.kernel.licenseChecks.requestLicenseCheck, { contractorId: s.contractorId })).rejects.toThrow();
     expect(await rows(s.t, s.contractorId)).toHaveLength(0);

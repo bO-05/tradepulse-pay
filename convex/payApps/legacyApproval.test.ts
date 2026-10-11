@@ -33,6 +33,7 @@ async function setup() {
       .first())!;
   });
   await gc.as.mutation(api.agreements.executeAgreement, { agreementId: agreement._id });
+  await gc.as.mutation(api.billing.sov.approveSov, { agreementId: agreement._id });
   const line = await t.run(async (ctx) => {
     const first = (await ctx.db
       .query("scheduleOfValues")
@@ -210,6 +211,75 @@ describe("approvals recorded before final per-line approvals existed", () => {
     expect(await errorText(s.sub1.as.mutation(api.payApps.submit.submitPayApplication, lineArgs(s, 100)))).toMatch(
       /cannot be split across its lines/,
     );
+  });
+});
+
+describe("pay-app detail of a legacy approval", () => {
+  test("shows the rebuilt final approved figures, not the submitted request, to the GC and the sub", async () => {
+    const s = await setup();
+    const base = Date.now() - 10_000;
+    const legacyId = await insertLegacyApproval(s, {
+      requestedCents: LINE_VALUE,
+      recommendedCents: 8_000,
+      approvedCents: 3_000,
+      status: "paid",
+      createdAt: base,
+    });
+    const laterId = await s.t.run(async (ctx) =>
+      ctx.db.insert("payApplications", {
+        agreementId: s.agreement._id,
+        contractorId: s.agreement.contractorId,
+        subUserId: s.sub1.userId,
+        periodLabel: "Later",
+        lines: [{ sovLineId: s.line._id, pctCompleteThisPeriod: 10, pctCompleteToDate: 40, requestedCents: 1_000 }],
+        requestedTotalCents: 1_000,
+        notes: "",
+        lienWaiver: true,
+        status: "submitted",
+        submittedBy: { userId: s.sub1.userId, actorType: "human" },
+        createdAt: base + 100,
+      }),
+    );
+    for (const viewer of [s.gc.as, s.sub1.as]) {
+      const view = (await viewer.query(api.payApps.g703.getPayApp, { payAppId: legacyId }))!;
+      expect(view.basis).toBe("approved");
+      expect(view.unverifiedReason).toBeNull();
+      const line = view.lines.find((l) => l.sovLineId === s.line._id)!;
+      expect(line).toMatchObject({ workThisPeriodCents: 3_000, requestedWorkCents: LINE_VALUE });
+      expect(view.summary.completedAndStoredCents).toBe(3_000);
+      expect(view.lines.reduce((a, l) => a + l.workThisPeriodCents, 0)).toBe(3_000);
+    }
+    const later = (await s.gc.as.query(api.payApps.g703.getPayApp, { payAppId: laterId }))!;
+    expect(later.lines.find((l) => l.sovLineId === s.line._id)!.previousWorkCents).toBe(3_000);
+    expect(later.unverifiedReason).toBeNull();
+  });
+
+  test("says the approved figures cannot be verified when no GC decision is recorded", async () => {
+    const s = await setup();
+    const base = Date.now() - 10_000;
+    const legacyId = await insertLegacyApproval(s, { requestedCents: 4_000, recommendedCents: 2_000, withProposal: false, createdAt: base });
+    const laterId = await s.t.run(async (ctx) =>
+      ctx.db.insert("payApplications", {
+        agreementId: s.agreement._id,
+        contractorId: s.agreement.contractorId,
+        subUserId: s.sub1.userId,
+        periodLabel: "Later",
+        lines: [{ sovLineId: s.line._id, pctCompleteThisPeriod: 10, pctCompleteToDate: 50, requestedCents: 1_000 }],
+        requestedTotalCents: 1_000,
+        notes: "",
+        lienWaiver: true,
+        status: "submitted",
+        submittedBy: { userId: s.sub1.userId, actorType: "human" },
+        createdAt: base + 100,
+      }),
+    );
+    const view = (await s.gc.as.query(api.payApps.g703.getPayApp, { payAppId: legacyId }))!;
+    expect(view.basis).toBe("unverified");
+    expect(view.unverifiedReason).toMatch(/Legacy approved.*cannot be verified.*as submitted, not approved/);
+    expect(view.lines.find((l) => l.sovLineId === s.line._id)!.requestedWorkCents).toBeNull();
+    const later = (await s.sub1.as.query(api.payApps.g703.getPayApp, { payAppId: laterId }))!;
+    expect(later.basis).toBe("requested");
+    expect(later.unverifiedReason).toMatch(/Legacy approved.*cannot be verified.*Previous applications on this sheet leave it out/);
   });
 });
 

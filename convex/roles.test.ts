@@ -54,10 +54,10 @@ describe("requireRole", () => {
     await expect(as.run((ctx) => requireRole(ctx, ["gc", "sub", "owner"]))).rejects.toThrow(/no TradePulse role/);
   });
 
-  test("treats a token subject that is not a users id as having no role", async () => {
+  test("treats a token subject that is not a live users session as signed out", async () => {
     const t = newTest();
     const bogus = t.withIdentity({ subject: "x|y" });
-    await expect(bogus.run((ctx) => requireRole(ctx, ["gc"]))).rejects.toThrow(/no TradePulse role/);
+    await expect(bogus.run((ctx) => requireRole(ctx, ["gc"]))).rejects.toThrow(/Not authenticated/);
     expect(await bogus.query(api.profiles.me, {})).toBeNull();
   });
 
@@ -77,11 +77,17 @@ describe("requireRole", () => {
     expect(viewer.role).toBe("owner");
   });
 
-  test("checks that a given project exists", async () => {
+  test("with a projectId, requires the caller's company to own the project", async () => {
     const t = newTest();
-    const { as } = await signInAs(t, "gc");
-    const projectId = await t.run((ctx) =>
-      ctx.db.insert("projects", {
+    const { as, userId } = await signInAs(t, "gc");
+    const { as: otherGc } = await signInAs(t, "gc");
+    const projectId = await t.run(async (ctx) => {
+      const companyId = await ctx.db.insert("companies", { name: "GC Co", kind: "gc", isDemo: false, createdAt: 0 });
+      for (const m of await ctx.db.query("companyMembers").withIndex("by_userId", (q) => q.eq("userId", userId)).collect()) {
+        await ctx.db.patch(m._id, { status: "removed" });
+      }
+      await ctx.db.insert("companyMembers", { companyId, userId, role: "admin", status: "active", createdAt: 0 });
+      return await ctx.db.insert("projects", {
         title: "P",
         location: "Austin, TX",
         projectType: "x",
@@ -89,12 +95,14 @@ describe("requireRole", () => {
         targetCompletionWeeks: 1,
         specDocumentText: "s",
         isDemoProject: false,
+        gcCompanyId: companyId,
         createdAt: 0,
-      }),
-    );
+      });
+    });
     await expect(as.run((ctx) => requireRole(ctx, ["gc"], projectId))).resolves.toMatchObject({ role: "gc" });
+    await expect(otherGc.run((ctx) => requireRole(ctx, ["gc"], projectId))).rejects.toThrow(/Not found/);
     await t.run((ctx) => ctx.db.delete(projectId));
-    await expect(as.run((ctx) => requireRole(ctx, ["gc"], projectId))).rejects.toThrow(/Project not found/);
+    await expect(as.run((ctx) => requireRole(ctx, ["gc"], projectId))).rejects.toThrow(/Not found/);
   });
 });
 
@@ -106,8 +114,8 @@ describe("GC-only legacy mutations", () => {
     const { as: owner } = await signInAs(t, "owner");
     const callers = [
       { name: "unauthenticated", c: t, err: /Not authenticated/ },
-      { name: "sub", c: sub, err: /Forbidden: role gc required/ },
-      { name: "owner", c: owner, err: /Forbidden: role gc required/ },
+      { name: "sub", c: sub, err: /Forbidden: role gc required|Not found/ },
+      { name: "owner", c: owner, err: /Forbidden: role gc required|Not found/ },
     ];
     const pkg = demo.agreement.tradePackageId;
     for (const { c, err } of callers) {
@@ -239,7 +247,9 @@ describe("portal queries", () => {
     await expect(sub.query(api.portal.ownerOverview, {})).rejects.toThrow(/Forbidden/);
     await expect(t.query(api.portal.getAgreementSummary, { agreementId: "x" })).rejects.toThrow(/Not authenticated/);
     const overview = await owner.query(api.portal.ownerOverview, {});
-    expect(overview[0].agreements.length).toBeGreaterThan(0);
+    expect(overview.length).toBeGreaterThan(0);
+    // Owners get the project summary and change orders, never the subcontract agreements.
+    expect(overview[0].agreements).toEqual([]);
   });
 
   test("profiles.me reflects sign-in state and role", async () => {

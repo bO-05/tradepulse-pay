@@ -2,7 +2,7 @@ import { v, type Infer } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { action, internalAction, type ActionCtx } from "../_generated/server";
-import { requireRoleInAction } from "../lib/roles";
+import { requireProjectScopeInAction } from "../lib/tenancyAction";
 import { formatCents } from "../lib/money";
 import { payoutSub } from "./payouts";
 import type { BeginRetainageRelease } from "./retainageDb";
@@ -60,9 +60,8 @@ export const releaseRetainage = action({
   args: { agreementId: v.id("agreements") },
   returns: retainageResult,
   handler: async (ctx, { agreementId }): Promise<RetainageResult> => {
-    const viewer = await requireRoleInAction(ctx, ["gc"]);
-    const actor: string = await ctx.runQuery(internal.payments.release.actorForUser, { userId: viewer.userId });
-    return await releaseRetainageFor(ctx, agreementId, actor);
+    const scope = await requireProjectScopeInAction(ctx, { docs: [{ table: "agreements", id: agreementId }] }, { roles: ["gc"], write: true });
+    return await releaseRetainageFor(ctx, agreementId, scope.actor);
   },
 });
 
@@ -74,8 +73,8 @@ export const resumeRetainageRelease = action({
   args: { paymentId: v.id("payments") },
   returns: retainageResult,
   handler: async (ctx, { paymentId }): Promise<RetainageResult> => {
-    const viewer = await requireRoleInAction(ctx, ["gc"]);
-    const actor: string = await ctx.runQuery(internal.payments.release.actorForUser, { userId: viewer.userId });
+    const scope = await requireProjectScopeInAction(ctx, { docs: [{ table: "payments", id: paymentId }] }, { roles: ["gc"], write: true });
+    const actor = scope.actor;
     const { amountCents }: { amountCents: number } = await ctx.runMutation(internal.payments.retainageDb.checkResumableRelease, {
       paymentId,
     });

@@ -1,5 +1,6 @@
 import { action } from "./_generated/server";
 import { requireRoleInAction } from "./lib/roles";
+import { requireProjectScopeInAction } from "./lib/tenancyAction";
 import { v } from "convex/values";
 import { FirecrawlClient } from "@firecrawl/firecrawl-convex";
 import { components, internal } from "./_generated/api";
@@ -342,7 +343,7 @@ export const discoverSubcontractors = action({
     tradePackageId: v.id("tradePackages"),
   },
   handler: async (ctx, args): Promise<DiscoveryResult> => {
-    await requireRoleInAction(ctx, ["gc"]);
+    await requireProjectScopeInAction(ctx, { docs: [{ table: "tradePackages", id: args.tradePackageId }] }, { roles: ["gc"], write: true });
     const tradePkg = await ctx.runQuery(internal.tradePackages.getPackageInternal, {
       tradePackageId: args.tradePackageId,
     });

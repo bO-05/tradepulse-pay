@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import staticHosting from "@convex-dev/static-hosting/convex.config";
 import firecrawl from "@firecrawl/firecrawl-convex/convex.config";
 import agentmail from "@agentmail/convex/convex.config";
+import rateLimiter from "@convex-dev/rate-limiter/convex.config.js";
 
 const app = defineApp({
   env: {
@@ -13,6 +14,8 @@ const app = defineApp({
     FIRECRAWL_WEBHOOK_SECRET: v.optional(v.string()),
     AGENTMAIL_API_KEY: v.optional(v.string()),
     AGENTMAIL_WEBHOOK_SECRET: v.optional(v.string()),
+    EMAIL_DAILY_BUDGET: v.optional(v.string()),
+    EMAIL_RECIPIENT_ALLOWLIST: v.optional(v.string()),
     OPENAI_API_KEY: v.optional(v.string()),
     GEMINI_API_KEY: v.optional(v.string()),
     ANTHROPIC_API_KEY: v.optional(v.string()),
@@ -54,12 +57,12 @@ app.use(firecrawl, {
   },
 });
 
-// 3. AgentMail programmatic inbox component.
-// NOTE: the published component reads AGENTMAIL_API_KEY from process.env inside
-// its own sandbox, which does not inherit the host deployment's environment and
-// cannot be passed via `app.use` (the component declares no env schema). Outbound
-// inbox/send calls therefore go through `convex/agentmailApi.ts` with the host
-// deployment key; this component stays mounted for Svix-verified inbound webhooks.
+// 3. AgentMail component: kept mounted only so its existing tables are not dropped.
+// The app does not call it. Sends go through convex/lib/mailer.ts and inbound
+// webhooks through convex/agentmailWebhook.ts (which reuses its Svix verifier).
 app.use(agentmail);
+
+// 4. Rate limits for auth email sends and sign-ups (convex/authLimits.ts).
+app.use(rateLimiter);
 
 export default app;

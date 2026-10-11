@@ -50,11 +50,11 @@ describe("procurement scenario fixture", () => {
     expect(bids.every((b) => !b.isAwarded)).toBe(true);
     const mine = bids.find((b) => b._id === res.sub1BidId)!;
     expect(mine.contractorId).toBe(contractorId);
-    expect(mine.leveledTotalCost).toBe(SCENARIO_SUB1_LEVELED);
+    expect(mine.leveledTotalCents).toBe(SCENARIO_SUB1_LEVELED * 100);
     expect(mine.identifiedExclusions.map((e) => e.description)).toEqual([SCENARIO_SUB1_EXCLUSION.description]);
     const competing = bids.find((b) => b._id === res.competingBidId)!;
     expect(competing.contractorId).not.toBe(contractorId);
-    expect(competing.leveledTotalCost).toBe(SCENARIO_COMPETING_LEVELED);
+    expect(competing.leveledTotalCents).toBe(SCENARIO_COMPETING_LEVELED * 100);
 
     const after = await snapshot(t);
     // Existing contractors are untouched; only the competing bidder is new.
@@ -106,7 +106,9 @@ describe("procurement scenario fixture", () => {
     expect(award.success).toBe(true);
     const agreement = await gc.as.query(api.agreements.getAgreementByBid, { bidId });
     expect(agreement?.contractorId).toBe(contractorId);
-    expect(agreement?.contractSum).toBe(SCENARIO_SUB1_LEVELED);
+    // Contract sum is the base bid; the leveling plug for the exclusion never enters it.
+    expect(agreement?.contractSum).toBe(SCENARIO_SUB1_LEVELED - SCENARIO_SUB1_EXCLUSION.costImpact);
+    expect(agreement?.contractSumCents).toBe((SCENARIO_SUB1_LEVELED - SCENARIO_SUB1_EXCLUSION.costImpact) * 100);
     await gc.as.mutation(api.agreements.executeAgreement, { agreementId: agreement!._id });
 
     const gcList = await gc.as.query(api.payments.ledger.listLedgerAgreements, {});
@@ -120,12 +122,10 @@ describe("procurement scenario fixture", () => {
     expect(sub2List.map((a: any) => a._id)).not.toContain(agreement!._id);
 
     const ledger: any = await sub1.as.query(api.payments.ledger.getAgreementLedger, { agreementId: agreement!._id });
-    const excluded = ledger.sov.filter((l: any) => l.excludedScope);
+    expect(ledger.sov.filter((l: any) => l.excludedScope)).toEqual([]);
     const bid = await t.run((ctx) => ctx.db.get(bidId));
-    expect(excluded.map((l: any) => l.description)).toEqual(
-      bid!.identifiedExclusions.map((e) => `Excluded scope: ${e.description}`),
-    );
-    expect(excluded[0].scheduledValueCents).toBe(SCENARIO_SUB1_EXCLUSION.costImpact * 100);
+    const stored = await t.run((ctx) => ctx.db.get(agreement!._id));
+    expect(stored!.excludedScopeNotes).toEqual(bid!.identifiedExclusions.map((e) => e.description));
 
     // Pre-existing contractors and agreements are unchanged by the whole flow.
     const after = await snapshot(t);

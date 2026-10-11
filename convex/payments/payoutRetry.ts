@@ -2,7 +2,7 @@ import { v, type Infer } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { action, internalAction, type ActionCtx } from "../_generated/server";
-import { requireRoleInAction } from "../lib/roles";
+import { requireProjectScopeInAction } from "../lib/tenancyAction";
 import { payoutSub } from "./payouts";
 
 /**
@@ -39,9 +39,8 @@ export const retryPayout = action({
   args: { paymentId: v.id("payments") },
   returns: retryResult,
   handler: async (ctx, { paymentId }): Promise<RetryResult> => {
-    const viewer = await requireRoleInAction(ctx, ["gc"]);
-    const actor: string = await ctx.runQuery(internal.payments.release.actorForUser, { userId: viewer.userId });
-    return await retry(ctx, paymentId, actor);
+    const scope = await requireProjectScopeInAction(ctx, { docs: [{ table: "payments", id: paymentId }] }, { roles: ["gc"], write: true });
+    return await retry(ctx, paymentId, scope.actor);
   },
 });
 

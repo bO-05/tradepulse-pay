@@ -104,6 +104,7 @@ export const ActivityAuditStreamView: React.FC<ActivityAuditStreamViewProps> = (
       case "compliance_audit":
         return <ShieldCheck className="w-4 h-4 text-purple-400" />;
       case "bid_ingest_failed":
+      case "rfq_email_failed":
         return <AlertTriangle className="w-4 h-4 text-rose-400" />;
       case "cron_executed":
         return <Clock className="w-4 h-4 text-amber-300" />;
@@ -129,6 +130,7 @@ export const ActivityAuditStreamView: React.FC<ActivityAuditStreamViewProps> = (
       case "rfq_dispatched":
         return "bg-sky-950/80 text-sky-300 border-sky-800/60";
       case "bid_ingest_failed":
+      case "rfq_email_failed":
         return "bg-rose-950/80 text-rose-300 border-rose-800/60";
       default:
         return "bg-slate-800 text-slate-300 border-slate-700";

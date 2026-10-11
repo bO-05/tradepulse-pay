@@ -24,14 +24,14 @@ function elapsed(ms: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
-/** GC-only one-click TradePulse Pay demo against the real sandbox, reachable from the Judge Dock and the nav. */
+/** Demo-company GC only: one-click guided demo against the real sandbox, reachable from the demo simulator and the nav. */
 export function JudgeDemoPage() {
   const [runId, setRunId] = useState<Id<"judgeDemoRuns"> | null>(null);
   const run = useQuery(api.judgeDemo.runs.getRun, runId ? { runId } : {});
   const agreementId = run?.agreementId;
   const ledger = useQuery(api.payments.ledger.getAgreementLedger, agreementId ? { agreementId } : "skip");
   const inbox = useQuery(api.payApps.proposals.listInbox, run ? {} : "skip");
-  const changeOrders = useQuery(api.payments.changeOrderDb.listForAgreement, agreementId ? { agreementId } : "skip");
+  const changeOrders = useQuery(api.billing.changeOrders.listForProject, run ? { projectId: run.projectId } : "skip");
   const dashboard = useQuery(api.dashboard.queries.getDashboardData, agreementId ? {} : "skip");
   const dashboardTotals = dashboard ? (dashboard.agreements.find((a) => a.agreementId === agreementId)?.totals ?? null) : undefined;
   const refreshCo = useAction(api.payments.invoices.refreshChangeOrderStatus);
@@ -49,7 +49,8 @@ export function JudgeDemoPage() {
   const byId = useMemo(() => new Map((inbox ?? []).map((i) => [i.payApp._id as string, i as unknown as DemoInboxItem])), [inbox]);
   const honest = run?.honestPayAppId ? (byId.get(run.honestPayAppId) ?? null) : null;
   const agent = run?.agentPayAppId ? (byId.get(run.agentPayAppId) ?? null) : null;
-  const changeOrder = changeOrders?.changeOrders[0] ?? null;
+  const primeRows = changeOrders?.prime?.changeOrders ?? [];
+  const changeOrder = (run?.changeOrderId ? primeRows.find((co) => co._id === run.changeOrderId) : undefined) ?? primeRows[0] ?? null;
 
   const driver = useJudgeDemoDriver(
     {
@@ -88,7 +89,12 @@ export function JudgeDemoPage() {
   return (
     <div className="max-w-4xl space-y-4" data-testid="judge-demo-page">
       <header className="space-y-2">
-        <h1 className="text-xl font-semibold">TradePulse Pay judge demo</h1>
+        <h1 className="text-xl font-semibold flex items-center gap-2">
+          Guided demo
+          <span className="rounded-full border border-amber-600 bg-amber-950/60 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-200">
+            Demo
+          </span>
+        </h1>
         <p className="text-sm text-slate-300">
           One click runs the full pay-application flow against the real PayPal sandbox, Anthropic and KERNEL: execute a fresh demo
           agreement (${DEMO_CONTRACT_SUM.toLocaleString("en-US")}, seismic bracing excluded) for sub1's contractor, fund Mobilization, file an
@@ -97,7 +103,7 @@ export function JudgeDemoPage() {
           order to the Owner.
         </p>
         <p className="text-xs text-amber-200">
-          The two pay apps are filed by this demo as stand-ins and are labeled "Judge demo" wherever they appear. PayPal approval
+          The two pay apps are filed by this demo as stand-ins and are labeled "Guided demo (Demo)" wherever they appear. PayPal approval
           and the Owner's invoice payment are real browser steps; the demo waits for them and never fakes them.
         </p>
         <div className="flex flex-wrap items-center gap-2">

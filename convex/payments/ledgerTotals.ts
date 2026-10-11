@@ -21,6 +21,7 @@ export type LedgerRetainageRow = { deltaCents: number; paymentId?: string };
 export type LedgerChangeOrder = { status: string; amountCents: number };
 
 export type LedgerTotals = {
+  /** Contract sum to date: original plus approved change orders. */
   contractSumCents: number;
   billedCents: number;
   /** Authorized on the GC's card and not yet captured (authorized + partially captured remainders). */
@@ -35,12 +36,12 @@ export type LedgerTotals = {
   retainageReleasedCents: number;
   changeOrdersInvoicedCents: number;
   changeOrdersPaidCents: number;
-  /** Contract sum − (paid + retainage held): contract value not yet paid to or held for the sub. */
+  /** Contract sum to date − (paid + retainage held): contract value not yet paid to or held for the sub. */
   balanceCents: number;
 };
 
 /** The documented balance formula, shown on the ledger view and in the README. */
-export const BALANCE_FORMULA = "Balance = contract sum − (paid + retainage held)";
+export const BALANCE_FORMULA = "Balance = contract sum to date − (paid + retainage held)";
 
 const PAID_PAYMENT_KINDS = new Set(["payout", "retainage_release"]);
 const OPEN_AUTHORIZATION_STATUSES = new Set(["authorized", "partially_captured"]);
@@ -63,7 +64,7 @@ export function retainageReleasedCentsOf(row: LedgerRetainageRow, releaseIds: Se
 /**
  * Billed = approved pay applications at their final GC-approved amount; funded = open authorization
  * remainders; captured = recorded captures; paid = net of successful payouts and retainage releases;
- * retainage held = ledger balance; balance = contract sum − (paid + retainage held).
+ * retainage held = ledger balance; balance = contract sum to date − (paid + retainage held).
  */
 export function computeLedgerTotals(input: {
   contractSumCents: number;

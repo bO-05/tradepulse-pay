@@ -1,8 +1,10 @@
 import { query, mutation, internalMutation, internalQuery, action } from "./_generated/server";
-import { requireRole, requireRoleInAction } from "./lib/roles";
+import { auditActor, requireDocScope, requireProjectScope } from "./lib/projectScope";
+import { requireProjectScopeInAction } from "./lib/tenancyAction";
 import { v, ConvexError } from "convex/values";
 import { deleteAgreementCascade, deleteContractorCascade } from "./payments/cascade";
 import { api, internal } from "./_generated/api";
+import { RFQ_INBOX } from "./lib/mailer";
 import {
   normalizeCsiDivision,
   validateBidDeadline,
@@ -10,23 +12,41 @@ import {
   validatePositiveAmount,
   validateProjectText,
 } from "./validation";
+import { bidZoneForState, formatBidDue, packageDue, parseBidDueTime, projectStateOf } from "./lib/bidDue";
+import type { Doc } from "./_generated/dataModel";
+
+function validateBidDueTime(value: string | undefined): string | undefined {
+  try {
+    return parseBidDueTime(value);
+  } catch (err) {
+    throw new ConvexError(err instanceof Error ? err.message : "Bid due time must be a time like 14:00.");
+  }
+}
+
+/** Time and zone fields to store: the zone is the project's at the moment the GC sets the time. */
+function bidDueTimeFields(time: string | undefined, project: Doc<"projects">) {
+  return time === undefined
+    ? { bidDueTime: undefined, bidDueTimeZone: undefined }
+    : { bidDueTime: time, bidDueTimeZone: bidZoneForState(projectStateOf(project)).iana };
+}
 
 export const listByProject = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc", "owner"]);
-    return await ctx.db
+    const { project } = await requireProjectScope(ctx, args.projectId, { roles: ["gc", "owner"] });
+    const packages = await ctx.db
       .query("tradePackages")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
       .collect();
+    return packages.map((pkg) => ({ ...pkg, ...packageDue(pkg, project) }));
   },
 });
 
 export const getPackage = query({
   args: { tradePackageId: v.id("tradePackages") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc", "owner"]);
-    return await ctx.db.get(args.tradePackageId);
+    const { doc, project } = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc", "owner"] });
+    return { ...doc, ...packageDue(doc, project) };
   },
 });
 
@@ -46,20 +66,19 @@ export const createTradePackage = mutation({
     scopeSummary: v.string(),
     mandatoryInclusions: v.array(v.string()),
     bidDeadline: v.string(),
+    /** Optional "HH:MM" (24-hour) in the project's time zone; blank means end of day. */
+    bidDueTime: v.optional(v.string()),
     agentMailbox: v.optional(v.string()),
     agentMailboxId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const project = await ctx.db.get(args.projectId);
-    if (!project) {
-      throw new ConvexError("Project not found. Create or select a project before adding a trade package.");
-    }
+    const access = await requireProjectScope(ctx, args.projectId, { roles: ["gc"], write: true });
     const csiDivision = validateCsiDivision(args.csiDivision);
     const tradeName = validateProjectText(args.tradeName, "Trade package name");
     const scopeSummary = validateProjectText(args.scopeSummary, "Scope summary");
     const budgetEstimate = validatePositiveAmount(args.budgetEstimate, "Budget estimate");
     const bidDeadline = validateBidDeadline(args.bidDeadline);
+    const bidDueTime = validateBidDueTime(args.bidDueTime);
     const existing = await ctx.db
       .query("tradePackages")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
@@ -76,8 +95,10 @@ export const createTradePackage = mutation({
       scopeSummary,
       mandatoryInclusions: args.mandatoryInclusions,
       bidDeadline,
-      agentMailbox: args.agentMailbox ?? `trade-${csiDivision.replace(/\s+/g, "")}@agentmail.to`,
-      agentMailboxId: args.agentMailboxId ?? `inbox_${Date.now()}`,
+      ...(bidDueTime !== undefined ? bidDueTimeFields(bidDueTime, access.project) : {}),
+      agentMailbox: args.agentMailbox ?? RFQ_INBOX,
+      agentMailboxId: args.agentMailboxId ?? RFQ_INBOX,
+      agentMailboxShared: true,
       status: "draft",
     });
 
@@ -87,11 +108,52 @@ export const createTradePackage = mutation({
       eventType: "package_created",
       title: `CSI Trade Package Scoped: Division ${csiDivision}`,
       description: `Created ${tradeName} package ($${budgetEstimate.toLocaleString()} budget, ${args.mandatoryInclusions.length} mandatory inclusions).`,
-      actor: "Lead Estimator / GC Procurement",
+      ...auditActor(access),
       timestamp: Date.now(),
     });
 
     return pkgId;
+  },
+});
+
+/** GC changes a package's bid due date and optional time. Bidders see the new due instant at once. */
+export const updateBidDue = mutation({
+  args: { tradePackageId: v.id("tradePackages"), bidDeadline: v.string(), bidDueTime: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const access = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"], write: true });
+    const pkg = access.doc;
+    if (pkg.status === "awarded") throw new ConvexError("This package is awarded; its bid due date can no longer change.");
+    const bidDeadline = validateBidDeadline(args.bidDeadline);
+    const bidDueTime = validateBidDueTime(args.bidDueTime);
+    const before = formatBidDue(pkg, projectStateOf(access.project));
+    const patch = { bidDeadline, ...bidDueTimeFields(bidDueTime, access.project) };
+    await ctx.db.patch(pkg._id, patch);
+    const due = packageDue({ ...pkg, ...patch }, access.project);
+    await ctx.db.insert("auditLogs", {
+      projectId: pkg.projectId,
+      tradePackageId: pkg._id,
+      eventType: "package_updated",
+      title: `Bid due date changed: Division ${pkg.csiDivision}`,
+      description: `Bids for ${pkg.tradeName} were due ${before}; they are now due ${due.dueLabel}.`,
+      ...auditActor(access),
+      timestamp: Date.now(),
+    });
+    return due;
+  },
+});
+
+/** Points every package that still uses another inbox at the shared RFQ inbox (system and agent inboxes never receive RFQ mail). */
+export const moveSeedPackagesToRfqInbox = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    let moved = 0;
+    for await (const pkg of ctx.db.query("tradePackages")) {
+      if (pkg.agentMailboxId !== RFQ_INBOX || pkg.agentMailbox !== RFQ_INBOX) {
+        await ctx.db.patch(pkg._id, { agentMailbox: RFQ_INBOX, agentMailboxId: RFQ_INBOX, agentMailboxShared: true });
+        moved++;
+      }
+    }
+    return { moved };
   },
 });
 
@@ -122,9 +184,7 @@ export const updateStatus = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const pkg = await ctx.db.get(args.tradePackageId);
-    if (!pkg) throw new ConvexError("Trade package not found.");
+    await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"], write: true });
     // A12-03: "awarded" must be backed by evidence (awarded bid or active
     // agreement); a bare status write would fake an award in the KPI/stepper.
     if (args.status === "awarded") {
@@ -182,8 +242,9 @@ export const createTradePackageInternal = internalMutation({
       scopeSummary,
       mandatoryInclusions: args.mandatoryInclusions,
       bidDeadline,
-      agentMailbox: `trade-${csiDivision.replace(/\s+/g, "")}@agentmail.to`,
-      agentMailboxId: `inbox_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      agentMailbox: RFQ_INBOX,
+      agentMailboxId: RFQ_INBOX,
+      agentMailboxShared: true,
       status: "draft",
     });
 
@@ -222,7 +283,7 @@ export const generateTradePackagesFromSpec = action({
     ),
   },
   handler: async (ctx, args): Promise<any> => {
-    await requireRoleInAction(ctx, ["gc"]);
+    await requireProjectScopeInAction(ctx, { projectId: args.projectId }, { roles: ["gc"], write: true });
     let specText: string = args.specDocumentTextOverride || "";
     if (!specText) {
       const project: any = await ctx.runQuery(internal.projects.getProjectInternal, {
@@ -239,11 +300,16 @@ export const generateTradePackagesFromSpec = action({
       // The LLM route is best-effort: if every provider fails or returns unusable JSON,
       // fall back to the deterministic multi-trade package set so the workflow always completes.
       try {
+        const companyName: string | null = await ctx.runQuery(
+          internal.projects.getProjectCompanyNameInternal,
+          { projectId: args.projectId }
+        );
         const reasoningResult: any = await ctx.runAction(internal.llmRouter.executeReasoning, {
           taskType: "spec_generation",
           prompt: specText,
+          companyName: companyName ?? undefined,
           systemPrompt:
-            "You are TradePulse Pro, an expert construction cost engineer and CSI MasterFormat specialist. Analyze the building specifications and deconstruct them into discrete commercial trade packages with CSI division numbers, trade titles, budget estimates, and mandatory inclusions.",
+            `You are TradePulse Pay${companyName ? `, working on behalf of ${companyName},` : ","} an expert construction cost engineer and CSI MasterFormat specialist. Analyze the building specifications and deconstruct them into discrete commercial trade packages with CSI division numbers, trade titles, budget estimates, and mandatory inclusions.`,
         });
         const parsed = reasoningResult?.parsedJson;
         pkgs = (Array.isArray(parsed?.packages) && parsed.packages.length > 0)
@@ -384,9 +450,8 @@ export const deleteTradePackage = mutation({
     tradePackageId: v.id("tradePackages"),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const pkg = await ctx.db.get(args.tradePackageId);
-    if (!pkg) throw new Error("Trade package not found");
+    const access = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"], write: true });
+    const pkg = access.doc;
 
     // Executed subcontracts are immutable; deleting the package would destroy them.
     const executed = await ctx.db
@@ -468,7 +533,7 @@ export const deleteTradePackage = mutation({
       eventType: "compliance_audit",
       title: `Trade Package Removed: Division ${pkg.csiDivision}`,
       description: `Deleted CSI Division ${pkg.csiDivision} (${pkg.tradeName}) package and cascaded cleanup of associated bids, contractors, and agreements.`,
-      actor: "Lead Estimator / GC Procurement",
+      ...auditActor(access),
       timestamp: Date.now(),
     });
 

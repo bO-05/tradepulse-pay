@@ -16,16 +16,27 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { useQuery, useMutation, useAction } from "convex/react";
+import { useAuthToken } from "@convex-dev/auth/react";
 import { api } from "../../convex/_generated/api.js";
 import {
   REAL_DOCUMENTS,
 } from "../../convex/realDocuments.ts";
-import { extractTextFromPdfStream } from "../standaloneStore.ts";
+import { extractTextFromPdfStream } from "../lib/documentText.ts";
 import { Project, TradePackage, ProjectFile, Contractor } from "../types.ts";
 import { ConfirmDialog } from "./ConfirmDialog.tsx";
 import { useDialogFocus } from "../lib/useDialogFocus.ts";
 import { formatDateOnly } from "../lib/datetime.ts";
-import { isServedArchiveRecord, resolveStoredFileText, resolveStoredFileUrl } from "../lib/storedFile.ts";
+import {
+  fetchAuthenticatedFile,
+  isServedArchiveRecord,
+  resolveStoredFileText,
+  resolveStoredFileUrl,
+} from "../lib/storedFile.ts";
+
+const CONVEX_ENV = {
+  VITE_CONVEX_SITE_URL: import.meta.env.VITE_CONVEX_SITE_URL as string | undefined,
+  VITE_CONVEX_URL: import.meta.env.VITE_CONVEX_URL as string | undefined,
+};
 
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 const SUPPORTED_UPLOAD_EXTENSIONS = [".pdf", ".dwg", ".dxf", ".txt"];
@@ -72,6 +83,7 @@ export const ProjectFilesView: React.FC<ProjectFilesViewProps> = ({
   const [uploading, setUploading] = useState(false);
   const [fileType, setFileType] = useState<string>("blueprint");
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const authToken = useAuthToken();
   const [processingFileId, setProcessingFileId] = useState<string | null>(null);
   const [previewFile, setPreviewFile] = useState<ProjectFile | null>(null);
   const [fileToDelete, setFileToDelete] = useState<ProjectFile | null>(null);
@@ -169,11 +181,13 @@ export const ProjectFilesView: React.FC<ProjectFilesViewProps> = ({
       }
     }
     let storageId: string;
+    let uploadIntentId: string | undefined;
     if (currentProject._id.startsWith("proj_")) {
       storageId = `local_storage_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     } else {
-      const postUrl = await generateUploadUrlMutation();
-      const result = await fetch(postUrl, {
+      const upload = await generateUploadUrlMutation({ projectId: currentProject._id as any });
+      uploadIntentId = upload.uploadIntentId;
+      const result = await fetch(upload.uploadUrl, {
         method: "POST",
         headers: { "Content-Type": file.type || "application/octet-stream" },
         body: file,
@@ -186,9 +200,10 @@ export const ProjectFilesView: React.FC<ProjectFilesViewProps> = ({
       storageId = res.storageId;
     }
 
-    if (!currentProject._id.startsWith("proj_")) {
+    if (!currentProject._id.startsWith("proj_") && uploadIntentId) {
       await saveFileRecordMutation({
         projectId: currentProject._id as any,
+        uploadIntentId: uploadIntentId as any,
         tradePackageId:
           activePackage && !activePackage._id.startsWith("pkg_") ? (activePackage._id as any) : undefined,
         storageId,
@@ -278,6 +293,18 @@ export const ProjectFilesView: React.FC<ProjectFilesViewProps> = ({
   };
 
   const handleDownloadFile = async (file: ProjectFile) => {
+    // 0. Uploaded bytes come only through the authenticated download route.
+    if (file.downloadPath) {
+      try {
+        const blob = await fetchAuthenticatedFile(file, authToken, CONVEX_ENV);
+        if (blob) triggerBlobDownload(blob, file.fileName);
+      } catch (err) {
+        setStatusMsg(`Download failed for ${file.fileName}: ${getErrorMessage(err)}`);
+        setTimeout(() => setStatusMsg(null), 5000);
+      }
+      return;
+    }
+
     // 1. Serve the stored object verbatim: fetch the Convex storage URL / app document
     // router path as bytes and save it under the record's own filename.
     const storedUrl = resolveStoredFileUrl(file);
@@ -671,13 +698,25 @@ export const ProjectFilesView: React.FC<ProjectFilesViewProps> = ({
                 <button
                   onClick={() => handleDownloadFile(previewFile)}
                   className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shadow-sm"
-                  title={previewFile.url || previewFile.textContent ? "Download stored file" : "No stored bytes available"}
+                  title={previewFile.url || previewFile.downloadPath || previewFile.textContent ? "Download stored file" : "No stored bytes available"}
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>{previewFile.url || previewFile.textContent ? "Download stored file" : "Download unavailable"}</span>
+                  <span>{previewFile.url || previewFile.downloadPath || previewFile.textContent ? "Download stored file" : "Download unavailable"}</span>
                 </button>
                 <button
-                  onClick={() => {
+                  onClick={async () => {
+                    if (previewFile.downloadPath) {
+                      const tab = window.open("", "_blank");
+                      try {
+                        const blob = await fetchAuthenticatedFile(previewFile, authToken, CONVEX_ENV);
+                        if (blob && tab) tab.location.href = URL.createObjectURL(blob);
+                      } catch (err) {
+                        tab?.close();
+                        setStatusMsg(`Could not open ${previewFile.fileName}: ${getErrorMessage(err)}`);
+                        setTimeout(() => setStatusMsg(null), 5000);
+                      }
+                      return;
+                    }
                     const storedUrl = resolveStoredFileUrl(previewFile);
                     if (storedUrl) {
                       window.open(storedUrl, "_blank");

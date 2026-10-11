@@ -1,5 +1,4 @@
 import { describe, expect, test } from "vitest";
-import { fromDollars } from "../lib/money";
 import { computeLedgerTotals } from "./ledgerTotals";
 import {
   DEFAULT_MILESTONES,
@@ -38,19 +37,18 @@ describe("allocateCents", () => {
 
 describe("buildSovLines", () => {
   const rosendinItems = [
-    { item: "1600A Main Switchboard & Transformers", totalCost: 450000 },
-    { item: "Emergency Lighting & Inverters", totalCost: 185000 },
-    { item: "Branch Conduit & Wire Feeder Runs", totalCost: 432000 },
-    { item: "Crane Hoisting", totalCost: 38000 },
-    { item: "Firestopping", totalCost: 20000 },
-    { item: "Seismic Bracing", totalCost: 100000 },
+    { item: "1600A Main Switchboard & Transformers", totalCostCents: 45000000 },
+    { item: "Emergency Lighting & Inverters", totalCostCents: 18500000 },
+    { item: "Branch Conduit & Wire Feeder Runs", totalCostCents: 43200000 },
+    { item: "Crane Hoisting", totalCostCents: 3800000 },
+    { item: "Firestopping", totalCostCents: 2000000 },
+    { item: "Seismic Bracing", totalCostCents: 10000000 },
   ];
 
   test("bid line items become SOV lines that sum to the contract sum", () => {
     const lines = buildSovLines({
       contractSumCents: 122_500_000,
       lineItems: rosendinItems,
-      exclusions: [],
       csiDivision: "26 00 00",
       tradeName: "Electrical",
     });
@@ -62,81 +60,67 @@ describe("buildSovLines", () => {
     expect(lines.every((l) => !l.excludedScope)).toBe(true);
   });
 
-  test("leveled exclusions become excluded-scope lines carrying their plug", () => {
+  test("a $172,400.00 award with no alternates is one base line; no plug or exclusion lines exist", () => {
     const lines = buildSovLines({
-      contractSumCents: fromDollars(1_100_000 + 45_000 + 22_000 + 15_000),
-      lineItems: [
-        { item: "Switchboard", totalCost: 420000 },
-        { item: "Lighting", totalCost: 170000 },
-        { item: "Feeders", totalCost: 408000 },
-        { item: "Site", totalCost: 102000 },
-      ],
-      exclusions: [
-        { description: "Crane hoisting excluded", costImpact: 45000, isWaived: false },
-        { description: "Firestop excluded", costImpact: 22000 },
-        { description: "Temp power excluded", costImpact: 9000, isWaived: true },
-      ],
+      contractSumCents: 17_240_000,
+      lineItems: [{ item: "Base bid", totalCostCents: 17_240_000 }],
       tradeName: "Electrical",
     });
-    const excluded = lines.filter((l) => l.excludedScope);
-    expect(excluded.map((l) => l.scheduledValueCents)).toEqual([4_500_000, 2_200_000, 0]);
-    expect(excluded[0].description).toMatch(/^Excluded scope: Crane/);
-    expect(excluded[2].description).toMatch(/waived/);
-    expect(sum(lines.map((l) => l.scheduledValueCents))).toBe(fromDollars(1_182_000));
+    expect(lines).toEqual([expect.objectContaining({ description: "Base bid", scheduledValueCents: 17_240_000, excludedScope: false })]);
+    expect(lines.some((l) => l.scheduledValueCents === 1_500_000 || /excluded/i.test(l.description))).toBe(false);
+  });
+
+  test("accepted add alternates become their own lines at their exact amounts", () => {
+    const lines = buildSovLines({
+      contractSumCents: 17_865_000,
+      lineItems: [{ item: "Base bid", totalCostCents: 17_240_000 }],
+      acceptedAlternates: [{ description: "Alt 1 – LED troffer upgrade", amountCents: 625_000 }],
+      tradeName: "Electrical",
+    });
+    expect(lines.map((l) => [l.description, l.scheduledValueCents])).toEqual([
+      ["Base bid", 17_240_000],
+      ["Alt 1 – LED troffer upgrade", 625_000],
+    ]);
+    expect(sum(lines.map((l) => l.scheduledValueCents))).toBe(17_865_000);
+  });
+
+  test("an accepted deduct alternate is netted into the base lines, not a negative line", () => {
+    const lines = buildSovLines({
+      contractSumCents: 17_090_000,
+      lineItems: [{ item: "Base bid", totalCostCents: 17_240_000 }],
+      acceptedAlternates: [{ description: "Deduct – owner-furnished fixtures", amountCents: -150_000 }],
+      tradeName: "Electrical",
+    });
+    expect(lines).toEqual([expect.objectContaining({ scheduledValueCents: 17_090_000 })]);
   });
 
   test("odd-cent contract sums put the rounding remainder on the last base-scope line", () => {
     const lines = buildSovLines({
       contractSumCents: 100_001,
       lineItems: [
-        { item: "A", totalCost: 1 },
-        { item: "B", totalCost: 1 },
-        { item: "C", totalCost: 1 },
+        { item: "A", totalCostCents: 100 },
+        { item: "B", totalCostCents: 100 },
+        { item: "C", totalCostCents: 100 },
       ],
-      exclusions: [{ description: "X", costImpact: 10 }],
+      acceptedAlternates: [{ description: "X", amountCents: 1000 }],
       tradeName: "T",
     });
     expect(lines.map((l) => l.scheduledValueCents)).toEqual([33_000, 33_000, 33_001, 1_000]);
     expect(sum(lines.map((l) => l.scheduledValueCents))).toBe(100_001);
   });
 
-  test("the remainder lands on the last base-scope line while exclusions keep their exact plugs", () => {
-    const lines = buildSovLines({
-      contractSumCents: 1_000_000_07,
-      lineItems: [
-        { item: "A", totalCost: 300 },
-        { item: "B", totalCost: 300 },
-        { item: "C", totalCost: 300 },
-      ],
-      exclusions: [
-        { description: "X", costImpact: 1234.57 },
-        { description: "Y", costImpact: 99.99 },
-      ],
-      tradeName: "T",
-    });
-    const base = lines.filter((l) => !l.excludedScope);
-    const excluded = lines.filter((l) => l.excludedScope);
-    expect(excluded.map((l) => l.scheduledValueCents)).toEqual([123_457, 9_999]);
-    const baseTotal = 1_000_000_07 - 123_457 - 9_999;
-    const floor = Math.floor(baseTotal / 3);
-    expect(base.map((l) => l.scheduledValueCents)).toEqual([floor, floor, baseTotal - 2 * floor]);
-    expect(baseTotal % 3).not.toBe(0);
-    expect(lines[lines.length - 1].excludedScope).toBe(true);
-    expect(sum(lines.map((l) => l.scheduledValueCents))).toBe(1_000_000_07);
-  });
-
-  test("plugs larger than the contract sum are scaled so the total still matches", () => {
+  test("alternates larger than the contract sum are scaled so the total still matches", () => {
     const lines = buildSovLines({
       contractSumCents: 5_000,
-      lineItems: [{ item: "A", totalCost: 100 }],
-      exclusions: [{ description: "X", costImpact: 100 }],
+      lineItems: [{ item: "A", totalCostCents: 10000 }],
+      acceptedAlternates: [{ description: "X", amountCents: 10000 }],
       tradeName: "T",
     });
     expect(sum(lines.map((l) => l.scheduledValueCents))).toBe(5_000);
   });
 
   test("a bid without line items gets a single base-scope line", () => {
-    const lines = buildSovLines({ contractSumCents: 12_345, lineItems: [], exclusions: [], tradeName: "HVAC" });
+    const lines = buildSovLines({ contractSumCents: 12_345, lineItems: [], tradeName: "HVAC" });
     expect(lines).toEqual([
       expect.objectContaining({ lineNo: 1, scheduledValueCents: 12_345, excludedScope: false }),
     ]);
@@ -147,17 +131,14 @@ describe("sovSourceFingerprint", () => {
   const base = {
     bidId: "bid1",
     contractSumCents: 100_000,
-    lineItems: [{ item: "A", totalCost: 1000 }],
-    exclusions: [{ description: "Crane", costImpact: 450 }],
+    lineItems: [{ item: "A", totalCostCents: 100000 }],
+    acceptedAlternates: [{ description: "Alt 1", amountCents: 45000 }],
     leadWeeks: 8,
   };
 
   test("is stable for the same inputs and changes when scope or lead time changes at the same total", () => {
     expect(sovSourceFingerprint(base)).toBe(sovSourceFingerprint({ ...base }));
-    expect(sovSourceFingerprint({ ...base, exclusions: [] })).not.toBe(sovSourceFingerprint(base));
-    expect(
-      sovSourceFingerprint({ ...base, exclusions: [{ description: "Crane", costImpact: 450, isWaived: true }] }),
-    ).not.toBe(sovSourceFingerprint(base));
+    expect(sovSourceFingerprint({ ...base, acceptedAlternates: [] })).not.toBe(sovSourceFingerprint(base));
     expect(sovSourceFingerprint({ ...base, leadWeeks: 12 })).not.toBe(sovSourceFingerprint(base));
     expect(sovSourceFingerprint({ ...base, bidId: "bid2" })).not.toBe(sovSourceFingerprint(base));
   });

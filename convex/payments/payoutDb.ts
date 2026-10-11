@@ -1,10 +1,13 @@
 import { ConvexError, v, type Infer } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
-import { toDollarString } from "../lib/money";
+import { formatCents, toDollarString } from "../lib/money";
+import { payoutBlockedMessage, stalePayeeReason } from "../lib/payee";
 import { syncProposalForPayment } from "../payApps/proposalSync";
 import { isCaptureCollected } from "./captureSettlement";
+import { releasableHeldCents } from "../billing/payGate";
 import { moveMilestone } from "./releaseDb";
+import { CAPTURED_NOT_PAID_EFFECT, closeUnsent, initiationCheck } from "./resumeDb";
 import { RETAINAGE_REVERSING_STATUSES, isMilestoneFullyPaid } from "./payoutMath";
 import { assertPaymentTransition, canTransitionPayment, type PayoutStatus } from "./stateMachine";
 
@@ -68,15 +71,18 @@ export const beginPayout = internalMutation({
     }
     const agreement = await ctx.db.get(p.agreementId);
     if (agreement === null) throw new ConvexError({ code: "NOT_FOUND", message: "Agreement not found." });
-    const milestone = p.milestoneId ? await ctx.db.get(p.milestoneId) : null;
     const isRetainage = p.kind === "retainage_release";
+    const blocked = (await blockIfPayeeStale(ctx, p, agreement)) ?? (await blockUnsentInitiation(ctx, p));
+    if (blocked !== null) return blocked;
+    const netCents = (await ctx.db.get(p._id))?.netCents ?? p.netCents;
+    const milestone = p.milestoneId ? await ctx.db.get(p.milestoneId) : null;
     const note = isRetainage
       ? `${agreement.agreementNumber} · retainage release at closeout`
       : `${agreement.agreementNumber}${milestone ? ` · ${milestone.name}` : ""} · progress payment net of retainage`;
     return {
       state: "send",
       idempotencyKey: p.idempotencyKey,
-      netCents: p.netCents,
+      netCents,
       receiverEmail: p.receiverEmail,
       note: note.slice(0, 1000),
       emailSubject: isRetainage ? "TradePulse Pay: retainage release" : "TradePulse Pay: progress payment",
@@ -84,6 +90,101 @@ export const beginPayout = internalMutation({
       agreementId: agreement._id,
       projectId: agreement.projectId,
     };
+  },
+});
+
+/**
+ * A row whose POST may already have reached PayPal (payoutSubmittedAt set) is re-sent unchanged so the
+ * duplicate sender_batch_id resolves to the existing batch; anything else must still pay the confirmed payee.
+ */
+async function blockIfPayeeStale(
+  ctx: MutationCtx,
+  p: Doc<"payments">,
+  agreement: Doc<"agreements">,
+): Promise<{ state: "closed"; status: string; error: string } | null> {
+  if (p.payoutSubmittedAt !== undefined || !p.receiverEmail) return null;
+  const stale = await stalePayeeReason(ctx, agreement.contractorId, p.receiverEmail);
+  if (stale === null) return null;
+  const effect =
+    p.kind === "retainage_release"
+      ? "No retainage was released; it stays on hold and can be released again once the payee is confirmed."
+      : "The sub was not paid; the captured amount stays in the platform account. Confirm the payee, then retry the payout.";
+  const error = payoutBlockedMessage(agreement.subcontractorName, stale, effect);
+  assertPaymentTransition(p.kind, "created", "failed");
+  await ctx.db.patch(p._id, { status: "failed", error, updatedAt: Date.now() });
+  await syncProposalForPayment(ctx, p._id);
+  return { state: "closed", status: "failed", error };
+}
+
+/**
+ * The reconcile-versus-initiate decision at the shared send boundary, so every caller (Pay, Retry
+ * payout, resume, the scheduled INSUFFICIENT_FUNDS and capture-completed continuations) passes it.
+ * A row whose POST may already be at PayPal (payoutSubmittedAt set) keeps its frozen amount and is only
+ * reconciled. A never-sent progress payout needs its release's approved pay app to pass canPay now and
+ * pays the approved G702 split; a never-sent closeout release needs that much retainage still releasable.
+ * A refused row is closed as failed, since nothing of it was sent.
+ */
+async function blockUnsentInitiation(
+  ctx: MutationCtx,
+  p: Doc<"payments">,
+): Promise<{ state: "closed"; status: string; error: string } | null> {
+  if (p.payoutSubmittedAt !== undefined || p.paypalPayoutBatchId !== undefined) return null;
+  const close = async (error: string) => {
+    await closeUnsent(ctx, p, error);
+    return { state: "closed" as const, status: "failed", error };
+  };
+  if (p.kind === "retainage_release") {
+    const { availableCents } = await releasableHeldCents(ctx, p.agreementId, p._id);
+    if (availableCents >= p.netCents) return null;
+    return await close(
+      `Only ${formatCents(availableCents)} of retainage is now releasable, less than this ${formatCents(p.netCents)} release: the held retainage changed after the release was created. No retainage was released; release retainage again to pay the current balance.`,
+    );
+  }
+  const root: Doc<"payments"> | null = p.retryOfPaymentId ? await ctx.db.get(p.retryOfPaymentId) : p;
+  if (root === null) return await close(`This payout's original release is missing. ${CAPTURED_NOT_PAID_EFFECT}`);
+  const check = await initiationCheck(ctx, root, CAPTURED_NOT_PAID_EFFECT);
+  if (check.refusal !== null) return await close(check.refusal.message);
+  const { retainageCents, netCents } = check.figures;
+  if (retainageCents === p.retainageCents && netCents === p.netCents) return null;
+  if ((await ledgerRowsFor(ctx, p)).length > 0) {
+    return await close(
+      `The approved split is now ${formatCents(netCents)} net and ${formatCents(retainageCents)} retainage, not the ${formatCents(p.netCents)} and ${formatCents(p.retainageCents)} stored, and this payout already has retainage ledger entries. ${CAPTURED_NOT_PAID_EFFECT}`,
+    );
+  }
+  await ctx.db.patch(p._id, { retainageCents, netCents, updatedAt: Date.now() });
+  return null;
+}
+
+const markPayoutSendingResult = v.union(
+  v.object({ state: v.literal("done"), batchId: v.string(), status: v.string() }),
+  v.object({ state: v.literal("closed"), status: v.string(), error: v.optional(v.string()) }),
+  v.object({ state: v.literal("ready"), netCents: v.number() }),
+);
+export type MarkPayoutSending = Infer<typeof markPayoutSendingResult>;
+
+/**
+ * The durable send gate, called right before the payout POST once OAuth has succeeded. Failures before this
+ * point leave the row unsent, so a retry or resume re-checks the confirmed payee and the initiation gate.
+ * `netCents` is the amount the POST must carry.
+ */
+export const markPayoutSending = internalMutation({
+  args: { paymentId: v.id("payments"), receiverEmail: v.string() },
+  returns: markPayoutSendingResult,
+  handler: async (ctx, { paymentId, receiverEmail }): Promise<MarkPayoutSending> => {
+    const p = await ctx.db.get(paymentId);
+    if (p === null) throw new ConvexError({ code: "NOT_FOUND", message: "Payout payment not found." });
+    if (p.paypalPayoutBatchId) return { state: "done", batchId: p.paypalPayoutBatchId, status: p.status };
+    if (p.status !== "created") return { state: "closed", status: p.status, error: p.error };
+    if (p.receiverEmail !== receiverEmail) {
+      throw new ConvexError({ code: "CONFLICT", message: "The payout recipient changed while it was being sent; nothing was sent." });
+    }
+    const agreement = await ctx.db.get(p.agreementId);
+    if (agreement === null) throw new ConvexError({ code: "NOT_FOUND", message: "Agreement not found." });
+    // The payee may have changed while the OAuth token was being fetched.
+    const blocked = (await blockIfPayeeStale(ctx, p, agreement)) ?? (await blockUnsentInitiation(ctx, p));
+    if (blocked !== null) return blocked;
+    if (p.payoutSubmittedAt === undefined) await ctx.db.patch(p._id, { payoutSubmittedAt: Date.now() });
+    return { state: "ready", netCents: (await ctx.db.get(p._id))?.netCents ?? p.netCents };
   },
 });
 
@@ -126,11 +227,31 @@ export const recordPayoutCreated = internalMutation({
     if (p.kind === "payout" && p.retainageCents > 0) {
       const rows = await ledgerRowsFor(ctx, p);
       if (!rows.some((r) => r.deltaCents > 0)) {
+        const payApp = p.payAppId ? await ctx.db.get(p.payAppId) : null;
         await ctx.db.insert("retainageLedger", {
           agreementId: p.agreementId,
           paymentId: p._id,
           deltaCents: p.retainageCents,
-          reason: `Retainage withheld from ${toDollarString(p.grossCents)} USD gross release (payout batch ${args.batchId})`,
+          reason:
+            payApp?.applicationNo !== undefined
+              ? `Pay app #${payApp.applicationNo}: retainage withheld from ${formatCents(p.grossCents)} approved (payout batch ${args.batchId})`
+              : `Retainage withheld from ${toDollarString(p.grossCents)} USD gross release (payout batch ${args.batchId})`,
+          createdAt: now,
+        });
+      }
+    }
+    // The approved G702 retainage went down this period, so the payout includes held retainage.
+    if (p.kind === "payout" && p.retainageCents < 0) {
+      const rows = await ledgerRowsFor(ctx, p);
+      if (!rows.some((r) => r.deltaCents < 0)) {
+        const payApp = p.payAppId ? await ctx.db.get(p.payAppId) : null;
+        await ctx.db.insert("retainageLedger", {
+          agreementId: p.agreementId,
+          paymentId: p._id,
+          deltaCents: p.retainageCents,
+          reason: `${payApp?.applicationNo !== undefined ? `Pay app #${payApp.applicationNo}` : "Pay app"}: approved retainage to date went down by ${formatCents(
+            -p.retainageCents,
+          )}, paid with the ${formatCents(p.netCents)} payment due (payout batch ${args.batchId})`,
           createdAt: now,
         });
       }
@@ -159,7 +280,7 @@ export const recordPayoutDeferred = internalMutation({
   handler: async (ctx, { paymentId, note }) => {
     const p = await ctx.db.get(paymentId);
     if (p === null || p.status !== "created" || p.paypalPayoutBatchId) return null;
-    await ctx.db.patch(p._id, { error: note, updatedAt: Date.now() });
+    await ctx.db.patch(p._id, { error: note, payoutSubmittedAt: undefined, updatedAt: Date.now() });
     return null;
   },
 });
@@ -255,7 +376,7 @@ export async function applyPayoutStatusTo(
     const rows = await ledgerRowsFor(ctx, p);
     const net = rows.reduce((a, r) => a + r.deltaCents, 0);
     // A failed payout gives back its credit; a failed retainage release puts the released amount back on hold.
-    const reversing = p.kind === "payout" ? net > 0 : net < 0;
+    const reversing = p.kind === "payout" ? net !== 0 : net < 0;
     if (reversing) {
       await ctx.db.insert("retainageLedger", {
         agreementId: p.agreementId,
@@ -263,7 +384,7 @@ export async function applyPayoutStatusTo(
         deltaCents: -net,
         reason:
           p.kind === "payout"
-            ? `Retainage credit reversed: payout ${to} (${args.itemStatus ?? to.toUpperCase()})`
+            ? `Retainage ${net > 0 ? "credit" : "debit"} reversed: payout ${to} (${args.itemStatus ?? to.toUpperCase()})`
             : `Retainage release ${to} (${args.itemStatus ?? to.toUpperCase()}): the amount is held again`,
         createdAt: now,
       });
@@ -273,7 +394,7 @@ export async function applyPayoutStatusTo(
   if (to === "success") {
     if (p.payAppId) {
       const app = await ctx.db.get(p.payAppId);
-      if (app !== null && app.status === "approved") await ctx.db.patch(app._id, { status: "paid" });
+      if (app !== null && (app.status === "approved" || app.status === "approved_as_noted")) await ctx.db.patch(app._id, { status: "paid" });
     }
     if (p.milestoneId) {
       const milestone = await ctx.db.get(p.milestoneId);

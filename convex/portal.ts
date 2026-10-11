@@ -2,9 +2,12 @@ import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { query, type QueryCtx } from "./_generated/server";
-import { canViewAgreement, requireRole } from "./lib/roles";
-import { changeOrderView } from "./payments/changeOrderDb";
+import { requireRole } from "./lib/roles";
+import { callerProjects, findSubcontractDocScope, requireDocScope, subContractorScope } from "./lib/projectScope";
+import { primeChangeOrders, primeContractSum, recipientFor, rowViews } from "./billing/changeOrderView";
+import { primeRetainageHeld, projectOwnerPayApps } from "./billing/ownerRollup";
 import { loadMilestoneFunding } from "./payments/milestoneFundingState";
+import { agreementContractSumCents } from "./payments/sov";
 import { WITHDRAWABLE_PAY_APP_STATUSES } from "./payApps/validation";
 
 function agreementSummary(a: Doc<"agreements">) {
@@ -68,24 +71,39 @@ async function payAppOutcome(ctx: QueryCtx, payments: Doc<"payments">[]) {
   };
 }
 
-async function subAgreements(ctx: QueryCtx, contractorId: Id<"contractors"> | undefined) {
-  const agreements = contractorId
-    ? await ctx.db
-        .query("agreements")
-        .withIndex("by_contractorId", (q) => q.eq("contractorId", contractorId))
-        .take(100)
-    : [];
-  return agreements.filter((a) => a.status !== "superseded");
+/** Agreements of the caller's own vendor records, on projects their company is a member of. */
+async function subAgreements(
+  ctx: QueryCtx,
+  scope: { contractorIds: Id<"contractors">[]; projectIds: Set<Id<"projects">> },
+) {
+  const out: Doc<"agreements">[] = [];
+  for (const contractorId of scope.contractorIds) {
+    const rows = await ctx.db
+      .query("agreements")
+      .withIndex("by_contractorId", (q) => q.eq("contractorId", contractorId))
+      .take(100);
+    for (const a of rows) if (a.status !== "superseded" && scope.projectIds.has(a.projectId)) out.push(a);
+  }
+  return out;
+}
+
+/** The sub company's payout PayPal email (Company settings); profile-level emails are no longer used for payouts. */
+async function subPayoutEmail(ctx: QueryCtx, companyId: Id<"companies"> | undefined): Promise<string | null> {
+  const company = companyId ? await ctx.db.get(companyId) : null;
+  return company?.payoutPaypalEmail ?? null;
 }
 
 /** Sub portal: the caller's own contractor and agreements. Pay apps are paged by mySubPayApps. */
 export const mySubPortal = query({
   args: {},
   handler: async (ctx) => {
-    const viewer = await requireRole(ctx, ["sub"]);
-    const contractorId = viewer.profile.contractorId;
+    const scope = await subContractorScope(ctx, { includeArchived: true });
+    const viewer = scope.viewer;
+    const contractorId = scope.contractorIds.includes(viewer.profile.contractorId as Id<"contractors">)
+      ? viewer.profile.contractorId
+      : scope.contractorIds[0];
     const contractor = contractorId ? await ctx.db.get(contractorId) : null;
-    const visible = await subAgreements(ctx, contractorId);
+    const visible = await subAgreements(ctx, scope);
     const milestoneFunding = [];
     const executedNewestFirst = visible
       .filter((a) => a.status === "executed")
@@ -101,7 +119,7 @@ export const mySubPortal = query({
     return {
       displayName: viewer.profile.displayName,
       contractorName: contractor?.companyName ?? null,
-      paypalEmail: viewer.profile.paypalEmail ?? null,
+      paypalEmail: await subPayoutEmail(ctx, viewer.profile.companyId),
       agreements: visible.map(agreementSummary),
       milestoneFunding,
     };
@@ -109,26 +127,35 @@ export const mySubPortal = query({
 });
 
 /**
- * The caller's contractor's pay applications across all its agreements, newest first, one cursor
- * page at a time. Listed per contractor (not per submitter) so pay apps filed by a linked billing
- * agent show up too. Rows on superseded agreements are dropped, so a page can be shorter than asked.
+ * The caller's pay applications across all its contractor relationships and agreements, newest
+ * first, one cursor page at a time. Listed per sub company (a billing agent: per contractor), not
+ * per submitter, so pay apps filed by a linked billing agent show up too. Rows on superseded
+ * agreements or removed relationships are left out.
  */
 export const mySubPayApps = query({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, args) => {
-    const viewer = await requireRole(ctx, ["sub"]);
-    const contractorId = viewer.profile.contractorId;
-    if (contractorId === undefined) return { page: [], isDone: true, continueCursor: "" };
-    const agreements = new Map((await subAgreements(ctx, contractorId)).map((a) => [a._id as string, a]));
-    const result = await ctx.db
-      .query("payApplications")
-      .withIndex("by_contractorId", (q) => q.eq("contractorId", contractorId))
-      .order("desc")
-      .paginate(args.paginationOpts);
+    const scope = await subContractorScope(ctx, { includeArchived: true });
+    if (scope.contractorIds.length === 0) return { page: [], isDone: true, continueCursor: "" };
+    const agreements = new Map((await subAgreements(ctx, scope)).map((a) => [a._id as string, a]));
+    const companyId = scope.subCompanyId;
+    // Native pagination keeps each loaded page's range stable as rows are added or hidden.
+    const result =
+      companyId !== null
+        ? await ctx.db
+            .query("payApplications")
+            .withIndex("by_subCompanyId", (q) => q.eq("subCompanyId", companyId))
+            .order("desc")
+            .paginate(args.paginationOpts)
+        : await ctx.db
+            .query("payApplications")
+            .withIndex("by_contractorId", (q) => q.eq("contractorId", scope.contractorIds[0]))
+            .order("desc")
+            .paginate(args.paginationOpts);
     const page = [];
-    for (const p of result.page) {
-      const agreement = agreements.get(p.agreementId);
-      if (agreement === undefined) continue;
+    // Rows of removed relationships and superseded agreements stay out of the page.
+    for (const p of result.page.filter((row) => agreements.has(row.agreementId))) {
+      const agreement = agreements.get(p.agreementId)!;
       const payments = await ctx.db
         .query("payments")
         .withIndex("by_payAppId", (q) => q.eq("payAppId", p._id))
@@ -166,39 +193,46 @@ export const mySubPayApps = query({
 export const getAgreementSummary = query({
   args: { agreementId: v.string() },
   handler: async (ctx, args) => {
-    const viewer = await requireRole(ctx, ["gc", "sub", "owner"]);
-    const id = ctx.db.normalizeId("agreements", args.agreementId);
-    if (id === null) return null;
-    const agreement = await ctx.db.get(id);
-    if (agreement === null || !canViewAgreement(viewer, agreement)) return null;
-    return { ...agreementSummary(agreement), milestones: await loadMilestoneFunding(ctx, agreement._id) };
+    const scope = await findSubcontractDocScope(ctx, "agreements", args.agreementId);
+    if (scope === null) return null;
+    const agreement = scope.doc;
+    return {
+      ...agreementSummary(agreement),
+      contractSumCents: agreementContractSumCents(agreement),
+      baseBidCents: agreement.baseBidCents ?? null,
+      acceptedAlternates: agreement.acceptedAlternates ?? [],
+      declinedAlternates: agreement.declinedAlternates ?? [],
+      veDeducts: agreement.veDeducts ?? [],
+      excludedScopeNotes: agreement.excludedScopeNotes ?? [],
+      milestones: await loadMilestoneFunding(ctx, agreement._id),
+    };
   },
 });
 
-/** Owner portal: read-only projects with their agreements and change-order invoices. */
+/** Owner portal: projects with their prime change orders (and, for the GC, the subcontract agreements). */
 export const ownerOverview = query({
   args: {},
   handler: async (ctx) => {
     await requireRole(ctx, ["owner", "gc"]);
-    const projects = await ctx.db.query("projects").order("desc").take(50);
     const result = [];
-    for (const project of projects) {
-      const agreements = await ctx.db
-        .query("agreements")
-        .withIndex("by_project", (q) => q.eq("projectId", project._id))
-        .take(100);
-      const visible = agreements.filter((a) => a.status !== "superseded");
-      const changeOrders = [];
-      for (const agreement of visible) {
-        const cos = await ctx.db
-          .query("changeOrders")
-          .withIndex("by_agreementId_and_number", (q) => q.eq("agreementId", agreement._id))
-          .take(100);
-        for (const co of cos) {
-          if (co.status === "draft") continue;
-          changeOrders.push(changeOrderView(co, agreement));
-        }
-      }
+    for (const project of (await callerProjects(ctx)).slice(0, 50)) {
+      const access = await requireDocScope(ctx, "projects", project._id, { roles: ["owner", "gc"] }).catch(() => null);
+      if (access === null) continue;
+      const party = access.partyRole === "owner" ? "owner" : "gc";
+      const changeOrders = await rowViews(ctx, await primeChangeOrders(ctx, project._id), {
+        party,
+        recipient: await recipientFor(ctx, project._id, party),
+      });
+      // Subcontract agreements (sums, subcontractors) are GC data; the owner gets the project summary only.
+      const agreements =
+        access.partyRole === "gc"
+          ? (
+              await ctx.db
+                .query("agreements")
+                .withIndex("by_project", (q) => q.eq("projectId", project._id))
+                .take(100)
+            ).filter((a) => a.status !== "superseded")
+          : [];
       result.push({
         _id: project._id,
         title: project.title,
@@ -206,7 +240,10 @@ export const ownerOverview = query({
         projectType: project.projectType,
         estBudget: project.estBudget,
         isDemoProject: project.isDemoProject,
-        agreements: visible.map(agreementSummary),
+        partyRole: access.partyRole,
+        agreements: agreements.map(agreementSummary),
+        primeContractSum: await primeContractSum(ctx, project),
+        primeRetainageHeldCents: primeRetainageHeld(await projectOwnerPayApps(ctx, project._id))?.cents ?? null,
         changeOrders,
       });
     }

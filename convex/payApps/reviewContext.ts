@@ -16,6 +16,7 @@ export function buildReviewContext(input: {
   milestones: readonly Doc<"milestones">[];
   agreementPayApps: readonly Doc<"payApplications">[];
   license: Doc<"licenseChecks"> | null;
+  gcCompanyName?: string | null;
 }): ReviewContext {
   const { payApp, agreement } = input;
   const earlier = input.agreementPayApps.filter(
@@ -23,7 +24,16 @@ export function buildReviewContext(input: {
   );
   const prior = sovBaselineByLine(earlier, input.sov);
   const milestones = [...input.milestones].sort((a, b) => a.order - b.order);
+  const g703Notes = new Map((payApp.g703?.lines ?? []).map((l) => [l.sovLineId as string, l.note]));
+  const billed = new Set(payApp.lines.map((l) => l.sovLineId as string));
+  const sovById = new Map(input.sov.map((s) => [s._id as string, s]));
+  const unbilledLines = (payApp.g703?.lines ?? []).flatMap((l) => {
+    const s = sovById.get(l.sovLineId);
+    if (!s || billed.has(l.sovLineId)) return [];
+    return [{ sovLineId: s._id as string, lineNo: s.lineNo, previousPctToDate: (prior.get(s._id)?.previousPctToDate ?? 0) / 100 }];
+  });
   return {
+    gcCompanyName: input.gcCompanyName ?? null,
     agreement: {
       agreementNumber: agreement.agreementNumber,
       subcontractorName: agreement.subcontractorName,
@@ -34,8 +44,15 @@ export function buildReviewContext(input: {
       retainagePercent: retainagePercentFor(agreement),
       scopeSummary: agreement.scopeSummary,
       mandatoryInclusions: agreement.mandatoryInclusions,
+      excludedScopeNotes: agreement.excludedScopeNotes ?? [],
     },
-    milestones: milestones.map((m) => ({ name: m.name, order: m.order, status: m.status, amountCents: m.amountCents })),
+    tranches: milestones.map((m) => ({
+      name: m.name,
+      order: m.order,
+      status: m.status,
+      amountCents: m.amountCents,
+      coversLineNos: m.sovLineIds.flatMap((id) => sovById.get(id)?.lineNo ?? []).sort((a, b) => a - b),
+    })),
     priorPayApps: earlier.map((p) => ({
       periodLabel: p.periodLabel,
       status: p.status,
@@ -73,7 +90,15 @@ export function buildReviewContext(input: {
         sovLineIds: m.sovLineIds,
       })),
       prior,
-      lines: payApp.lines,
+      ...(payApp.g703
+        ? {
+            workInPlaceToDateCents: new Map(
+              payApp.g703.lines.map((l) => [l.sovLineId as string, l.previousWorkCents + l.workThisPeriodCents]),
+            ),
+          }
+        : {}),
+      lines: payApp.lines.map((l) => ({ ...l, note: g703Notes.get(l.sovLineId) ?? null })),
     }),
+    unbilledLines: unbilledLines.sort((a, b) => a.lineNo - b.lineNo),
   };
 }

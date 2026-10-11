@@ -116,6 +116,7 @@ export async function syncAgentProfile(
     agentEmail: link.agentEmail,
     ownerEmail: user.ownerEmail,
     ownerName: user.ownerName,
+    companyId: link.subCompanyId,
   };
   if (existing !== null) {
     await ctx.db.replace(existing._id, { ...fields, createdAt: existing.createdAt });

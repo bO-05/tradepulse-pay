@@ -1,5 +1,6 @@
 import { internalAction, action, query } from "./_generated/server";
-import { requireRole, requireRoleInAction } from "./lib/roles";
+import { requireDemoCompany } from "./lib/projectScope";
+import { requireDemoCompanyInAction } from "./lib/tenancyAction";
 import { v } from "convex/values";
 import { inflate } from "pako";
 import { internal } from "./_generated/api";
@@ -1263,7 +1264,7 @@ export function sanitizeClashDetectionOutput(parsedJson: any): any {
 
 /**
  * Enterprise Token-Optimized LLM Router:
- * 1. Primary Sponsor Pipeline: OpenAI (gpt-4o / gpt-5.6-luna)
+ * 1. Primary pipeline: OpenAI (gpt-4o / gpt-5.6-luna)
  * 2. High-Throughput Spec & RFI Agent: Gemini Flash (model pinned via GEMINI_MODEL)
  * 3. Forensic Leveling: Claude Sonnet 5
  * 4. Deterministic Commercial MEP Construction Intelligence Fallback
@@ -1281,16 +1282,21 @@ export const executeReasoning = internalAction({
     preferredProvider: v.optional(v.string()), // "openai" | "gemini" | "claude"
     /** Trade-package CSI division (e.g. "22 00 00"); pins the lead-time baseline. */
     division: v.optional(v.string()),
+    /** GC company name the prompt is written on behalf of. */
+    companyName: v.optional(v.string()),
   },
   handler: async (_ctx, args): Promise<ReasoningResult> => {
     const openaiKey = process.env.OPENAI_API_KEY;
     const geminiKey = process.env.GEMINI_API_KEY;
     const anthropicKey = process.env.ANTHROPIC_API_KEY;
 
+    const persona = args.companyName
+      ? `You are TradePulse Pay, working on behalf of ${args.companyName},`
+      : "You are TradePulse Pay,";
     // Construct robust JSON schema instruction that preserves caller's context
     const baseInstruction =
       args.taskType === "bid_leveling"
-        ? `You are TradePulse Pro, an expert forensic commercial construction cost estimator. Output ONLY a valid JSON object with the following schema:
+        ? `${persona} an expert forensic commercial construction cost estimator. Output ONLY a valid JSON object with the following schema:
 {
   "subcontractorName": string,
   "baseBidAmount": number,
@@ -1326,7 +1332,7 @@ CRITICAL FORENSIC LEVELING RULES:
    - Penthouse crane hoisting of pump skid (CSI_22_CRANE): 25000
 5. Report every proposed Value Engineering alternate under "valueEngineeringAlternates" with its costDeduct. Do not decide acceptance; the GC reviews and accepts alternates in the application, so ingested alternates always start unaccepted.`
         : args.taskType === "spec_generation"
-        ? `You are TradePulse Pro, an expert construction cost engineer and CSI MasterFormat specialist. Output ONLY a valid JSON object with the following schema:
+        ? `${persona} an expert construction cost engineer and CSI MasterFormat specialist. Output ONLY a valid JSON object with the following schema:
 {
   "packages": [
     {
@@ -1341,7 +1347,7 @@ CRITICAL FORENSIC LEVELING RULES:
 }
 Ensure budgetEstimate is a pure numeric value.`
         : args.taskType === "clash_detection"
-        ? `You are TradePulse Pro, an expert construction cross-trade MEP coordination specialist. Output ONLY a valid JSON object with the following schema:
+        ? `${persona} an expert construction cross-trade MEP coordination specialist. Output ONLY a valid JSON object with the following schema:
 {
   "doubleBuys": [
     {
@@ -1377,7 +1383,7 @@ Ensure budgetEstimate is a pure numeric value.`
   ]
 }
 Ensure all cost numbers are pure numeric primitives.`
-        : `You are TradePulse Pro, an expert AI commercial construction procurement and CSI MasterFormat bid leveling engineer.`;
+        : `${persona} an expert AI commercial construction procurement and CSI MasterFormat bid leveling engineer.`;
 
     const effectiveSystemPrompt = args.systemPrompt
       ? `${args.systemPrompt}\n\n${baseInstruction}`
@@ -2746,7 +2752,7 @@ Ensure all cost numbers are pure numeric primitives.`
     return {
       provider: OFFLINE_RULES_ENGINE,
       model: OFFLINE_RULES_ENGINE,
-      content: "TradePulse Pro specification analysis completed successfully.",
+      content: "TradePulse Pay specification analysis completed successfully.",
     };
   },
 });
@@ -2764,7 +2770,7 @@ Ensure all cost numbers are pure numeric primitives.`
 export const getProviderAvailability = query({
   args: {},
   handler: async (ctx) => {
-    await requireRole(ctx, ["gc", "owner"]);
+    await requireDemoCompany(ctx, ["gc", "owner"]);
     const hasVertex = Boolean(
       process.env.VERTEX_API_KEY ||
         (process.env.VERTEX_PROJECT_ID && process.env.VERTEX_ACCESS_TOKEN)
@@ -2786,7 +2792,7 @@ export const runModelDiagnostic = action({
     promptType: v.string(), // "spec_div26" | "hvac_bacnet" | "plumbing_drainage"
   },
   handler: async (ctx, args) => {
-    await requireRoleInAction(ctx, ["gc"]);
+    await requireDemoCompanyInAction(ctx, ["gc"]);
     const t0 = Date.now();
     let samplePrompt = "";
     let taskType: "bid_leveling" | "spec_generation" | "clash_detection" | "rfi_reply" = "bid_leveling";

@@ -34,6 +34,7 @@ async function setup() {
       .first())!;
   });
   await gc.as.mutation(api.agreements.executeAgreement, { agreementId: agreement._id });
+  await gc.as.mutation(api.billing.sov.approveSov, { agreementId: agreement._id });
   const line = await t.run(async (ctx) => {
     const first = (await ctx.db
       .query("scheduleOfValues")
@@ -60,6 +61,12 @@ async function formLine(s: S) {
   const form = await s.sub1.as.query(api.payApps.submit.payAppFormContext, { agreementId: s.agreement._id });
   return form!.sovLines.find((l) => l._id === s.line._id)!;
 }
+
+/** The seeded demo tranches cap this line at 0%; these tests are about the baseline, so they lift the cap. */
+const uncapped = <C extends { lines: readonly { trancheCeilingPctToDate: number | null }[] }>(context: C): C => ({
+  ...context,
+  lines: context.lines.map((l) => ({ ...l, trancheCeilingPctToDate: null })),
+});
 
 async function reviewLine(s: S, payAppId: Id<"payApplications">) {
   const inputs = await s.t.query(internal.payApps.review.loadReviewInputs, { payAppId });
@@ -112,7 +119,7 @@ describe("previous % to date comes from approved billing only", () => {
       claimedPctToDate: 0.2,
       requestedCents: 8_000,
     });
-    const review = finalizeReview(context, {
+    const review = finalizeReview(uncapped(context), {
       lines: [{ sovLineId: s.line._id, verdict: "ok", recommendedPctToDate: 0.2, reason: "matches progress" }],
       lienWaiverMissing: false,
       licenseIssue: false,
@@ -143,7 +150,7 @@ describe("previous % to date comes from approved billing only", () => {
     const second = await s.sub1.as.mutation(api.payApps.submit.submitPayApplication, claim(s, "Next 25%", 15, 25, 15_000));
     const { context, line } = await reviewLine(s, second);
     expect(line).toMatchObject({ previouslyBilledCents: 0, previousPctToDate: 0, pendingRequestedCents: 10_000 });
-    const review = finalizeReview(context, {
+    const review = finalizeReview(uncapped(context), {
       lines: [{ sovLineId: s.line._id, verdict: "ok", recommendedPctToDate: 0.25, reason: "matches progress" }],
       lienWaiverMissing: false,
       licenseIssue: false,

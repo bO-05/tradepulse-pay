@@ -6,6 +6,7 @@ import schema from "../schema";
 import { signInAs } from "../lib/testIdentity";
 import { decideHonorPeriodAction, reauthorizeRequestId } from "./honorPeriodMath";
 import { clearPayPalTokenCache } from "./paypalClient";
+import { payFromTranche } from "../lib/testPayApp";
 
 const modules = import.meta.glob("/convex/**/*.ts");
 const DAY = 86_400_000;
@@ -241,8 +242,8 @@ describe("honor-period watcher", () => {
 
     // A capture on the expired authorization is refused with a readable message and no PayPal call.
     await expect(
-      s.gc.as.action(api.payments.release.releaseAndPay, { milestoneId: s.milestone._id, amountCents: 100_000, requestKey: "test-key-expired" }),
-    ).rejects.toThrow(/expired/i);
+      payFromTranche(s.t, s.gc.as, { milestoneId: s.milestone._id, amountCents: 100_000, requestKey: "test-key-expired" }),
+    ).rejects.toThrow(/No funded tranche/);
     expect(fake.calls.filter((c) => c.path.endsWith("/capture"))).toHaveLength(0);
   });
 

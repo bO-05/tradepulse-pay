@@ -1,6 +1,10 @@
+import { v } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
 import { query } from "../_generated/server";
 import { requireRole } from "../lib/roles";
+import { gcAgreementsAndOwnerProjects } from "../lib/agreementScope";
+import { ownerChangeOrdersOfProject } from "../lib/ownerView";
+import { primeChangeOrders } from "../billing/changeOrderView";
 import { percentageOfCents, sumCents } from "../lib/money";
 import {
   createReadBudget,
@@ -47,16 +51,20 @@ function sumTotals(list: LedgerTotals[]): LedgerTotals {
  * Flat rows for the AG Studio payments dashboard, all amounts in integer cents, plus server-side
  * KPI totals that are the sum of each agreement's ledger totals (computeLedgerTotals), so the
  * dashboard and the agreement ledger always agree. Voided (superseded) agreements stay in when
- * they carry money history, with their real status. GC and owner see every agreement (single-GC
- * demo tenancy); subs and billing agents have no dashboard access.
+ * they carry money history, with their real status. Only the caller's projects count (one
+ * project when `projectId` is given; another company's id reads "Not found."): the GC sees its
+ * projects' subcontract ledgers. On projects where the caller is the owner it gets owner items
+ * only (change orders invoiced to it), never subcontract sums, payments, pay apps, retainage,
+ * milestones or AI review internals. Subs and billing agents have no dashboard access.
  */
 export const getDashboardData = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { projectId: v.optional(v.string()) },
+  handler: async (ctx, args) => {
     const viewer = await requireRole(ctx, ["gc", "owner"]);
-    const newest = await ctx.db.query("agreements").order("desc").take(DASHBOARD_MAX_AGREEMENTS + 1);
-    const agreementsTruncated = newest.length > DASHBOARD_MAX_AGREEMENTS;
-    const all = newest.slice(0, DASHBOARD_MAX_AGREEMENTS);
+    const scoped = await gcAgreementsAndOwnerProjects(ctx, { projectId: args.projectId, limit: DASHBOARD_MAX_AGREEMENTS });
+    const agreementsTruncated = scoped.truncated;
+    const all = scoped.rows.map((r) => r.agreement);
+    const readOnly = viewer.role !== "gc" || scoped.ownerProjects.length > 0;
     const budget = createReadBudget(DASHBOARD_READ_BUDGET - all.length);
 
     const agreements = [];
@@ -110,22 +118,23 @@ export const getDashboardData = query({
       const billed = new Map(fin.billing.rows.map((b) => [b._id as string, b]));
       for (const raw of apps.rows) {
         const app: Doc<"payApplications"> = billed.get(raw._id) ?? raw;
-        const verdicts = app.review?.lines.map((l) => l.verdict) ?? [];
+        const review = app.review;
+        const verdicts = review?.lines.map((l) => l.verdict) ?? [];
         payApps.push({
           payAppId: app._id,
           agreementId: a._id,
           periodLabel: app.periodLabel,
           status: app.status,
           requestedCents: app.requestedTotalCents,
-          aiRecommendedCents: app.review?.approvedTotalCents ?? null,
+          aiRecommendedCents: review?.approvedTotalCents ?? null,
           finalApprovedCents: app.finalApproval?.totalCents ?? null,
-          reviewEngine: app.review?.engine ?? null,
+          reviewEngine: review?.engine ?? null,
           overbilledLines: verdicts.filter((v) => v === "overbilled").length,
           excludedScopeLines: verdicts.filter((v) => v === "excluded_scope").length,
           frontLoadedLines: verdicts.filter((v) => v === "front_loaded").length,
           outOfSequenceLines: verdicts.filter((v) => v === "out_of_sequence").length,
-          lienWaiverMissing: app.review?.flags.lienWaiverMissing ?? !app.lienWaiver,
-          licenseIssue: app.review?.flags.licenseIssue ?? false,
+          lienWaiverMissing: review?.flags.lienWaiverMissing ?? !app.lienWaiver,
+          licenseIssue: review?.flags.licenseIssue ?? false,
           createdAt: app.createdAt,
         });
       }
@@ -153,7 +162,7 @@ export const getDashboardData = query({
           changeOrderId: co._id,
           agreementId: a._id,
           number: co.number,
-          description: co.description,
+          description: co.title || co.description,
           status: co.status,
           amountCents: co.amountCents,
           createdAt: co.createdAt,
@@ -179,8 +188,53 @@ export const getDashboardData = query({
       }
     }
 
+    const projectChangeOrders: Doc<"changeOrders">[] = [];
+    for (const project of scoped.ownerProjects) {
+      for (const co of await ownerChangeOrdersOfProject(ctx, project._id)) {
+        projectChangeOrders.push(co);
+        changeOrders.push({
+          changeOrderId: co._id,
+          agreementId: co.agreementId ?? null,
+          number: co.number,
+          description: co.title || co.description,
+          status: co.status,
+          amountCents: co.amountCents,
+          createdAt: co.createdAt,
+          invoicedAt: co.invoicedAt ?? null,
+          paidAt: co.paidAt ?? null,
+        });
+      }
+    }
+    // Prime COs billed through an agreement are already in that agreement's history above; the rest
+    // belong to the project only.
+    for (const project of scoped.gcProjects) {
+      for (const co of await primeChangeOrders(ctx, project._id)) {
+        if (co.agreementId !== undefined) continue;
+        projectChangeOrders.push(co);
+        changeOrders.push({
+          changeOrderId: co._id,
+          agreementId: null,
+          number: co.number,
+          description: co.title || co.description,
+          status: co.status,
+          amountCents: co.amountCents,
+          createdAt: co.createdAt,
+          invoicedAt: co.invoicedAt ?? null,
+          paidAt: co.paidAt ?? null,
+        });
+      }
+    }
+    const gcTotals = sumTotals(perAgreementTotals);
     const totals = {
-      ...sumTotals(perAgreementTotals),
+      ...gcTotals,
+      changeOrdersInvoicedCents: sumCents([
+        gcTotals.changeOrdersInvoicedCents,
+        ...projectChangeOrders.filter((c) => c.status === "invoiced").map((c) => c.amountCents),
+      ]),
+      changeOrdersPaidCents: sumCents([
+        gcTotals.changeOrdersPaidCents,
+        ...projectChangeOrders.filter((c) => c.status === "paid").map((c) => c.amountCents),
+      ]),
       pendingPayAppCents: sumCents(
         payApps.filter((p) => PENDING_PAY_APP_STATUSES.has(p.status)).map((p) => p.requestedCents),
       ),
@@ -188,7 +242,7 @@ export const getDashboardData = query({
 
     return {
       role: viewer.role,
-      readOnly: viewer.role !== "gc",
+      readOnly,
       totals,
       incomplete: {
         truncated: agreementsTruncated || incompleteAgreements.length > 0,

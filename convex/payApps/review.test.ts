@@ -45,6 +45,7 @@ async function setup() {
       .first())!;
   });
   await gc.as.mutation(api.agreements.executeAgreement, { agreementId: agreement._id });
+  await gc.as.mutation(api.billing.sov.approveSov, { agreementId: agreement._id });
   // Mobilization complete and Rough-in under way: base lines are supported up to 30%.
   const { sov, excludedLineId } = await t.run(async (ctx) => {
     const milestones = await ctx.db
@@ -114,24 +115,41 @@ describe("pay-app review on submit", () => {
     for (const banned of ["gpt-4o", "openai", "claude"]) expect(text).not.toContain(banned);
   });
 
-  test("Anthropic structured output drives the verdicts; code computes the cents and stores provenance", async () => {
+  test("tranches that list no SOV lines set no ceiling: the 60% line is not overbilled", async () => {
+    const s = await setup();
+    await s.t.run(async (ctx) => {
+      const tranches = await ctx.db
+        .query("milestones")
+        .withIndex("by_agreementId_and_order", (q) => q.eq("agreementId", s.agreement._id))
+        .collect();
+      for (const m of tranches) await ctx.db.patch(m._id, { sovLineIds: [], status: "planned" });
+    });
+    const { row } = await submitAndReview(s);
+    const b = s.sov[1];
+    const line = row.review!.lines.find((l) => l.sovLineId === b._id)!;
+    expect(line.verdict).not.toBe("overbilled");
+    expect(line.reason).not.toMatch(/ceiling is 0%|support at most/);
+    expect(row.review!.lines.find((l) => l.sovLineId === s.excludedLineId)).toMatchObject({ verdict: "excluded_scope", approvedCents: 0 });
+  });
+
+  test("Anthropic structured output explains the lines; code decides verdicts and cents and stores provenance", async () => {
     vi.stubEnv("ANTHROPIC_API_KEY", "test-key-not-real");
     vi.stubEnv("ANTHROPIC_MODEL", "claude-sonnet-5-5");
     const s = await setup();
     const [a, b] = s.sov;
     generateTextMock.mockImplementation(async (opts: { prompt: string }) => {
-      expect(opts.prompt).toContain("milestoneCeilingPctToDate");
+      expect(opts.prompt).toContain("trancheCeilingPctToDate");
       expect(opts.prompt).toContain(String(s.excludedLineId));
       return {
         output: {
           lines: [
-            { sovLineId: a._id, verdict: "ok", recommendedPctToDate: 0.2, reason: "Within ceiling." },
+            { sovLineId: a._id, verdict: "front_loaded", recommendedPctToDate: 0.1, reason: "Ahead of the job." },
             { sovLineId: b._id, verdict: "overbilled", recommendedPctToDate: 0.28, reason: "60% claimed vs 30% supported." },
             { sovLineId: s.excludedLineId, verdict: "excluded_scope", recommendedPctToDate: 0, reason: "Seismic bracing excluded." },
           ],
           lienWaiverMissing: true,
           licenseIssue: false,
-          notes: "Two lines flagged.",
+          notes: "Three lines flagged.",
         },
         usage: { inputTokens: 1200, outputTokens: 300 },
         response: { modelId: "claude-sonnet-5-5" },
@@ -140,9 +158,17 @@ describe("pay-app review on submit", () => {
     const { row, traces } = await submitAndReview(s);
     expect(generateTextMock).toHaveBeenCalledTimes(1);
     expect(row.review).toMatchObject({ provider: "Anthropic", model: "claude-sonnet-5-5", engine: "Anthropic claude-sonnet-5-5" });
+    // The model's percent does not set money: the rules hold line 2 at the 30% tranche ceiling.
     const line = row.review!.lines.find((l) => l.sovLineId === b._id)!;
-    expect(line).toMatchObject({ verdict: "overbilled", recommendedPctToDate: 0.28 });
-    expect(line.approvedCents).toBe(Math.round(b.scheduledValueCents * 0.28));
+    expect(line).toMatchObject({ verdict: "overbilled", recommendedPctToDate: 0.3, reason: "60% claimed vs 30% supported." });
+    expect(line).not.toHaveProperty("modelVerdict");
+    expect(line.approvedCents).toBe(Math.round(b.scheduledValueCents * 0.3));
+    // A model verdict that disagrees with the rules is replaced, and the stored review says so.
+    const lineA = row.review!.lines.find((l) => l.sovLineId === a._id)!;
+    const requestedA = row.lines.find((l) => l.sovLineId === a._id)!.requestedCents;
+    expect(lineA).toMatchObject({ verdict: "ok", modelVerdict: "front_loaded", approvedCents: requestedA });
+    expect(lineA.reason).toContain("The model's verdict (Front-loaded) was replaced by the code rules.");
+    expect(row.review!.flags.notes).toBe("Three lines flagged. Code rules replaced the model's verdict on line 1.");
     expect(traces[0]).toMatchObject({ provider: "Anthropic", model: "claude-sonnet-5-5", inputTokens: 1200, outputTokens: 300 });
     expect(JSON.stringify(traces[0])).not.toContain("test-key-not-real");
   });
@@ -237,8 +263,8 @@ describe("GC review access", () => {
     expect(list[0].review).toMatchObject({ provider: "Offline rules engine" });
     expect(list[0].lines.find((l) => l.sovLineId === s.excludedLineId)!.review).toMatchObject({ verdict: "excluded_scope", approvedCents: 0 });
 
-    await expect(s.sub1.as.query(api.payApps.review.listAgreementPayApps, { agreementId: s.agreement._id })).rejects.toThrow(/Forbidden: role gc/);
-    await expect(s.sub1.as.action(api.payApps.review.rerunPayAppReview, { payAppId })).rejects.toThrow(/Forbidden: role gc/);
+    expect(await s.sub1.as.query(api.payApps.review.listAgreementPayApps, { agreementId: s.agreement._id })).toEqual([]);
+    await expect(s.sub1.as.action(api.payApps.review.rerunPayAppReview, { payAppId })).rejects.toThrow(/Not found/);
     const res = await s.gc.as.action(api.payApps.review.rerunPayAppReview, { payAppId });
     expect(res.reviewed).toBe(true);
     const traces = await s.t.run(async (ctx) => (await ctx.db.query("agentTraces").collect()).filter((r) => r.caseId === payAppId));
@@ -248,10 +274,12 @@ describe("GC review access", () => {
   test("a pay app withdrawn while under review keeps its withdrawn status", async () => {
     const s = await setup();
     const payAppId = await s.sub1.as.mutation(api.payApps.submit.submitPayApplication, overbilledArgs(s));
-    expect(await s.t.mutation(internal.payApps.review.beginReview, { payAppId, rerun: false })).toBe(true);
+    const reviewRunId = await s.t.mutation(internal.payApps.review.beginReview, { payAppId, rerun: false });
+    expect(reviewRunId).toMatch(/^v1:/);
     await s.sub1.as.mutation(api.payApps.submit.withdrawPayApplication, { payAppId });
     const res = await s.t.mutation(internal.payApps.review.storeReview, {
       payAppId,
+      reviewRunId: reviewRunId!,
       review: {
         engine: "Offline rules engine",
         provider: "Offline rules engine",
@@ -286,7 +314,7 @@ describe("GC review access", () => {
 });
 
 describe("review scenario seed", () => {
-  test("creates one executed sub1 agreement with an excluded seismic line and a 30% milestone ceiling", async () => {
+  test("creates one executed sub1 agreement with seismic bracing as excluded-scope notes and tranches linked to its SOV lines (30% ceiling)", async () => {
     const t = convexTest(schema, modules);
     await t.mutation(internal.projects.seedInitialDataInternal, { force: false });
     const first = await t.mutation(internal.payApps.reviewScenario.seedReviewScenario, {});
@@ -298,10 +326,13 @@ describe("review scenario seed", () => {
     expect(second.agreementId).not.toBe(first.agreementId);
     await expect(t.mutation(internal.payApps.reviewScenario.seedReviewScenario, { suffix: "a b" })).rejects.toThrow(/suffix/);
     const d = await t.query(internal.payApps.reviewScenario.describeReviewScenario, { agreementId: first.agreementId });
-    expect(d.sov.filter((s) => s.excludedScope).map((s) => s.description)).toEqual([
-      expect.stringMatching(/seismic bracing/i),
-    ]);
+    // Excluded scope lives on the agreement as notes for the review, never as an SOV line.
+    expect(d.sov.filter((s) => s.excludedScope)).toEqual([]);
+    const seeded = (await t.run(async (ctx) => ctx.db.get(first.agreementId)))!;
+    expect(seeded.excludedScopeNotes).toEqual([expect.stringMatching(/seismic bracing/i)]);
     expect(d.milestones.map((m) => m.status)).toEqual(["complete", "in_progress", "planned", "planned"]);
+    const baseIds = d.sov.filter((s) => !s.excludedScope).map((s) => s.id as string).sort();
+    for (const m of d.milestones) expect([...m.sovLineIds].sort()).toEqual(baseIds);
     const conduit = d.sov.find((s) => /conduit/i.test(s.description))!;
     const sub1 = await signInAs(t, "sub", {
       contractorId: (await t.run(async (ctx) => ctx.db.get(first.agreementId)))!.contractorId,
@@ -316,5 +347,32 @@ describe("review scenario seed", () => {
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     const row = (await t.run(async (ctx) => ctx.db.get(payAppId)))!;
     expect(row.review!.lines[0]).toMatchObject({ verdict: "overbilled", recommendedPctToDate: 0.3 });
+  });
+
+  test("offline, a pay-app note billing the excluded seismic bracing zeroes that line next to the overbilled one", async () => {
+    const t = convexTest(schema, modules);
+    await t.mutation(internal.projects.seedInitialDataInternal, { force: false });
+    const { agreementId } = await t.mutation(internal.payApps.reviewScenario.seedReviewScenario, { suffix: "EX1" });
+    const d = await t.query(internal.payApps.reviewScenario.describeReviewScenario, { agreementId });
+    const conduit = d.sov.find((s) => /conduit/i.test(s.description))!;
+    const grounding = d.sov.find((s) => /grounding/i.test(s.description))!;
+    const sub1 = await signInAs(t, "sub", { contractorId: (await t.run(async (ctx) => ctx.db.get(agreementId)))!.contractorId });
+    const payAppId = await sub1.as.mutation(api.payApps.submit.submitPayApplication, {
+      agreementId,
+      periodLabel: "Scenario with excluded work",
+      lines: [
+        { sovLineId: conduit.id, pctCompleteThisPeriod: 60, pctCompleteToDate: 60, requestedCents: Math.round(conduit.scheduledValueCents * 0.6) },
+        { sovLineId: grounding.id, pctCompleteThisPeriod: 20, pctCompleteToDate: 20, requestedCents: Math.round(grounding.scheduledValueCents * 0.2) },
+      ],
+      notes: "Conduit runs pulled. Seismic bracing hung on the grounding & bonding system.",
+      lienWaiver: true,
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const row = (await t.run(async (ctx) => ctx.db.get(payAppId)))!;
+    expect(row.review!.provider).toBe("Offline rules engine");
+    const byId = new Map(row.review!.lines.map((l) => [l.sovLineId as string, l]));
+    expect(byId.get(conduit.id)).toMatchObject({ verdict: "overbilled", recommendedPctToDate: 0.3 });
+    expect(byId.get(grounding.id)).toMatchObject({ verdict: "excluded_scope", approvedCents: 0 });
+    expect(byId.get(grounding.id)!.reason).toMatch(/seismic bracing/i);
   });
 });

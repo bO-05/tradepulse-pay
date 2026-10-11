@@ -77,7 +77,7 @@ export const ExecutiveKpiBar: React.FC<ExecutiveKpiBarProps> = ({ metrics, proje
                 <span className="text-slate-700 hidden md:inline">•</span>
                 <span className="bg-amber-950/80 text-amber-300 border border-amber-800/80 px-2 py-0.5 rounded-full font-semibold text-[10px] flex items-center gap-1">
                   <AlertTriangle className="w-3 h-3 text-amber-400" />
-                  <span>{deceptiveBidsCount} Deceptive Bid{deceptiveBidsCount === 1 ? "" : "s"} Caught</span>
+                  <span>{deceptiveBidsCount} apparent-low bid{deceptiveBidsCount === 1 ? "" : "s"} not leveled low</span>
                 </span>
               </>
             )}
@@ -86,7 +86,7 @@ export const ExecutiveKpiBar: React.FC<ExecutiveKpiBarProps> = ({ metrics, proje
                 <span className="text-slate-700 hidden lg:inline">•</span>
                 <span
                   className="bg-sky-950/80 text-sky-300 border border-sky-800/80 px-2 py-0.5 rounded-full font-semibold text-[10px] flex items-center gap-1"
-                  title="Exclusions + lead-time + COI penalties − accepted VE credits on flagged deceptive bids"
+                  title="Exclusions + lead-time + COI penalties − accepted VE credits on bids whose base is low but whose leveled total is not"
                 >
                   <ShieldAlert className="w-3 h-3 text-sky-400" />
                   <span>Gaps Exposed: +${gapsCaught.toLocaleString()}</span>
@@ -186,10 +186,10 @@ export const ExecutiveKpiBar: React.FC<ExecutiveKpiBarProps> = ({ metrics, proje
           </div>
         </div>
 
-        {/* KPI 4: Deceptive Low Bids Thwarted */}
+        {/* KPI 4: apparent-low bids that are not the leveled low */}
         <div className="bg-slate-950/70 border border-slate-800/80 rounded-xl p-3 flex flex-col justify-between">
           <div className="flex items-center justify-between text-slate-400 mb-1">
-            <span className="text-[10px] uppercase tracking-wider font-semibold">Deceptive Bids Flagged</span>
+            <span className="text-[10px] uppercase tracking-wider font-semibold">Apparent low ≠ leveled low</span>
             <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
           </div>
           <div>

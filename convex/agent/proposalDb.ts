@@ -5,7 +5,10 @@ import { formatCents } from "../lib/money";
 import { submitterAuditFields } from "../lib/agentAudit";
 import { retainagePercentFor } from "../payments/payoutMath";
 import { latestCompletedCheck } from "../kernel/licenseChecks";
+import { projectGcCompanyName } from "../lib/gcCompanyName";
 import { planProposals, requiredKinds, type PlanLicenseStatus, type PlanMilestone, type ProposalPlan } from "./proposalMath";
+import { loadSovRows } from "../lib/sovLines";
+import { loadTranches } from "../lib/trancheRows";
 
 /**
  * Database side of the pay agent. The agent's propose* tools end here, and this file only ever inserts
@@ -19,10 +22,7 @@ const PROPOSABLE_KINDS = v.union(v.literal("capture"), v.literal("payout"), v.li
 type ProposableKind = "capture" | "payout" | "reschedule" | "hold";
 
 export async function milestonePlanRows(ctx: QueryCtx, agreementId: Id<"agreements">): Promise<PlanMilestone[]> {
-  const milestones = await ctx.db
-    .query("milestones")
-    .withIndex("by_agreementId_and_order", (q) => q.eq("agreementId", agreementId))
-    .take(50);
+  const milestones = await loadTranches(ctx, agreementId);
   const rows: PlanMilestone[] = [];
   for (const m of milestones) {
     const payments = await ctx.db
@@ -82,15 +82,14 @@ export const loadAgentInputs = internalQuery({
     const agreement = await ctx.db.get(payApp.agreementId);
     if (agreement === null) return null;
     const contractor = await ctx.db.get(agreement.contractorId);
-    const sov = await ctx.db
-      .query("scheduleOfValues")
-      .withIndex("by_agreementId_and_lineNo", (q) => q.eq("agreementId", agreement._id))
-      .take(500);
+    const sov = await loadSovRows(ctx, agreement._id);
     const sovById = new Map(sov.map((s) => [s._id as string, s]));
     const reviewLines = new Map(payApp.review.lines.map((l) => [l.sovLineId as string, l]));
     const latest = await latestCompletedCheck(ctx, agreement.contractorId);
     const milestones = await milestonePlanRows(ctx, agreement._id);
+    const project = await ctx.db.get(agreement.projectId);
     return {
+      gcCompanyName: project ? await projectGcCompanyName(ctx, project) : null,
       payApp: {
         _id: payApp._id,
         status: payApp.status,

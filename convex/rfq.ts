@@ -1,17 +1,19 @@
 import { query, mutation, internalMutation, internalQuery, action } from "./_generated/server";
-import { requireRole, requireRoleInAction } from "./lib/roles";
-import { v, ConvexError } from "convex/values";
+import { auditActor, partyMaySeeContractor, requireDocScope, requireProjectScope } from "./lib/projectScope";
+import { requireProjectScopeInAction } from "./lib/tenancyAction";
+import { v } from "convex/values";
 import { internal } from "./_generated/api";
 
 export const listConversations = query({
   args: { tradePackageId: v.id("tradePackages") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc", "owner"]);
-    return await ctx.db
+    const access = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc", "sub"] });
+    const rows = await ctx.db
       .query("conversations")
       .withIndex("by_package", (q) => q.eq("tradePackageId", args.tradePackageId))
       .order("desc")
       .collect();
+    return rows.filter((c) => partyMaySeeContractor(access, c.contractorId));
   },
 });
 
@@ -22,7 +24,7 @@ export const listConversations = query({
 export const getProjectDeliveryStatus = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc", "owner"]);
+    await requireProjectScope(ctx, args.projectId, { roles: ["gc"] });
     const logs = await ctx.db
       .query("auditLogs")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
@@ -41,13 +43,16 @@ export const getProjectDeliveryStatus = query({
   },
 });
 
+/** Certified and still-pending RFIs of the project, or of one package when the addendum covers only that package. */
 export const listClarifiedConversationsForProject = internalQuery({
-  args: { projectId: v.id("projects") },
+  args: { projectId: v.id("projects"), tradePackageId: v.optional(v.id("tradePackages")) },
   handler: async (ctx, args) => {
-    const packages = await ctx.db
-      .query("tradePackages")
-      .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
-      .collect();
+    const packages = (
+      await ctx.db
+        .query("tradePackages")
+        .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
+        .collect()
+    ).filter((pkg) => args.tradePackageId === undefined || pkg._id === args.tradePackageId);
 
     const clarified: any[] = [];
     const pending: any[] = [];
@@ -76,154 +81,6 @@ export const listClarifiedConversationsForProject = internalQuery({
   },
 });
 
-export const dispatchRfqs = mutation({
-  args: { tradePackageId: v.id("tradePackages") },
-  handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const tradePkg = await ctx.db.get(args.tradePackageId);
-    if (!tradePkg) throw new Error("Trade package not found");
-
-    const contractors = await ctx.db
-      .query("contractors")
-      .withIndex("by_package", (q) => q.eq("tradePackageId", args.tradePackageId))
-      .collect();
-
-    if (contractors.length === 0) {
-      throw new ConvexError(
-        "No contractors have been discovered for this trade package yet. Run Discovery before dispatching RFQs."
-      );
-    }
-
-    let dispatchedCount = 0;
-    const now = Date.now();
-
-    for (const c of contractors) {
-      if (c.rfqStatus === "discovered") {
-        await ctx.db.patch(c._id, {
-          rfqStatus: "invited",
-          dispatchedAt: now,
-        });
-        dispatchedCount++;
-      }
-    }
-
-    const totalNotified = dispatchedCount > 0 ? dispatchedCount : contractors.length;
-
-    await ctx.db.patch(args.tradePackageId, {
-      status: "rfqs_dispatched",
-    });
-
-    // Record in reactive audit stream
-    await ctx.db.insert("auditLogs", {
-      projectId: tradePkg.projectId,
-      tradePackageId: tradePkg._id,
-      eventType: "rfq_dispatched",
-      title: `RFQ Invitations Recorded: Division ${tradePkg.csiDivision} (${tradePkg.tradeName})`,
-      description: `RFQ invitations recorded for ${totalNotified} contractor(s); AgentMail delivery results are logged by the dispatch action (${tradePkg.agentMailbox}).`,
-      actor: "Lead Project Manager",
-      timestamp: now,
-    });
-
-    return {
-      success: true,
-      tradePackageId: args.tradePackageId,
-      dispatchedCount: totalNotified,
-      agentMailbox: tradePkg.agentMailbox,
-    };
-  },
-});
-
-export const dispatchRfqsInternal = internalMutation({
-  args: { tradePackageId: v.id("tradePackages") },
-  handler: async (ctx, args) => {
-    const tradePkg = await ctx.db.get(args.tradePackageId);
-    if (!tradePkg) throw new Error("Trade package not found");
-
-    const contractors = await ctx.db
-      .query("contractors")
-      .withIndex("by_package", (q) => q.eq("tradePackageId", args.tradePackageId))
-      .collect();
-
-    if (contractors.length === 0) {
-      throw new ConvexError(
-        "No contractors have been discovered for this trade package yet. Run Discovery before dispatching RFQs."
-      );
-    }
-
-    let dispatchedCount = 0;
-    const now = Date.now();
-
-    for (const c of contractors) {
-      if (c.rfqStatus === "discovered") {
-        await ctx.db.patch(c._id, {
-          rfqStatus: "invited",
-          dispatchedAt: now,
-        });
-        dispatchedCount++;
-      }
-    }
-
-    const totalNotified = dispatchedCount > 0 ? dispatchedCount : contractors.length;
-
-    await ctx.db.patch(args.tradePackageId, {
-      status: "rfqs_dispatched",
-    });
-
-    // Record in reactive audit stream
-    await ctx.db.insert("auditLogs", {
-      projectId: tradePkg.projectId,
-      tradePackageId: tradePkg._id,
-      eventType: "rfq_dispatched",
-      title: `RFQ Invitations Recorded: Division ${tradePkg.csiDivision} (${tradePkg.tradeName})`,
-      description:
-        dispatchedCount > 0
-          ? `Recorded ${dispatchedCount} commercial contractor(s) as invited for ${tradePkg.agentMailbox}; email delivery is attempted and logged separately.`
-          : `No new invitations were required: ${totalNotified} contractor(s) are already invited. Package marked as RFQs dispatched (${tradePkg.agentMailbox}).`,
-      actor: "Lead Project Manager",
-      timestamp: now,
-    });
-
-    return {
-      success: true,
-      tradePackageId: args.tradePackageId,
-      dispatchedCount: totalNotified,
-      agentMailbox: tradePkg.agentMailbox,
-    };
-  },
-});
-
-export const markSingleContractorInvitedInternal = internalMutation({
-  args: {
-    contractorId: v.id("contractors"),
-    tradePackageId: v.id("tradePackages"),
-  },
-  handler: async (ctx, args) => {
-    const contractor = await ctx.db.get(args.contractorId);
-    if (!contractor) throw new Error("Contractor not found");
-
-    const tradePkg = await ctx.db.get(args.tradePackageId);
-    if (!tradePkg) throw new Error("Trade package not found");
-
-    const now = Date.now();
-    await ctx.db.patch(args.contractorId, {
-      rfqStatus: "invited",
-      dispatchedAt: now,
-    });
-
-    await ctx.db.insert("auditLogs", {
-      projectId: tradePkg.projectId,
-      tradePackageId: tradePkg._id,
-      eventType: "rfq_dispatched",
-      title: `RFQ Invitation Prepared: ${contractor.companyName}`,
-      description: `Marked ${contractor.companyName} as invited for ${tradePkg.tradeName} (${tradePkg.csiDivision}); the invitation targets ${contractor.contactEmail}. Email delivery is attempted and logged separately.`,
-      actor: "AgentMail Subcontractor Dispatcher",
-      timestamp: now,
-    });
-
-    return { success: true };
-  },
-});
-
 /**
  * F1 durability: persist the submitted RFI text BEFORE any LLM work so a
  * failed/slow analysis can never drop a subcontractor's formal question.
@@ -237,6 +94,7 @@ export async function persistPendingRfi(
     threadId: string;
     inboundSubject: string;
     inboundQuestion: string;
+    sourceInboundEmailId?: any;
   }
 ) {
   const contractor = await ctx.db.get(args.contractorId);
@@ -256,6 +114,7 @@ export async function persistPendingRfi(
     confidenceScore: 0,
     status: "pending_analysis",
     timestamp: Date.now(),
+    ...(args.sourceInboundEmailId ? { origin: "email" as const, sourceInboundEmailId: args.sourceInboundEmailId } : {}),
   });
 }
 
@@ -266,6 +125,7 @@ export const createPendingInboundRfi = internalMutation({
     threadId: v.string(),
     inboundSubject: v.string(),
     inboundQuestion: v.string(),
+    sourceInboundEmailId: v.optional(v.id("inboundEmails")),
   },
   handler: async (ctx, args) => {
     return await persistPendingRfi(ctx, args);
@@ -314,11 +174,11 @@ export const completeInboundRfi = internalMutation({
         eventType: isEscalated ? "compliance_audit" : "rfi_clarified",
         title: isEscalated
           ? `Pre-Bid RFI Escalated to PM: ${convo.inboundSubject}`
-          : `Pre-Bid RFI Clarified: ${convo.inboundSubject}`,
+          : `Pre-Bid RFI AI draft ready for review: ${convo.inboundSubject}`,
         description: isEscalated
           ? `Subcontractor inquiry from ${contractor?.companyName || "Contractor"} flagged for human PM review (scope waiver, schedule extension, or low confidence threshold).`
-          : `TradePulse AI autonomously answered pre-bid question for ${contractor?.companyName || "Contractor"} with ${Math.round(args.confidenceScore * 100)}% model confidence.`,
-        actor: isEscalated ? "Autonomous Pre-Bid Governance" : "TradePulse AI Spec Agent",
+          : `TradePulse AI drafted an answer to ${contractor?.companyName || "Contractor"}'s pre-bid question (${Math.round(args.confidenceScore * 100)}% model confidence) for GC review. Nothing was sent.`,
+        actor: isEscalated ? "Pre-Bid Review Queue" : "TradePulse AI Spec Agent",
         timestamp: Date.now(),
       });
     }
@@ -373,9 +233,9 @@ export const reviewEscalatedRfi = mutation({
     reviewNote: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const convo = await ctx.db.get(args.conversationId);
-    if (!convo) throw new Error("Conversation not found");
+    const access = await requireDocScope(ctx, "conversations", args.conversationId, { roles: ["gc"], write: true });
+    const convo = access.doc;
+    const reviewer = auditActor(access);
     const convoContractor = await ctx.db.get(convo.contractorId);
     if (!convoContractor || convoContractor.tradePackageId !== convo.tradePackageId) {
       throw new Error("The RFI is linked to an invalid contractor/package relationship.");
@@ -389,7 +249,7 @@ export const reviewEscalatedRfi = mutation({
     }
     if (args.status === "clarified") {
       patchData.pmCertifiedAt = Date.now();
-      patchData.pmCertifiedBy = "Project Manager";
+      patchData.pmCertifiedBy = reviewer.actor;
       patchData.reviewNote = args.reviewNote || "Approved by Project Manager for Addendum NO. 01";
     } else {
       patchData.pmCertifiedAt = undefined;
@@ -405,8 +265,9 @@ export const reviewEscalatedRfi = mutation({
         tradePackageId: tradePkg._id,
         eventType: args.status === "clarified" ? "rfi_clarified" : "compliance_audit",
         title: `PM RFI Review: ${args.status === "clarified" ? "Approved for Addendum" : args.status.toUpperCase()}`,
-        description: `Project Manager reviewed RFI '${convo.inboundSubject}'. Status updated to ${args.status}.${args.reviewNote ? ` Note: ${args.reviewNote}` : ""}`,
-        actor: "Project Manager (PM Review Queue)",
+        description: `${reviewer.actor} reviewed RFI '${convo.inboundSubject}'. Status updated to ${args.status}.${args.reviewNote ? ` Note: ${args.reviewNote}` : ""}`,
+        ...reviewer,
+        contractorId: convo.contractorId,
         timestamp: Date.now(),
       });
     }
@@ -427,7 +288,11 @@ export const generatePreBidAddendum = action({
     addendumNumber: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<any> => {
-    await requireRoleInAction(ctx, ["gc"]);
+    await requireProjectScopeInAction(
+      ctx,
+      { projectId: args.projectId, docs: [{ table: "tradePackages", id: args.tradePackageId }] },
+      { roles: ["gc"], write: true },
+    );
     // Delegate to the storage-backed generator in files.ts to ensure single source of truth
     return await ctx.runAction(internal.files.generatePreBidAddendumInternal, {
       projectId: args.projectId,
