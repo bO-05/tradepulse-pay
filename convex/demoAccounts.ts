@@ -1,3 +1,4 @@
+import { ensureDemoCompliance } from "./compliance/demoSeed";
 import { createAccount, modifyAccountCredentials } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
@@ -140,6 +141,7 @@ export async function linkDemoProfiles(ctx: MutationCtx) {
     .withIndex("email", (q) => q.eq("email", DEMO_GC_EMAIL))
     .first();
   await ensureDemoPayees(ctx, companyIds, demoGcUser?._id ?? null);
+  await ensureDemoCompliance(ctx, companyIds, demoGcUser?._id ?? null);
   const plugActor = await demoGcPlugActor(ctx, demoGcUser?._id ?? null);
   if (plugActor) await attributeDemoPlugs(ctx, companyIds.gc, plugActor);
   await approveDemoSovs(ctx, companyIds.gc, demoGcUser?._id ?? null);

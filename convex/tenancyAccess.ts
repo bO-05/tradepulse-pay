@@ -30,6 +30,7 @@ export const scopedTableValidator = v.union(
   v.literal("changeOrders"),
   v.literal("primeLines"),
   v.literal("ownerPayApps"),
+  v.literal("complianceItems"),
 );
 
 /**

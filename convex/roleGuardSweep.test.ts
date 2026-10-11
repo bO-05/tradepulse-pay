@@ -178,7 +178,31 @@ async function setup() {
       createdAt: now,
       updatedAt: now,
     });
+    const project = (await ctx.db.get(base.agreement.projectId))!;
+    const complianceSub = await ctx.db.insert("companies", { name: "Sweep compliance sub", kind: "sub", isDemo: false, createdAt: now });
+    const complianceVendor = await ctx.db.insert("vendors", {
+      companyId: project.gcCompanyId!,
+      name: "Sweep compliance vendor",
+      trades: [],
+      contactName: "Sweep",
+      email: "sweep@vendor.invalid",
+      linkedCompanyId: complianceSub,
+      status: "active",
+      createdAt: now,
+    });
+    const complianceItemId = await ctx.db.insert("complianceItems", {
+      projectId: project._id,
+      vendorId: complianceVendor,
+      companyId: complianceSub,
+      gcCompanyId: project.gcCompanyId!,
+      kind: "license",
+      status: "pending_review",
+      license: { licenseNumber: "142881", state: "CA", classification: "C-10", expiryDate: "2028-01-01", verification: "unverified" },
+      uploadedByName: "Sweep",
+      createdAt: now,
+    });
     return {
+      complianceItemId,
       primeLineId,
       ownerPayAppId,
       milestoneId: milestone._id,
@@ -304,6 +328,13 @@ const GC_ONLY: Case[] = [
   m("billing/ownerPayApps:submitOwnerPayApp", api.billing.ownerPayApps.submitOwnerPayApp, (i) => ({ ownerPayAppId: i.ownerPayAppId })),
   m("billing/ownerPayApps:deleteOwnerPayApp", api.billing.ownerPayApps.deleteOwnerPayApp, (i) => ({ ownerPayAppId: i.ownerPayAppId })),
   a("billing/ownerInvoices:sendOwnerPayAppInvoice", api.billing.ownerInvoices.sendOwnerPayAppInvoice, (i) => ({ ownerPayAppId: i.ownerPayAppId })),
+  m("compliance/items:reviewComplianceItem (accept)", api.compliance.items.reviewComplianceItem, (i) => ({ itemId: i.complianceItemId, decision: "accept" })),
+  m("compliance/items:reviewComplianceItem (reject)", api.compliance.items.reviewComplianceItem, (i) => ({
+    itemId: i.complianceItemId,
+    decision: "reject",
+    reason: "Forged",
+  })),
+  m("compliance/items:requestCslbLookup", api.compliance.items.requestCslbLookup, (i) => ({ itemId: i.complianceItemId })),
 ];
 
 /** Read-only at PayPal; the owner may refresh the invoice it pays. Everyone else is refused. */
@@ -396,6 +427,7 @@ describe("agreement ledger and payment reads", () => {
     { name: "billing/ownerPayApps:getOwnerPayApp", fn: api.billing.ownerPayApps.getOwnerPayApp, args: (i) => ({ ownerPayAppId: i.ownerPayAppId }) },
     { name: "billing/primeLines:listPrimeLines", fn: api.billing.primeLines.listPrimeLines, args: (i) => ({ projectId: i.projectId }) },
     { name: "kernel/licenseChecks:getContractorLicense", fn: api.kernel.licenseChecks.getContractorLicense, args: (i) => ({ contractorId: i.contractorId }) },
+    { name: "compliance/items:getComplianceItem", fn: api.compliance.items.getComplianceItem, args: (i) => ({ itemId: i.complianceItemId }) },
   ];
 
   function leaks(result: unknown, ids: Ids): boolean {
@@ -573,6 +605,7 @@ describe("static guard sweep over convex/**", () => {
       "payApps/proposals",
       "payApps/reviewEvals",
       "kernel/licenseChecks",
+      "compliance/items",
       "dashboard/queries",
       "dashboard/payAgent",
       "judgeDemo/runs",

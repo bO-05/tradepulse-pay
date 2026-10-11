@@ -4,7 +4,7 @@ import { visibleToParty } from "../billing/changeOrderView";
 import { notFound, type ProjectAccess } from "../lib/tenancy";
 import { sovIsApproved } from "../payments/sov";
 import { inputsHashOf, loadDocument } from "./inputs";
-import type { DocumentKind } from "./kinds";
+import { isUploadedDocumentKind, type DocumentKind } from "./kinds";
 
 type RelatedScope = ProjectAccess & { doc: Doc<"payApplications"> | Doc<"ownerPayApps"> | Doc<"changeOrders"> | Doc<"agreements"> };
 
@@ -37,6 +37,7 @@ export function assertDocumentVisible(kind: DocumentKind, scope: RelatedScope): 
  * even after a later approval.
  */
 export async function assertStoredDocumentVisible(ctx: QueryCtx, doc: Doc<"documents">, scope: RelatedScope): Promise<void> {
+  if (isUploadedDocumentKind(doc.kind)) throw notFound();
   assertDocumentVisible(doc.kind, scope);
   if (doc.kind === "sov_csv" && scope.partyRole !== "gc") {
     const current = await inputsHashOf(await loadDocument(ctx, doc.kind, scope.doc));

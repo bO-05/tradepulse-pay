@@ -6,7 +6,7 @@ import { requireDocScope } from "../lib/projectScope";
 import { NOT_FOUND_MESSAGE } from "../lib/tenancy";
 import { corsHeaders, textResponse } from "../projectFileDownload";
 import { assertStoredDocumentVisible } from "./access";
-import { DOCUMENT_DOWNLOAD_PREFIX, DOCUMENT_KINDS } from "./kinds";
+import { DOCUMENT_DOWNLOAD_PREFIX, DOCUMENT_KINDS, isUploadedDocumentKind } from "./kinds";
 
 /**
  * GET /api/documents/<documentId> with the Convex Auth bearer token. Streams a generated document
@@ -21,6 +21,12 @@ export const authorizeDocument = internalQuery({
     const doc = id === null ? null : await ctx.db.get(id);
     if (doc === null || doc.relatedId === undefined) return null;
     try {
+      if (isUploadedDocumentKind(doc.kind)) {
+        // Compliance uploads: the project's GC, or a member of the sub company the record belongs to.
+        const scope = await requireDocScope(ctx, "complianceItems", doc.relatedId, { roles: ["gc", "sub"] });
+        if (scope.project._id !== doc.projectId || scope.doc.documentId !== doc._id) return null;
+        return { storageId: doc.storageId, fileName: doc.fileName, contentType: doc.contentType };
+      }
       const cfg = DOCUMENT_KINDS[doc.kind];
       const scope = await requireDocScope(ctx, cfg.table, doc.relatedId, { roles: cfg.roles });
       await assertStoredDocumentVisible(ctx, doc, scope);

@@ -114,6 +114,7 @@ export const STATUS_LABELS = {
   compliant: { label: "Compliant", tone: "success" },
   expiring: { label: "Expiring soon", tone: "warning" },
   missing: { label: "Missing", tone: "danger" },
+  non_compliant: { label: "Not compliant", tone: "danger" },
   deficiency_detected: { label: "Deficiency found", tone: "danger" },
   cslb_live: { label: "CSLB lookup", tone: "info" },
   manual: { label: "Manual record", tone: "neutral" },

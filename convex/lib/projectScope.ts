@@ -90,6 +90,12 @@ async function assertVisibleToParty<T extends ProjectScopedTable>(
   doc: Doc<T>,
 ): Promise<void> {
   if (access.partyRole === "gc") return;
+  // Compliance records belong to one sub company: its human members see them, nobody else does.
+  if (table === "complianceItems") {
+    const companyId = (doc as unknown as Doc<"complianceItems">).companyId;
+    if (access.partyRole === "sub" && access.company !== null && access.company._id === companyId) return;
+    throw notFound();
+  }
   // The prime contract (its GC lines and owner pay apps) is between the GC and the owner only.
   if ((table === "ownerPayApps" || table === "primeLines") && access.partyRole !== "owner") throw notFound();
   if (table === "changeOrders") {

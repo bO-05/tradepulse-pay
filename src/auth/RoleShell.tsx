@@ -16,6 +16,7 @@ import { BidPackagePage } from "../bids/BidPackagePage";
 import { BillingAgentsView } from "./BillingAgentsView";
 import { JudgeDemoPage } from "../payments/judgeDemo/JudgeDemoPage";
 import { CompanySettingsPage } from "../company/CompanySettingsPage";
+import { CompliancePage } from "../compliance/CompliancePage";
 import { QueryBoundary } from "../lib/QueryBoundary";
 import { NotFoundHomeContext, NotFoundState } from "../ui/NotFoundState";
 import { PeoplePage } from "../people/PeoplePage";
@@ -81,6 +82,7 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
   else if (route.area === "owner-pay-apps") content = <OwnerPayAppsPage />;
   else if (route.area === "pay-apps") content = <PayAppsPage />;
   else if (route.area === "change-orders") content = <ChangeOrdersPage />;
+  else if (route.area === "compliance") content = <CompliancePage role={me.role} />;
   else if (route.area === "pay-app") {
     const back = me.role === "gc" ? { hash: "#/billing", label: "Billing" } : { hash: "#/pay-apps", label: "Pay apps" };
     content = <PayAppPage payAppId={route.payAppId ?? ""} backHash={back.hash} backLabel={back.label} />;

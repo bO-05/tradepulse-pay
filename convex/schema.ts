@@ -10,7 +10,14 @@ import {
   bidUnitPriceValidator,
   bidVeAlternateValidator,
 } from "./lib/bidValidators";
-import { documentKindValidator, documentRelatedTableValidator, documentSensitivityValidator } from "./documents/kinds";
+import { documentRelatedTableValidator, documentSensitivityValidator, storedDocumentKindValidator } from "./documents/kinds";
+import {
+  coiFieldsValidator,
+  complianceKindValidator,
+  complianceReviewStatusValidator,
+  licenseFieldsValidator,
+  w9FieldsValidator,
+} from "./compliance/validators";
 
 export const roleValidator = v.union(v.literal("gc"), v.literal("sub"), v.literal("owner"));
 export const actorTypeValidator = v.union(v.literal("human"), v.literal("agent"));
@@ -40,6 +47,9 @@ export const notificationKindValidator = v.union(
   v.literal("waiver_signed"),
   v.literal("compliance_expiring"),
   v.literal("compliance_expired"),
+  v.literal("compliance_submitted"),
+  v.literal("compliance_accepted"),
+  v.literal("compliance_rejected"),
   v.literal("change_order_submitted"),
   v.literal("change_order_approved"),
   v.literal("change_order_rejected"),
@@ -908,7 +918,7 @@ export default defineSchema({
   // was generated from (its table is fixed per kind); `inputsHash` identifies the data it reflects.
   documents: defineTable({
     projectId: v.id("projects"),
-    kind: documentKindValidator,
+    kind: storedDocumentKindValidator,
     sensitivity: documentSensitivityValidator,
     storageId: v.id("_storage"),
     sha256: v.string(),
@@ -938,6 +948,37 @@ export default defineSchema({
     .index("by_resourceId", ["resourceId"])
     .index("by_receivedAt", ["receivedAt"]),
 
+  // Sub compliance records per vendor and project (architecture §17). The computed state (compliant,
+  // expiring, expired, missing) is derived on read from the accepted rows and the agreement's insurance
+  // terms; `status` is only the GC's review decision. Uploaded files are restricted `documents` rows.
+  complianceItems: defineTable({
+    projectId: v.id("projects"),
+    vendorId: v.id("vendors"),
+    companyId: v.id("companies"), // the sub company
+    gcCompanyId: v.id("companies"),
+    kind: complianceKindValidator,
+    status: complianceReviewStatusValidator,
+    documentId: v.optional(v.id("documents")),
+    coi: v.optional(coiFieldsValidator),
+    w9: v.optional(w9FieldsValidator),
+    license: v.optional(licenseFieldsValidator),
+    /** Latest CSLB lookup (CA licenses only); advisory, never part of the computed state. */
+    cslbCheckId: v.optional(v.id("licenseChecks")),
+    uploadedByUserId: v.optional(v.id("users")),
+    uploadedByName: v.string(),
+    reviewedByUserId: v.optional(v.id("users")),
+    reviewedByName: v.optional(v.string()),
+    reviewedAt: v.optional(v.number()),
+    rejectionReason: v.optional(v.string()),
+    /** Seeded for a Demo company; no file was uploaded. */
+    demoRecord: v.optional(v.boolean()),
+    createdAt: v.number(),
+  })
+    .index("by_projectId_and_vendorId", ["projectId", "vendorId"])
+    .index("by_projectId_and_companyId", ["projectId", "companyId"])
+    .index("by_companyId", ["companyId"])
+    .index("by_cslbCheckId", ["cslbCheckId"]),
+
   // CSLB license lookups via KERNEL, cached 24h.
   licenseChecks: defineTable({
     contractorId: v.id("contractors"),
@@ -957,6 +998,8 @@ export default defineSchema({
     trigger: v.optional(v.string()),
     /** Set by the internal clearLicenseCache helper; the row stays as history but is no longer reused. */
     cacheCleared: v.optional(v.boolean()),
+    /** The compliance license record whose number was looked up, when the GC ran it from Compliance. */
+    complianceItemId: v.optional(v.id("complianceItems")),
   })
     .index("by_contractorId_and_checkedAt", ["contractorId", "checkedAt"])
     .index("by_contractorId_and_licenseNumber_and_checkedAt", ["contractorId", "licenseNumber", "checkedAt"]),

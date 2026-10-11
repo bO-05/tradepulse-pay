@@ -235,9 +235,12 @@ test("Offline fallbacks are labeled 'Offline rules engine' and never claim an Op
 test("License UI never calls a license verified; only an active CSLB result is shown as positive", async () => {
   const license = (await import("./payments/LicenseCheck.tsx?raw")).default as string;
   const reviews = (await import("./payments/PayAppReviews.tsx?raw")).default as string;
-  for (const src of [license, reviews]) {
+  const compliance = (await import("./compliance/CompliancePage.tsx?raw")).default as string;
+  for (const src of [license, reviews, compliance]) {
     expect(src).not.toMatch(/>\s*Verified\b|"Verified"|License verified/);
   }
+  expect(compliance).toContain("CSLB lookup failed — check manually");
+  expect(compliance).toContain("${c.source}");
   expect(license).toContain('unverified: { label: "License unverified"');
   expect(license).toContain('none: { label: "No license check yet"');
   expect(reviews).toContain('none: "No license check yet"');

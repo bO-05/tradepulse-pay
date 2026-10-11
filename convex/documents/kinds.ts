@@ -17,6 +17,33 @@ export const documentKindValidator = v.union(
 );
 export type DocumentKind = Infer<typeof documentKindValidator>;
 
+/**
+ * Files a sub uploads for compliance (architecture §17). They are stored like generated documents
+ * (restricted, served only by the authenticated route) but are never rendered, so they have no
+ * DOCUMENT_KINDS entry; their related record is a complianceItems row.
+ */
+export const uploadedDocumentKindValidator = v.union(
+  v.literal("compliance_coi"),
+  v.literal("compliance_w9"),
+  v.literal("compliance_license"),
+);
+export type UploadedDocumentKind = Infer<typeof uploadedDocumentKindValidator>;
+
+export const storedDocumentKindValidator = v.union(...documentKindValidator.members, ...uploadedDocumentKindValidator.members);
+export type StoredDocumentKind = Infer<typeof storedDocumentKindValidator>;
+
+const UPLOADED_KINDS: ReadonlySet<string> = new Set(uploadedDocumentKindValidator.members.map((m) => m.value));
+
+export const UPLOADED_DOCUMENT_LABELS: Record<UploadedDocumentKind, string> = {
+  compliance_coi: "Certificate of insurance",
+  compliance_w9: "W-9",
+  compliance_license: "Contractor license",
+};
+
+export function isUploadedDocumentKind(kind: string): kind is UploadedDocumentKind {
+  return UPLOADED_KINDS.has(kind);
+}
+
 export const documentSensitivityValidator = v.union(v.literal("project"), v.literal("restricted"));
 
 export const documentRelatedTableValidator = v.union(
@@ -24,13 +51,14 @@ export const documentRelatedTableValidator = v.union(
   v.literal("ownerPayApps"),
   v.literal("changeOrders"),
   v.literal("agreements"),
+  v.literal("complianceItems"),
 );
 export type DocumentRelatedTable = Infer<typeof documentRelatedTableValidator>;
 
 type Party = "gc" | "sub" | "owner";
 
 export type KindConfig = {
-  table: DocumentRelatedTable;
+  table: Exclude<DocumentRelatedTable, "complianceItems">;
   roles: readonly Party[];
   contentType: "application/pdf" | "text/csv; charset=utf-8";
   label: string;

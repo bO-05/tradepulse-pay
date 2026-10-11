@@ -9,6 +9,7 @@ describe("role navigation", () => {
       "billing",
       "change-orders",
       "payments",
+      "compliance",
       "inbox",
       "owner-portal",
       "people",
@@ -17,9 +18,18 @@ describe("role navigation", () => {
       "dashboard",
       "judge-demo",
     ]);
-    expect(NAV_BY_ROLE.sub.map((i) => i.area)).toEqual(["sub-portal", "pay-apps", "change-orders", "bid-invitations", "my-projects", "payments"]);
+    expect(NAV_BY_ROLE.sub.map((i) => i.area)).toEqual(["sub-portal", "pay-apps", "change-orders", "compliance", "bid-invitations", "my-projects", "payments"]);
     expect(NAV_BY_ROLE.owner.map((i) => i.area)).toEqual(["owner-portal", "my-projects", "owner-pay-apps", "change-orders", "dashboard"]);
     expect(NAV_BY_ROLE.owner.map((i) => i.label)).toEqual(["Home", "Projects", "Owner pay apps", "Change orders", "Reports"]);
+  });
+
+  test("Compliance is for GC and sub company members; owners and billing agents get Not found", () => {
+    expect(resolveRoute("gc", "#/compliance")).toEqual({ area: "compliance" });
+    expect(resolveRoute("sub", "#/compliance")).toEqual({ area: "compliance" });
+    expect(resolveRoute("owner", "#/compliance")).toEqual({ area: "not-found" });
+    expect(resolveRoute("sub", "#/compliance", false, "", "agent")).toEqual({ area: "not-found" });
+    expect(navFor("gc").find((i) => i.area === "compliance")?.label).toBe("Compliance & waivers");
+    expect(navFor("sub").find((i) => i.area === "compliance")?.label).toBe("Compliance");
   });
 
   test("People is GC-only; project switcher for subs and owners; Company settings for every role", () => {

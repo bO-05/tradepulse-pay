@@ -20,6 +20,7 @@ export type AreaId =
   | "pay-apps"
   | "change-orders"
   | "owner-pay-apps"
+  | "compliance"
   | "pay-app"
   | "agreement"
   | "ledger"
@@ -56,7 +57,7 @@ export const OWNER_BILLING_HASH = "#/billing/owner-billing";
 export const DEMO_ONLY_AREAS = new Set<AreaId>(["judge-demo"]);
 
 /** Areas for company members only; billing agents act on executed agreements and never bid. */
-export const HUMAN_ONLY_AREAS = new Set<AreaId>(["bid-invitations"]);
+export const HUMAN_ONLY_AREAS = new Set<AreaId>(["bid-invitations", "compliance"]);
 
 const AREA_HASH: Record<NavItem["area"], string> = {
   procurement: "#/procurement",
@@ -76,7 +77,10 @@ const AREA_HASH: Record<NavItem["area"], string> = {
   "pay-apps": "#/pay-apps",
   "change-orders": "#/change-orders",
   "owner-pay-apps": "#/owner-pay-apps",
+  compliance: "#/compliance",
 };
+
+export const COMPLIANCE_HASH = AREA_HASH.compliance;
 
 /** One pay app (G703 sheet and G702 summary): the GC and the filing sub; owners get Not found. */
 export function payAppHash(payAppId: string): string {
@@ -110,6 +114,7 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { area: "billing", label: "Billing", hash: AREA_HASH.billing },
     { area: "change-orders", label: "Change orders", hash: AREA_HASH["change-orders"] },
     { area: "payments", label: "Payments", hash: AREA_HASH.payments },
+    { area: "compliance", label: "Compliance & waivers", hash: AREA_HASH.compliance },
     { area: "inbox", label: "Approval inbox", hash: AREA_HASH.inbox },
     { area: "owner-portal", label: "Projects overview", hash: AREA_HASH["owner-portal"] },
     { area: "people", label: "People", hash: AREA_HASH.people },
@@ -122,6 +127,7 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { area: "sub-portal", label: "My agreements & pay applications", hash: AREA_HASH["sub-portal"] },
     { area: "pay-apps", label: "Pay apps", hash: AREA_HASH["pay-apps"] },
     { area: "change-orders", label: "Change orders", hash: AREA_HASH["change-orders"] },
+    { area: "compliance", label: "Compliance", hash: AREA_HASH.compliance },
     { area: "bid-invitations", label: "Bid invitations", hash: AREA_HASH["bid-invitations"] },
     { area: "my-projects", label: "Projects", hash: AREA_HASH["my-projects"] },
     { area: "payments", label: "Payments", hash: AREA_HASH.payments },

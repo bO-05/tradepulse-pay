@@ -7,7 +7,7 @@ import { requireRole } from "../lib/roles";
 import { notFound } from "../lib/tenancy";
 import { assertDocumentVisible, assertStoredDocumentVisible } from "./access";
 import { inputsHashOf, loadDocument } from "./inputs";
-import { DOCUMENT_KINDS, documentDownloadPath, documentKindValidator, type DocumentKind } from "./kinds";
+import { DOCUMENT_KINDS, documentDownloadPath, documentKindValidator, isUploadedDocumentKind, UPLOADED_DOCUMENT_LABELS, type DocumentKind } from "./kinds";
 
 /**
  * Billing documents for the parties of a project (architecture §16). Clients ask for a document of a
@@ -21,7 +21,7 @@ function documentView(doc: Doc<"documents">) {
   return {
     _id: doc._id,
     kind: doc.kind,
-    label: DOCUMENT_KINDS[doc.kind].label,
+    label: isUploadedDocumentKind(doc.kind) ? UPLOADED_DOCUMENT_LABELS[doc.kind] : DOCUMENT_KINDS[doc.kind].label,
     fileName: doc.fileName,
     contentType: doc.contentType,
     sizeBytes: doc.sizeBytes,
@@ -85,7 +85,7 @@ export const getDocument = query({
     await requireRole(ctx, PARTIES);
     const id = ctx.db.normalizeId("documents", args.documentId);
     const doc = id === null ? null : await ctx.db.get(id);
-    if (doc === null || doc.relatedId === undefined) throw notFound();
+    if (doc === null || doc.relatedId === undefined || isUploadedDocumentKind(doc.kind)) throw notFound();
     const scope = await requireDocScope(ctx, DOCUMENT_KINDS[doc.kind].table, doc.relatedId, { roles: DOCUMENT_KINDS[doc.kind].roles });
     await assertStoredDocumentVisible(ctx, doc, scope);
     if (scope.project._id !== doc.projectId) throw notFound();
@@ -111,7 +111,8 @@ export const listDocuments = query({
     const seen = new Set<string>();
     const out: DocumentView[] = [];
     for (const doc of rows) {
-      if (doc.relatedId === undefined) continue;
+      // Compliance uploads are listed on the Compliance screens, not with the billing documents.
+      if (doc.relatedId === undefined || isUploadedDocumentKind(doc.kind)) continue;
       const key = `${doc.kind}:${doc.relatedId}`;
       if (seen.has(key)) continue;
       seen.add(key);
