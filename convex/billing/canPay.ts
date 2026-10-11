@@ -3,7 +3,8 @@ import type { Doc } from "../_generated/dataModel";
 import { query, type QueryCtx } from "../_generated/server";
 import { payoutReceiverForContractorReadOnly } from "../lib/payee";
 import { findDocScope, requireDocScope } from "../lib/projectScope";
-import { notFound } from "../lib/tenancy";
+import { findActiveMembership, notFound } from "../lib/tenancy";
+import { payAppCompliance } from "../compliance/hold";
 import { isCaptureCollected } from "../payments/captureSettlement";
 import { attemptsFor, checkRetry } from "../payments/payoutRetryMath";
 import { evaluatePayGate, type PayGate } from "./payGate";
@@ -89,6 +90,9 @@ export const paymentPanel = query({
       .withIndex("by_agreementId", (q) => q.eq("agreementId", agreement._id))
       .take(500);
     const fundedTranches = await loadTranches(ctx, agreement._id);
+    const compliance = await payAppCompliance(ctx, payApp, agreement);
+    const membership = isGc ? await findActiveMembership(ctx, scope.user._id) : null;
+    const isAdmin = membership !== null && scope.company !== null && membership.companyId === scope.company._id && membership.role === "admin";
 
     return {
       viewerRole: scope.partyRole,
@@ -107,6 +111,17 @@ export const paymentPanel = query({
       payment,
       retainageThisPeriodCents: gate.figures?.retainageCents ?? null,
       totalRetainageHeldCents: ledger.reduce((acc, r) => acc + r.deltaCents, 0),
+      // The sub learns only that its payment is on hold for compliance; the override is GC-side.
+      compliance: isGc
+        ? {
+            onHold: compliance.onHold,
+            holdMessage: compliance.holdMessage,
+            warnings: compliance.warnings,
+            override: compliance.override,
+            canOverride: isAdmin && compliance.onHold && payApp.status !== "paid",
+            isAdmin,
+          }
+        : { onHold: compliance.onHold, holdMessage: compliance.onHold ? compliance.holdMessage : null, warnings: compliance.warnings, override: null, canOverride: false, isAdmin: false },
     };
   },
 });

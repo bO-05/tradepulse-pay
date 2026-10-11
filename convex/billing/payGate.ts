@@ -229,7 +229,7 @@ export async function evaluatePayGate(
   if (!payee.ok && !paid) reasons.push({ code: "NO_PAYEE", message: payeeReasonMessage(payee.reason) });
 
   if (!paid) {
-    reasons.push(...(await complianceBlockers(ctx, agreement)));
+    reasons.push(...(await complianceBlockers(ctx, agreement, payApp)));
     reasons.push(...(await waiverBlockers(ctx, payApp, figures)));
   }
 

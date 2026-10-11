@@ -5,6 +5,7 @@ import type { FunctionReturnType } from "convex/server";
 import type { Id } from "../../convex/_generated/dataModel";
 import { getErrorMessage } from "../lib/errors";
 import { Button, Card, ConfirmDialog, StatusPill, formatCents, formatDateTime } from "../ui";
+import { GcComplianceHold, SubComplianceHold } from "./ComplianceHold";
 
 type Panel = NonNullable<FunctionReturnType<typeof api.billing.canPay.paymentPanel>>;
 type Payment = NonNullable<Panel["payment"]>;
@@ -134,6 +135,7 @@ function GcPaymentPanel({ panel, payAppId }: { panel: Panel; payAppId: string })
             </ul>
           </div>
         ) : null}
+        <GcComplianceHold compliance={panel.compliance} payAppId={payAppId} subcontractorName={panel.subcontractorName} />
         {panel.ok && panel.tranche && panel.payeeEmail ? (
           <p className="text-sm text-ink-subtle" data-testid="payment-ready">
             Ready: pays {panel.payeeEmail} from {panel.tranche.name} ({formatCents(panel.tranche.availableCents)} available).
@@ -280,6 +282,7 @@ function SubPaymentPanel({ panel }: { panel: Panel }) {
   return (
     <Card title="Payment" data-testid="payment-panel">
       <div className="space-y-3">
+        <SubComplianceHold compliance={panel.compliance} />
         {payment ? (
           <>
             <p className="text-sm font-semibold" data-testid="sub-payment-summary">

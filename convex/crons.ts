@@ -29,6 +29,14 @@ crons.interval(
   {}
 );
 
+// Compliance expiry: in-app notifications for COIs and licenses expiring within 30 days or expired.
+crons.daily(
+  "compliance-expiry-notifications",
+  { hourUTC: 14, minuteUTC: 0 },
+  internal.compliance.expiry.runExpiryNotifications,
+  {}
+);
+
 /**
  * Convex Scheduled Cron Job: Bid Deadline Monitor
  * Automatically checks all active CSI trade packages against their stated deadlines.
@@ -301,6 +309,11 @@ export const getCronStatus = query({
           name: "audit-contractor-compliance",
           schedule: "Every 6 hours",
           description: "Sweeps recorded contractor license statuses and ACORD 25 insurance flags (no registry lookup is performed)",
+        },
+        {
+          name: "compliance-expiry-notifications",
+          schedule: "Daily at 14:00 UTC",
+          description: "Notifies subs and their GC in-app when an accepted certificate of insurance or license expires within 30 days or has expired",
         },
       ],
       engine: "Convex Native cronJobs()",

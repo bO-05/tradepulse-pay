@@ -30,6 +30,8 @@ export interface ConfirmDialogProps {
   tone?: "primary" | "danger";
   /** When set, the confirm button stays disabled until this checkbox is ticked. */
   acknowledgement?: string;
+  /** Extra inputs shown under the effect, such as a required reason. */
+  children?: ReactNode;
   onConfirm: () => Promise<void> | void;
   onCancel: () => void;
 }
@@ -55,6 +57,7 @@ export function ConfirmDialog({
   cancelLabel = "Cancel",
   tone = "primary",
   acknowledgement,
+  children,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
@@ -174,6 +177,8 @@ export function ConfirmDialog({
         <p id={effectId} className="mt-4 text-sm leading-relaxed text-ink-muted">
           {effect}
         </p>
+
+        {children ? <div className="mt-4">{children}</div> : null}
 
         {acknowledgement && (
           <div className="mt-4 flex items-start gap-2">

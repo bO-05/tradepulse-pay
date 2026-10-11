@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import schema from "../schema";
+import { seedCompliantAgreement } from "../lib/testCompliance";
 import { signInAs } from "../lib/testIdentity";
 import { clearPayPalTokenCache } from "./paypalClient";
 import { RESUME_RELEASE_AFTER_MS } from "./retainageMath";
@@ -138,6 +139,7 @@ async function setup(opts: { authorizedCents?: number; capturedCents?: number } 
         .first())!,
   );
   const sub = await signInAs(t, "sub", { contractorId: agreement.contractorId, paypalEmail: SUB_EMAIL, email: "sub1@demo.tradepulse" });
+  await t.run((ctx) => seedCompliantAgreement(ctx, agreement._id));
   const authorizedCents = opts.authorizedCents ?? milestone.amountCents;
   const fundingId = await t.run(async (ctx) => {
     await ctx.db.patch(milestone._id, { status: "funded", amountCents: authorizedCents });

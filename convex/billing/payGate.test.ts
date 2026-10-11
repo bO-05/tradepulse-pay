@@ -1,9 +1,10 @@
 /// <reference types="vite/client" />
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { api } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import schema from "../schema";
+import { seedCompliantAgreement } from "../lib/testCompliance";
 import { buildTenancyFixture } from "../lib/tenancyFixtures";
 import { ensureSovAndMilestones } from "../payments/sov";
 import { clearPayPalTokenCache } from "../payments/paypalClient";
@@ -99,9 +100,10 @@ async function setup(opts: { confirmPayee?: boolean } = {}) {
       ...(opts.confirmPayee === false ? {} : { payoutEmailConfirmed: { email: PAYEE, confirmedByUserId: f.gcA.admin.userId, confirmedAt: Date.now() } }),
     });
     await ctx.db.patch(contractorId, { vendorId });
-    return ids;
+    const compliance = await seedCompliantAgreement(ctx, agreementId);
+    return { ids, compliance };
   });
-  return { t, f, agreementId, projectId, sov };
+  return { t, f, agreementId, projectId, sov: sov.ids, compliance: sov.compliance };
 }
 type Setup = Awaited<ReturnType<typeof setup>>;
 
@@ -627,5 +629,176 @@ describe("payout figures follow the approved G702 when lines carry different ret
     const rows = await paymentRows(s);
     expect(rows.ledger.map((l) => l.deltaCents).sort((a, b) => a - b)).toEqual([-12_000, 50_000]);
     expect((await dana.query(api.billing.canPay.paymentPanel, { payAppId }))!.totalRetainageHeldCents).toBe(38_000);
+  });
+});
+
+describe("compliance hold", () => {
+  async function approvedAndFunded() {
+    vi.setSystemTime(new Date("2026-10-11T18:00:00Z"));
+    const s = await setup();
+    const { t1 } = await addTranches(s);
+    await fundTranche(s, t1, 6_000_000);
+    const payAppId = await reviewedPayApp1(s);
+    await approvePayApp1(s, payAppId);
+    return { s, payAppId };
+  }
+  const expireCoi = (s: Setup, expiryDate = "2026-10-01") =>
+    s.t.run(async (ctx) => {
+      const item = (await ctx.db.get(s.compliance.coiId))!;
+      await ctx.db.patch(item._id, { coi: { ...item.coi!, expiryDate } });
+    });
+  const HOLD = { code: "COMPLIANCE_HOLD", message: "Payment on hold: insurance certificate expired on Oct 1, 2026" };
+
+  test("an expired COI blocks the payout with the exact reason; nothing is captured or paid and the sub sees On hold", async () => {
+    const { s, payAppId } = await approvedAndFunded();
+    const dana = s.f.gcA.admin.as;
+    expect((await dana.query(api.billing.canPay.canPay, { payAppId })).ok).toBe(true);
+    await expireCoi(s);
+    const gate = await dana.query(api.billing.canPay.canPay, { payAppId });
+    expect(gate.reasons).toEqual([HOLD]);
+    const audits = async () => s.t.run(async (ctx) => (await ctx.db.query("auditLogs").collect()).length);
+    const before = await audits();
+    expect(await errorOf(dana.action(api.billing.pay.payPayApp, { payAppId }))).toBe(`Payment blocked: ${HOLD.message}`);
+    const proposals = await s.t.run(async (ctx) => ctx.db.query("agentProposals").collect());
+    expect(await errorOf(dana.mutation(api.payApps.proposals.approveProposal, { proposalId: proposals.find((p) => p.kind === "payout")!._id }))).toBe(
+      `Payment blocked: ${HOLD.message}`,
+    );
+    expect((await paymentRows(s)).payouts).toHaveLength(0);
+    expect(fake.calls).toHaveLength(0);
+    expect(await audits()).toBe(before);
+
+    const gcPanel = (await dana.query(api.billing.canPay.paymentPanel, { payAppId }))!;
+    expect(gcPanel.canPay).toBe(false);
+    expect(gcPanel.compliance).toMatchObject({ onHold: true, holdMessage: HOLD.message, canOverride: true, isAdmin: true, override: null });
+    const subPanel = (await s.f.sub.admin.as.query(api.billing.canPay.paymentPanel, { payAppId }))!;
+    expect(subPanel.compliance).toMatchObject({ onHold: true, override: null, canOverride: false });
+  });
+
+  test("an expiring COI only warns; missing records and low limits hold with readable reasons", async () => {
+    const { s, payAppId } = await approvedAndFunded();
+    const dana = s.f.gcA.admin.as;
+    await expireCoi(s, "2026-10-31");
+    expect((await dana.query(api.billing.canPay.canPay, { payAppId })).ok).toBe(true);
+    const panel = (await dana.query(api.billing.canPay.paymentPanel, { payAppId }))!;
+    expect(panel.compliance.onHold).toBe(false);
+    expect(panel.compliance.warnings).toEqual(["Certificate of insurance expires in 20 days (Oct 31, 2026)."]);
+
+    await s.t.run(async (ctx) => {
+      await ctx.db.delete(s.compliance.w9Id);
+      const item = (await ctx.db.get(s.compliance.coiId))!;
+      await ctx.db.patch(item._id, { coi: { ...item.coi!, glEachOccurrenceCents: 50_000_000, expiryDate: "2027-10-31" } });
+    });
+    const gate = await dana.query(api.billing.canPay.canPay, { payAppId });
+    expect(gate.reasons).toEqual([
+      {
+        code: "COMPLIANCE_HOLD",
+        message: "Payment on hold: missing W-9; insurance GL each occurrence $500,000.00 is below the required $1,000,000.00",
+      },
+    ]);
+  });
+
+  test("a GC admin overrides with a required reason for this pay app only; it is audit-logged and shown to the GC", async () => {
+    const { s, payAppId } = await approvedAndFunded();
+    const dana = s.f.gcA.admin.as;
+    await expireCoi(s);
+    const other = await s.t.run(async (ctx) => {
+      const { _id, _creationTime, ...doc } = (await ctx.db.get(payAppId))!;
+      return await ctx.db.insert("payApplications", { ...doc, periodLabel: "Copy" });
+    });
+    expect(await errorOf(dana.mutation(api.compliance.override.overrideComplianceHold, { payAppId, reason: "   " }))).toBe("Enter a reason for the override.");
+
+    const reason = "Renewal COI received by email; uploading tomorrow";
+    await dana.mutation(api.compliance.override.overrideComplianceHold, { payAppId, reason });
+    const gate = await dana.query(api.billing.canPay.canPay, { payAppId });
+    expect(gate.reasons.map((r) => r.code)).not.toContain("COMPLIANCE_HOLD");
+    expect(gate.ok).toBe(true);
+    expect((await dana.query(api.billing.canPay.canPay, { payAppId: other })).reasons).toContainEqual(HOLD);
+
+    const panel = (await dana.query(api.billing.canPay.paymentPanel, { payAppId }))!;
+    expect(panel.compliance.override).toMatchObject({ byName: expect.any(String), reason, holdMessage: HOLD.message });
+    expect(panel.compliance.onHold).toBe(false);
+    const subPanel = (await s.f.sub.admin.as.query(api.billing.canPay.paymentPanel, { payAppId }))!;
+    expect(subPanel.compliance.override).toBeNull();
+
+    const audit = await s.t.run(async (ctx) => (await ctx.db.query("auditLogs").collect()).find((a) => a.eventType === "compliance_override")!);
+    expect(audit).toMatchObject({ actorUserId: s.f.gcA.admin.userId, agreementId: s.agreementId });
+    expect(audit.description).toContain(payAppId);
+    expect(audit.description).toContain(reason);
+    expect(audit.timestamp).toBe(Date.now());
+    expect(await errorOf(dana.mutation(api.compliance.override.overrideComplianceHold, { payAppId, reason }))).toMatch(/already overridden/);
+
+    await dana.action(api.billing.pay.payPayApp, { payAppId });
+    expect((await paymentRows(s)).payouts).toHaveLength(1);
+  });
+
+  test("GC members, subs, owners and other companies cannot override and nothing changes", async () => {
+    const { s, payAppId } = await approvedAndFunded();
+    await expireCoi(s);
+    const args = { payAppId, reason: "Trying anyway" };
+    expect(await errorOf(s.f.gcA.member.as.mutation(api.compliance.override.overrideComplianceHold, args))).toBe("Only company admins can override.");
+    for (const caller of [s.f.sub.admin.as, s.f.owner.admin.as, s.f.gcB.admin.as, s.f.demo.gc.as]) {
+      expect(await errorOf(caller.mutation(api.compliance.override.overrideComplianceHold, args))).toBe("Not found.");
+    }
+    expect(await s.t.run(async (ctx) => (await ctx.db.get(payAppId))!.complianceOverride ?? null)).toBeNull();
+    expect((await s.f.gcA.admin.as.query(api.billing.canPay.canPay, { payAppId })).reasons).toEqual([HOLD]);
+    const memberPanel = (await s.f.gcA.member.as.query(api.billing.canPay.paymentPanel, { payAppId }))!;
+    expect(memberPanel.compliance).toMatchObject({ onHold: true, canOverride: false, isAdmin: false });
+  });
+
+  test("with no hold there is nothing to override", async () => {
+    const { s, payAppId } = await approvedAndFunded();
+    expect(await errorOf(s.f.gcA.admin.as.mutation(api.compliance.override.overrideComplianceHold, { payAppId, reason: "x" }))).toMatch(
+      /no compliance hold/,
+    );
+  });
+});
+
+describe("daily compliance expiry notifications", () => {
+  test("pages through accepted records and notifies the sub and its GC once per record and state", async () => {
+    vi.setSystemTime(new Date("2026-10-11T18:00:00Z"));
+    const s = await setup();
+    const ids = await s.t.run(async (ctx) => {
+      const base = (await ctx.db.get(s.compliance.w9Id))!;
+      const { _id, _creationTime, ...w9 } = base;
+      // Filler W-9s push the expiring records onto a later page.
+      for (let i = 0; i < 120; i++) await ctx.db.insert("complianceItems", { ...w9, createdAt: w9.createdAt - 1 });
+      const coi = (await ctx.db.get(s.compliance.coiId))!;
+      const license = (await ctx.db.get(s.compliance.licenseId))!;
+      const { _id: c1, _creationTime: c2, ...coiDoc } = coi;
+      const { _id: l1, _creationTime: l2, ...licDoc } = license;
+      const coiId = await ctx.db.insert("complianceItems", { ...coiDoc, coi: { ...coi.coi!, expiryDate: "2026-10-31" }, createdAt: Date.now() + 1 });
+      const licenseId = await ctx.db.insert("complianceItems", { ...licDoc, license: { ...license.license!, expiryDate: "2026-09-30" }, createdAt: Date.now() + 1 });
+      // A superseded expired COI (an older accepted one) never notifies.
+      await ctx.db.patch(s.compliance.coiId, { coi: { ...coi.coi!, expiryDate: "2026-01-31" } });
+      return { coiId, licenseId };
+    });
+    const byCompany = () =>
+      s.t.run(async (ctx) => {
+        const rows = await ctx.db.query("notifications").collect();
+        const out: Record<string, { title: string; link: string; kind: string }[]> = {};
+        for (const r of rows) (out[r.companyId] ??= []).push({ title: r.title, link: r.link, kind: r.kind });
+        return out;
+      });
+
+    const first = await s.t.mutation(internal.compliance.expiry.runExpiryNotifications, {});
+    expect(first).toMatchObject({ scanned: 100, notices: 0, isDone: false });
+    await s.t.finishAllScheduledFunctions(vi.runAllTimers);
+    const expected = [
+      { title: "Insurance expiring", link: `#/compliance/${ids.coiId}`, kind: "compliance_expiring" },
+      { title: "License expired", link: `#/compliance/${ids.licenseId}`, kind: "compliance_expired" },
+    ];
+    let rows = await byCompany();
+    expect(Object.keys(rows).sort()).toEqual([s.f.gcA.companyId, s.f.sub.companyId].sort());
+    expect(rows[s.f.sub.companyId]).toEqual(expect.arrayContaining(expected));
+    expect(rows[s.f.sub.companyId]).toHaveLength(2);
+    expect(rows[s.f.gcA.companyId]).toHaveLength(4); // admin and member
+    const bodies = await s.t.run(async (ctx) => (await ctx.db.query("notifications").collect()).map((n) => n.body));
+    expect(bodies).toContain("Eastbay Electric's certificate of insurance on " + (await s.t.run(async (ctx) => (await ctx.db.get(s.projectId))!.title)) + " expires in 20 days (Oct 31, 2026).");
+
+    await s.t.mutation(internal.compliance.expiry.runExpiryNotifications, {});
+    await s.t.finishAllScheduledFunctions(vi.runAllTimers);
+    rows = await byCompany();
+    expect(rows[s.f.sub.companyId]).toHaveLength(2);
+    expect(rows[s.f.gcA.companyId]).toHaveLength(4);
   });
 });

@@ -684,6 +684,17 @@ export default defineSchema({
       }),
     ),
     submittedAt: v.optional(v.number()),
+    // A GC company admin lifted the compliance payment hold for this pay app only (§17).
+    complianceOverride: v.optional(
+      v.object({
+        byUserId: v.id("users"),
+        byName: v.string(),
+        reason: v.string(),
+        at: v.number(),
+        /** The hold that was in force when it was overridden. */
+        holdMessage: v.string(),
+      }),
+    ),
     createdAt: v.number(),
   })
     .index("by_agreementId", ["agreementId"])
@@ -977,7 +988,17 @@ export default defineSchema({
     .index("by_projectId_and_vendorId", ["projectId", "vendorId"])
     .index("by_projectId_and_companyId", ["projectId", "companyId"])
     .index("by_companyId", ["companyId"])
-    .index("by_cslbCheckId", ["cslbCheckId"]),
+    .index("by_cslbCheckId", ["cslbCheckId"])
+    .index("by_status", ["status"]),
+
+  // One row per compliance record and expiry state the daily cron has notified about, so a rerun
+  // (same day or later) never notifies twice.
+  complianceExpiryNotices: defineTable({
+    complianceItemId: v.id("complianceItems"),
+    state: v.union(v.literal("expiring"), v.literal("expired")),
+    expiryDate: v.string(),
+    createdAt: v.number(),
+  }).index("by_complianceItemId_and_state", ["complianceItemId", "state"]),
 
   // CSLB license lookups via KERNEL, cached 24h.
   licenseChecks: defineTable({

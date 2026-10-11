@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import schema from "../schema";
+import { seedCompliantAgreement } from "../lib/testCompliance";
 import { agentIdProfile, syncAgentProfile } from "../lib/agentAccess";
 import { withSession, signInAs } from "../lib/testIdentity";
 import { clearPayPalTokenCache } from "../payments/paypalClient";
@@ -139,6 +140,7 @@ async function setup(opts: { license?: "active" | "expired" | null; funded?: boo
   }
   const sub1 = await signInAs(t, "sub", { email: "sub1@test.tradepulse", contractorId: agreement.contractorId, paypalEmail: SUB_EMAIL });
   const owner = await signInAs(t, "owner", { email: "owner@test.tradepulse" });
+  await t.run((ctx) => seedCompliantAgreement(ctx, agreement._id));
   return { t, gc, sub1, owner, agreement, sov, milestones };
 }
 type Setup = Awaited<ReturnType<typeof setup>>;

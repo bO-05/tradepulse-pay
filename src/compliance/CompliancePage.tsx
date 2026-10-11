@@ -267,9 +267,20 @@ function ReviewControls({ item, vendorName }: { item: Item; vendorName: string }
   );
 }
 
-function ItemCard({ item, gc, vendorName, current }: { item: Item; gc: boolean; vendorName: string; current: boolean }) {
+function ItemCard({ item, gc, vendorName, current, focused }: { item: Item; gc: boolean; vendorName: string; current: boolean; focused: boolean }) {
+  const ref = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    if (focused) ref.current?.scrollIntoView({ block: "center" });
+  }, [focused]);
   return (
-    <li className="space-y-2 rounded-lg border border-line bg-surface p-3" data-testid="compliance-item" data-kind={item.kind} data-status={item.status}>
+    <li
+      ref={ref}
+      className={`space-y-2 rounded-lg border bg-surface p-3 ${focused ? "border-amber-400 ring-1 ring-amber-400" : "border-line"}`}
+      data-testid="compliance-item"
+      data-kind={item.kind}
+      data-status={item.status}
+      data-focused={focused ? "true" : undefined}
+    >
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm font-medium text-ink">{COMPLIANCE_KIND_LABEL[item.kind]}</span>
         <StatusPill status={item.status} />
@@ -291,12 +302,24 @@ function ItemCard({ item, gc, vendorName, current }: { item: Item; gc: boolean; 
   );
 }
 
-function ItemList({ items, gc, vendorName, currentIds }: { items: Item[]; gc: boolean; vendorName: string; currentIds: Summary["currentIds"] }) {
+function ItemList({
+  items,
+  gc,
+  vendorName,
+  currentIds,
+  focusItemId,
+}: {
+  items: Item[];
+  gc: boolean;
+  vendorName: string;
+  currentIds: Summary["currentIds"];
+  focusItemId?: string;
+}) {
   if (items.length === 0) return <p className="text-sm text-ink-subtle">No records uploaded yet.</p>;
   return (
     <ul className="space-y-2">
       {items.map((item) => (
-        <ItemCard key={item._id} item={item} gc={gc} vendorName={vendorName} current={currentIds[item.kind] === item._id} />
+        <ItemCard key={item._id} item={item} gc={gc} vendorName={vendorName} current={currentIds[item.kind] === item._id} focused={item._id === focusItemId} />
       ))}
     </ul>
   );
@@ -331,10 +354,17 @@ const FILTERS: { id: Filter; label: string }[] = [
 
 const matches = (r: VendorRow, f: Filter) => f === "all" || (f === "pending_review" ? r.pendingCount > 0 : r.status === f);
 
-function GcCompliance() {
+function GcCompliance({ focusItemId }: { focusItemId?: string }) {
   const data = useQuery(api.compliance.items.gcComplianceWorklist, {});
+  const location = useQuery(api.compliance.links.complianceItemLocation, focusItemId ? { itemId: focusItemId } : "skip");
   const [filter, setFilter] = useState<Filter>("all");
   const [open, setOpen] = useState<string | null>(null);
+  useEffect(() => {
+    if (location) {
+      setFilter("all");
+      setOpen(`${location.projectId}:${location.vendorId}`);
+    }
+  }, [location]);
   if (data === undefined) {
     return (
       <p className="text-sm text-ink-subtle" role="status">
@@ -399,7 +429,7 @@ function GcCompliance() {
                         {r.requirements.workersComp ? ", workers' comp" : ""}
                         {r.requirements.additionalInsured ? ", additional insured" : ""}.
                       </p>
-                      <ItemList items={r.items} gc vendorName={r.vendorName} currentIds={r.currentIds} />
+                      <ItemList items={r.items} gc vendorName={r.vendorName} currentIds={r.currentIds} focusItemId={focusItemId} />
                     </div>
                   ) : null}
                 </Card>
@@ -415,7 +445,7 @@ function GcCompliance() {
 // ---------------------------------------------------------------------------------------------
 // Sub
 
-function SubProject({ projectId }: { projectId: string }) {
+function SubProject({ projectId, focusItemId }: { projectId: string; focusItemId?: string }) {
   const data = useQuery(api.compliance.items.subProjectCompliance, { projectId });
   const toast = useToast();
   const [uploading, setUploading] = useState<ComplianceKind | null>(null);
@@ -448,7 +478,7 @@ function SubProject({ projectId }: { projectId: string }) {
         </div>
       </Card>
       <Card title="Your records" headingLevel={3}>
-        <ItemList items={data.items} gc={false} vendorName={data.companyName} currentIds={data.currentIds} />
+        <ItemList items={data.items} gc={false} vendorName={data.companyName} currentIds={data.currentIds} focusItemId={focusItemId} />
       </Card>
       <ComplianceUploadDialog
         open={uploading !== null}
@@ -464,12 +494,16 @@ function SubProject({ projectId }: { projectId: string }) {
   );
 }
 
-function SubCompliance() {
+function SubCompliance({ focusItemId }: { focusItemId?: string }) {
   const data = useQuery(api.compliance.items.subComplianceOverview, {});
+  const location = useQuery(api.compliance.links.complianceItemLocation, focusItemId ? { itemId: focusItemId } : "skip");
   const [projectId, setProjectId] = useState<string | null>(null);
   useEffect(() => {
-    if (data && projectId === null && data.rows.length > 0) setProjectId(data.rows[0].projectId);
-  }, [data, projectId]);
+    if (location) setProjectId(location.projectId);
+  }, [location]);
+  useEffect(() => {
+    if (data && projectId === null && data.rows.length > 0 && (focusItemId === undefined || location === null)) setProjectId(data.rows[0].projectId);
+  }, [data, projectId, focusItemId, location]);
   if (data === undefined) {
     return (
       <p className="text-sm text-ink-subtle" role="status">
@@ -496,15 +530,15 @@ function SubCompliance() {
               </select>
             )}
           </Field>
-          {projectId ? <SubProject key={projectId} projectId={projectId} /> : null}
+          {projectId ? <SubProject key={projectId} projectId={projectId} focusItemId={focusItemId} /> : null}
         </>
       )}
     </div>
   );
 }
 
-export function CompliancePage({ role }: { role: "gc" | "sub" | "owner" }) {
-  if (role === "gc") return <GcCompliance />;
-  if (role === "sub") return <SubCompliance />;
+export function CompliancePage({ role, focusItemId }: { role: "gc" | "sub" | "owner"; focusItemId?: string }) {
+  if (role === "gc") return <GcCompliance focusItemId={focusItemId} />;
+  if (role === "sub") return <SubCompliance focusItemId={focusItemId} />;
   return null;
 }

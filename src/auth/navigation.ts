@@ -39,6 +39,8 @@ export type Route = {
   vendorId?: string;
   tradePackageId?: string;
   payAppId?: string;
+  /** Compliance record opened from a notification. */
+  complianceItemId?: string;
   view?: "new" | "settings" | "sov";
   /** Billing tab for the GC: pay apps (default), owner billing or retainage. */
   tab?: BillingTab;
@@ -201,6 +203,8 @@ export function parseHash(hash: string): Route | null {
   }
   const payAppMatch = path.match(/^\/pay-apps\/([^/?#]+)$/);
   if (payAppMatch) return { area: "pay-app", payAppId: decodeURIComponent(payAppMatch[1]) };
+  const complianceMatch = path.match(/^\/compliance\/([^/?#]+)$/);
+  if (complianceMatch) return { area: "compliance", complianceItemId: decodeURIComponent(complianceMatch[1]) };
   const ledgerMatch = path.match(/^\/payments\/([^/?#]+)$/);
   if (ledgerMatch) return { area: "ledger", agreementId: decodeURIComponent(ledgerMatch[1]) };
   for (const [area, h] of Object.entries(AREA_HASH)) {

@@ -28,6 +28,9 @@ describe("role navigation", () => {
     expect(resolveRoute("sub", "#/compliance")).toEqual({ area: "compliance" });
     expect(resolveRoute("owner", "#/compliance")).toEqual({ area: "not-found" });
     expect(resolveRoute("sub", "#/compliance", false, "", "agent")).toEqual({ area: "not-found" });
+    expect(resolveRoute("gc", "#/compliance/abc123")).toEqual({ area: "compliance", complianceItemId: "abc123" });
+    expect(resolveRoute("sub", "#/compliance/abc123")).toEqual({ area: "compliance", complianceItemId: "abc123" });
+    expect(resolveRoute("owner", "#/compliance/abc123")).toEqual({ area: "not-found" });
     expect(navFor("gc").find((i) => i.area === "compliance")?.label).toBe("Compliance & waivers");
     expect(navFor("sub").find((i) => i.area === "compliance")?.label).toBe("Compliance");
   });
