@@ -47,11 +47,11 @@ export function useJudgeDemoDriver(snapshot: DriverSnapshot, onRunCreated: (runI
   const [phase, setPhase] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function waitFor<T>(what: string, pick: (s: DriverSnapshot) => T | null | undefined, timeoutMs: number): Promise<T> {
+  async function waitFor<T>(what: string, pick: (s: DriverSnapshot) => T | null | undefined, timeoutMs: number, expectedRunId: string): Promise<T> {
     const deadline = Date.now() + timeoutMs;
     for (;;) {
       if (!alive.current) throw new Error("The demo page was closed; click Continue to resume.");
-      const value = pick(latest.current);
+      const value = latest.current.run?._id === expectedRunId ? pick(latest.current) : null;
       if (value !== null && value !== undefined) return value;
       if (Date.now() > deadline) throw new Error(`Timed out waiting for ${what}. Click Continue to keep waiting.`);
       await new Promise((r) => setTimeout(r, POLL_MS));
@@ -77,13 +77,15 @@ export function useJudgeDemoDriver(snapshot: DriverSnapshot, onRunCreated: (runI
         onRunCreated(created.runId);
       }
       const id = runId;
-      const run = await waitFor("the demo run", (s) => (s.run?._id === id ? s.run : null), 20_000);
+      // Continuing a pre-existing run must pin it too, before any funding/proposal observation.
+      onRunCreated(id);
+      const run = await waitFor("the demo run", (s) => s.run, 20_000, id);
 
       if (run.agreementStatus !== "executed") {
         setPhase("Executing the agreement…");
         await executeAgreement({ agreementId: run.agreementId });
       }
-      await waitFor("the schedule of values", (s) => (s.ledger && s.ledger.milestones.length > 0 ? true : null), 30_000);
+      await waitFor("the schedule of values", (s) => (s.ledger && s.ledger.milestones.length > 0 ? true : null), 30_000, id);
 
       setPhase("Waiting for the GC to approve the Mobilization funding in PayPal…");
       await waitFor(
@@ -93,6 +95,7 @@ export function useJudgeDemoDriver(snapshot: DriverSnapshot, onRunCreated: (runI
           return m?.funding && FUNDED_STATUSES.has(m.funding.status) ? true : null;
         },
         20 * MINUTE,
+        id,
       );
 
       setPhase("Filing the two pay applications…");
@@ -103,19 +106,19 @@ export function useJudgeDemoDriver(snapshot: DriverSnapshot, onRunCreated: (runI
       const honest = await waitFor("the honest pay app's proposals", (s) => {
         const item = checkedItem(s.honest);
         return proposalsReady(item) ? item : null;
-      }, 5 * MINUTE);
+      }, 5 * MINUTE, id);
       const honestPayout = moneyProposal(honest, "payout")!;
       if (honestPayout.status === "pending") {
         setPhase("GC approves the honest pay app as proposed…");
         await approveProposal({ proposalId: honestPayout._id });
       }
       setPhase("Capturing and paying the honest pay app…");
-      await waitFor("the honest payout submission", (s) => (payoutFinished(checkedItem(s.honest)) ? true : null), 3 * MINUTE);
+      await waitFor("the honest payout submission", (s) => (payoutFinished(checkedItem(s.honest)) ? true : null), 3 * MINUTE, id);
 
       const agent = await waitFor("the agent pay app's proposals", (s) => {
         const item = checkedItem(s.agent);
         return proposalsReady(item) ? item : null;
-      }, 5 * MINUTE);
+      }, 5 * MINUTE, id);
       const agentPayout = moneyProposal(agent, "payout")!;
       if (agentPayout.status === "pending") {
         const edited = agentPayout.editedAmountCents ?? demoEditedApprovalCents(agentPayout.amountCents ?? 0);
@@ -127,21 +130,21 @@ export function useJudgeDemoDriver(snapshot: DriverSnapshot, onRunCreated: (runI
         await approveProposal({ proposalId: agentPayout._id });
       }
       setPhase("Capturing and paying the edited amount…");
-      await waitFor("the agent payout submission", (s) => (payoutFinished(checkedItem(s.agent)) ? true : null), 3 * MINUTE);
+      await waitFor("the agent payout submission", (s) => (payoutFinished(checkedItem(s.agent)) ? true : null), 3 * MINUTE, id);
 
       await ensureChangeOrderInvoiced<Id<"changeOrders">>({
-        current: async () => (await waitFor("the change orders", (s) => (s.changeOrder === undefined ? null : { co: s.changeOrder }), 20_000)).co,
+        current: async () => (await waitFor("the change orders", (s) => (s.changeOrder === undefined ? null : { co: s.changeOrder }), 20_000, id)).co,
         create: async () => {
           const changeOrderId = await prepareDemoChangeOrder({ runId: id });
           return await sendChangeOrderInvoice({ changeOrderId });
         },
         resume: (changeOrderId) => sendChangeOrderInvoice({ changeOrderId }),
-        waitInvoiced: () => waitFor("the sent change-order invoice", (s) => (changeOrderInvoiced(s.changeOrder ?? null) ? true : null), 30_000).then(() => undefined),
+        waitInvoiced: () => waitFor("the sent change-order invoice", (s) => (changeOrderInvoiced(s.changeOrder ?? null) ? true : null), 30_000, id).then(() => undefined),
         onPhase: setPhase,
       });
       checkedItem(latest.current.honest);
       checkedItem(latest.current.agent);
-      setPhase("Payout requests and the change-order invoice were submitted. Check the steps below for actual PayPal settlement and dashboard totals. The Owner still needs to pay the invoice.");
+      setPhase(`Payout requests and the change-order invoice were submitted. Check the steps below for actual PayPal settlement and dashboard totals. ${latest.current.changeOrder?.status === "paid" ? "The Owner invoice is paid." : "The Owner still needs to pay the invoice."}`);
     } catch (e) {
       setError(readableError(e));
       setPhase(null);

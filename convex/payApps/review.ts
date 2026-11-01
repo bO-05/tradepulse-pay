@@ -15,6 +15,7 @@ import { runPayAppReview, type ReviewRun } from "./reviewModel";
 import { loadSovRows } from "../lib/sovLines";
 import { loadTranches } from "../lib/trancheRows";
 import { getAIConfiguration } from "../lib/aiProvider";
+import { payAppViewValidator } from "./viewValidators";
 
 type ReviewInputs = {
   context: ReviewContext;
@@ -315,6 +316,7 @@ export async function sovMapFor(ctx: QueryCtx, agreementId: Id<"agreements">) {
  */
 export const listAgreementPayApps = query({
   args: { agreementId: v.string() },
+  returns: v.array(payAppViewValidator),
   handler: async (ctx, args) => {
     const scope = await findSubcontractDocScope(ctx, "agreements", args.agreementId, { roles: ["gc"] });
     if (scope === null) return [];

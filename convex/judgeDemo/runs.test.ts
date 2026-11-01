@@ -47,6 +47,42 @@ async function errorOf(p: Promise<unknown>): Promise<{ code?: string; message?: 
 }
 
 describe("judge demo runs", () => {
+  test("history belongs to the demo GC, explicit selection survives newer shared-account runs", async () => {
+    const { t, gc, gc2, sub1 } = await setup();
+    const first = await gc.as.mutation(api.judgeDemo.runs.startRun, {});
+    const second = await gc.as.mutation(api.judgeDemo.runs.startRun, {});
+    const rows = await gc.as.query(api.judgeDemo.runs.listRuns, {});
+    expect(rows.map((r) => r.runId)).toEqual([second.runId, first.runId]);
+    expect(rows.every((r) => r.payAppsPaid === false && r.ownerPaid === false)).toBe(true);
+    expect((await gc.as.query(api.judgeDemo.runs.getRun, { runId: first.runId }))?._id).toBe(first.runId);
+    expect(await gc2.as.query(api.judgeDemo.runs.listRuns, {})).toEqual([]);
+    await expect(sub1.as.query(api.judgeDemo.runs.listRuns, {})).rejects.toThrow();
+    await expect(t.query(api.judgeDemo.runs.listRuns, {})).rejects.toThrow();
+    const f = await buildTenancyFixture(t);
+    await expect(f.gcA.admin.as.query(api.judgeDemo.runs.listRuns, {})).rejects.toThrow();
+    await expect(f.gcA.admin.as.query(api.payApps.proposals.listInbox, { agreementId: first.agreementId })).rejects.toThrow();
+  });
+
+  test("agreement-scoped inbox retains an older run beyond the shared global cap", async () => {
+    const { t, gc, sub1 } = await setup();
+    const first = await gc.as.mutation(api.judgeDemo.runs.startRun, {});
+    await gc.as.mutation(api.agreements.executeAgreement, { agreementId: first.agreementId });
+    const originalId = await gc.as.mutation(api.judgeDemo.runs.fileDemoPayApp, { runId: first.runId, kind: "honest" });
+    for (let group = 0; group < 2; group++) {
+      const next = await gc.as.mutation(api.judgeDemo.runs.startRun, {});
+      await gc.as.mutation(api.agreements.executeAgreement, { agreementId: next.agreementId });
+      const nextId = await gc.as.mutation(api.judgeDemo.runs.fileDemoPayApp, { runId: next.runId, kind: "honest" });
+      await t.run(async (ctx) => {
+        const { _id, _creationTime, ...fields } = (await ctx.db.get(nextId))!;
+        for (let i = 0; i < 32; i++) await ctx.db.insert("payApplications", { ...fields, createdAt: Date.now() + 1000 + i });
+      });
+    }
+    expect((await gc.as.query(api.payApps.proposals.listInbox, {})).some((r) => r.payApp._id === originalId)).toBe(false);
+    const scoped = await gc.as.query(api.payApps.proposals.listInbox, { agreementId: first.agreementId });
+    expect(scoped.map((r) => r.payApp._id)).toEqual([originalId]);
+    await expect(sub1.as.query(api.payApps.proposals.listInbox, { agreementId: first.agreementId })).rejects.toThrow();
+  });
+
   test("a real GC cannot start a run or seed demo compliance", async () => {
     const t = convexTest(schema, modules);
     const f = await buildTenancyFixture(t);

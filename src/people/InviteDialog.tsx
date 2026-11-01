@@ -105,7 +105,8 @@ export function InviteDialog({ mode, onClose }: { mode: InviteDialogMode; onClos
     setVendorChoice(id);
     const vendor = vendors?.find((v) => v._id === id) ?? null;
     setChosenVendor(vendor);
-    if (vendor && email.trim() === "") setEmail(vendor.email);
+    // Recipient and vendor must move together; a corrected selection must never invite the old contact.
+    setEmail(vendor?.email ?? "");
   };
 
   const finish = (r: Result) => {

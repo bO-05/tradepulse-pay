@@ -285,22 +285,25 @@ function isRegistrySource(url: string | undefined): boolean {
  * page actually contains them; otherwise the record is explicitly unverified.
  * Returns null for directory pages and junk titles so no record is invented.
  */
-function mapSearchItemToContractor(item: any, registryUrl: string): DiscoveredContractor | null {
-  if (isHostIn(item?.url, DIRECTORY_HOSTS) || isHostIn(item?.url, REGISTRY_HOSTS)) {
+export function mapSearchItemToContractor(value: unknown, registryUrl: string): DiscoveredContractor | null {
+  if (value === null || typeof value !== "object") return null;
+  const item = value as Record<string, unknown>;
+  const url = typeof item.url === "string" ? item.url : "";
+  const title = typeof item.title === "string" ? item.title : "";
+  if (isHostIn(url, DIRECTORY_HOSTS) || isHostIn(url, REGISTRY_HOSTS)) {
     return null;
   }
   // A6-27: government/union/association sites and directory/blog/service pages are
   // not contractor company pages, no matter how company-like the title looks.
-  if (isGovernmentOrAssociationHost(item?.url) || isNonCompanyPage(item?.url)) {
+  if (isGovernmentOrAssociationHost(url) || isNonCompanyPage(url)) {
     return null;
   }
-  const cleanTitle = sanitizeContractorCompanyName(item?.title, "");
-  if (!cleanTitle || !looksLikeCompanyName(cleanTitle)) {
-    return null;
-  }
+  const cleanTitle = sanitizeContractorCompanyName(title, "");
+  // Do not reject an SEO title before considering its published brand suffix/headings.
+  // The final candidate must still pass the domain-identity check below.
   // Search titles often carry the brand after a separator
   // ("Commercial Electrical Contractor in Austin, TX - FSG").
-  const rawTitle = String(item?.title || "");
+  const rawTitle = title;
   const brandMatch = rawTitle.match(/[-–—|:]\s*([A-Z][A-Za-z0-9&.']{1,24})\s*$/);
   const brandCandidate = brandMatch ? brandMatch[1].trim() : "";
   const brandAcronym = /^[A-Z][A-Za-z]{1,5}$/.test(brandCandidate) && /[A-Z]{2,}/.test(brandCandidate) ? brandCandidate : "";
@@ -317,14 +320,14 @@ function mapSearchItemToContractor(item: any, registryUrl: string): DiscoveredCo
   }
   // A6-27: require name <-> domain agreement so a record can never cite another
   // entity's site. Pages whose title cannot be tied to the domain are dropped.
-  if (!nameMatchesDomain(finalName, item?.url)) {
+  if (!nameMatchesDomain(finalName, url)) {
     return null;
   }
-  const sourceUrl: string = item?.url || registryUrl;
+  const sourceUrl = url || registryUrl;
   const publishedEmail = findPublishedEmail(combinedText);
   const publishedPhone = findPublishedPhone(combinedText);
   const publishedLicense = findPublishedLicense(combinedText);
-  const registryMatch = isRegistrySource(item?.url);
+  const registryMatch = isRegistrySource(url);
   return {
     companyName: finalName,
     contactEmail: publishedEmail || "not-published@verify-required.invalid",
@@ -342,6 +345,7 @@ export const discoverSubcontractors = action({
   args: {
     tradePackageId: v.id("tradePackages"),
   },
+  returns: v.object({ success: v.boolean(), tradePackageId: v.string(), discoveredCount: v.number(), insertedCount: v.number(), source: v.string() }),
   handler: async (ctx, args): Promise<DiscoveryResult> => {
     await requireProjectScopeInAction(ctx, { docs: [{ table: "tradePackages", id: args.tradePackageId }] }, { roles: ["gc"], write: true });
     const tradePkg = await ctx.runQuery(internal.tradePackages.getPackageInternal, {
@@ -444,8 +448,8 @@ export const discoverSubcontractors = action({
             }
           }
         }
-      } catch (err) {
-        console.warn("Firecrawl search failed or returned nothing usable; no records will be created:", err);
+      } catch {
+        console.warn("Firecrawl search failed or returned nothing usable; no records will be created.");
       }
     }
 
@@ -511,6 +515,7 @@ export const scrapeContractorWebsite = action({
   args: {
     url: v.string(),
   },
+  returns: v.object({ success: v.boolean(), url: v.string(), markdown: v.string(), title: v.string(), source: v.string(), error: v.optional(v.string()) }),
   handler: async (ctx, args) => {
     await requireRoleInAction(ctx, ["gc"]);
     const firecrawlKey = process.env.FIRECRAWL_API_KEY;
@@ -526,19 +531,21 @@ export const scrapeContractorWebsite = action({
           title: doc.metadata?.title ?? "Contractor Commercial Profile",
           source: "FirecrawlClient Website Scraping",
         };
-      } catch (err) {
-        console.warn("FirecrawlClient scrape failed, falling back:", err);
+      } catch {
+        console.warn("FirecrawlClient scrape failed; no live result is available.");
       }
     }
 
     return {
-      success: true,
+      success: false,
       url: args.url,
       markdown: "",
       title: "Contractor profile",
       source: "Live scrape unavailable",
       error:
-        "Live website scraping is unavailable because FIRECRAWL_API_KEY is not configured. No licensing or compliance data was retrieved.",
+        firecrawlKey
+          ? "The configured live scraping provider failed. Retry later. No licensing or compliance data was retrieved."
+          : "Live website scraping is unavailable because FIRECRAWL_API_KEY is not configured. No licensing or compliance data was retrieved.",
     };
   },
 });

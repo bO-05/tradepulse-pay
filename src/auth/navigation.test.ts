@@ -1,7 +1,15 @@
 import { describe, expect, test } from "vitest";
-import { agreementHash, ledgerHash, NAV_BY_ROLE, navFor, parseHash, payAppHash, resolveRoute } from "./navigation";
+import { agreementHash, judgeDemoHash, ledgerHash, NAV_BY_ROLE, navFor, parseHash, payAppHash, resolveRoute } from "./navigation";
 
 describe("role navigation", () => {
+  test("run-specific bookmarks preserve the demo-company and GC restrictions", () => {
+    const hash = judgeDemoHash("run-123");
+    expect(parseHash(hash)).toEqual({ area: "judge-demo", demoRunId: "run-123" });
+    expect(resolveRoute("gc", hash, true)).toEqual({ area: "judge-demo", demoRunId: "run-123" });
+    expect(resolveRoute("gc", hash, false)).toEqual({ area: "not-found" });
+    expect(resolveRoute("sub", hash, true)).toEqual({ area: "not-found" });
+    expect(resolveRoute("owner", hash, true)).toEqual({ area: "not-found" });
+  });
   test("GC gets procurement, payments and the read-only overview; sub and owner never get procurement", () => {
     expect(NAV_BY_ROLE.gc.map((i) => i.area)).toEqual([
       "procurement",

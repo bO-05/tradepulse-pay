@@ -105,7 +105,7 @@ export const SubcontractorDiscoveryView: React.FC<SubcontractorDiscoveryViewProp
     contactEmail: "",
     phone: "",
     licenseNumber: "",
-    licenseStatus: "Active & Verified",
+    licenseStatus: "Self-Reported",
     sourceUrl: "",
   });
 
@@ -119,7 +119,7 @@ export const SubcontractorDiscoveryView: React.FC<SubcontractorDiscoveryViewProp
     contactEmail: "",
     phone: "",
     licenseNumber: "",
-    licenseStatus: "Active & Verified",
+    licenseStatus: "Self-Reported",
     sourceUrl: "",
   });
   const [contractorToDelete, setContractorToDelete] = useState<Contractor | null>(null);
@@ -196,9 +196,9 @@ export const SubcontractorDiscoveryView: React.FC<SubcontractorDiscoveryViewProp
           companyName: addForm.companyName.trim(),
           contactEmail: addForm.contactEmail.trim(),
           phone: addForm.phone.trim() || undefined,
-          licenseNumber: addForm.licenseNumber.trim() || "COMM-LIC-VERIFIED",
+          licenseNumber: addForm.licenseNumber.trim(),
           licenseStatus: addForm.licenseStatus,
-          sourceUrl: addForm.sourceUrl.trim() || "https://pels.texas.gov/",
+          sourceUrl: addForm.sourceUrl.trim(),
         });
       } else {
         await createContractorMutation({
@@ -206,9 +206,9 @@ export const SubcontractorDiscoveryView: React.FC<SubcontractorDiscoveryViewProp
           companyName: addForm.companyName.trim(),
           contactEmail: addForm.contactEmail.trim(),
           phone: addForm.phone.trim() || undefined,
-          licenseNumber: addForm.licenseNumber.trim() || "COMM-LIC-VERIFIED",
+          licenseNumber: addForm.licenseNumber.trim(),
           licenseStatus: addForm.licenseStatus,
-          sourceUrl: addForm.sourceUrl.trim() || "https://pels.texas.gov/",
+          sourceUrl: addForm.sourceUrl.trim(),
           rfqStatus: "discovered",
         });
       }
@@ -218,7 +218,7 @@ export const SubcontractorDiscoveryView: React.FC<SubcontractorDiscoveryViewProp
         contactEmail: "",
         phone: "",
         licenseNumber: "",
-        licenseStatus: "Active & Verified",
+        licenseStatus: "Self-Reported",
         sourceUrl: "",
       });
     } catch (err: any) {
@@ -417,7 +417,7 @@ export const SubcontractorDiscoveryView: React.FC<SubcontractorDiscoveryViewProp
                   contactEmail: "",
                   phone: "",
                   licenseNumber: "",
-                  licenseStatus: "Active & Verified",
+                  licenseStatus: "Self-Reported",
                   sourceUrl: "",
                 });
                 setIsAddModalOpen(true);
@@ -748,17 +748,18 @@ export const SubcontractorDiscoveryView: React.FC<SubcontractorDiscoveryViewProp
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-300 mb-1">License Verification Status</label>
+                  <label className="block font-semibold text-slate-300 mb-1">Reported License Status</label>
                   <select
                     aria-label="License verification status"
                     value={addForm.licenseStatus}
                     onChange={(e) => setAddForm({ ...addForm, licenseStatus: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                   >
-                    <option value="Active & Verified">Active & Verified</option>
+                    <option value="Active & Verified">Active (you report verified)</option>
                     <option value="Pending Verification">Pending Verification</option>
                     <option value="Self-Reported">Self-Reported</option>
                   </select>
+                  <p className="mt-1 text-slate-400">Manual assertion only. A separate registry check is required for verification.</p>
                 </div>
               </div>
 
@@ -879,10 +880,11 @@ export const SubcontractorDiscoveryView: React.FC<SubcontractorDiscoveryViewProp
                     onChange={(e) => setEditForm({ ...editForm, licenseStatus: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                   >
-                    <option value="Active & Verified">Active & Verified</option>
+                    <option value="Active & Verified">Active (you report verified)</option>
                     <option value="Pending Verification">Pending Verification</option>
                     <option value="Self-Reported">Self-Reported</option>
                   </select>
+                  <p className="mt-1 text-slate-400">Manual assertion only. A separate registry check is required for verification.</p>
                 </div>
               </div>
 

@@ -39,6 +39,7 @@ export type Route = {
   vendorId?: string;
   tradePackageId?: string;
   payAppId?: string;
+  demoRunId?: string;
   /** Compliance record opened from a notification. */
   complianceItemId?: string;
   view?: "new" | "settings" | "sov";
@@ -155,6 +156,10 @@ export function ledgerHash(agreementId: string): string {
   return `#/payments/${encodeURIComponent(agreementId)}`;
 }
 
+export function judgeDemoHash(runId: string): string {
+  return `#/judge-demo/${encodeURIComponent(runId)}`;
+}
+
 export function peopleHash(projectId: string): string {
   return `#/people/${encodeURIComponent(projectId)}`;
 }
@@ -177,6 +182,8 @@ export function gcProjectSettingsHash(projectId: string): string {
 
 export function parseHash(hash: string): Route | null {
   const path = hash.replace(/^#/, "");
+  const demoRun = path.match(/^\/judge-demo\/([^/?#]+)$/);
+  if (demoRun) return { area: "judge-demo", demoRunId: decodeURIComponent(demoRun[1]) };
   if (`#${path}` === COMPANY_HASH) return { area: "company" };
   if (`#${path}` === NOTIFICATIONS_HASH) return { area: "notifications" };
   const bidMatch = path.match(/^\/bids\/([^/?#]+)$/);

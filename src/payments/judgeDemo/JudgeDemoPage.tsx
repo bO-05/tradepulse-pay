@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { DEMO_BILLING_AGENT_EMAIL, DEMO_CONTRACT_SUM } from "../../../convex/judgeDemo/scenario";
-import { ledgerHash } from "../../auth/navigation";
+import { judgeDemoHash, ledgerHash } from "../../auth/navigation";
 import { FundingProvider, FundMilestoneControl, readableError } from "../FundMilestone";
 import { formatCents } from "../format";
 import { LicenseCheckPanel } from "../LicenseCheck";
@@ -25,12 +25,13 @@ function elapsed(ms: number): string {
 }
 
 /** Demo-company GC only: one-click guided demo against the real sandbox, reachable from the demo simulator and the nav. */
-export function JudgeDemoPage() {
-  const [runId, setRunId] = useState<Id<"judgeDemoRuns"> | null>(null);
+export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
+  const [runId, setRunId] = useState<Id<"judgeDemoRuns"> | null>((initialRunId as Id<"judgeDemoRuns"> | undefined) ?? null);
   const run = useQuery(api.judgeDemo.runs.getRun, runId ? { runId } : {});
+  const history = useQuery(api.judgeDemo.runs.listRuns, {});
   const agreementId = run?.agreementId;
   const ledger = useQuery(api.payments.ledger.getAgreementLedger, agreementId ? { agreementId } : "skip");
-  const inbox = useQuery(api.payApps.proposals.listInbox, run ? {} : "skip");
+  const inbox = useQuery(api.payApps.proposals.listInbox, agreementId ? { agreementId } : "skip");
   const changeOrders = useQuery(api.billing.changeOrders.listForProject, run ? { projectId: run.projectId } : "skip");
   const dashboard = useQuery(api.dashboard.queries.getDashboardData, agreementId ? {} : "skip");
   const dashboardTotals = dashboard ? (dashboard.agreements.find((a) => a.agreementId === agreementId)?.totals ?? null) : undefined;
@@ -42,6 +43,15 @@ export function JudgeDemoPage() {
   const [closeoutBusy, setCloseoutBusy] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [refreshBusy, setRefreshBusy] = useState(false);
+
+  const pinRun = (id: Id<"judgeDemoRuns">) => {
+    setRunId(id);
+    // Replace, without remounting the active driver. Reloads/bookmarks restore this exact run.
+    window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}${judgeDemoHash(id)}`);
+  };
+  useEffect(() => {
+    if (runId === null && run) pinRun(run._id);
+  }, [runId, run]);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -62,7 +72,7 @@ export function JudgeDemoPage() {
       agent,
       changeOrder: changeOrders ? changeOrder : undefined,
     },
-    setRunId,
+    pinRun,
   );
 
   const autostarted = useRef(false);
@@ -106,9 +116,22 @@ export function JudgeDemoPage() {
         </p>
         <p className="text-xs text-amber-200">
           The two pay apps are filed by this demo as stand-ins and are labeled "Guided demo (Demo)" wherever they appear. PayPal approval
-          and the Owner's invoice payment are real browser steps; the demo waits for them and never fakes them.
+          and the Owner's invoice payment are real browser steps and are never faked. The driver stops after invoice submission;
+          pay the invoice separately to complete the Owner-payment step. By starting, you authorize this demo driver to approve the displayed fixture proposals as the GC.
           {" "}Compliance records are marked demo fixtures without uploaded documents, not proof of real insurance, tax or licensing compliance.
         </p>
+        <label className="block text-xs text-slate-300">
+          Inspect a previous run (latest 20)
+          <select className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-900 p-2 text-sm"
+            aria-label="Demo run" disabled={driver.running} value={run?._id ?? ""}
+            onChange={(event) => { if (event.target.value) window.location.hash = judgeDemoHash(event.target.value); }}>
+            {!run && <option value="">Choose a run</option>}
+            {run && !history?.some((r) => r.runId === run._id) && <option value={run._id}>{run.agreementNumber}</option>}
+            {history?.map((item) => <option key={item.runId} value={item.runId}>
+              {item.agreementNumber} · {new Date(item.createdAt).toLocaleDateString()} · {item.payAppsPaid ? "Pay apps paid" : "Pay apps incomplete"} · {item.ownerPaid ? "Owner paid" : "Owner unpaid"}
+            </option>)}
+          </select>
+        </label>
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
@@ -179,7 +202,9 @@ export function JudgeDemoPage() {
                   <div className="space-y-1">
                     <p className="text-xs text-amber-200">
                       Human step: click Fund, choose "Debit or Credit Card" and pay as guest with the sandbox card (4032031427005060,
-                      01/29, CVV 480). The demo continues as soon as PayPal authorizes.
+                      01/29, CVV 480). Choose United States; use Sandbox Buyer, 123 Test Street, San Jose, CA 95131,
+                      phone 2025550100 and a unique @example.com email. Do not create a PayPal account or enter real details.
+                      The demo continues as soon as PayPal authorizes.
                     </p>
                     <FundingProvider>
                       <FundMilestoneControl milestone={mobilization} />
@@ -228,8 +253,8 @@ export function JudgeDemoPage() {
           <section className="rounded-xl border border-slate-800 p-4 space-y-3" aria-label="Closeout" data-testid="judge-demo-closeout">
             <h2 className="font-semibold">Optional closeout: release retainage</h2>
             <p className="text-xs text-slate-400">
-              Retainage held on this agreement: {formatCents(ledger?.retainageReleasableCents ?? 0)}. In the sandbox, top up the platform
-              account first (below), or the payout fails with INSUFFICIENT_FUNDS because of PayPal's capture fees.
+              Retainage held on this agreement: {formatCents(ledger?.retainageReleasableCents ?? 0)}. Release only when appropriate for
+              this demo's closeout. A separate sandbox platform top-up is optional, and only needed if available platform funds are insufficient.
             </p>
             <SandboxTopUpPanel suggestedCents={Math.ceil(((ledger?.retainageReleasableCents ?? 0) * 11) / 1000) * 100} />
             <button

@@ -3,9 +3,26 @@ import {
   isGovernmentOrAssociationHost,
   isNonCompanyPage,
   looksLikeCompanyName,
+  mapSearchItemToContractor,
   nameMatchesDomain,
   sanitizeContractorCompanyName,
 } from "./contractorDiscovery";
+
+test("published matching brand survives an SEO title without weakening source identity", () => {
+  const item = {
+    title: "Commercial Electrical Contractor in Austin, TX - FSG",
+    url: "https://fsg.com/locations/austin/",
+    markdown: "# Commercial Electrical Contractor in Austin, TX\nCall 202-555-0100.",
+  };
+  expect(mapSearchItemToContractor(item, "")).toMatchObject({
+    companyName: "FSG", sourceUrl: item.url, licenseNumber: "Not verified",
+    licenseStatus: "Unverified — from web search result",
+    contactEmail: "not-published@verify-required.invalid",
+  });
+  expect(mapSearchItemToContractor({ ...item, url: "https://unrelated-company.com/" }, "")).toBeNull();
+  expect(mapSearchItemToContractor({ ...item, url: "https://fsg.texas.gov/" }, "")).toBeNull();
+  expect(mapSearchItemToContractor({ ...item, title: "Commercial Electrical Contractor in Austin, TX" }, "")).toBeNull();
+});
 
 test("F8: mid-sentence SEO fragments are rejected, not stored as company names", () => {
   // The exact audit example, produced by stripping the brand suffix at the first hyphen.

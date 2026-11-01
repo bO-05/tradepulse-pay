@@ -61,6 +61,10 @@ test("Discovery never claims registry verification for unverified records", () =
   expect(view).not.toContain("Verified Trades");
   expect(view).not.toContain("Live Web & TDLR Directory Ingest");
   expect(view).toContain("Provenance shown per record");
+  expect(view).not.toContain("COMM-LIC-VERIFIED");
+  expect(view).not.toContain('licenseStatus: "Active & Verified"');
+  expect(view).not.toContain('sourceUrl: addForm.sourceUrl.trim() ||');
+  expect(view).toContain("Manual assertion only");
 });
 
 test("File download serves stored bytes and never synthesises documents from the filename", () => {

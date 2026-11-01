@@ -14,7 +14,7 @@ The managed cloud workspace is unavailable. GitHub is the recoverable source bas
 
 ## Verified recovery baseline
 
-- Latest full regression: **1,950 tests passed across 142 files** (`evidence/recovery-final-regression.json`), plus **eight Node safety/integration helper tests**.
+- Final judge-access regression: **1,957 tests passed across 144 files** (`evidence/recovery-judge-final-regression.json`), plus **eight Node safety/integration helper tests**. The earlier recovery checkpoint was 1,950 tests across 142 files.
 - Frontend provenance/diagnostics follow-up: **42 focused tests passed**, followed by a successful build, guard audit and documentation checks.
 - Production build and TypeScript checks passed.
 - Guard audit: no reported missing tenancy guards.
@@ -106,11 +106,60 @@ The final ledger fix counts only confirmed `COMPLETED` captures as collected cas
 ## Remaining integration work
 
 - Complete the owner-approved AgentID registration if billing-agent sign-in is needed.
-- AgentMail recovery registration and signature enforcement are verified; an actual inbound delivery was not certified. No test emails were sent.
+- Actual AgentMail verification mail, signed inbound delivery and delivery-status processing are now verified below. A complete RFQ-reply-to-bid journey is not certified by that auth-mail test.
 - Keep compliance and license gates intact. An unavailable check is not a verified license.
 - The recovery dashboard has an ordinary React ledger view and does not need an AG Studio license. Studio layout/chat still needs valid licensing.
 - Build warnings remain for large frontend chunks. The successful build is not a performance certification.
 - Recovery `SITE_URL` is the hosted recovery origin. Do not change a shared deployment's auth origin merely to test another browser origin.
+
+## Judge and real-user follow-up, 1 November 2026
+
+- Public `#/demo` now exposes three ordinary password role controls and a truthful walkthrough. It preserves an
+  existing signed-in identity. Mobile overflow and desktop views were checked.
+- Judge runs have explicit bookmarks and bounded recent history. The driver pins its own expected run while waiting;
+  an agreement-scoped approval query does not lose an older run behind the shared global inbox cap.
+- Two fresh GC browser contexts verified independent runs and the first judge's reload/bookmark stability:
+  **13 checks passed**, `evidence/recovery-user-journey-2026-11-01T19-22-35-246Z/report.json`.
+  The second judge created one executed but **unfunded** agreement; no checkout, capture, payout or invoice was submitted.
+  Earlier concurrency attempts failed because the harness read a loading element before it existed.
+  Waiting for the agreement fixed that harness race; the app did not need an authentication or payment bypass.
+- The invitation dialog replaces the recipient when selecting a different vendor and clears it for a new vendor.
+  Browser checks did not submit an invite. Manual package deadlines use local calendar dates two weeks ahead.
+- A genuinely new account in an already-owned allowlisted inbox received and redeemed its actual eight-digit email code,
+  created a separate GC company and project, and added a package: **21 checks passed**,
+  `evidence/recovery-user-journey-2026-11-01T18-17-42-035Z/report.json`.
+  The signed inbound webhook received the message without assigning an unmatched auth message to any tenant;
+  the outbound row was sent with a delivered event. Codes, passwords, API keys and message bodies were not exported.
+  Recovery's recipient allowlist and daily budget remain intact. This is not arbitrary-email public signup.
+- Firecrawl returned **26,012 characters of live scraped content** and one usable source-linked contractor on a bounded
+  discovery search: `evidence/recovery-firecrawl-2026-11-01T18-50-21-791Z/report.json`.
+  Its SEO title previously caused premature rejection before brand extraction. The parser fix keeps government,
+  directory and unrelated-domain exclusions. One unverified demo contractor was inserted; no RFQ or outside email was sent.
+  Manual contractor entry also no longer fabricates verified licensing or a registry URL.
+- Latest backend query return validators passed Convex typechecking and deployment schema validation.
+  A subsequent three-role/concurrency browser run exercised those queries successfully.
+- Read-only reinspection preserved the independently settled agreement's totals:
+  `evidence/recovery-settlement-2026-11-01T19-17-22-276Z/report.json`.
+  The ledger/dashboard still matched, both progress payouts were settled, and paid plus retainage reconciled.
+- A **171.05-second actual-app recording** was generated with offline synthetic narration and chapter captions.
+  It is an inspection of previously settled receipts, not a recording of new payments. No YouTube upload or
+  Devpost submission has been performed. Final media:
+  `evidence/submission-film-2026-11-01T19-41-30-725Z/TradePulse-Pay-demo.mp4`.
+  See [the publishing handoff](./submission-draft.md).
+- Stable focused validation passed **54 tests across six files** and TypeScript. The first full follow-up run
+  overlapped an export edit and recorded 1,956/1,957; its one mapper failure passed on the stable rerun.
+  Subsequent attempts did not produce a final report within the execution window and are not counted as passes.
+  The final stable-source run completed in 490.84 seconds with **all 1,957 tests across 144 files passing**.
+- Final TypeScript/build, documentation checks and the guard audit passed: **256 public functions,
+  199 internal, zero reported tenancy-guard problems**. The eight Node helper tests passed again.
+  The build retains large-chunk and mixed static/dynamic-import warnings.
+- The exact frontend was uploaded only to recovery dev as deployment
+  `635d0934-2b12-49c6-bb12-69037b3673ba`. Post-upload public health and all three role logins/nine
+  routes passed without browser errors:
+  `evidence/recovery-cheery-axolotl-689.convex.site-2026-11-01T19-40-36-679Z/report.json`.
+  The final public-guide journey passed **12 checks**, including the mobile jump's scrolling/keyboard focus,
+  identity protection, bookmarks and invitation-recipient correction:
+  `evidence/recovery-user-journey-2026-11-01T19-46-17-505Z/report.json`.
 
 ## Local checks
 
@@ -127,8 +176,16 @@ node scripts/qa/recovery-ai-smoke.mjs
 node scripts/qa/recovery-provider-smoke.mjs
 node scripts/qa/recovery-integrations.mjs
 node scripts/qa/recovery-settlement-smoke.mjs
+node scripts/qa/recovery-user-journey.mjs
+node scripts/qa/recovery-firecrawl-smoke.mjs
 ```
 
 The browser smoke scripts use the public demo accounts only and create fresh browser contexts. Their default modes do not perform business writes. The AI script inspects the existing recovery fixture and verifies provenance and pending proposals; its explicit `--submit` flag permits a fixture-scoped draft/submission if none exists. The provider script makes two real, potentially billable Mistral calls using a temporary public demo session held only in memory.
+
+The user-journey script's `--concurrency` mode creates one additional unfunded fixture agreement.
+Its `--signup` mode creates a new account in one exact already-owned allowlisted inbox and refuses to overwrite it;
+that one-time signup has already succeeded and must not be reset merely to rerun a test.
+The Firecrawl script's `--discover` mode can insert deduplicated unverified records into its exact demo package.
+These explicit modes are not read-only and do not send RFQs or submit payment.
 
 The settlement script is fixed to recovery dev and verifies `PAYPAL_ENV=sandbox`. Its default mode inspects the latest run. **`--start` creates a fresh run; `--resume` drives an existing one. Those modes authorize the guided demo's GC approval/capture/payout actions after real funding.** `--guest` additionally submits the public README sandbox card with synthetic buyer details, never simulates buyer approval, and refuses the outdated award fixture. `--owner-checkout` opens the current invoice through a fresh Owner session without submitting payment; **`--owner-pay` explicitly pays that $1,850 sandbox invoice**, checking the visible total and actual PayPal status. **`--release-retainage` explicitly uses the GC closeout control** only after the demo payouts and Owner invoice settle, then requires payout success. Paid invoices and settled retainage are not submitted twice. Do not interpret an opened checkout, submitted payout, or matching zero totals as settled payment evidence. Evidence is stored in the ignored `evidence/` directory. PayPal funds remain sandbox-only, and all production changes need an explicit, target-specific release decision.

@@ -8,6 +8,7 @@ import { isCodeSendError, type AuthScreen, type VerifyScreen } from "./authScree
 import { CreateAccountForm } from "./CreateAccountForm";
 import { ForgotPasswordForm } from "./ForgotPasswordForm";
 import { VerifyEmailForm } from "./VerifyEmailForm";
+import { DEMO_ACCESS_HASH } from "./DemoAccessPage";
 
 
 /**
@@ -117,6 +118,9 @@ function SignInForm({
       footer={
         <>
           New to TradePulse Pay? <TextLink onClick={onCreateAccount}>Create account</TextLink>
+          <a href={DEMO_ACCESS_HASH} className="mt-4 block rounded-lg border border-emerald-800 px-3 py-2 text-emerald-300 hover:bg-emerald-950/40">
+            Evaluating the app? Open the judge demo guide
+          </a>
         </>
       }
     >

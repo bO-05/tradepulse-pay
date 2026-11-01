@@ -4,6 +4,7 @@ import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { ConvexReactClient } from "convex/react";
 import App from "./App.tsx";
 import { AuthGate } from "./auth/AuthGate";
+import { DemoAccessPage, DEMO_ACCESS_HASH } from "./auth/DemoAccessPage";
 import { useHash } from "./auth/useHash";
 import { InvitePage } from "./invites/InvitePage";
 import { inviteTokenFromHash } from "./invites/inviteSession";
@@ -15,6 +16,7 @@ const UiKitGallery = import.meta.env.DEV ? lazy(() => import("./ui/UiKitGallery"
 
 function Root() {
   const hash = useHash();
+  if (hash === DEMO_ACCESS_HASH) return <DemoAccessPage />;
   if (UiKitGallery && hash.startsWith("#/ui-kit")) {
     return (
       <Suspense fallback={<div role="status">Loading UI kit…</div>}>

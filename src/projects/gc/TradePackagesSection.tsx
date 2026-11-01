@@ -3,17 +3,13 @@ import { FormEvent, useState } from "react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { getErrorMessage } from "../../lib/errors";
+import { localDateInDays } from "../../lib/localDate";
 import { Button, Card, DateInput, EmptyState, MoneyInput, StatusPill, TextInput, TimeInput, useToast } from "../../ui";
 import { PackageBidders } from "../../vendors/PackageBidders";
 import { BID_DUE_TIME_HINT, BidDueEditor } from "./BidDueEditor";
 import { openProcurementPackages, openSpecBreakdown } from "./specBreakdownRequest";
 
 const CSI_FORMAT = /^\d{2} \d{2} \d{2}$/;
-
-function isoDateInDays(days: number): string {
-  const d = new Date(Date.now() + days * 86_400_000);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
 
 /** Manual trade package form: CSI division, trade name, budget, bid due date and optional time, optional scope. */
 export function AddTradePackageForm({
@@ -32,7 +28,7 @@ export function AddTradePackageForm({
   const [csiDivision, setCsiDivision] = useState("");
   const [tradeName, setTradeName] = useState("");
   const [budgetCents, setBudgetCents] = useState<number | null>(null);
-  const [bidDeadline, setBidDeadline] = useState(() => isoDateInDays(14));
+  const [bidDeadline, setBidDeadline] = useState(() => localDateInDays(14));
   const [bidDueTime, setBidDueTime] = useState("");
   const [scopeSummary, setScopeSummary] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});

@@ -313,9 +313,43 @@ export const prepareDemoChangeOrder = mutation({
   },
 });
 
+/** Bounded history for this demo GC only, not other users or real companies. */
+export const listRuns = query({
+  args: {},
+  returns: v.array(v.object({
+    runId: v.id("judgeDemoRuns"),
+    agreementNumber: v.string(),
+    createdAt: v.number(),
+    payAppsPaid: v.boolean(),
+    ownerPaid: v.boolean(),
+  })),
+  handler: async (ctx) => {
+    await requireDemoCompany(ctx, ["gc"]);
+    const viewer = await requireRole(ctx, ["gc"]);
+    const runs = await ctx.db.query("judgeDemoRuns")
+      .withIndex("by_startedBy", (q) => q.eq("startedBy", viewer.userId)).order("desc").take(20);
+    return await Promise.all(runs.map(async (run) => {
+      const honest = run.honestPayAppId ? await ctx.db.get(run.honestPayAppId) : null;
+      const agent = run.agentPayAppId ? await ctx.db.get(run.agentPayAppId) : null;
+      const changeOrder = run.changeOrderId ? await ctx.db.get(run.changeOrderId) : null;
+      return {
+        runId: run._id, agreementNumber: run.agreementNumber, createdAt: run.createdAt,
+        payAppsPaid: honest?.status === "paid" && agent?.status === "paid",
+        ownerPaid: changeOrder?.status === "paid",
+      };
+    }));
+  },
+});
+
 /** The GC's latest run (or a given one) with the ids the demo page needs. */
 export const getRun = query({
   args: { runId: v.optional(v.id("judgeDemoRuns")) },
+  returns: v.union(v.null(), v.object({
+    _id: v.id("judgeDemoRuns"), agreementId: v.id("agreements"), agreementNumber: v.string(),
+    agreementStatus: v.string(), contractorId: v.union(v.id("contractors"), v.null()),
+    honestPayAppId: v.union(v.id("payApplications"), v.null()), agentPayAppId: v.union(v.id("payApplications"), v.null()),
+    projectId: v.id("projects"), changeOrderId: v.union(v.id("changeOrders"), v.null()), createdAt: v.number(),
+  })),
   handler: async (ctx, args) => {
     await requireDemoCompany(ctx, ["gc"]);
     const viewer = await requireRole(ctx, ["gc"]);

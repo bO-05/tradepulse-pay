@@ -180,6 +180,7 @@ import type * as payApps_reviewModel from "../payApps/reviewModel.js";
 import type * as payApps_reviewScenario from "../payApps/reviewScenario.js";
 import type * as payApps_submit from "../payApps/submit.js";
 import type * as payApps_validation from "../payApps/validation.js";
+import type * as payApps_viewValidators from "../payApps/viewValidators.js";
 import type * as payee from "../payee.js";
 import type * as payments_agreementHistory from "../payments/agreementHistory.js";
 import type * as payments_captureMath from "../payments/captureMath.js";
@@ -422,6 +423,7 @@ declare const fullApi: ApiFromModules<{
   "payApps/reviewScenario": typeof payApps_reviewScenario;
   "payApps/submit": typeof payApps_submit;
   "payApps/validation": typeof payApps_validation;
+  "payApps/viewValidators": typeof payApps_viewValidators;
   payee: typeof payee;
   "payments/agreementHistory": typeof payments_agreementHistory;
   "payments/captureMath": typeof payments_captureMath;

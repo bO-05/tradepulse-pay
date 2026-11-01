@@ -1,4 +1,5 @@
 import { getErrorMessage } from "../lib/errors.ts";
+import { localDateInDays } from "../lib/localDate";
 import { BID_DUE_TIME_HINT, BidDueEditor } from "../projects/gc/BidDueEditor";
 import React, { useEffect, useState } from "react";
 import { consumeSpecBreakdownRequest } from "../projects/gc/specBreakdownRequest";
@@ -92,7 +93,7 @@ export const TradePackagesView: React.FC<TradePackagesViewProps> = ({
   const [budgetEstimate, setBudgetEstimate] = useState(1250000);
   const [scopeSummary, setScopeSummary] = useState("");
   const [mandatoryInclusions, setMandatoryInclusions] = useState("Crane hoisting\nSeismic bracing\nTemporary power");
-  const [bidDeadline, setBidDeadline] = useState("2026-09-30");
+  const [bidDeadline, setBidDeadline] = useState(() => localDateInDays(14));
   const [bidDueTime, setBidDueTime] = useState("");
 
   const generateTradePackagesAction = useAction(api.tradePackages.generateTradePackagesFromSpec);
@@ -309,7 +310,7 @@ Furnish and install domestic cold, hot, and recirculated water piping, sanitary 
                 setBudgetEstimate(1250000);
                 setScopeSummary("");
                 setMandatoryInclusions("Crane hoisting\nSeismic bracing\nTemporary power");
-                setBidDeadline("2026-09-30");
+                setBidDeadline(localDateInDays(14));
                 setBidDueTime("");
                 setCreationError(null);
                 setIsModalOpen(true);

@@ -18,6 +18,7 @@ import { allocateFinalApproval } from "./billingHistory";
 import { approvedG702Figures } from "./g703";
 import { REJECTION_REASON_REQUIRED } from "./decisions";
 import { payAppView, sovMapFor } from "./review";
+import { inboxItemValidator } from "./viewValidators";
 
 /**
  * GC approval inbox (architecture §7). The pay agent only creates pending proposals; money moves
@@ -130,10 +131,14 @@ async function audit(
 
 /** Every pay application awaiting or past GC decision, with its review, proposals and attribution. */
 export const listInbox = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { agreementId: v.optional(v.id("agreements")) },
+  returns: v.array(inboxItemValidator),
+  handler: async (ctx, args) => {
     await requireRole(ctx, ["gc"]);
-    const { rows: scoped } = await scopedAgreements(ctx, { parties: ["gc"], limit: 200 });
+    // Scope before applying inbox caps so an older, explicitly selected agreement remains usable.
+    const scoped = args.agreementId
+      ? [{ agreement: (await requireDocScope(ctx, "agreements", args.agreementId, { roles: ["gc"] })).doc }]
+      : (await scopedAgreements(ctx, { parties: ["gc"], limit: 200 })).rows;
     const inboxStatuses = new Set<string>(INBOX_STATUSES);
     const payApps: Doc<"payApplications">[] = [];
     for (const { agreement } of scoped) {

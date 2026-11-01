@@ -4,11 +4,19 @@
 
 TradePulse Pay is MIT licensed (see [`LICENSE`](./LICENSE)).
 
-**Live URL: https://earnest-mongoose-745.convex.site** (the production deployment `earnest-mongoose-745` of the `tradepulse-pay` Convex project, with the demo data and demo accounts seeded). All PayPal calls use the sandbox (`api-m.sandbox.paypal.com`); no real money moves. AgentID billing-agent sign-in works on the live URL as well as the password demo accounts.
+**Start here: [working judge demo and access guide](https://cheery-axolotl-689.convex.site/#/demo).**
+This is the tested, isolated recovery-dev build, not production. No signup is needed for its three public demo roles.
+All PayPal calls use the sandbox (`api-m.sandbox.paypal.com`); no real money moves.
+Read the [judge walkthrough](./docs/judge-guide.md) for the short inspection path, hands-on checkout and real-user onboarding.
+The [submission draft and video handoff](./docs/submission-draft.md) separate verified evidence from the remaining owner publishing steps.
+**Source matching this demo:** [recovery branch](https://github.com/bO-05/tradepulse-pay/tree/recovery/stabilize-2026-11-01).
+The default `main` branch is the preserved baseline, not the recovered build.
 
 > The earlier TradePulse Pro submission for the Convex hackathon lives on a separate, frozen deployment (`brainy-skunk-440`). It is not TradePulse Pay and does not run this code.
 
-**Current tested Mistral recovery preview:** https://cheery-axolotl-689.convex.site is an isolated, non-production build with separate demo data. Real review and proposal-tool calls are verified there; settlement is not. The production URL above has not been replaced. See [recovery status and setup](./docs/recovery-progress.md), including the newer cloud-only waiver feature that must not be overwritten.
+**Verified recovery proof:** real Mistral review and proposal tools, two COMPLETED PayPal captures, two SUCCESS progress payouts, a PAID Owner invoice and a SUCCESS retainage release were independently checked on November 1, 2026. These are partial-progress demo payments, not completion of the entire contract. See [recovery status and evidence](./docs/recovery-progress.md).
+
+Production `earnest-mongoose-745` has **not** been replaced or re-certified by this recovery. AgentID on recovery still requires owner-approved client registration; normal demo password sign-in works. The original dev deployment's newer cloud-only waiver implementation remains protected and is not recovered by this branch.
 
 ---
 
@@ -20,7 +28,7 @@ A general contractor (GC) awards a subcontract, then pays it out over months. Ev
 
 TradePulse Pay takes the contract the GC just awarded in TradePulse Pro and runs the money side:
 
-1. **Execute the agreement.** Code generates the schedule of values (SOV) from the leveled bid, including the excluded-scope lines, and four funded milestones.
+1. **Execute the agreement.** Code generates the schedule of values (SOV) from the awarded bid and four funding milestones. Excluded scope stays in the comparison/notes, not the awarded contract sum or ordinary SOV.
 2. **Fund a milestone.** The GC approves a PayPal `AUTHORIZE` order. The money is held, not captured.
 3. **Sub files a pay application**, either a person or the sub's **billing agent** signed in with AgentID.
 4. **AI review.** The configured Mistral or Anthropic model returns per-line verdicts (ok, overbilled, excluded scope, front-loaded, out of sequence). **Code computes every dollar** from the SOV; the model never authors an amount. KERNEL checks the sub's California license (CSLB) in a hosted browser.
@@ -37,10 +45,10 @@ The TradePulse Pay work is the commit range **`2ad5543..paypal-hackathon`** on b
 - **Sign-in and roles (AUTH).** Convex Auth email + password with roles gc, sub and owner; AgentID sign-in for billing agents with GC-managed links; every public Convex function, old and new, is role-guarded (`docs/guard-audit.md`).
 - **Payments (PAY).** Payments schema and integer-cents money helpers; PayPal client with token cache, `PayPal-Request-Id` idempotency, backoff and audit logs; SOV and milestones on execution; AUTHORIZE funding; partial capture, void and reauthorize; payouts net of retainage; retainage ledger and closeout release; change-order invoices; signature-verified `/paypal/webhook`; hourly honor-period watcher; payout retry and ledger reconciliation; a read-only milestone funding summary for subs.
 - **Pay apps and agent (AGENT).** Sub pay-application submit and withdraw with agent attribution; previous % to date taken from approved billing only, with amounts still pending review shown separately; AI review with structured verdicts and an "Offline rules engine" fallback; KERNEL CSLB license checks with live view and 24 h cache; pay-agent proposals with a GC approval inbox.
-- **Dashboard (DASH).** Lazy-loaded AG Studio payments dashboard for the GC and a read-only owner view, with the TradePulse pay agent wired through the auth-gated `/ai/studio` Anthropic proxy.
+- **Dashboard (DASH).** Lazy-loaded licensed AG Studio dashboard for the GC and a read-only owner view, with the TradePulse pay agent wired through the auth-gated `/ai/studio` configured-provider proxy. The basic live dashboard does not need a Studio license.
 - **Submission (DOCS, PAY).** Postman collection and APIMatic log, the one-click judge demo, this README, `.env.example`, the secret sweep and the guard audit.
 
-The procurement features of TradePulse Pro (CSI scoping, Firecrawl discovery, AgentMail RFQ inboxes, bid leveling, scope clash detection, A401-style drafts) are unchanged in behavior. They now require the GC sign-in.
+The procurement features of TradePulse Pro (CSI scoping, Firecrawl discovery, AgentMail RFQ inboxes, bid leveling, scope clash detection, A401-style drafts) predate this project and now require GC sign-in. The November recovery branch also fixes discovery title parsing, stale package deadlines and invitation-recipient switching; it adds Mistral support, truthful integration diagnostics and run-specific judge access.
 
 ---
 
@@ -153,11 +161,11 @@ Open **http://localhost:3150** (not `127.0.0.1`). Convex Auth redirects to `SITE
 
 ## Demo accounts and password
 
-TradePulse Pay requires sign-in. Signed-out visitors only see the sign-in page; `/llms.txt` and `/api/health` stay public.
+TradePulse Pay requires sign-in for workspaces. Signed-out visitors can read `#/demo`, `/llms.txt` and `/api/health`; the public guide uses ordinary password sign-in, not an authentication bypass.
 
-**New accounts.** The sign-in page has **Create account** (name, email, password of at least 10 characters mixing two kinds of characters) and **Forgot password?**. Both email an 8-digit code from "TradePulse Pay" (`cleverneed464@agentmail.to`); codes are typed in and expire after 15 minutes, and a new code can be requested every 30 seconds. After verifying, a person with no company or invite sets up their general contractor company (name, address, state, phone) and becomes its admin. Resetting a password signs the account out everywhere else. Code emails count against the deployment's daily email budget (`EMAIL_DAILY_BUDGET`); when it is used up, the screen says no code was sent.
+**New accounts.** The sign-in page has **Create account** (name, email, password of at least 10 characters mixing two kinds of characters) and **Forgot password?**. Both email an 8-digit code from "TradePulse Pay" (`cleverneed464@agentmail.to`); codes are typed in and expire after 15 minutes, and a new code can be requested every 30 seconds. **Recovery dev only sends to allowlisted test inboxes**, not arbitrary personal/work addresses; judges should use the public demo roles. On your own configured deployment, after verifying, a person with no company or invite sets up their general contractor company (name, address, state, phone) and becomes its admin. Resetting a password signs the account out everywhere else. Code emails count against the deployment's daily email budget (`EMAIL_DAILY_BUDGET`); when it is used up, the screen says no code was sent.
 
-**Demo access.** The sign-in page shows no demo credentials. The seeded demo accounts below sign in with email and password only (they are marked verified, so no code is sent). All demo accounts share the public demo password **`TradePulseDemo!2026`**.
+**Demo access.** The sign-in page links to the public **Judge & demo access** guide with all three role controls and credentials. The seeded demo accounts below sign in with email and password only (they are marked verified, so no code is sent). All demo accounts share the public demo password **`TradePulseDemo!2026`**.
 
 | Account | Role | What it sees |
 |---|---|---|
@@ -194,7 +202,7 @@ The AgentID client is registered per deployment with the redirect URI `https://<
 
 ---
 
-## TradePulse Pay judge demo (PayPal sandbox, about 1–3 minutes)
+## TradePulse Pay judge demo (two-minute inspection; 5–10-minute hands-on run)
 
 Sign in as `gc@demo.tradepulse`, open the **Demo simulator** and click **Run TradePulse Pay demo** (or use the **Guided demo** item in the navigation). The simulator, guided tour, guided demo and model checks exist only for the Demo company and are labeled "Demo"; real companies never see them. Each run creates a fresh, labeled demo award for sub1's contractor (Rosendin Electric, $55,000). The $4,500 seismic-bracing exclusion is a comparison-only plug and an agreement note, never part of the payable contract or SOV. Fresh runs include marked, fileless demo compliance fixtures, not proof of real insurance, tax or licensing compliance. The demo then uses the app's regular functions:
 
@@ -206,7 +214,7 @@ Sign in as `gc@demo.tradepulse`, open the **Demo simulator** and click **Run Tra
 6. A $1,850.00 change order is invoiced to the Owner through PayPal Invoicing. The dashboard step turns green once its totals match the ledger.
 7. **The Owner** pays the invoice in their own browser (sign in as `owner@demo.tradepulse`, **Projects & change orders**, **Open PayPal invoice**, pay with the guest card and a guest email), then clicks **Refresh status**.
 
-The page shows each step's status from Convex and PayPal, and the time from start to the change-order invoice. "Continue this run" resumes after a reload or re-sign-in, including a change order left as a draft; that step finishes only once the invoice is sent and has a payer link.
+The page shows each step's status from Convex and PayPal, and the time from start to the change-order invoice. Starting the guided driver explicitly authorizes its fixture-scoped GC proposal approvals; production approvals are not delegated automatically. Each run gets a bookmarkable URL and can be selected from recent history, so a second judge cannot silently replace your selected run. "Continue this run" resumes after a reload or re-sign-in, including a change order left as a draft; that step finishes only once the invoice is sent and has a payer link.
 
 **Optional sandbox closeout: release retainage when the platform has enough balance.** PayPal's fees reduce the cash left after captures, so a retainage payout can fail with `INSUFFICIENT_FUNDS`. A paid Owner invoice may provide sufficient sandbox balance; a separate top-up is not always necessary. Otherwise, use the GC-only **Sandbox setup: top up the platform balance** panel. It creates a sandbox CAPTURE order, opens checkout for real guest approval, and requires **Capture top-up** afterward. A `PENDING` capture is not funding: **Check capture status** reads the same capture without capturing twice. Once funds settle, click **Release retainage** and wait for payout `SUCCESS`. Top-ups are outside agreement/dashboard totals and refuse to run unless `PAYPAL_ENV` is `sandbox`.
 

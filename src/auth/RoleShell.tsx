@@ -88,7 +88,7 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
     content = <PayAppPage payAppId={route.payAppId ?? ""} backHash={back.hash} backLabel={back.label} />;
   }
   else if (route.area === "inbox") content = <ApprovalInbox />;
-  else if (route.area === "judge-demo") content = <JudgeDemoPage />;
+  else if (route.area === "judge-demo") content = <JudgeDemoPage key={route.demoRunId ?? "latest"} initialRunId={route.demoRunId} />;
   else if (route.area === "people") content = <PeoplePage projectId={route.projectId} />;
   else if (route.area === "vendors") content = route.vendorId ? <VendorDetailPage vendorId={route.vendorId} /> : <VendorsPage />;
   else if (route.area === "notifications") content = <NotificationsPage />;

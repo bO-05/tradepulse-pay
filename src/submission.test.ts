@@ -106,12 +106,14 @@ describe("README", () => {
     expect(README).not.toMatch(/https:\/\/brainy-skunk-440/);
   });
 
-  test("names the earnest-mongoose-745 production deployment as the live URL", () => {
+  test("leads with tested recovery judge access and distinguishes production and unresolved AgentID setup", () => {
     const intro = README.slice(0, README.indexOf("\n---\n"));
-    expect(intro).toContain("https://earnest-mongoose-745.convex.site");
-    expect(intro).not.toMatch(/added here after the production deploy/);
-    expect(intro).not.toMatch(/redirect_uri is forbidden/);
-    expect(intro).toContain("AgentID billing-agent sign-in works on the live URL");
+    expect(intro).toContain("https://cheery-axolotl-689.convex.site/#/demo");
+    expect(intro).toContain("not production");
+    expect(intro).toContain("owner-approved client registration");
+    expect(intro).toContain("earnest-mongoose-745");
+    expect(intro).not.toContain("settlement is not");
+    expect(intro).not.toContain("AgentID billing-agent sign-in works on the live URL");
   });
 
   test("states the MIT license, matching LICENSE", () => {

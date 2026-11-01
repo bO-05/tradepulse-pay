@@ -1,0 +1,37 @@
+[
+  {
+    "scene": "guide",
+    "caption": "TradePulse Pay | Actual app, previously settled PayPal sandbox run",
+    "narration": "Construction payments should follow verified progress, not a confident invoice. TradePulse Pay connects awarded scope, AI review, human approval and PayPal settlement. This is the actual recovery app, inspecting a previously settled sandbox run. Judges can enter three public demo roles without signing up."
+  },
+  {
+    "scene": "run",
+    "caption": "A separate run, a stable bookmark, and real settlement states",
+    "narration": "The guided scenario awards fifty five thousand dollars of included scope. Excluded seismic bracing is not added to the subcontract. Each run has its own bookmark and history. The visible steps come from backend records. Fixture submissions and compliance stand ins are labeled, not passed off as real documents."
+  },
+  {
+    "scene": "ledger",
+    "caption": "Captured $2,288 | Paid $2,288 including released retainage | Partial progress only",
+    "narration": "The general contractor authorized fifty five hundred dollars through a real PayPal sandbox checkout. This ledger shows two completed captures totaling two thousand two hundred eighty eight dollars. Successful progress payouts and the later retainage release account for that total. This is partial progress, not completion of the entire contract."
+  },
+  {
+    "scene": "review",
+    "caption": "Overbilled claim $13,500 → model recommendation $320 → GC-approved $288",
+    "narration": "Here is the deliberately overbilled application. The claim was thirteen thousand five hundred dollars. Mistral identified overbilling, excluded scope and out of sequence work. Code computed a three hundred twenty dollar recommendation. The demo general contractor explicitly edited that to two hundred eighty eight dollars before approval. The model never decides the payable dollars by itself."
+  },
+  {
+    "scene": "trace",
+    "caption": "Real Mistral trace | License check and proposal tools | GC authorization required",
+    "narration": "The trace identifies the real Mistral model and its tool calls: check the license, propose capture, and propose payout. Agents create proposals, not unrestricted money transfers. The license result here used a genuine cached CSLB check. Missing legal documents are never made genuine by a successful registry lookup."
+  },
+  {
+    "scene": "owner",
+    "caption": "Separate Owner account | $1,850 change-order invoice PAID",
+    "narration": "The Owner has a separate account and a narrower view. This change order was paid through the real PayPal sandbox invoice page. Its eighteen hundred fifty dollars is Owner revenue, separate from the subcontract award. Pending or unclaimed payouts are not reported as paid."
+  },
+  {
+    "scene": "dashboard",
+    "caption": "AI checks. Code computes. Humans approve. PayPal settles. Try the judge guide.",
+    "narration": "The dashboard reads the same ledger data. A normal React view works without the optional Studio license. Fresh signup, email verification, company onboarding and manual project creation were also tested. Agent ID still needs owner approval, and Studio needs valid licensing for judging. The core PayPal and AI flow is usable now. Open the judge guide, inspect the receipts, or run your own sandbox scenario."
+  }
+]
