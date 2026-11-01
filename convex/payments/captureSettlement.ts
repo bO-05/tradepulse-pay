@@ -4,6 +4,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx } from "../_generated/server";
 import { syncProposalForPayment } from "../payApps/proposalSync";
 import { assertPaymentTransition } from "./stateMachine";
+export { isCaptureCollected } from "./captureMath";
 
 /**
  * Capture settlement (architecture §4/§6): a payout is only sent for a capture PayPal reports COMPLETED.
@@ -15,11 +16,6 @@ const DENIED_CAPTURE_STATUSES: readonly string[] = ["DENIED", "DECLINED", "FAILE
 
 export function isCaptureDenied(status: string): boolean {
   return DENIED_CAPTURE_STATUSES.includes(status);
-}
-
-/** Whether the platform actually collected the capture, so the release it funds may be paid out. */
-export function isCaptureCollected(status: string): boolean {
-  return status === "COMPLETED";
 }
 
 const SETTLEMENT_EVENT_STATUS: Record<string, string> = {

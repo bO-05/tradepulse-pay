@@ -1,6 +1,7 @@
 import { sumCents } from "../lib/money";
 import { attemptsFor } from "./payoutRetryMath";
 import { APPROVED_PAY_APP_STATUSES, approvedTotalFor } from "../payApps/validation";
+import { isCaptureCollected } from "./captureMath";
 
 /** Approved and paid rows must carry their final approval (see payApps/billingHistory.ts). */
 export type LedgerPayApp = {
@@ -26,7 +27,7 @@ export type LedgerTotals = {
   billedCents: number;
   /** Authorized on the GC's card and not yet captured (authorized + partially captured remainders). */
   fundedCents: number;
-  /** Captured from milestone authorizations into the platform account. */
+  /** Confirmed COMPLETED captures from milestone authorizations; pending/refunded/unknown are excluded. */
   capturedCents: number;
   /** Captured, but no payout for that release has succeeded yet (pending, failed or awaiting retry). */
   capturedNotPaidCents: number;
@@ -45,7 +46,6 @@ export const BALANCE_FORMULA = "Balance = contract sum to date − (paid + retai
 
 const PAID_PAYMENT_KINDS = new Set(["payout", "retainage_release"]);
 const OPEN_AUTHORIZATION_STATUSES = new Set(["authorized", "partially_captured"]);
-const VOID_CAPTURE_STATUSES = new Set(["DENIED", "DECLINED", "FAILED"]);
 
 export function retainageReleaseIds(payments: readonly LedgerPayment[]): Set<string | undefined> {
   return new Set(payments.filter((p) => p.kind === "retainage_release").map((p) => p._id));
@@ -63,7 +63,7 @@ export function retainageReleasedCentsOf(row: LedgerRetainageRow, releaseIds: Se
 
 /**
  * Billed = approved pay applications at their final GC-approved amount; funded = open authorization
- * remainders; captured = recorded captures; paid = net of successful payouts and retainage releases;
+ * remainders; captured = confirmed completed captures; paid = net of successful payouts and retainage releases;
  * retainage held = ledger balance; balance = contract sum to date − (paid + retainage held).
  */
 export function computeLedgerTotals(input: {
@@ -84,7 +84,7 @@ export function computeLedgerTotals(input: {
       .filter((p) => OPEN_AUTHORIZATION_STATUSES.has(p.status))
       .map((p) => (p.grossCents ?? p.netCents) - (p.capturedCents ?? 0)),
   );
-  const captures = funding.flatMap((p) => p.captures ?? []).filter((c) => !VOID_CAPTURE_STATUSES.has(c.status));
+  const captures = funding.flatMap((p) => p.captures ?? []).filter((c) => isCaptureCollected(c.status));
   const capturedCents = sumCents(captures.map((c) => c.amountCents));
   const payouts = input.payments.filter((p) => p.kind === "payout") as (LedgerPayment & { _id: string })[];
   const releasePaid = (rootId: string) => attemptsFor(payouts, rootId).some((a) => a.status === "success");

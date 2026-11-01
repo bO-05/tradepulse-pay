@@ -27,7 +27,8 @@ export const DEMO_EXCLUSION = {
   isWaived: false,
 } as const;
 
-export const DEMO_CONTRACT_SUM = DEMO_LINE_ITEMS.reduce((a, l) => a + l.totalCost, 0) + DEMO_EXCLUSION.costImpact;
+// Exclusion plugs are comparison-only: the award contains only the base scope.
+export const DEMO_CONTRACT_SUM = DEMO_LINE_ITEMS.reduce((a, l) => a + l.totalCost, 0);
 
 export type DemoPayAppKind = "honest" | "agent";
 
@@ -35,20 +36,22 @@ export type DemoPayAppKind = "honest" | "agent";
 export const DEMO_TARGET_PCT: Record<DemoPayAppKind, { base: number; closeout: number; excluded: number }> = {
   // Within what a funded Mobilization supports; nothing on closeout or excluded scope.
   honest: { base: 4, closeout: 0, excluded: 0 },
-  // Far ahead of the milestones, closeout work billed early, and the excluded seismic bracing billed in full.
+  // Far ahead of the milestones, closeout work billed early, with excluded work hidden in a base-line claim.
+  // `excluded` supports legacy SOV fixtures; fresh awards never create excluded SOV lines.
   agent: { base: 30, closeout: 10, excluded: 100 },
 };
 
 export const DEMO_PAY_APP_TEXT: Record<DemoPayAppKind, { periodLabel: string; notes: string; lienWaiver: boolean }> = {
   honest: {
     periodLabel: "Judge demo · Period 1 (honest)",
-    notes: "Judge demo stand-in for sub1: early mobilization progress on the base scope. Conditional lien waiver attached.",
+    notes: "Judge demo stand-in for sub1: early mobilization progress on the base scope. Demo conditional lien-waiver flag only; no legal document uploaded.",
     lienWaiver: true,
   },
   agent: {
     periodLabel: "Judge demo · Period 2 (billing agent)",
     notes:
-      "Judge demo stand-in for the billing agent: claims 30% on the base scope, early closeout testing and the full seismic bracing line.",
+      "Judge demo stand-in for the billing agent: claims 30% on the base scope and early closeout testing. " +
+      "Line 2: branch conduit & wire feeder claim includes $4,500 seismic bracing (excluded scope), hidden within the claimed base-line amount, not added to the contract.",
     lienWaiver: false,
   },
 };

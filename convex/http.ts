@@ -1,5 +1,5 @@
 import { httpRouter } from "convex/server";
-import { httpAction } from "./_generated/server";
+import { env, httpAction } from "./_generated/server";
 import { registerStaticRoutes } from "@convex-dev/static-hosting";
 import { components } from "./_generated/api";
 import { agentmailWebhook } from "./agentmailWebhook";
@@ -24,7 +24,7 @@ http.route({
   handler: paypalWebhook,
 });
 
-// AG Studio chat LLM proxy: requires the Convex Auth token (GC or owner); the Anthropic key stays server-side.
+// AG Studio chat LLM proxy: requires the Convex Auth token (GC or owner); provider keys stay server-side.
 http.route({ path: "/ai/studio", method: "POST", handler: studioProxy });
 http.route({ path: "/ai/studio", method: "OPTIONS", handler: studioPreflight });
 
@@ -69,6 +69,16 @@ http.route({
       },
     });
   }),
+});
+
+// Public sign-in capability flag only. No credentials, identity or tenant data.
+http.route({
+  path: "/api/sign-in-options",
+  method: "GET",
+  handler: httpAction(async () => new Response(
+    JSON.stringify({ agentIdConfigured: Boolean(env.AUTH_AGENTID_ID?.trim() && env.AUTH_AGENTID_SECRET?.trim()) }),
+    { headers: { "Content-Type": "application/json", "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" } },
+  )),
 });
 
 // Health check endpoint

@@ -174,7 +174,7 @@ A sub's portal and agreement summary include a read-only **Milestone funding** s
 There is no buyer password. Fund milestones and pay invoices with PayPal guest checkout:
 
 - Choose **Debit or Credit Card** in the PayPal window.
-- Card `4032031427005060`, expiry `01/29`, CVV `480`. Any name and address.
+- Card `4032031427005060`, expiry `01/29`, CVV `480`. Use synthetic sandbox buyer details, never a real card. Select United States for this US test card.
 - If PayPal offers to create an account, turn off "Save info & create your PayPal account" and continue as guest.
 
 The PayPal sandbox sends no real emails and moves no real money.
@@ -196,25 +196,26 @@ The AgentID client is registered per deployment with the redirect URI `https://<
 
 ## TradePulse Pay judge demo (PayPal sandbox, about 1–3 minutes)
 
-Sign in as `gc@demo.tradepulse`, open the **Demo simulator** and click **Run TradePulse Pay demo** (or use the **Guided demo** item in the navigation). The simulator, guided tour, guided demo and model checks exist only for the Demo company and are labeled "Demo"; real companies never see them. Each run creates a fresh, labeled demo award for sub1's contractor (Rosendin Electric, $59,500 with an excluded $4,500 seismic bracing line) and then uses the app's regular functions:
+Sign in as `gc@demo.tradepulse`, open the **Demo simulator** and click **Run TradePulse Pay demo** (or use the **Guided demo** item in the navigation). The simulator, guided tour, guided demo and model checks exist only for the Demo company and are labeled "Demo"; real companies never see them. Each run creates a fresh, labeled demo award for sub1's contractor (Rosendin Electric, $55,000). The $4,500 seismic-bracing exclusion is a comparison-only plug and an agreement note, never part of the payable contract or SOV. Fresh runs include marked, fileless demo compliance fixtures, not proof of real insurance, tax or licensing compliance. The demo then uses the app's regular functions:
 
 1. Execute the agreement; the schedule of values and four milestones are generated.
-2. **You** fund Mobilization ($5,950.00) in the PayPal popup with the guest card above. The demo waits for the real authorization.
+2. **You** fund Mobilization ($5,500.00) in the PayPal popup with the guest card above. The demo waits for the real authorization.
 3. The demo files two pay applications as stand-ins: an honest one for sub1 and an overbilled one (billing early closeout work and the excluded scope, no lien waiver) for the billing agent `boldlevel182@agentmail.to`. Both are labeled **"Judge demo · filed by <GC>"** on every screen.
-4. AI review (Anthropic; code computes every dollar), the KERNEL CSLB license check, and the pay agent's capture and payout proposals.
+4. AI review (the configured Anthropic or Mistral provider; code computes every dollar), the KERNEL CSLB license check, and the pay agent's capture and payout proposals.
 5. The GC approves the honest pay app as proposed and edits the agent's proposal down to 90% before approving. PayPal captures from the authorization and pays sub1 90% net; 10% goes to the retainage ledger.
 6. A $1,850.00 change order is invoiced to the Owner through PayPal Invoicing. The dashboard step turns green once its totals match the ledger.
 7. **The Owner** pays the invoice in their own browser (sign in as `owner@demo.tradepulse`, **Projects & change orders**, **Open PayPal invoice**, pay with the guest card and a guest email), then clicks **Refresh status**.
 
 The page shows each step's status from Convex and PayPal, and the time from start to the change-order invoice. "Continue this run" resumes after a reload or re-sign-in, including a change order left as a draft; that step finishes only once the invoice is sent and has a payer link.
 
-**Sandbox-only setup step: top up the platform balance before releasing retainage.** PayPal keeps about 3.5% + $0.49 of every capture, so after paying subs 90% the sandbox platform account holds less than the retainage it owes, and a retainage release fails with `INSUFFICIENT_FUNDS`. The demo page's optional closeout section has a GC-only **Sandbox setup: top up the platform balance** panel (`payments/sandboxTopUp:createTopUpOrder` / `captureTopUpOrder`). It creates a PayPal CAPTURE order (suggested amount: 110% of the retainage held), opens the PayPal checkout in a new tab (pay as guest with the card above), and then **Capture top-up** moves the funds into the platform account. If PayPal reports the capture as `PENDING`, the top-up stays pending and does not count as funding; **Check capture status** reads the same capture again (it never captures twice) until PayPal marks it `COMPLETED` or denies it. Wait about 15 s, then click **Release retainage**. The top-up is not linked to any agreement and is never counted in ledger or dashboard totals. It refuses to run unless `PAYPAL_ENV` is `sandbox`.
+**Optional sandbox closeout: release retainage when the platform has enough balance.** PayPal's fees reduce the cash left after captures, so a retainage payout can fail with `INSUFFICIENT_FUNDS`. A paid Owner invoice may provide sufficient sandbox balance; a separate top-up is not always necessary. Otherwise, use the GC-only **Sandbox setup: top up the platform balance** panel. It creates a sandbox CAPTURE order, opens checkout for real guest approval, and requires **Capture top-up** afterward. A `PENDING` capture is not funding: **Check capture status** reads the same capture without capturing twice. Once funds settle, click **Release retainage** and wait for payout `SUCCESS`. Top-ups are outside agreement/dashboard totals and refuse to run unless `PAYPAL_ENV` is `sandbox`.
 
 ### Agreement ledger totals
 
 The ledger (`#/payments/<agreementId>`) shows these totals, all in integer cents formatted as dollars:
 
 - **Paid** = net of successful payouts plus successful retainage releases.
+- **Captured** = confirmed `COMPLETED`, unrefunded captures. Pending, denied, refunded, partially refunded and unknown statuses do not prove collected funds.
 - **Retainage held** = balance of the retainage ledger (credits on accepted payouts, debits on releases).
 - **Balance** = contract sum to date (original contract sum plus approved change orders) − (paid + retainage held). The same formula is printed under the totals.
 - Reconciliation row: funded but not captured, captured, captured but not paid out (for example a failed payout waiting for "Retry payout"), retainage released, and change orders invoiced and paid.
@@ -227,10 +228,10 @@ Funded authorizations are watched hourly (`convex/crons.ts`): after the 3-day ho
 
 | Integration | Live behavior | Fallback or limit (labeled in the app) |
 |---|---|---|
-| PayPal (sandbox) | Orders `AUTHORIZE`, authorize, capture, void, reauthorize; Payouts; Invoicing v2; webhook signature verification. All real sandbox calls. | Sandbox only. An unverified webhook gets 400 and is recorded `verified=false`. PayPal's webhook simulator events fail verification by design. Retainage release needs the sandbox top-up above. |
+| PayPal (sandbox) | Orders `AUTHORIZE`, authorize, capture, void, reauthorize; Payouts; Invoicing v2; webhook signature verification. All real sandbox calls. | Sandbox only. An unverified webhook gets 400 and is recorded `verified=false`. PayPal's webhook simulator events fail verification by design. Retainage release needs sufficient sandbox balance; a top-up is available if needed. |
 | Mistral / Anthropic | The selected provider handles pay-app review, pay-agent tools and the AG Studio chat proxy. Mistral uses `MISTRAL_MODEL`; Anthropic uses `ANTHROPIC_MODEL`. | A missing key or provider failure keeps reviews and the agent explicitly on **"Offline rules engine"**. Studio returns an error rather than pretending to run AI. Provider availability and API credit must be verified separately. |
 | KERNEL | Hosted browser runs the CSLB license lookup, with the live view embedded in the inbox. Results are cached 24 h. | On timeout or failure the check is **"unverified"**; a license is never shown as verified unless CSLB returned it. |
-| AgentID | Billing-agent sign-in (OIDC, PKCE) on the deployment whose redirect URI is registered. | Unlinked agents get "Agent not authorized". Each new deployment needs its redirect URI registered. |
+| AgentID | Billing-agent sign-in (OIDC, PKCE) on the deployment whose redirect URI is registered. | Unlinked agents get "Agent not authorized". Recovery sign-in is disabled until new owner-approved client credentials are configured; existing clients are preserved. |
 | AgentMail | Inbox identity for billing agents; RFQ inboxes and outbound email for procurement. | The free plan is at its 3-inbox limit, so new trade packages reuse an existing inbox and the UI labels it **shared**. Inbound `/agentmail/webhook` requires `AGENTMAIL_WEBHOOK_SECRET` (Svix verification) and returns 503 when it is not set. |
 | Firecrawl | Subcontractor discovery by web search, with per-record provenance. | When a search returns nothing usable, no records are created; records stay "Unverified" unless the source is a registry page. |
 | AG Studio | Licensed payments dashboard and chat agent; the original trial expires 20 Nov 2026. | Chat requires the configured model provider. A basic React ledger remains available without Studio licensing; it does not imitate Studio chat. |
@@ -243,7 +244,7 @@ Funded authorizations are watched hourly (`convex/crons.ts`): after the 3-day ho
 | Tool | How TradePulse Pay uses it |
 |---|---|
 | **PayPal** | `@paypal/paypal-server-sdk@2.5.0` for Orders and Payments (`convex/payments/paypalClient.ts`, `orders.ts`); plain REST for Payouts, Invoicing v2 and webhook verification (`payouts.ts`, `invoices.ts`, `webhook.ts`); `@paypal/react-paypal-js@10.6.0` buttons for funding (`src/payments/FundMilestone.tsx`); `@paypal/agent-toolkit@1.11.0` read-only tools (`list_invoices`, `get_invoice`, `get_order`, `list_transactions`) wrapped for AI SDK v7 in `convex/agent/tools.ts`. |
-| **Anthropic** | Claude through `ai@7` and `@ai-sdk/anthropic@4` for structured pay-app verdicts (`convex/payApps/review.ts`) and the pay agent tool loop (`convex/agent/`); the `/ai/studio` HTTP action proxies AG Studio chat to the Anthropic Messages API so the key stays server-side. |
+| **Anthropic** | When selected, Claude through `ai@7` and `@ai-sdk/anthropic@4` supplies structured pay-app verdicts and pay-agent tools. The shared `/ai/studio` proxy uses the configured provider and keeps its key server-side. |
 | **Mistral** | `@ai-sdk/mistral@4` supplies structured pay-app reviews and bounded agent tool calls. The selected provider also serves dashboard chat and procurement reasoning. The funded API key stays server-side; no GPU hosting is required. |
 | **AG Studio** | `ag-studio-react@3.0.0` and `ag-studio@3.0.0` render the lazy-loaded payments dashboard (`src/dashboard/`) from reactive Convex queries, with custom widgets and a "TradePulse pay agent" that delegates to AG's built-in agents. |
 | **APIMatic** | The APIMatic Context Plugin (MCP) was queried while writing the PayPal Server SDK code. Every lookup and the code it informed is in [`docs/apimatic-log.md`](./docs/apimatic-log.md). It covers Orders and Payments only; the app never calls it at runtime. |

@@ -182,6 +182,18 @@ describe("default milestones", () => {
 });
 
 describe("computeLedgerTotals", () => {
+  test.each(["PENDING", "DENIED", "DECLINED", "FAILED", "REFUNDED", "PARTIALLY_REFUNDED", "", "UNKNOWN"])(
+    "%s captures are not collected cash or captured-not-paid",
+    (status) => {
+      const totals = computeLedgerTotals({
+        contractSumCents: 1_000_000, payApps: [], retainage: [],
+        payments: [{ kind: "funding", status: "partially_captured", grossCents: 1_000_000, netCents: 1_000_000,
+          capturedCents: 600_000, captures: [{ amountCents: 600_000, status }] }],
+      });
+      expect(totals).toMatchObject({ capturedCents: 0, capturedNotPaidCents: 0, paidCents: 0,
+        retainageHeldCents: 0, fundedCents: 400_000 });
+    },
+  );
   const ZERO = {
     billedCents: 0,
     fundedCents: 0,

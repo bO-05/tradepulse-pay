@@ -5,7 +5,12 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import schema from "../schema";
 import { signInAs } from "../lib/testIdentity";
-import { DEMO_BILLING_AGENT_EMAIL, DEMO_CONTRACT_SUM } from "./scenario";
+import { DEMO_BILLING_AGENT_EMAIL, DEMO_CONTRACT_SUM, DEMO_EXCLUSION, DEMO_LINE_ITEMS } from "./scenario";
+import { buildTenancyFixture } from "../lib/tenancyFixtures";
+import { ensureDemoProjectCompliance } from "../compliance/demoSeed";
+import { complianceForAgreement } from "../compliance/status";
+import { buildReviewContext } from "../payApps/reviewContext";
+import { contextExcludedScopeClaims, finalizeReview, rulesEngineJudgement } from "../payApps/reviewMath";
 
 const modules = import.meta.glob("/convex/**/*.ts");
 
@@ -42,6 +47,111 @@ async function errorOf(p: Promise<unknown>): Promise<{ code?: string; message?: 
 }
 
 describe("judge demo runs", () => {
+  test("a real GC cannot start a run or seed demo compliance", async () => {
+    const t = convexTest(schema, modules);
+    const f = await buildTenancyFixture(t);
+    expect((await errorOf(f.gcA.admin.as.mutation(api.judgeDemo.runs.startRun, {}))).code).toBe("NOT_FOUND");
+    expect(await t.run((ctx) => ctx.db.query("judgeDemoRuns").collect())).toHaveLength(0);
+    expect(await t.run((ctx) => ctx.db.query("complianceItems").collect())).toHaveLength(0);
+  });
+
+  test("a fresh run seeds scoped compliance and uses normal award, SOV and excluded-claim review rules", async () => {
+    const t = convexTest(schema, modules);
+    const f = await buildTenancyFixture(t);
+    const subCompanyId = f.demo.companyIds["sub:rosendin"];
+    await t.run(async (ctx) => {
+      const contractorId = f.demo.project.contractorId;
+      const vendorId = await ctx.db.insert("vendors", {
+        companyId: f.demo.companyIds.gc, name: "Demo Rosendin", trades: ["26 00 00"],
+        contactName: "Demo", email: "demo@example.invalid", linkedCompanyId: subCompanyId,
+        status: "active", createdAt: Date.now(),
+      });
+      await ctx.db.patch(contractorId, { linkedCompanyId: subCompanyId, vendorId, licenseNumber: "1000000" });
+      const userId = await ctx.db.insert("users", { email: "sub1@demo.tradepulse", emailVerificationTime: Date.now() });
+      await ctx.db.insert("userProfiles", {
+        userId, role: "sub", displayName: "Demo sub", contractorId, companyId: subCompanyId, createdAt: Date.now(),
+      });
+    });
+    // Use the raw authenticated fixture accessor: no legacy test helper may repair tenancy after startRun.
+    const { runId, agreementId } = await f.demo.gc.as.mutation(api.judgeDemo.runs.startRun, {});
+    const before = await t.run(async (ctx) => {
+      const agreement = (await ctx.db.get(agreementId))!;
+      return {
+        agreement, compliance: await complianceForAgreement(ctx, agreement),
+        items: await ctx.db.query("complianceItems").collect(),
+        licenseChecks: await ctx.db.query("licenseChecks").collect(),
+      };
+    });
+    expect(before.compliance?.result.status).toBe("compliant");
+    expect(before.items).toHaveLength(3);
+    expect(before.items.every((r) => r.projectId === before.agreement.projectId &&
+      r.demoRecord === true && r.status === "accepted" && r.documentId === undefined)).toBe(true);
+    expect(before.items.find((r) => r.kind === "license")?.license?.verification).toBe("unverified");
+    expect(before.licenseChecks).toHaveLength(0);
+    expect(before.agreement).toMatchObject({
+      contractSum: 55_000, contractSumCents: 5_500_000, baseBidCents: 5_500_000,
+      acceptedAlternates: [], declinedAlternates: [], veDeducts: [],
+      excludedScopeNotes: [DEMO_EXCLUSION.description],
+    });
+    expect(await t.run((ctx) => ctx.db.get(before.agreement.bidId))).toMatchObject({
+      baseAmountCents: 5_500_000, leveledTotalCents: 5_950_000,
+    });
+    expect(await t.run((ctx) => ensureDemoProjectCompliance(ctx, f.demo.companyIds, before.agreement.projectId, f.demo.gc.userId)))
+      .toEqual({ itemsCreated: 0 });
+    await f.demo.gc.as.mutation(api.agreements.executeAgreement, { agreementId });
+    const payAppId = await f.demo.gc.as.mutation(api.judgeDemo.runs.fileDemoPayApp, { runId, kind: "honest" });
+    expect(await t.run((ctx) => ctx.db.get(payAppId))).toMatchObject({ judgeDemo: { runId } });
+    const agentId = await f.demo.gc.as.mutation(api.judgeDemo.runs.fileDemoPayApp, { runId, kind: "agent" });
+    const reviewInput = await t.run(async (ctx) => {
+      const agreement = (await ctx.db.get(agreementId))!;
+      const payApp = (await ctx.db.get(agentId))!;
+      const sov = await ctx.db.query("scheduleOfValues")
+        .withIndex("by_agreementId_and_lineNo", (q) => q.eq("agreementId", agreementId)).collect();
+      const milestones = await ctx.db.query("milestones")
+        .withIndex("by_agreementId_and_order", (q) => q.eq("agreementId", agreementId)).collect();
+      const agreementPayApps = await ctx.db.query("payApplications")
+        .withIndex("by_agreementId", (q) => q.eq("agreementId", agreementId)).collect();
+      return { agreement, payApp, sov, milestones, agreementPayApps };
+    });
+    expect(reviewInput.sov).toHaveLength(4);
+    expect(reviewInput.sov.map((line) => [line.description, line.scheduledValueCents, line.excludedScope]))
+      .toEqual(DEMO_LINE_ITEMS.map((line) => [line.item, line.totalCost * 100, false]));
+    expect(reviewInput.sov.reduce((sum, line) => sum + line.scheduledValueCents, 0)).toBe(5_500_000);
+    expect(reviewInput.sov.some((line) => /seismic|exclusion|plug/i.test(line.description))).toBe(false);
+    expect(reviewInput.milestones.find((m) => m.name === "Mobilization")?.amountCents).toBe(550_000);
+    expect(reviewInput.payApp.notes).toContain("Line 2: branch conduit & wire feeder claim includes $4,500 seismic bracing");
+    // No provider calls or simulated funding: review the actual freshly stored rows with normal deterministic policy.
+    const context = buildReviewContext({ ...reviewInput, license: null });
+    const feeder = context.lines.find((line) => line.lineNo === 2)!;
+    expect(feeder.requestedCents).toBeGreaterThan(450_000);
+    expect(feeder.excludedScope).toBe(false);
+    const claims = contextExcludedScopeClaims(context);
+    expect([...claims.byLine.keys()]).toEqual([feeder.sovLineId]);
+    expect(claims.unattributed).toHaveLength(0);
+    const judgement = rulesEngineJudgement(context);
+    const reviewed = finalizeReview(context, judgement);
+    expect(reviewed.lines.find((line) => line.sovLineId === feeder.sovLineId)).toMatchObject({
+      verdict: "excluded_scope", approvedCents: 0, recommendedPctToDate: 0,
+    });
+    const switchboardId = context.lines.find((line) => line.lineNo === 1)!.sovLineId;
+    const closeoutId = context.lines.find((line) => line.lineNo === 4)!.sovLineId;
+    expect(judgement.lines.find((line) => line.sovLineId === switchboardId)?.verdict)
+      .toBe("overbilled");
+    expect(judgement.lines.find((line) => line.sovLineId === closeoutId)?.verdict)
+      .toBe("out_of_sequence");
+    expect(reviewed.flags.licenseStatus).toBe("none");
+    expect(await t.run((ctx) => ctx.db.query("payments").collect())).toHaveLength(0);
+    const next = await f.demo.gc.as.mutation(api.judgeDemo.runs.startRun, {});
+    const after = await t.run(async (ctx) => ({
+      items: await ctx.db.query("complianceItems").collect(),
+      agreement: (await ctx.db.get(next.agreementId))!,
+    }));
+    expect(after.items).toHaveLength(6);
+    expect(after.items.filter((r) => r.projectId === after.agreement.projectId)).toHaveLength(3);
+    expect(after.items.filter((r) => r.projectId === before.agreement.projectId)).toEqual(before.items);
+    expect(after.items.some((r) => r.projectId === f.demo.project.projectId || r.projectId === f.gcA.project.projectId)).toBe(false);
+  });
+
   test("only the GC can start a run", async () => {
     const { t, sub1, owner } = await setup();
     expect((await errorOf(sub1.as.mutation(api.judgeDemo.runs.startRun, {}))).code).toBe("FORBIDDEN");

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { DEMO_CHANGE_ORDER, DEMO_CONTRACT_SUM, demoAgreementNumber, demoEditedApprovalCents, demoPayAppLines, type DemoSovLine } from "./scenario";
+import { DEMO_CHANGE_ORDER, DEMO_CONTRACT_SUM, DEMO_EXCLUSION, DEMO_LINE_ITEMS, DEMO_PAY_APP_TEXT, demoAgreementNumber, demoEditedApprovalCents, demoPayAppLines, type DemoSovLine } from "./scenario";
 
 const sov: DemoSovLine[] = [
   { _id: "a", description: "1600A main switchboard & transformers", excludedScope: false, scheduledValueCents: 2_200_000, previouslyBilledCents: 0, previousPctToDate: 0, pendingRequestedCents: 0, remainingCents: 2_200_000 },
@@ -8,8 +8,22 @@ const sov: DemoSovLine[] = [
 ];
 
 describe("judge demo scenario", () => {
-  test("contract sum includes the excluded seismic line", () => {
-    expect(DEMO_CONTRACT_SUM).toBe(59_500);
+  test("contract sum contains only base scope, never the comparison-only exclusion plug", () => {
+    expect(DEMO_CONTRACT_SUM).toBe(55_000);
+    expect(DEMO_CONTRACT_SUM).toBe(DEMO_LINE_ITEMS.reduce((sum, line) => sum + line.totalCost, 0));
+    expect(DEMO_CONTRACT_SUM + DEMO_EXCLUSION.costImpact).toBe(59_500);
+  });
+
+  test("agent notes attribute excluded work to the existing feeder line, not a fictitious SOV line", () => {
+    expect(DEMO_LINE_ITEMS[1].item).toBe("Branch conduit & wire feeder runs");
+    expect(DEMO_PAY_APP_TEXT.agent.notes).toContain("Line 2: branch conduit & wire feeder claim includes $4,500 seismic bracing");
+    expect(DEMO_PAY_APP_TEXT.agent.notes).toContain("not added to the contract");
+    expect(DEMO_PAY_APP_TEXT.agent.notes).not.toContain("full seismic bracing line");
+  });
+
+  test("waiver fixture notes never claim an uploaded legal document", () => {
+    expect(DEMO_PAY_APP_TEXT.honest.notes).toContain("no legal document uploaded");
+    expect(DEMO_PAY_APP_TEXT.honest.notes).not.toContain("waiver attached");
   });
 
   test("honest pay app bills 4% of base scope only", () => {
@@ -17,7 +31,7 @@ describe("judge demo scenario", () => {
     expect(lines).toEqual([{ sovLineId: "a", pctCompleteThisPeriod: 4, pctCompleteToDate: 4, requestedCents: 88_000 }]);
   });
 
-  test("agent pay app overbills base, closeout and the full excluded line", () => {
+  test("legacy SOV fixtures still support base, closeout and explicit excluded-line claims", () => {
     const lines = demoPayAppLines("agent", sov);
     expect(lines.map((l) => [l.sovLineId, l.pctCompleteToDate, l.requestedCents])).toEqual([
       ["a", 30, 660_000],

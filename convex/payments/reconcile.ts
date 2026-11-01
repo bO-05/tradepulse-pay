@@ -48,7 +48,7 @@ function rawSums(rows: Rows) {
     if (p.kind === "funding") {
       if (p.status === "authorized" || p.status === "partially_captured") funded += p.grossCents - (p.capturedCents ?? 0);
       for (const c of p.captures ?? []) {
-        if (c.status === "DENIED" || c.status === "DECLINED" || c.status === "FAILED") continue;
+        if (c.status !== "COMPLETED") continue;
         captured += c.amountCents;
         if (!c.releasePaymentId || !paidReleaseRoots.has(c.releasePaymentId)) capturedNotPaid += c.amountCents;
       }

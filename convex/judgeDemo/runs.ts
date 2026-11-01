@@ -21,6 +21,8 @@ import {
   demoPayAppLines,
 } from "./scenario";
 import { seededProposalBidRow } from "../lib/bidMoney";
+import { ensureDemoProjectCompliance } from "../compliance/demoSeed";
+import { agreementAwardFields, computeAwardSum, excludedScopeNotesFor } from "../lib/awardMath";
 
 /**
  * One-click TradePulse Pay judge demo, Demo company GC only (everyone else gets "Not found."). Each run creates a fresh, clearly labeled demo award for
@@ -96,6 +98,7 @@ async function ensureAgentLink(ctx: MutationCtx, contractorId: Id<"contractors">
 /** Starts a run: a demo project, trade package, awarded bid and a generated (not yet executed) agreement. */
 export const startRun = mutation({
   args: {},
+  returns: v.object({ runId: v.id("judgeDemoRuns"), agreementId: v.id("agreements"), agreementNumber: v.string() }),
   handler: async (ctx) => {
     await requireDemoCompany(ctx, ["gc"]);
     const viewer = await requireRole(ctx, ["gc"]);
@@ -146,10 +149,11 @@ export const startRun = mutation({
       leadTimePenalty: 0,
       coiComplianceStatus: "compliant",
       coiPenalty: 0,
-      leveledTotalCost: DEMO_CONTRACT_SUM,
+      leveledTotalCost: baseBid + DEMO_EXCLUSION.costImpact,
       isAwarded: true,
       receivedAt: now,
     }));
+    const awardedBid = (await ctx.db.get(bidId))!;
     const agreementId = await ctx.db.insert("agreements", {
       projectId,
       tradePackageId,
@@ -163,7 +167,7 @@ export const startRun = mutation({
       projectLocation: "Austin, TX",
       csiDivision: "26 00 00",
       tradeName: "Electrical & Lighting Systems",
-      contractSum: DEMO_CONTRACT_SUM,
+      ...agreementAwardFields(computeAwardSum(awardedBid, []), excludedScopeNotesFor(awardedBid)),
       retainagePercent: RETAINAGE_PERCENT,
       liquidatedDamagesDaily: 0,
       scopeSummary: scope,
@@ -193,7 +197,9 @@ export const startRun = mutation({
       actor: gcEmail,
       timestamp: now,
     });
-    await attachProjectToDemo(ctx, projectId);
+    const demoCompanies = await ensureDemoCompanies(ctx);
+    await attachProjectToDemo(ctx, projectId, demoCompanies);
+    await ensureDemoProjectCompliance(ctx, demoCompanies, projectId, viewer.userId);
     return { runId, agreementId, agreementNumber };
   },
 });

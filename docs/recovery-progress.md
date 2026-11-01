@@ -14,17 +14,17 @@ The managed cloud workspace is unavailable. GitHub is the recoverable source bas
 
 ## Verified recovery baseline
 
-- Final full regression: **1,913 tests passed across 139 files** (`evidence/recovery-final-regression.json`). The subsequent native procurement adjustment passed focused router/isolation/guard tests and typechecking.
+- Latest full regression: **1,950 tests passed across 142 files** (`evidence/recovery-final-regression.json`), plus **eight Node safety/integration helper tests**.
 - Frontend provenance/diagnostics follow-up: **42 focused tests passed**, followed by a successful build, guard audit and documentation checks.
 - Production build and TypeScript checks passed.
 - Guard audit: no reported missing tenancy guards.
 - Documentation checks passed; seven historical audit reports rendered offline.
 - Isolated backend deployed with schema validation enabled; frontend uploaded separately.
-- GC, subcontractor and owner demo logins passed; nine read-only routes loaded without browser errors.
+- GC, subcontractor and owner demo logins passed; nine read-only routes loaded without browser errors after the final backend deployment (`evidence/recovery-cheery-axolotl-689.convex.site-2026-11-01T17-42-20-179Z/report.json`). Unconfigured AgentID was disabled with its explanation and email fallback visible.
 - Account-creation and password-reset forms open on the recovery build.
 - PayPal sandbox token acquisition and a $1 AUTHORIZE order creation/read passed through SDK and REST. The order remained `CREATED`: it was not approved, authorized, captured or paid.
 
-These checks do not prove a settled end-to-end payment. Old audit reports are historical evidence, not current functional certification.
+The initial $1 order was not settlement evidence. The subsequent settled sandbox run is documented below. Old audit reports remain historical evidence, not current functional certification.
 
 ## Mistral setup
 
@@ -59,10 +59,54 @@ The browser test exposed three Anthropic-only UI branches that falsely labelled 
 
 The final authenticated provider smoke passed live procurement inference and the streaming proxy (`evidence/recovery-provider-2026-11-01T15-37-43-514Z/report.json`). Procurement uses native Mistral HTTP, handles reasoning/text chunks without exposing private reasoning, and retains task sanitizers. The proxy returned a real `readSandboxStatus` function call with token usage. That test did not execute the tool or certify the licensed Studio UI. Its temporary demo session was revoked.
 
+## Recovery integration and demo follow-up
+
+- Separate recovery PayPal sandbox webhook `24481791EX8761338` is registered at `/paypal/webhook` for the 14 events handled by the app. Its deployment setting was read-back verified. Existing registrations were preserved.
+- Separate AgentMail webhook `ep_3LVo8QcwoP3zBl5cuFIsSFMgAaY` is registered at `/agentmail/webhook` for exactly the two app inboxes and five handled events, without a pod/catchall subscription. The signing secret was verified in memory, and the endpoint reports signature verification enforced. No emails or inbox changes were made during setup.
+- `scripts/qa/recovery-integrations.mjs` defaults to inspection. Its explicit `--apply` mode is fixed to recovery dev and PayPal sandbox, matches registrations by exact URL, preserves existing registrations and writes only the two webhook settings. Three focused helper tests passed.
+- AgentID's official registration flow requires organization-owner approval in the browser. Recovery client credentials remain unset; old clients were not copied. Create a new Other/custom integration in [the AgentID console](https://console.agentid.com/) with callback `https://cheery-axolotl-689.convex.site/api/auth/callback/agentid` and `client_secret_basic`, then set its new `AUTH_AGENTID_ID` and `AUTH_AGENTID_SECRET` directly on recovery dev. See [official automation guidance](https://www.agentid.com/docs/cli#automation). Never send those credentials in chat.
+- Sign-in now checks a public, credential-free configuration boolean and disables AgentID with an explicit explanation when it is unavailable. Configuration presence is not certification of a valid callback. Eleven focused capability/API tests passed.
+- Fresh guided-demo projects now receive only their own marked demo compliance fixtures. Guards require the actual Demo GC/sub companies, matching demo keys, active project membership and consistent vendor ownership. Real companies do not receive those records. Existing records and historical projects are not backfilled by starting a run. Forty-nine focused compliance/run tests passed.
+- The guided demo now names the configured AI provider rather than hardcoding Anthropic, and explains that compliance and conditional-waiver flags are demo fixtures, not uploaded legal documents.
+- At this checkpoint, **1,941 tests passed across 142 files**, the build/typecheck passed, and backend/frontend were published only to recovery dev. The subsequent award-consistency correction requires its own validation.
+- The first fresh checkout exposed an outdated demo award: it included a $4,500 leveling plug in the contract while regular billing correctly omitted excluded SOV lines. `A401-DEMO-PAY-20261101-01` remains unapproved and unfunded, with zero capture/payout. It is preserved as diagnostic evidence, not reused for funding.
+
+## Settled sandbox run, 1 November 2026
+
+`A401-DEMO-PAY-20261101-02` uses the normal award calculation: **$55,000** of base scope, four SOV lines summing to that award, and explicit excluded-scope notes. The $4,500 seismic-bracing plug is comparison-only, not extra payable scope.
+
+- Real guest approval authorized **$5,500** on sandbox order `0WV193651L210315U`, authorization `94G95136J6812154U`.
+- The honest $2,000 pay app received a real Mistral Large 4 review and agent trace. Its capture `4HL52442UH4760109` is `COMPLETED`; payout batch `7VG6NTD87W2JJ` is `SUCCESS` for **$1,800**, with $200 retainage.
+- The overbilled $13,500 claim received a real Mistral recommendation of **$320**. The authenticated guided-demo GC action edited it to **$288** before approval. Capture `9X249756PN047684B` is `COMPLETED`; payout batch `RFQ4YLNXPXL8S` is `SUCCESS` for **$259.20**, with $28.80 retainage. Its reschedule proposal remains pending, not silently approved.
+- The Owner signed in separately, opened its own app invoice link and paid the **$1,850** PayPal invoice `INV2-34SZ-2MQV-HYR9-TCRG` with synthetic guest details and the public test card. PayPal confirmed `PAID`; the Owner row updated. Evidence: `evidence/recovery-settlement-2026-11-01T17-27-07-740Z/report.json`.
+- The GC explicitly used optional **Release retainage**. Batch `SUQPHFZK3KLSG` settled `SUCCESS` for **$228.80**; no separate top-up was needed after the Owner invoice payment. Evidence: `evidence/recovery-settlement-2026-11-01T17-39-45-168Z/report.json`.
+- Independent PayPal GETs matched **all seven** stored authorization/capture/payout/invoice records. The independent ledger recomputation had no mismatches or attention items: `evidence/recovery-paypal-2026-11-01T17-41-24-718Z/report.json`.
+- Eight matching PayPal authorization, capture and payout webhook records were signature-verified and processed. This proves actual delivery processing, not just registration. It does not certify every subscribed event type; Owner invoice payment was independently verified by PayPal GET.
+- Replaying the Owner-payment and retainage paths detected their settled state, opened no duplicate checkout and submitted no second payout. Totals stayed unchanged: `evidence/recovery-settlement-2026-11-01T17-46-43-587Z/report.json`.
+
+Earlier Owner checkout attempts stopped on synthetic-field validation or browser-input errors and did not settle payment. Explicitly clearing prefilled inputs and checking synthetic values fixed the harness. Only the subsequent PayPal-confirmed receipt is counted as paid.
+
+| Final agreement ledger | Amount |
+| --- | ---: |
+| Contract sum | $55,000.00 |
+| Approved / captured | $2,288.00 |
+| Captured but not paid | $0.00 |
+| Paid to sub, including retainage release | $2,288.00 |
+| Retainage held / released | $0.00 / $228.80 |
+| Owner change orders invoiced / paid | $0.00 / $1,850.00 |
+| Uncaptured authorization remainder | $3,212.00 |
+| Contract balance | $52,712.00 |
+
+Dashboard and ledger match. The contract balance remains $55,000 − $2,288; this is partial progress, **not** completion or full payment of the contract. Owner prime-change-order revenue is separate from the subcontract sum. No production money moved.
+
+The current run reused the previous genuine, cached CSLB result; it was not a fresh license lookup. Fileless demo compliance records and the honest pay app's conditional-waiver flag are explicitly labelled fixtures, not legal documents or real compliance certification.
+
+The final ledger fix counts only confirmed `COMPLETED` captures as collected cash. Pending, denied, refunded, partially refunded and unknown statuses are excluded, while consumed authorization capacity remains separate. Eight status cases and pending → completed/denied lifecycle assertions passed. Independent reconciliation applies the same positive status requirement without sharing the sum implementation.
+
 ## Remaining integration work
 
-- Complete guest approval, authorization, capture, payout settlement and ledger reconciliation on the isolated sandbox.
-- Register separate PayPal and AgentMail inbound webhooks and an AgentID callback if those features are needed on recovery dev. Original deployment identifiers were not reused as if registered here.
+- Complete the owner-approved AgentID registration if billing-agent sign-in is needed.
+- AgentMail recovery registration and signature enforcement are verified; an actual inbound delivery was not certified. No test emails were sent.
 - Keep compliance and license gates intact. An unavailable check is not a verified license.
 - The recovery dashboard has an ordinary React ledger view and does not need an AG Studio license. Studio layout/chat still needs valid licensing.
 - Build warnings remain for large frontend chunks. The successful build is not a performance certification.
@@ -81,6 +125,10 @@ npm run verify:reports
 node scripts/qa/recovery-smoke.mjs --url https://cheery-axolotl-689.convex.site/ --demo-login
 node scripts/qa/recovery-ai-smoke.mjs
 node scripts/qa/recovery-provider-smoke.mjs
+node scripts/qa/recovery-integrations.mjs
+node scripts/qa/recovery-settlement-smoke.mjs
 ```
 
-The browser smoke scripts use the public demo accounts only and create fresh browser contexts. By default, neither performs business writes. The AI script inspects the existing recovery fixture and verifies provenance and pending proposals; its explicit `--submit` flag permits a fixture-scoped draft/submission if none exists. The provider script makes two real, potentially billable Mistral calls using a temporary public demo session held only in memory. None of these scripts approves or sends money. Evidence is stored in the ignored `evidence/` directory. PayPal funds remain sandbox-only, and all production changes need an explicit, target-specific release decision.
+The browser smoke scripts use the public demo accounts only and create fresh browser contexts. Their default modes do not perform business writes. The AI script inspects the existing recovery fixture and verifies provenance and pending proposals; its explicit `--submit` flag permits a fixture-scoped draft/submission if none exists. The provider script makes two real, potentially billable Mistral calls using a temporary public demo session held only in memory.
+
+The settlement script is fixed to recovery dev and verifies `PAYPAL_ENV=sandbox`. Its default mode inspects the latest run. **`--start` creates a fresh run; `--resume` drives an existing one. Those modes authorize the guided demo's GC approval/capture/payout actions after real funding.** `--guest` additionally submits the public README sandbox card with synthetic buyer details, never simulates buyer approval, and refuses the outdated award fixture. `--owner-checkout` opens the current invoice through a fresh Owner session without submitting payment; **`--owner-pay` explicitly pays that $1,850 sandbox invoice**, checking the visible total and actual PayPal status. **`--release-retainage` explicitly uses the GC closeout control** only after the demo payouts and Owner invoice settle, then requires payout success. Paid invoices and settled retainage are not submitted twice. Do not interpret an opened checkout, submitted payout, or matching zero totals as settled payment evidence. Evidence is stored in the ignored `evidence/` directory. PayPal funds remain sandbox-only, and all production changes need an explicit, target-specific release decision.

@@ -98,7 +98,7 @@ export function JudgeDemoPage() {
           </span>
         </h1>
         <p className="text-sm text-slate-300">
-          One click runs the full pay-application flow against the real PayPal sandbox, Anthropic and KERNEL: execute a fresh demo
+          One click runs the full pay-application flow against the real PayPal sandbox, the configured AI provider and KERNEL: execute a fresh demo
           agreement (${DEMO_CONTRACT_SUM.toLocaleString("en-US")}, seismic bracing excluded) for sub1's contractor, fund Mobilization, file an
           honest pay app for sub1 and an overbilled one for the billing agent {DEMO_BILLING_AGENT_EMAIL}, run the AI review and the
           CSLB license check, approve (editing the agent's amount down), capture and pay with 10% retainage, and invoice a change
@@ -107,6 +107,7 @@ export function JudgeDemoPage() {
         <p className="text-xs text-amber-200">
           The two pay apps are filed by this demo as stand-ins and are labeled "Guided demo (Demo)" wherever they appear. PayPal approval
           and the Owner's invoice payment are real browser steps; the demo waits for them and never fakes them.
+          {" "}Compliance records are marked demo fixtures without uploaded documents, not proof of real insurance, tax or licensing compliance.
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <button

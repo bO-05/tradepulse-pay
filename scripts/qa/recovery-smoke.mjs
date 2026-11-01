@@ -134,6 +134,17 @@ try {
     report.public.title = sanitize(await page.title());
     report.public.signIn = await hasTextControl(page, "Sign in");
     report.public.agentId = await hasTextControl(page, "Continue with AgentID");
+    await page.waitForFunction(() => !document.querySelector('[data-testid="agentid-availability"]')?.textContent.includes("Checking"),
+      { timeout: 10_000 });
+    report.public.agentIdState = await page.evaluate(() => {
+      const button = [...document.querySelectorAll("button")].find(el => el.textContent.trim() === "Continue with AgentID");
+      const message = document.querySelector('[data-testid="agentid-availability"]')?.textContent ?? "";
+      return { disabled: button?.disabled, missingConfigurationExplained: message.includes("not configured"),
+        emailFallbackExplained: message.includes("Use email sign-in") || message.includes("use email sign-in") };
+    });
+    if (report.public.agentIdState.missingConfigurationExplained && !report.public.agentIdState.disabled) {
+      report.failures.push("Unconfigured AgentID must not be clickable.");
+    }
     report.public.screenshot = await screenshot(page, "public-sign-in");
     report.public.navigation = [];
     for (const label of ["Create account", "Forgot password?"]) {

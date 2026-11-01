@@ -68,6 +68,7 @@ const INLINE_ROUTES = [
   ["GET /agentmail/webhook", "Public status probe; reports only whether a secret is configured"],
   ["GET /llms.txt", "Public by design; static manifest, no data access"],
   ["GET /api/health", "Public by design; static status, no data access"],
+  ["GET /api/sign-in-options", "Public by design; one configuration boolean, no credentials or data access"],
   ["GET /api/project-files/*", "projectFileDownload: Convex Auth bearer token + project access; 401 without a session, 404 \"Not found.\" otherwise"],
   ["GET /api/documents/*", "documents/download: Convex Auth bearer token + access to the document's source record; 401 without a session, 404 \"Not found.\" otherwise"],
   ["GET /specs/*, /drawings/*, /quotes/*, /insurance/*, /files/*, /api/files/*", "Public demo PDFs bundled in code; no data access"],

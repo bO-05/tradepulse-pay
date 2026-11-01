@@ -221,6 +221,11 @@ describe("PENDING captures hold the payout", () => {
     expect(r.payouts[0].status).toBe("capture_pending");
     expect(r.funding.captures?.[0].status).toBe("PENDING");
     expect(r.ledger).toHaveLength(0);
+    const pendingLedger = await gc.as.query(api.payments.ledger.getAgreementLedger, { agreementId: r.funding.agreementId });
+    expect(pendingLedger?.totals).toMatchObject({ capturedCents: 0, capturedNotPaidCents: 0, paidCents: 0 });
+    const pendingReconciliation = await t.query(internal.payments.reconcile.ledgerReconciliation, { agreementId: r.funding.agreementId });
+    expect(pendingReconciliation?.rawSums).toMatchObject({ capturedCents: 0, capturedNotPaidCents: 0 });
+    expect(pendingReconciliation?.mismatches).toEqual([]);
 
     // A repeat click does not pay while the capture is pending.
     const again = await gc.as.action(api.payments.release.resumeRelease, { paymentId: r.payouts[0]._id });
@@ -236,6 +241,11 @@ describe("PENDING captures hold the payout", () => {
     expect(r.funding.captures?.[0].status).toBe("COMPLETED");
     expect(r.ledger).toHaveLength(1);
     expect(r.ledger[0]).toMatchObject({ paymentId: r.payouts[0]._id, deltaCents: 60_000 });
+    const settledLedger = await gc.as.query(api.payments.ledger.getAgreementLedger, { agreementId: r.funding.agreementId });
+    expect(settledLedger?.totals).toMatchObject({ capturedCents: 600_000, capturedNotPaidCents: 0,
+      paidCents: 540_000, retainageHeldCents: 60_000 });
+    const settledReconciliation = await t.query(internal.payments.reconcile.ledgerReconciliation, { agreementId: r.funding.agreementId });
+    expect(settledReconciliation?.mismatches).toEqual([]);
   });
 
   test("PENDING → DENIED fails the release with no payout and no retainage credit", async () => {
@@ -250,6 +260,8 @@ describe("PENDING captures hold the payout", () => {
     expect(r.payouts[0].error).toMatch(/denied/i);
     expect(r.funding.captures?.[0].status).toBe("DECLINED");
     expect(r.ledger).toHaveLength(0);
+    const deniedLedger = await gc.as.query(api.payments.ledger.getAgreementLedger, { agreementId: r.funding.agreementId });
+    expect(deniedLedger?.totals).toMatchObject({ capturedCents: 0, capturedNotPaidCents: 0, paidCents: 0 });
     // A denied capture collected nothing, so "Retry payout" is not offered.
     await expect(gc.as.action(api.payments.payoutRetry.retryPayout, { paymentId: r.payouts[0]._id })).rejects.toThrow();
     expect(payoutPosts()).toHaveLength(0);
