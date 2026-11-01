@@ -1,4 +1,4 @@
-import { createAnthropic } from "@ai-sdk/anthropic";
+import { aiProviderLabel, createAIModel, type AIProvider } from "../lib/aiProvider";
 import { generateText, stepCountIs, type ToolSet } from "ai";
 import { formatCents } from "../lib/money";
 import { OFFLINE_RULES_ENGINE } from "../lib/aiLabels";
@@ -111,18 +111,18 @@ export async function runAgentLoop(args: {
   tools: ToolSet;
   apiKey?: string;
   modelId?: string;
+  provider?: AIProvider;
   generate?: GenerateFn;
 }): Promise<AgentLoopResult> {
   if (!args.apiKey || !args.modelId) {
     return { provider: OFFLINE_RULES_ENGINE, model: "none", text: "", steps: 0, inputTokens: 0, outputTokens: 0, fallbackReason: "No AI provider is configured." };
   }
   const generate = args.generate ?? generateText;
-  const anthropic = createAnthropic({ apiKey: args.apiKey });
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS);
   try {
     const result = await generate({
-      model: anthropic(args.modelId),
+      model: createAIModel({ provider: args.provider ?? "anthropic", apiKey: args.apiKey, modelId: args.modelId }),
       system: args.system,
       prompt: args.prompt,
       tools: args.tools,
@@ -132,7 +132,7 @@ export async function runAgentLoop(args: {
       abortSignal: controller.signal,
     });
     return {
-      provider: "Anthropic",
+      provider: aiProviderLabel(args.provider ?? "anthropic"),
       model: result.response?.modelId || args.modelId,
       text: result.text ?? "",
       steps: result.steps?.length ?? 0,

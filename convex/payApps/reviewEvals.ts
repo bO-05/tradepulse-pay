@@ -6,6 +6,7 @@ import { requireDemoCompany } from "../lib/projectScope";
 import { requireDemoCompanyInAction } from "../lib/tenancyAction";
 import { PAY_APP_REVIEW_FIXTURES, type PayAppReviewFixture } from "./reviewEvalFixtures";
 import { runPayAppReview, type ModelCaller, type ReviewRun } from "./reviewModel";
+import { getAIConfiguration, type AIConfiguration, type AIProvider } from "../lib/aiProvider";
 
 export const PAY_APP_REVIEW_SUITE = "pay_app_review";
 
@@ -55,7 +56,7 @@ export function suiteProvenance(scores: readonly FixtureScore[]): { provider: st
 }
 
 export async function evaluateFixtures(
-  env: { apiKey?: string; modelId?: string },
+  env: Omit<AIConfiguration, "provider"> & { provider?: AIProvider },
   deps: { callModel?: ModelCaller } = {},
 ): Promise<{ fixture: PayAppReviewFixture; run: ReviewRun; score: FixtureScore }[]> {
   const out = [];
@@ -132,7 +133,7 @@ export async function executePayAppReviewSuite(
   runId: string = `eval_payapp_${Date.now()}`,
 ): Promise<PayAppReviewSuiteResult> {
   const started = Date.now();
-  const results = await evaluateFixtures({ apiKey: process.env.ANTHROPIC_API_KEY, modelId: process.env.ANTHROPIC_MODEL });
+  const results = await evaluateFixtures(getAIConfiguration());
   for (const { fixture, run, score } of results) {
     await ctx.runMutation(internal.evals.recordAgentTrace, {
       runId,

@@ -75,6 +75,7 @@ LITERALS=(ANTHROPIC_MODEL SITE_URL EMAIL_DAILY_BUDGET)
 # the mailer may email on non-prod deployments; unset uses the built-in test-domain default
 # (convex/lib/recipientAllowlist.ts). Leave it unset on prod (no allowlist).
 OPTIONAL=(EMAIL_RECIPIENT_ALLOWLIST)
+OPTIONAL+=(AI_PROVIDER MISTRAL_API_KEY MISTRAL_MODEL)
 
 failures=0
 missing=0

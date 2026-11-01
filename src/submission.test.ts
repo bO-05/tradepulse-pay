@@ -23,7 +23,7 @@ const appSources = raw(
 const legacyPython = raw(import.meta.glob("../tests/*.py", { query: "?raw", import: "default", eager: true }));
 const scriptSources = raw(import.meta.glob("../scripts/**/*.mjs", { query: "?raw", import: "default", eager: true }));
 
-const README = rootFiles["../README.md"];
+const README = rootFiles["../README.md"].replace(/\r\n/g, "\n");
 const ENV_EXAMPLE = rootFiles["../.env.example"];
 
 const LEGACY_SCRIPTS = [

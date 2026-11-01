@@ -65,3 +65,15 @@ No required name was missing on production, so nothing was set, redeployed or re
 | `VERTEX_LOCATION` | optional | unset |
 | `VERTEX_MODEL` | optional | unset |
 | `VERTEX_PROJECT_ID` | optional | unset |
+
+## Recovery provider additions (2026-11-01)
+
+These names are optional schema additions, not claims about the original production settings.
+They were added for the isolated recovery deployment `cheery-axolotl-689`; the production
+snapshot above was not refreshed and production was not modified.
+
+| Name | Category | Recovery dev |
+|---|---|---|
+| `AI_PROVIDER` | optional | select `mistral` to use the funded recovery provider |
+| `MISTRAL_API_KEY` | optional | server-only key configured directly in Convex |
+| `MISTRAL_MODEL` | optional | defaults to `mistral-large-latest` when Mistral is selected |

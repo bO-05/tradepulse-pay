@@ -5,7 +5,7 @@ import type { Id } from "../../../convex/_generated/dataModel";
 import { demoEditedApprovalCents } from "../../../convex/judgeDemo/scenario";
 import { readableError } from "../FundMilestone";
 import { changeOrderInvoiced, ensureChangeOrderInvoiced, type DriverChangeOrder } from "./changeOrderStep";
-import { FUNDED_STATUSES, moneyProposal, payoutFinished, proposalsReady, type DemoInboxItem, type DemoLedger } from "./steps";
+import { demoRunBlocker, FUNDED_STATUSES, moneyProposal, payoutFinished, proposalsReady, type DemoInboxItem, type DemoLedger } from "./steps";
 
 export type DriverSnapshot = {
   run: { _id: Id<"judgeDemoRuns">; agreementId: Id<"agreements">; agreementStatus: string } | null | undefined;
@@ -58,6 +58,12 @@ export function useJudgeDemoDriver(snapshot: DriverSnapshot, onRunCreated: (runI
     }
   }
 
+  function checkedItem(item: DemoInboxItem | null): DemoInboxItem | null {
+    const blocker = demoRunBlocker(item);
+    if (blocker) throw new Error(blocker);
+    return item;
+  }
+
   async function drive(fresh: boolean) {
     if (running) return;
     setRunning(true);
@@ -94,16 +100,22 @@ export function useJudgeDemoDriver(snapshot: DriverSnapshot, onRunCreated: (runI
       await fileDemoPayApp({ runId: id, kind: "agent" });
 
       setPhase("AI review, KERNEL license check and pay-agent proposals are running…");
-      const honest = await waitFor("the honest pay app's proposals", (s) => (proposalsReady(s.honest) ? s.honest : null), 5 * MINUTE);
+      const honest = await waitFor("the honest pay app's proposals", (s) => {
+        const item = checkedItem(s.honest);
+        return proposalsReady(item) ? item : null;
+      }, 5 * MINUTE);
       const honestPayout = moneyProposal(honest, "payout")!;
       if (honestPayout.status === "pending") {
         setPhase("GC approves the honest pay app as proposed…");
         await approveProposal({ proposalId: honestPayout._id });
       }
       setPhase("Capturing and paying the honest pay app…");
-      await waitFor("the honest payout", (s) => (payoutFinished(s.honest) ? true : null), 3 * MINUTE);
+      await waitFor("the honest payout submission", (s) => (payoutFinished(checkedItem(s.honest)) ? true : null), 3 * MINUTE);
 
-      const agent = await waitFor("the agent pay app's proposals", (s) => (proposalsReady(s.agent) ? s.agent : null), 5 * MINUTE);
+      const agent = await waitFor("the agent pay app's proposals", (s) => {
+        const item = checkedItem(s.agent);
+        return proposalsReady(item) ? item : null;
+      }, 5 * MINUTE);
       const agentPayout = moneyProposal(agent, "payout")!;
       if (agentPayout.status === "pending") {
         const edited = agentPayout.editedAmountCents ?? demoEditedApprovalCents(agentPayout.amountCents ?? 0);
@@ -115,7 +127,7 @@ export function useJudgeDemoDriver(snapshot: DriverSnapshot, onRunCreated: (runI
         await approveProposal({ proposalId: agentPayout._id });
       }
       setPhase("Capturing and paying the edited amount…");
-      await waitFor("the agent payout", (s) => (payoutFinished(s.agent) ? true : null), 3 * MINUTE);
+      await waitFor("the agent payout submission", (s) => (payoutFinished(checkedItem(s.agent)) ? true : null), 3 * MINUTE);
 
       await ensureChangeOrderInvoiced<Id<"changeOrders">>({
         current: async () => (await waitFor("the change orders", (s) => (s.changeOrder === undefined ? null : { co: s.changeOrder }), 20_000)).co,
@@ -127,7 +139,9 @@ export function useJudgeDemoDriver(snapshot: DriverSnapshot, onRunCreated: (runI
         waitInvoiced: () => waitFor("the sent change-order invoice", (s) => (changeOrderInvoiced(s.changeOrder ?? null) ? true : null), 30_000).then(() => undefined),
         onPhase: setPhase,
       });
-      setPhase("Done. The Owner can now pay the invoice; the dashboard shows the new totals.");
+      checkedItem(latest.current.honest);
+      checkedItem(latest.current.agent);
+      setPhase("Payout requests and the change-order invoice were submitted. Check the steps below for actual PayPal settlement and dashboard totals. The Owner still needs to pay the invoice.");
     } catch (e) {
       setError(readableError(e));
       setPhase(null);

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { deriveSteps, payoutFinished, proposalsReady, type DemoInboxItem, type DemoLedger, type DemoState } from "./steps";
+import { demoRunBlocker, deriveSteps, payoutFinished, payoutSettled, proposalsReady, type DemoInboxItem, type DemoLedger, type DemoState } from "./steps";
 
 const ledger = (fundingStatus: string | null): DemoLedger => ({
   sov: [{ excludedScope: false }, { excludedScope: true }],
@@ -66,6 +66,54 @@ describe("judge demo steps", () => {
     expect(both.license).toBe("done");
     const detail = deriveSteps({ ...s, agent: item("pending") }).find((x) => x.id === "review")!.detail;
     expect(detail).toContain("excluded scope ×1");
+  });
+
+  test("unclaimed payouts need recipient action and never complete settlement or dashboard proof", () => {
+    const unclaimed = { ...item("executed"), payment: { status: "unclaimed", grossCents: 100_000, netCents: 90_000, retainageCents: 10_000 } };
+    expect(payoutSettled(unclaimed)).toBe(false);
+    expect(demoRunBlocker(unclaimed)).toBeNull();
+    const totals = { capturedCents: 200_000, paidCents: 180_000, retainageHeldCents: 20_000, changeOrdersPaidCents: 0 };
+    const steps = deriveSteps({ ...base, honest: unclaimed, agent: unclaimed, ledger: { ...ledger("captured"), totals }, dashboardTotals: totals });
+    expect(steps.find((step) => step.id === "payout")?.status).toBe("human");
+    expect(steps.find((step) => step.id === "payout")?.detail).toContain("must claim");
+    expect(steps.find((step) => step.id === "dashboard")?.status).not.toBe("done");
+  });
+
+  test("terminal payout and rejection states stop automation instead of waiting or succeeding", () => {
+    for (const terminal of ["failed", "rejected"]) {
+      const rejected = item(terminal);
+      expect(demoRunBlocker(rejected)).toContain(terminal);
+      expect(status({ ...base, honest: rejected }).approve_honest).toBe("error");
+      expect(status({ ...base, honest: rejected }).payout).toBe("error");
+    }
+    for (const terminal of ["failed", "returned"]) {
+      const failedPayment = { ...item("executed"), payment: { status: terminal, grossCents: 1000, netCents: 900, retainageCents: 100 } };
+      expect(demoRunBlocker(failedPayment)).not.toBeNull();
+      expect(status({ ...base, honest: failedPayment, agent: item("executed") }).payout).toBe("error");
+    }
+    for (const terminal of ["rejected", "revision_requested", "withdrawn"]) {
+      expect(demoRunBlocker(item(null, terminal))).toContain("approval inbox");
+    }
+  });
+
+  test("offline review is named as non-AI recommendation and absent reviews are not complete", () => {
+    const offline = item("pending");
+    offline.payApp.review!.engine = "Offline rules engine";
+    const steps = deriveSteps({ ...base, honest: offline, agent: offline });
+    expect(steps.find((step) => step.id === "review")?.detail).toContain("not AI");
+    expect(steps.find((step) => step.id === "review")?.detail).toContain("recommended");
+    const noReview = item("pending", "rejected");
+    noReview.payApp.review = null;
+    expect(status({ ...base, honest: noReview, agent: offline }).review).not.toBe("done");
+  });
+
+  test("checkout approval is not funding authorization and failed funding is retryable", () => {
+    const approved = deriveSteps({ ...base, agreementStatus: "executed", ledger: ledger("approved") }).find((step) => step.id === "fund")!;
+    expect(approved.status).toBe("running");
+    expect(approved.detail).toContain("Retry authorization");
+    const failed = deriveSteps({ ...base, agreementStatus: "executed", ledger: ledger("failed") }).find((step) => step.id === "fund")!;
+    expect(failed.status).toBe("human");
+    expect(failed.detail).toContain("try again");
   });
 
   test("payout and owner steps", () => {

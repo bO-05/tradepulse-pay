@@ -5,6 +5,9 @@
  * a value set it with `vi.stubEnv`.
  */
 const LIVE_ENV = [
+  "AI_PROVIDER",
+  "MISTRAL_API_KEY",
+  "MISTRAL_MODEL",
   "ANTHROPIC_API_KEY",
   "ANTHROPIC_MODEL",
   "OPENAI_API_KEY",

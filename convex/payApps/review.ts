@@ -14,6 +14,7 @@ import type { ReviewContext } from "./reviewMath";
 import { runPayAppReview, type ReviewRun } from "./reviewModel";
 import { loadSovRows } from "../lib/sovLines";
 import { loadTranches } from "../lib/trancheRows";
+import { getAIConfiguration } from "../lib/aiProvider";
 
 type ReviewInputs = {
   context: ReviewContext;
@@ -133,7 +134,7 @@ export const storeReview = internalMutation({
       ...args.trace,
       caseId: args.payAppId,
       groundTruth: null,
-      status: args.review.provider === "Anthropic" ? "REVIEWED" : "REVIEWED_OFFLINE",
+      status: args.review.provider === "Anthropic" || args.review.provider === "Mistral" ? "REVIEWED" : "REVIEWED_OFFLINE",
       costUsd: 0,
       timestamp: now,
     });
@@ -188,10 +189,7 @@ async function performReview(
       await ctx.runMutation(internal.payApps.review.abandonReview, { payAppId, reviewRunId });
       return { reviewed: false, reason: "Pay application not found, or a newer submission or review replaced this review." };
     }
-    const run = await runPayAppReview(inputs.context, {
-      apiKey: process.env.ANTHROPIC_API_KEY,
-      modelId: process.env.ANTHROPIC_MODEL,
-    });
+    const run = await runPayAppReview(inputs.context, getAIConfiguration());
     const traceRunId = `payapp_review_${payAppId}_${Date.now()}`;
     const review = reviewRecord(run, traceRunId);
     const { stored }: { stored: boolean } = await ctx.runMutation(internal.payApps.review.storeReview, {

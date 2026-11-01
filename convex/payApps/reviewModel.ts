@@ -1,10 +1,10 @@
 /**
- * Runs a pay-app review: Anthropic structured output via the AI SDK, with the
+ * Runs a pay-app review: provider structured output via the AI SDK, with the
  * deterministic rules engine as the offline fallback. Returns the judgement,
  * the code-computed review and honest provenance for storage and traces.
  */
-import { createAnthropic } from "@ai-sdk/anthropic";
 import { generateText, Output } from "ai";
+import { aiProviderLabel, createAIModel, type AIConfiguration, type AIProvider } from "../lib/aiProvider";
 import { z } from "zod";
 import { formatCents } from "../lib/money";
 import { workingOnBehalfOf } from "../lib/gcCompanyName";
@@ -131,24 +131,35 @@ export type ModelCallResult = {
   rawResponse: string;
 };
 
-export type ModelCaller = (input: { system: string; prompt: string; apiKey: string; modelId: string }) => Promise<ModelCallResult>;
+export type ModelCaller = (input: { system: string; prompt: string; apiKey: string; modelId: string; provider?: AIProvider }) => Promise<ModelCallResult>;
 
 const MODEL_TIMEOUT_MS = 90_000;
 
-export const callAnthropic: ModelCaller = async ({ system, prompt, apiKey, modelId }) => {
-  const anthropic = createAnthropic({ apiKey });
+class ReviewOutputLimitError extends Error {
+  constructor() {
+    super("AI response exceeded its output token limit.");
+    this.name = "ReviewOutputLimitError";
+  }
+}
+
+export const callReviewModel: ModelCaller = async ({ system, prompt, apiKey, modelId, provider = "anthropic" }) => {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS);
   try {
     const result = await generateText({
-      model: anthropic(modelId),
+      model: createAIModel({ provider, apiKey, modelId }),
       system,
       prompt,
       output: Output.object({ schema: reviewJudgementSchema, name: "pay_app_review" }),
-      maxOutputTokens: 4000,
+      // Large 4's "low" effort still uses reasoning tokens. Leave bounded room
+      // for the structured answer instead of squeezing both into 4,000 tokens.
+      maxOutputTokens: provider === "mistral" && /^mistral-large-4(?:-|$)/.test(modelId) ? 8192 : 4000,
       maxRetries: 1,
       abortSignal: controller.signal,
     });
+    // The SDK output getter throws NoOutputGeneratedError on reasoning-only
+    // truncation. Check the finish reason first so fallback provenance is honest.
+    if (result.finishReason === "length") throw new ReviewOutputLimitError();
     const judgement = result.output as ReviewJudgement;
     return {
       judgement,
@@ -161,6 +172,9 @@ export const callAnthropic: ModelCaller = async ({ system, prompt, apiKey, model
     clearTimeout(timer);
   }
 };
+
+/** Compatibility entrypoint for existing Anthropic callers. */
+export const callAnthropic: ModelCaller = (input) => callReviewModel({ ...input, provider: "anthropic" });
 
 export type ReviewRun = {
   review: FinalReview;
@@ -186,6 +200,12 @@ export function describeProviderFailure(err: unknown): string {
   if (typeof status === "number") return `AI provider returned HTTP ${status}.`;
   const name = (err as { name?: unknown })?.name;
   if (name === "AbortError") return "AI provider timed out.";
+  if (name === "ReviewOutputLimitError" || (err as { finishReason?: unknown })?.finishReason === "length") {
+    return "AI response exceeded its output token limit.";
+  }
+  if (typeof name === "string" && /NoOutputGenerated/i.test(name)) {
+    return "AI response did not contain structured review output.";
+  }
   if (err instanceof Error && err.name === "IncompleteJudgementError") return "AI response did not cover every line.";
   if (typeof name === "string" && /NoObjectGenerated|TypeValidation|JSONParse/i.test(name)) {
     return "AI response did not match the review schema.";
@@ -195,25 +215,26 @@ export function describeProviderFailure(err: unknown): string {
 
 export async function runPayAppReview(
   context: ReviewContext,
-  env: { apiKey?: string; modelId?: string },
+  env: Omit<AIConfiguration, "provider"> & { provider?: AIProvider },
   deps: { callModel?: ModelCaller; now?: () => number } = {},
 ): Promise<ReviewRun> {
   const now = deps.now ?? Date.now;
-  const callModel = deps.callModel ?? callAnthropic;
+  const callModel = deps.callModel ?? callReviewModel;
+  const provider = env.provider ?? "anthropic";
   const prompt = buildReviewPrompt(context);
   const system = reviewSystemPrompt(context.gcCompanyName);
   const started = now();
   let fallbackReason = "No AI provider is configured.";
   if (env.apiKey && env.modelId) {
     try {
-      const res = await callModel({ system, prompt, apiKey: env.apiKey, modelId: env.modelId });
+      const res = await callModel({ system, prompt, apiKey: env.apiKey, modelId: env.modelId, provider });
       const review = finalizeReview(context, res.judgement);
       return {
         review,
         judgement: res.judgement,
-        provider: "Anthropic",
+        provider: aiProviderLabel(provider),
         model: res.modelId,
-        engine: `Anthropic ${res.modelId}`,
+        engine: `${aiProviderLabel(provider)} ${res.modelId}`,
         systemPrompt: system,
         prompt,
         rawResponse: res.rawResponse,

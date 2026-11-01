@@ -56,7 +56,7 @@ const coi = (over: Partial<Extract<ComplianceInput, { kind: "coi" }>["coi"]> = {
     ...over,
   },
 });
-const W9: ComplianceInput = { kind: "w9", w9: { entityType: "s_corporation", tinLast4: "4567", signedDate: iso(-2) } };
+const w9 = (): ComplianceInput => ({ kind: "w9", w9: { entityType: "s_corporation", tinLast4: "4567", signedDate: iso(-2) } });
 const caLicense = (licenseNumber = "142881"): ComplianceInput => ({
   kind: "license",
   license: { licenseNumber, state: "CA", classification: "C-10 Electrical", expiryDate: iso(400) },
@@ -242,7 +242,7 @@ describe("compliance uploads", () => {
 
   test("a W-9 keeps only the TIN's last four digits and shows it masked", async () => {
     const s = await setup();
-    const itemId = await submit(s, s.kim, PDF, W9, "w9-eastbay.pdf");
+    const itemId = await submit(s, s.kim, PDF, w9(), "w9-eastbay.pdf");
     const item = await s.t.run(async (ctx) => (await ctx.db.get(itemId))!);
     expect(item.w9).toEqual({ entityType: "s_corporation", tinLast4: "4567", signedDate: iso(-2) });
     const bad = await upload(s, s.kim, s.projectId, PDF, { kind: "w9", w9: { entityType: "s_corporation", tinLast4: "941234567", signedDate: iso(-2) } });
@@ -276,7 +276,7 @@ describe("GC review", () => {
   test("accept and reject (reason required) are recorded, audited and notified to the sub", async () => {
     const s = await setup();
     const coiId = await submit(s, s.kim, PDF, coi());
-    const w9Id = await submit(s, s.kim, PDF, W9);
+    const w9Id = await submit(s, s.kim, PDF, w9());
     await s.dana.mutation(api.compliance.items.reviewComplianceItem, { itemId: coiId, decision: "accept" });
     expect((await errorData(s.dana.mutation(api.compliance.items.reviewComplianceItem, { itemId: w9Id, decision: "reject", reason: "  " }))).code).toBe("REASON_REQUIRED");
     await s.dana.mutation(api.compliance.items.reviewComplianceItem, { itemId: w9Id, decision: "reject", reason: "Signature date missing on page 1" });
@@ -297,7 +297,7 @@ describe("GC review", () => {
     expect(mine.items.find((i) => i._id === w9Id)?.rejectionReason).toBe("Signature date missing on page 1");
     expect(mine.byKind.w9).toBe("missing");
 
-    const replacement = await submit(s, s.kim, PDF, W9);
+    const replacement = await submit(s, s.kim, PDF, w9());
     const after = await s.kim.query(api.compliance.items.subProjectCompliance, { projectId: s.projectId });
     expect(after.items.filter((i) => i.kind === "w9").map((i) => [i._id, i.status])).toEqual([
       [replacement, "pending_review"],
@@ -320,7 +320,7 @@ describe("GC review", () => {
 describe("computed status", () => {
   test("all accepted and meeting terms is compliant; a below-limit COI or no additional insured is not", async () => {
     const s = await setup();
-    await acceptAll(s, [await submit(s, s.kim, PDF, coi()), await submit(s, s.kim, PDF, W9), await submit(s, s.kim, PNG, caLicense())]);
+    await acceptAll(s, [await submit(s, s.kim, PDF, coi()), await submit(s, s.kim, PDF, w9()), await submit(s, s.kim, PNG, caLicense())]);
     const ok = await s.kim.query(api.compliance.items.subProjectCompliance, { projectId: s.projectId });
     expect(ok.status).toBe("compliant");
     const gcRow = (await s.dana.query(api.compliance.items.gcComplianceWorklist, {})).rows.find((r) => r.vendorId === s.vendorId)!;
@@ -341,7 +341,7 @@ describe("computed status", () => {
 
   test("expiring within 30 days, compliant at 31, expired yesterday, missing with only a pending W-9", async () => {
     const s = await setup();
-    await acceptAll(s, [await submit(s, s.kim, PDF, W9), await submit(s, s.kim, PNG, caLicense())]);
+    await acceptAll(s, [await submit(s, s.kim, PDF, w9()), await submit(s, s.kim, PNG, caLicense())]);
     const statusAfterCoi = async (expiryDays: number) => {
       vi.setSystemTime(Date.now() + 1000);
       await acceptAll(s, [await submit(s, s.kim, PDF, coi({ effectiveDate: iso(-60), expiryDate: iso(expiryDays) }))]);
@@ -358,7 +358,7 @@ describe("computed status", () => {
 
     const fresh = await setup();
     await acceptAll(fresh, [await submit(fresh, fresh.kim, PDF, coi()), await submit(fresh, fresh.kim, PNG, caLicense())]);
-    await submit(fresh, fresh.kim, PDF, W9);
+    await submit(fresh, fresh.kim, PDF, w9());
     const missing = await fresh.kim.query(api.compliance.items.subProjectCompliance, { projectId: fresh.projectId });
     expect(missing.status).toBe("missing");
     expect(missing.reasons.map((r) => r.message).join(" ")).toContain("Missing: W-9.");
@@ -401,7 +401,7 @@ describe("isolation and serving", () => {
   test("subs see only their own records; each GC sees only its vendors; owners see none", async () => {
     const s = await setup();
     const kimItem = await submit(s, s.kim, PDF, coi());
-    const { run } = await upload(s, s.sal, s.azProjectId, PDF, W9);
+    const { run } = await upload(s, s.sal, s.azProjectId, PDF, w9());
     const { itemId: salItem } = await run();
 
     for (const who of [s.ray, s.alicia, s.priya, s.sal, s.f.demo.gc.as]) {
@@ -424,7 +424,7 @@ describe("isolation and serving", () => {
 
   test("the file is served only through the authenticated route, to the GC and the uploading sub", async () => {
     const s = await setup();
-    const itemId = await submit(s, s.kim, PDF, W9, "w9-eastbay.pdf");
+    const itemId = await submit(s, s.kim, PDF, w9(), "w9-eastbay.pdf");
     const view = await s.dana.query(api.compliance.items.getComplianceItem, { itemId });
     const path = view.document!.downloadPath;
     for (const who of [s.dana, s.kim]) {

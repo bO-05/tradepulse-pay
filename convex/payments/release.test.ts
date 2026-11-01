@@ -1113,6 +1113,35 @@ describe("resume and retry separate reconciliation from new money writes", () =>
     expect(r.payouts[0]).toMatchObject({ status: "pending", netCents: 900_000 });
   });
 
+  test("the capture send boundary re-checks approval after the earlier initiation check", async () => {
+    const { t, milestone, release } = await unsentRelease();
+    const next = await t.mutation(internal.payments.resumeDb.continueRelease, { paymentId: release._id });
+    expect(next).toMatchObject({ state: "capture", mode: "initiate" });
+    // The human approval is no longer valid by the time OAuth finishes.
+    await t.run((ctx) => ctx.db.patch(release.payAppId!, { status: "rejected" }));
+    const gate = await t.mutation(internal.payments.releaseDb.markCaptureSending, { releasePaymentId: release._id });
+    expect(gate).toMatchObject({ state: "closed", status: "failed" });
+    expect("error" in gate && gate.error).toMatch(/Pay app is not approved/);
+    const r = await rows(t, milestone._id);
+    expect(r.payouts[0].captureSubmittedAt).toBeUndefined();
+    expect(r.funding.captures ?? []).toHaveLength(0);
+    expect(fake.posts(/\/capture$/)).toHaveLength(0);
+    expect(r.ledger).toHaveLength(0);
+  });
+
+  test("the capture send boundary still reconciles a previously submitted capture after approval changes", async () => {
+    const { t, release } = await unsentRelease();
+    expect(await t.mutation(internal.payments.releaseDb.markCaptureSending, { releasePaymentId: release._id }))
+      .toEqual({ state: "ready" });
+    const submitted = await t.run((ctx) => ctx.db.get(release._id));
+    expect(submitted!.captureSubmittedAt).toBeDefined();
+    await t.run((ctx) => ctx.db.patch(release.payAppId!, { status: "rejected" }));
+    expect(await t.mutation(internal.payments.releaseDb.markCaptureSending, { releasePaymentId: release._id }))
+      .toEqual({ state: "ready" });
+    expect((await t.run((ctx) => ctx.db.get(release._id)))!.captureSubmittedAt)
+      .toBe(submitted!.captureSubmittedAt);
+  });
+
   test("a capture that may have reached PayPal is reconciled with the same request id, but no payout starts once canPay fails", async () => {
     const s = await setup({ authorizedCents: 1_000_000 });
     fake.state.dropCaptureResponses = 3;

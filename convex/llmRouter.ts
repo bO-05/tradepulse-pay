@@ -7,6 +7,9 @@ import { internal } from "./_generated/api";
 import { COI_DEFICIENCY_PENALTY, leadTimePenaltyFor, targetWeeksForDivision } from "./terms";
 import { roundDollarsToCents } from "./lib/money";
 import { OFFLINE_RULES_ENGINE } from "./lib/aiLabels";
+import { DEFAULT_MISTRAL_MODEL, getAIConfiguration } from "./lib/aiProvider";
+import { withMistralTaskReasoning } from "./lib/mistralRequest";
+import type OpenAI from "openai";
 
 export interface ReasoningResult {
   provider: string;
@@ -14,6 +17,17 @@ export interface ReasoningResult {
   content: string;
   parsedJson?: any;
   confidenceScore?: number;
+}
+
+/** Large 4 returns text chunks alongside private reasoning, not always a string. */
+function mistralCompletionText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content.map((part: unknown) =>
+    part !== null && typeof part === "object" &&
+    "type" in part && part.type === "text" && "text" in part && typeof part.text === "string"
+      ? part.text : "",
+  ).join("");
 }
 
 export function extractTextFromPdfStream(rawInput: string | Uint8Array): string {
@@ -1279,7 +1293,9 @@ export const executeReasoning = internalAction({
     ),
     prompt: v.string(),
     systemPrompt: v.optional(v.string()),
-    preferredProvider: v.optional(v.string()), // "openai" | "gemini" | "claude"
+    preferredProvider: v.optional(v.string()), // "openai" | "gemini" | "claude" | "mistral"
+    /** Diagnostics must exercise only the selected adapter, never another paid provider. */
+    allowProviderFallback: v.optional(v.boolean()),
     /** Trade-package CSI division (e.g. "22 00 00"); pins the lead-time baseline. */
     division: v.optional(v.string()),
     /** GC company name the prompt is written on behalf of. */
@@ -1289,6 +1305,8 @@ export const executeReasoning = internalAction({
     const openaiKey = process.env.OPENAI_API_KEY;
     const geminiKey = process.env.GEMINI_API_KEY;
     const anthropicKey = process.env.ANTHROPIC_API_KEY;
+    const aiConfiguration = getAIConfiguration();
+    const mistralKey = process.env.MISTRAL_API_KEY?.trim();
 
     const persona = args.companyName
       ? `You are TradePulse Pay, working on behalf of ${args.companyName},`
@@ -1390,15 +1408,22 @@ Ensure all cost numbers are pure numeric primitives.`
       : baseInstruction;
 
     // Determine provider execution order based on preferredProvider and task characteristics
-    type ProviderId = "claude" | "gemini" | "openai";
+    type ProviderId = "claude" | "gemini" | "openai" | "mistral";
     let providerOrder: ProviderId[] = [];
 
-    if (args.preferredProvider === "claude") {
+    if (args.preferredProvider === "mistral") {
+      // Explicit Mistral selection never spends another provider's credits, even without a key.
+      providerOrder = ["mistral"];
+    } else if (args.preferredProvider === "claude") {
       providerOrder = ["claude", "gemini", "openai"];
     } else if (args.preferredProvider === "gemini") {
       providerOrder = ["gemini", "claude", "openai"];
     } else if (args.preferredProvider === "openai") {
       providerOrder = ["openai", "claude", "gemini"];
+    } else if (aiConfiguration.provider === "mistral") {
+      providerOrder = ["mistral"];
+    } else if (process.env.AI_PROVIDER?.trim()) {
+      providerOrder = ["claude"];
     } else {
       // Default intelligent multi-model routing:
       // Forensic contract reasoning & clash detection -> Claude Sonnet 5
@@ -1409,6 +1434,7 @@ Ensure all cost numbers are pure numeric primitives.`
         providerOrder = ["gemini", "claude", "openai"];
       }
     }
+    if (args.allowProviderFallback === false) providerOrder = providerOrder.slice(0, 1);
 
     const vertexProjectId =
       process.env.VERTEX_PROJECT_ID ||
@@ -1435,17 +1461,15 @@ Ensure all cost numbers are pure numeric primitives.`
       fetch(url, { ...init, signal: AbortSignal.timeout(45_000) });
 
     for (const provider of providerOrder) {
-      // OpenAI Pipeline
-      if (provider === "openai" && openaiKey) {
+      // OpenAI-compatible chat completions (Mistral uses its public endpoint, not an OpenAI proxy).
+      const compatibleKey = provider === "mistral" ? mistralKey : openaiKey;
+      if ((provider === "openai" || provider === "mistral") && compatibleKey) {
+        const providerLabel = provider === "mistral" ? "Mistral" : "OpenAI";
         try {
-          const openaiModel = process.env.OPENAI_MODEL || "gpt-4o";
-          const response = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${openaiKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
+          const openaiModel = provider === "mistral"
+            ? process.env.MISTRAL_MODEL?.trim() || DEFAULT_MISTRAL_MODEL
+            : process.env.OPENAI_MODEL || "gpt-4o";
+          const completionBody: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming & { random_seed?: number } = {
               model: openaiModel,
               messages: [
                 {
@@ -1458,15 +1482,61 @@ Ensure all cost numbers are pure numeric primitives.`
                 args.taskType === "bid_leveling" || args.taskType === "spec_generation" || args.taskType === "clash_detection"
                   ? { type: "json_object" }
                   : undefined,
-              temperature: args.taskType === "bid_leveling" ? 0 : 0.2,
-              seed: args.taskType === "bid_leveling" ? 12345 : undefined,
-            }),
-          });
+              // Match the working review/tool routes' native temperature default
+              // for Large 4 reasoning rather than forcing different sampling.
+              temperature: provider === "mistral" && /^mistral-large-4(?:-|$)/.test(openaiModel)
+                ? undefined : args.taskType === "bid_leveling" ? 0 : 0.2,
+              ...(provider === "mistral" ? { max_tokens: /^mistral-large-4(?:-|$)/.test(openaiModel) ? 8192 : 4000 } : {}),
+              ...(args.taskType === "bid_leveling"
+                ? provider === "mistral" ? { random_seed: 12345 } : { seed: 12345 }
+                : {}),
+          };
+          const response = provider === "mistral"
+            ? await withMistralTaskReasoning()("https://api.mistral.ai/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${compatibleKey}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify(completionBody),
+                signal: AbortSignal.timeout(45_000),
+              })
+            : await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${compatibleKey}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify(completionBody),
+              });
 
           if (response.ok) {
             const data = await response.json();
-            const content = data.choices?.[0]?.message?.content ?? "";
+            const choice = data.choices?.[0];
+            if (provider === "mistral" && choice?.finish_reason !== "stop") {
+              throw new Error("Mistral completion did not finish.");
+            }
+            const content = provider === "mistral"
+              ? mistralCompletionText(choice?.message?.content)
+              : choice?.message?.content ?? "";
+            const requiresJson = args.taskType !== "rfi_reply";
+            if (provider === "mistral" && (typeof content !== "string" || !content.trim())) {
+              throw new Error("Mistral returned no completion text.");
+            }
             let parsedJson = tryParseJson(content);
+            if (provider === "mistral" && requiresJson &&
+                (!parsedJson || typeof parsedJson !== "object" || Array.isArray(parsedJson))) {
+              throw new Error("Mistral returned an invalid JSON object.");
+            }
+            if (provider === "mistral" && (
+              (args.taskType === "bid_leveling" &&
+                (!Number.isFinite(cleanNumber(parsedJson.baseBidAmount, NaN)) || !Array.isArray(parsedJson.identifiedExclusions))) ||
+              (args.taskType === "spec_generation" && !Array.isArray(parsedJson.packages)) ||
+              (args.taskType === "clash_detection" &&
+                (!Array.isArray(parsedJson.doubleBuys) || !Array.isArray(parsedJson.scopeVoids)))
+            )) {
+              throw new Error("Mistral completion is missing the requested task fields.");
+            }
             if (parsedJson) {
               if (args.taskType === "bid_leveling") {
                 parsedJson = sanitizeBidLevelingOutput(parsedJson, { division: args.division });
@@ -1477,17 +1547,33 @@ Ensure all cost numbers are pure numeric primitives.`
               }
             }
             return {
-              provider: "OpenAI",
+              provider: providerLabel,
               model: openaiModel,
               content,
               parsedJson,
             };
           } else {
-            const errText = await response.text().catch(() => "");
-            console.warn(`OpenAI returned status ${response.status}:`, errText);
+            if (provider === "mistral") {
+              console.warn(`Mistral returned HTTP ${response.status}; using offline rules engine.`);
+            } else {
+              const errText = await response.text().catch(() => "");
+              console.warn(`${providerLabel} returned status ${response.status}:`, errText);
+            }
           }
         } catch (err) {
-          console.warn("OpenAI API call failed, falling back to alternative provider:", err);
+          if (provider === "mistral") {
+            const safeReasons = [
+              "Mistral completion did not finish.",
+              "Mistral returned no completion text.",
+              "Mistral returned an invalid JSON object.",
+              "Mistral completion is missing the requested task fields.",
+            ];
+            console.warn(err instanceof Error && safeReasons.includes(err.message)
+              ? err.message
+              : "Mistral API call failed; using offline rules engine.");
+          } else {
+            console.warn(`${providerLabel} API call failed, falling back:`, err);
+          }
         }
       }
 
@@ -2779,6 +2865,9 @@ export const getProviderAvailability = query({
       openai: Boolean(process.env.OPENAI_API_KEY),
       gemini: Boolean(process.env.GEMINI_API_KEY) || hasVertex,
       claude: Boolean(process.env.ANTHROPIC_API_KEY),
+      mistral: Boolean(process.env.MISTRAL_API_KEY?.trim()),
+      mistralModel: process.env.MISTRAL_MODEL?.trim() || DEFAULT_MISTRAL_MODEL,
+      primaryProvider: getAIConfiguration().provider,
       openaiModel: process.env.OPENAI_MODEL || "gpt-4o",
       geminiModel: process.env.GEMINI_MODEL || "gemini-3.8-flash",
       anthropicModel: process.env.ANTHROPIC_MODEL || "claude-sonnet-5",
@@ -2788,7 +2877,7 @@ export const getProviderAvailability = query({
 
 export const runModelDiagnostic = action({
   args: {
-    model: v.string(), // "gemini" | "openai" | "claude"
+    model: v.string(), // "gemini" | "openai" | "claude" | "mistral"
     promptType: v.string(), // "spec_div26" | "hvac_bacnet" | "plumbing_drainage"
   },
   handler: async (ctx, args) => {
@@ -2837,12 +2926,15 @@ Total Leveled Normalization Target: $908,500.`;
       openai: "OPENAI_API_KEY",
       gemini: "GEMINI_API_KEY (or VERTEX_API_KEY / VERTEX_PROJECT_ID+VERTEX_ACCESS_TOKEN)",
       claude: "ANTHROPIC_API_KEY",
+      mistral: "MISTRAL_API_KEY",
     };
     const availability: Record<string, boolean> = {
       openai: Boolean(process.env.OPENAI_API_KEY),
       gemini: Boolean(process.env.GEMINI_API_KEY || process.env.VERTEX_API_KEY || (process.env.VERTEX_PROJECT_ID && process.env.VERTEX_ACCESS_TOKEN)),
       claude: Boolean(process.env.ANTHROPIC_API_KEY),
+      mistral: Boolean(process.env.MISTRAL_API_KEY?.trim()),
     };
+    if (!(args.model in availability)) throw new Error("Unsupported diagnostic provider.");
     if (availability[args.model] === false) {
       return {
         provider: "Unavailable",
@@ -2863,6 +2955,7 @@ Total Leveled Normalization Target: $908,500.`;
       taskType,
       prompt: samplePrompt,
       preferredProvider: args.model,
+      allowProviderFallback: false,
       division:
         args.promptType === "hvac_bacnet" ? "23 00 00" : args.promptType === "plumbing_drainage" ? "22 00 00" : "26 00 00",
     });
@@ -2877,7 +2970,9 @@ Total Leveled Normalization Target: $908,500.`;
       openai: "openai",
       gemini: "gemini",
       claude: "anthropic",
+      mistral: "mistral",
     };
+    const isLive = result.provider !== OFFLINE_RULES_ENGINE;
 
     return {
       provider: result.provider,
@@ -2885,13 +2980,15 @@ Total Leveled Normalization Target: $908,500.`;
       content: result.content,
       parsedJson: result.parsedJson,
       latencyMs,
-      throughputTokSec,
-      inputTokens,
-      outputTokens,
+      throughputTokSec: isLive ? throughputTokSec : 0,
+      inputTokens: isLive ? inputTokens : 0,
+      outputTokens: isLive ? outputTokens : 0,
       requestedProvider: args.model,
-      isLive: true,
+      isLive,
       unavailable: false,
-      usedFallback: result.provider.toLowerCase() !== providerLabelForKey[args.model],
+      usedFallback: args.model === "gemini"
+        ? !["Gemini", "Vertex AI / Gemini"].includes(result.provider)
+        : result.provider.toLowerCase() !== providerLabelForKey[args.model],
     };
   },
 });

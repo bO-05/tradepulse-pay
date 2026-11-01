@@ -89,7 +89,10 @@ export const SponsorDiagnosticsView: React.FC = () => {
   };
 
   // Multi-Model Selector State
-  const [selectedModel, setSelectedModel] = useState<"gemini" | "openai" | "claude">("gemini");
+  const [selectedModel, setSelectedModel] = useState<"gemini" | "openai" | "claude" | "mistral">("gemini");
+  useEffect(() => {
+    if (providerAvailability?.primaryProvider === "mistral") setSelectedModel("mistral");
+  }, [providerAvailability?.primaryProvider]);
   const [selectedPromptType, setSelectedPromptType] = useState<string>("spec_div26");
   const [isBenchmarking, setIsBenchmarking] = useState<boolean>(false);
   const [benchmarkResult, setBenchmarkResult] = useState<{
@@ -111,6 +114,19 @@ export const SponsorDiagnosticsView: React.FC = () => {
    } | null>(null);
 
   const modelsConfig = {
+    mistral: {
+      name: "Mistral",
+      provider: "Mistral AI",
+      role: "Structured pay-app review, proposal tools and procurement reasoning",
+      badge: "Configured AI Route",
+      color: "border-orange-500 text-orange-300 bg-orange-950/40",
+      activeBg: "bg-orange-900/30 border-orange-500 ring-1 ring-orange-500/50",
+      referenceInputCostPer1M: 0.7,
+      referenceOutputCostPer1M: 2.1,
+      keyEnv: "MISTRAL_API_KEY",
+      availabilityKey: "mistral",
+      strengths: "Structured verdicts and tool calling; reference pricing is for Large 4.",
+    },
     gemini: {
       name: "Gemini Flash",
       provider: "Google Cloud Vertex AI / Gemini",
@@ -152,7 +168,7 @@ export const SponsorDiagnosticsView: React.FC = () => {
     },
   } as const;
 
-  const isProviderConfigured = (key: "gemini" | "openai" | "claude"): boolean | null => {
+  const isProviderConfigured = (key: "gemini" | "openai" | "claude" | "mistral"): boolean | null => {
     if (!providerAvailability) return null;
     return Boolean((providerAvailability as any)[key]);
   };
@@ -588,7 +604,7 @@ export const SponsorDiagnosticsView: React.FC = () => {
                 </span>
               </h3>
               <p className="text-xs text-slate-400">
-                Dynamically routes tasks across Gemini Flash, Claude Sonnet 5, and OpenAI GPT-4o (BYOK) when configured, for maximum throughput and forensic precision.
+                Choose a configured Mistral, Gemini, Anthropic or OpenAI adapter. Key presence alone does not prove successful inference; run diagnostics to verify it.
               </p>
             </div>
           </div>
@@ -620,8 +636,8 @@ export const SponsorDiagnosticsView: React.FC = () => {
           </div>
         </div>
 
-        {/* 3 Model Selector Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Model Selector Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
           {(Object.keys(modelsConfig) as Array<keyof typeof modelsConfig>).map((key) => {
             const m = modelsConfig[key];
             const isSelected = selectedModel === key;
@@ -666,6 +682,11 @@ export const SponsorDiagnosticsView: React.FC = () => {
                       Configured model: {(providerAvailability as any)?.anthropicModel || "not reported"}
                     </p>
                   )}
+                  {key === "mistral" && (
+                    <p className="text-[10px] font-mono text-slate-400 mb-2">
+                      Configured model: {providerAvailability?.mistralModel || "not reported"}
+                    </p>
+                  )}
 
                   <div className="space-y-1.5 text-[11px] text-slate-300 border-t border-slate-800/80 pt-2.5">
                     <div className="flex justify-between items-center">
@@ -673,7 +694,7 @@ export const SponsorDiagnosticsView: React.FC = () => {
                       {configured === null ? (
                         <span className="font-mono text-slate-400">Checking…</span>
                       ) : configured ? (
-                        <span className="font-mono font-bold text-emerald-400">Live — key configured</span>
+                        <span className="font-mono font-bold text-emerald-400">Configured — run diagnostics to verify</span>
                       ) : (
                         <span className="font-mono font-bold text-amber-300">Adapter ready — {m.keyEnv} not set</span>
                       )}

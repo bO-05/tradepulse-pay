@@ -9,6 +9,7 @@ import { LicenseBadge, LicenseCheckPanel, type LicenseBadgeStatus } from "../Lic
 import { PayAppReviewCard } from "../PayAppReviews";
 import { JudgeDemoBadge } from "../JudgeDemoBadge";
 import { TextInput } from "../../ui";
+import { isAIReviewProvider } from "../../lib/aiProvenance";
 
 type InboxItem = FunctionReturnType<typeof api.payApps.proposals.listInbox>[number];
 type Proposal = InboxItem["proposals"][number];
@@ -342,7 +343,7 @@ function AgentTrace({ payAppId }: { payAppId: string }) {
   return (
     <div className="space-y-2 text-xs" data-testid="agent-trace">
       <p className="text-slate-300" data-testid="agent-trace-source">
-        {trace.provider === "Anthropic" ? `Anthropic · model ${trace.model}` : `${trace.provider} (no AI model ran)`} · {trace.inputTokens} in /{" "}
+        {isAIReviewProvider(trace.provider) ? `${trace.provider} · model ${trace.model}` : `${trace.provider} (no AI model ran)`} · {trace.inputTokens} in /{" "}
         {trace.outputTokens} out tokens · {trace.latencyMs} ms · run {trace.runId}
       </p>
       {out.tools ? <p className="text-slate-400">Tools available: {out.tools.join(", ")}</p> : null}

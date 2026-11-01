@@ -6,6 +6,7 @@ import { readableError } from "./FundMilestone";
 import { formatCents, formatDate } from "./format";
 import { LicenseCheckPanel } from "./LicenseCheck";
 import { JudgeDemoBadge } from "./JudgeDemoBadge";
+import { isAIReviewProvider } from "../lib/aiProvenance";
 
 type PayAppWithReview = FunctionReturnType<typeof api.payApps.review.listAgreementPayApps>[number];
 
@@ -38,7 +39,7 @@ const pct = (fraction: number) => `${Math.round(fraction * 1000) / 10}%`;
 
 /** Provenance line: the provider and model that actually ran, or the offline rules engine. */
 function ReviewSource({ review }: { review: NonNullable<PayAppWithReview["review"]> }) {
-  if (review.provider === "Anthropic") {
+  if (isAIReviewProvider(review.provider)) {
     return (
       <p className="text-xs text-slate-300" data-testid="payapp-review-source">
         Reviewed by {review.provider} · model {review.model} · {formatDate(review.reviewedAt)}

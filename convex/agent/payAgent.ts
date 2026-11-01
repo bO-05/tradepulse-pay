@@ -7,6 +7,7 @@ import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { internalAction, type ActionCtx } from "../_generated/server";
 import type { LicenseCheckResult } from "../kernel/licenseCheck";
+import { getAIConfiguration } from "../lib/aiProvider";
 import { buildAgentPrompt, payAgentSystemPrompt, policyRationale, runAgentLoop, MAX_AGENT_STEPS } from "./agentLoop";
 import {
   createProposeTools,
@@ -31,6 +32,7 @@ import {
 function secretValues(): string[] {
   return [
     process.env.ANTHROPIC_API_KEY,
+    process.env.MISTRAL_API_KEY,
     process.env.KERNEL_API_KEY,
     process.env.PAYPAL_CLIENT_SECRET,
     process.env.PAYPAL_CLIENT_ID,
@@ -108,8 +110,7 @@ async function runAgent(ctx: ActionCtx, payAppId: Id<"payApplications">): Promis
     system,
     prompt,
     tools,
-    apiKey: process.env.ANTHROPIC_API_KEY,
-    modelId: process.env.ANTHROPIC_MODEL,
+    ...getAIConfiguration(),
   });
 
   // Code policy: the license is always checked, and any proposal the plan requires but the model

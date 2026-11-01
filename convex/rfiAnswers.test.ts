@@ -306,7 +306,7 @@ function sourceFiles(dir: string): string[] {
 
 describe("no code path sends AI-generated email automatically", () => {
   const convexDir = join(__dirname);
-  const files = sourceFiles(convexDir).map((p) => ({ p: p.slice(convexDir.length + 1), src: readFileSync(p, "utf8") }));
+  const files = sourceFiles(convexDir).map((p) => ({ p: p.slice(convexDir.length + 1).replace(/\\/g, "/"), src: readFileSync(p, "utf8") }));
 
   test("only the known modules call the mailer, and rfi_answer is sent only by the GC action", () => {
     const callers = files.filter((f) => f.p !== "lib/mailer.ts" && /\bsendEmail\(ctx/.test(f.src)).map((f) => f.p).sort();

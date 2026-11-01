@@ -3,6 +3,9 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -23,6 +26,7 @@
   "dependencies": {
     "@agentmail/convex": "^0.1.0",
     "@ai-sdk/anthropic": "4.0.72",
+    "@ai-sdk/mistral": "4.0.57",
     "@auth/core": "^0.41.3",
     "@convex-dev/auth": "^0.0.96",
     "@convex-dev/rate-limiter": "^0.4.1",

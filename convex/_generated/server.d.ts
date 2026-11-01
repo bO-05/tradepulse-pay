@@ -32,6 +32,7 @@ type Env = {
   readonly CONVEX_SITE_URL: string;
   readonly AGENTMAIL_API_KEY: string | undefined;
   readonly AGENTMAIL_WEBHOOK_SECRET: string | undefined;
+  readonly AI_PROVIDER: string | undefined;
   readonly ANTHROPIC_API_KEY: string | undefined;
   readonly ANTHROPIC_MODEL: string | undefined;
   readonly AUTH_AGENTID_ID: string | undefined;
@@ -45,6 +46,8 @@ type Env = {
   readonly JWKS: string | undefined;
   readonly JWT_PRIVATE_KEY: string | undefined;
   readonly KERNEL_API_KEY: string | undefined;
+  readonly MISTRAL_API_KEY: string | undefined;
+  readonly MISTRAL_MODEL: string | undefined;
   readonly OPENAI_API_KEY: string | undefined;
   readonly OPENAI_MODEL: string | undefined;
   readonly PAYPAL_CLIENT_ID: string | undefined;

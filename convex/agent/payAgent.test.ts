@@ -11,6 +11,10 @@ import { clearPayPalTokenCache } from "../payments/paypalClient";
 import { CSLB_FIXTURES } from "../kernel/cslbFixtures";
 import { ANTHROPIC_KEY_PREFIX, CUSTOM_TOOL_NAMES, READ_ONLY_TOOLKIT_TOOLS } from "./tools";
 import { payFromTranche } from "../lib/testPayApp";
+// Load the real Node action/toolkit graph during collection, before fake timers.
+// Otherwise the first scheduled run spends its timer-pump budget waiting on
+// Vitest's dynamic module transformation rather than executing the agent.
+import "./payAgent";
 
 const generateTextMock = vi.hoisted(() => vi.fn());
 vi.mock("ai", async (importOriginal) => {
@@ -225,14 +229,21 @@ describe("pay agent run", () => {
     expect(JSON.stringify(trace)).not.toMatch(new RegExp(`test-secret-value|A21AA|${ANTHROPIC_KEY_PREFIX}`));
   });
 
-  test("Anthropic tool loop: the model sees only read-only PayPal tools and propose tools, bounded steps", async () => {
-    vi.stubEnv("ANTHROPIC_API_KEY", `${ANTHROPIC_KEY_PREFIX}test-not-real`);
-    vi.stubEnv("ANTHROPIC_MODEL", "claude-sonnet-5-5");
+  test.each([
+    { provider: "anthropic", label: "Anthropic", model: "claude-sonnet-5-5", prefix: "ANTHROPIC" },
+    { provider: "mistral", label: "Mistral", model: "mistral-large-latest", prefix: "MISTRAL" },
+  ])("$label tool loop: the model sees only read-only PayPal tools and propose tools, bounded steps", async ({ provider, label, model, prefix }) => {
+    const providerKey = provider === "mistral" ? "mistral-test-key-not-real" : `${ANTHROPIC_KEY_PREFIX}test-not-real`;
+    vi.stubEnv("AI_PROVIDER", provider);
+    vi.stubEnv(`${prefix}_API_KEY`, providerKey);
+    vi.stubEnv(`${prefix}_MODEL`, model);
     const s = await setup();
     const [a, b] = s.sov;
     let toolNames: string[] = [];
     let bounded = false;
-    generateTextMock.mockImplementation(async (opts: { tools?: Record<string, { execute: (i: unknown, o: unknown) => Promise<unknown> }>; stopWhen?: unknown; output?: unknown }) => {
+    generateTextMock.mockImplementation(async (opts: { tools?: Record<string, { execute: (i: unknown, o: unknown) => Promise<unknown> }>; stopWhen?: unknown; output?: unknown; model: { provider: string; modelId: string } }) => {
+      expect(opts.model.provider).toContain(provider);
+      expect(opts.model.modelId).toBe(model);
       if (!opts.tools) {
         // The pay-app review call (structured output).
         return {
@@ -246,7 +257,7 @@ describe("pay agent run", () => {
             notes: "",
           },
           usage: { inputTokens: 10, outputTokens: 10 },
-          response: { modelId: "claude-sonnet-5-5" },
+          response: { modelId: model },
         };
       }
       toolNames = Object.keys(opts.tools);
@@ -255,7 +266,7 @@ describe("pay agent run", () => {
       await opts.tools.checkLicense.execute({ contractorName: "Rosendin Electric, Inc.", licenseNumber: "142881" }, o);
       await opts.tools.proposePayout.execute({ rationale: "Pay the reviewed amount." }, o);
       await opts.tools.proposeReschedule.execute({ rationale: "Line 2 billed ahead of its milestone." }, o);
-      return { text: "Proposed payout and reschedule.", steps: [{}, {}, {}], totalUsage: { inputTokens: 900, outputTokens: 120 }, response: { modelId: "claude-sonnet-5-5" } };
+      return { text: `Proposed payout and reschedule. ${providerKey}`, steps: [{}, {}, {}], totalUsage: { inputTokens: 900, outputTokens: 120 }, response: { modelId: model } };
     });
     const payAppId = await submitAndRun(s);
     const st = await state(s, payAppId);
@@ -263,14 +274,17 @@ describe("pay agent run", () => {
     expect(bounded).toBe(true);
     const allowed = new Set<string>([...READ_ONLY_TOOLKIT_TOOLS, ...CUSTOM_TOOL_NAMES]);
     expect(toolNames.filter((n) => !allowed.has(n))).toEqual([]);
-    expect(toolNames).toEqual(expect.arrayContaining([...CUSTOM_TOOL_NAMES]));
+    // Loading the actual toolkit must not silently fall back to custom-only tools.
+    expect(toolNames).toEqual(expect.arrayContaining([...READ_ONLY_TOOLKIT_TOOLS, ...CUSTOM_TOOL_NAMES]));
 
     expect(st.byKind("payout")).toMatchObject({ source: "agent", status: "pending", amountCents: st.payApp.review!.approvedTotalCents });
     expect(st.byKind("reschedule")).toMatchObject({ source: "agent", status: "pending" });
     // The model skipped proposeCapture; the code policy filled it in and labeled it.
     expect(st.byKind("capture")).toMatchObject({ source: "code_policy" });
     const trace = st.traces.find((r) => r.status === "AGENT_PROPOSED")!;
-    expect(trace).toMatchObject({ provider: "Anthropic", model: "claude-sonnet-5-5", inputTokens: 900, outputTokens: 120 });
+    expect(trace).toMatchObject({ provider: label, model, inputTokens: 900, outputTokens: 120 });
+    expect(st.payApp.review).toMatchObject({ provider: label, model });
+    expect(JSON.stringify(trace)).not.toContain(providerKey);
     const calls = trace.parsedOutput.toolCalls as { tool: string; source: string; input: string; output: string }[];
     const check = calls.find((c) => c.tool === "checkLicense")!;
     expect(check).toMatchObject({ source: "model" });

@@ -7,6 +7,7 @@ import { api, internal } from "./_generated/api";
 import schema from "./schema";
 import { ACCOUNT_EXISTS_MESSAGE, INVALID_CODE_MESSAGE, INVALID_CREDENTIALS_MESSAGE } from "./lib/authErrors";
 import { SYSTEM_INBOX } from "./lib/mailer";
+import { verificationResendParams } from "../src/auth/authScreens";
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -372,6 +373,30 @@ function tokenSubject(jwt: string): string {
 }
 
 describe("email budget", () => {
+  test("a sign-up resend recovers when preflight previously refused account creation", async () => {
+    const t = setup();
+    advance(60_000);
+    vi.stubEnv("EMAIL_DAILY_BUDGET", "0");
+    expect(await errorData(signIn(t, { flow: "signUp", email: DANA, password: STRONG, name: "Dana" }))).toMatchObject({
+      code: "EMAIL_LIMIT",
+    });
+    expect(await userByEmail(t, DANA)).toBeNull();
+    expect(sent).toHaveLength(0);
+
+    // The old resend always used signIn, permanently failing because the account did not exist.
+    vi.stubEnv("EMAIL_DAILY_BUDGET", "60");
+    expect(await errorData(signIn(t, { flow: "signIn", email: DANA, password: STRONG }))).toMatchObject({
+      code: "INVALID_CREDENTIALS",
+    });
+    expect(await signIn(t, verificationResendParams({
+      kind: "verify", email: DANA, password: STRONG, signUpName: "Dana", codeSent: false,
+    }))).toEqual({ tokens: null });
+    expect(sent).toHaveLength(1);
+    expect((await userByEmail(t, DANA))?.name).toBe("Dana");
+    const result: any = await signIn(t, { flow: "email-verification", email: DANA, code: lastCode() });
+    expect(result.tokens).toBeTruthy();
+  });
+
   test("a skipped send is reported honestly, never as sent", async () => {
     const t = setup();
     vi.stubEnv("EMAIL_DAILY_BUDGET", "0");

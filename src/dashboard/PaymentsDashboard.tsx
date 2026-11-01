@@ -1,54 +1,27 @@
-import { useAuthToken } from "@convex-dev/auth/react";
-import { useConvex, useQuery } from "convex/react";
-import { useMemo, useRef, useState } from "react";
-import { AgStudioAiModule, enableStudioDevValidations, type AgAiHarnessSetup } from "ag-studio";
-import { AgStudio, AgStudioProvider } from "ag-studio-react";
+import { useQuery } from "convex/react";
+import { lazy, Suspense, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import { formatCents } from "../../convex/lib/money";
-import { createTradePulseHarness } from "./aiHarness";
-import { buildDashboardData, incompleteNotice } from "./dataSources";
-import { DASHBOARD_INITIAL_STATE } from "./layout";
-import { createConvexStudioAdapter, studioProxyUrl } from "./studioAdapter";
-import { StudioIsland } from "./StudioIsland";
-import { tradePulseStudioTheme } from "./theme";
-import { dashboardWidgets, type DashboardRegistry } from "./widgets";
+import { incompleteNotice } from "./dataSources";
+import { DashboardFallback, StudioErrorBoundary } from "./DashboardFallback";
 
-const STUDIO_MODULES = [AgStudioAiModule];
-
-if (import.meta.env.DEV) enableStudioDevValidations();
-
+const StudioDashboard = lazy(() => import("./StudioDashboard"));
 /**
  * AG Studio payments dashboard. This module is only reached through React.lazy so Studio
  * (several MB) stays out of the entry chunk.
  */
 export default function PaymentsDashboard() {
   const raw = useQuery(api.dashboard.queries.getDashboardData, {});
-  const data = useMemo(() => (raw ? buildDashboardData(raw) : undefined), [raw]);
-  const [editing, setEditing] = useState(false);
-  const convex = useConvex();
-  const token = useAuthToken();
-  const tokenRef = useRef(token);
-  tokenRef.current = token;
-  // Built once: Studio would rebuild the harness (and drop the open chat) on a new `ai` value.
-  const ai = useMemo<AgAiHarnessSetup>(() => {
-    const adapter = createConvexStudioAdapter({
-      url: studioProxyUrl({
-        VITE_CONVEX_SITE_URL: import.meta.env.VITE_CONVEX_SITE_URL as string | undefined,
-        VITE_CONVEX_URL: import.meta.env.VITE_CONVEX_URL as string | undefined,
-      }),
-      getToken: () => tokenRef.current,
-    });
-    const loadPaySummary = () => convex.query(api.dashboard.payAgent.getPaySummary, {});
-    return (params) => createTradePulseHarness(params, { adapter, loadPaySummary });
-  }, [convex]);
+  const hasStudioKey = Boolean(import.meta.env.VITE_AG_STUDIO_LICENSE_KEY?.trim());
+  const [basicView, setBasicView] = useState(false);
 
-  if (raw === undefined || data === undefined) {
+  if (raw === undefined) {
     return <p className="text-sm text-slate-400">Loading dashboard…</p>;
   }
 
   const { totals, incomplete } = raw;
   const readOnly = raw.readOnly;
-  const mode = !readOnly && editing ? "edit" : "view";
+  const fallback = <DashboardFallback raw={raw} reason="AG Studio could not load. Check the deployment's license and configuration." />;
 
   return (
     <section className="space-y-3" aria-label="Payments dashboard">
@@ -71,13 +44,14 @@ export default function PaymentsDashboard() {
             >
               Read-only
             </span>
-          ) : (
+          ) : null}
+          {hasStudioKey && (
             <button
               type="button"
-              onClick={() => setEditing((v) => !v)}
+              onClick={() => setBasicView((v) => !v)}
               className="rounded-lg border border-emerald-700 px-3 py-1.5 text-xs text-emerald-200 hover:bg-emerald-900/40"
             >
-              {editing ? "Done editing" : "Edit layout"}
+              {basicView ? "Try AG Studio" : "Use basic view"}
             </button>
           )}
         </div>
@@ -91,20 +65,15 @@ export default function PaymentsDashboard() {
           {incompleteNotice(incomplete)}
         </p>
       ) : null}
-      <StudioIsland style={{ height: "calc(100vh - 150px)", minHeight: 640 }}>
-        <AgStudioProvider licenseKey={import.meta.env.VITE_AG_STUDIO_LICENSE_KEY} modules={STUDIO_MODULES}>
-          <div style={{ height: "100%" }} data-testid="ag-studio-dashboard">
-            <AgStudio<DashboardRegistry>
-              data={data}
-              mode={mode}
-              theme={tradePulseStudioTheme}
-              widgets={dashboardWidgets}
-              initialState={DASHBOARD_INITIAL_STATE}
-              ai={ai}
-            />
-          </div>
-        </AgStudioProvider>
-      </StudioIsland>
+      {!hasStudioKey || basicView ? (
+        <DashboardFallback raw={raw} reason={!hasStudioKey ? "AG Studio license is not configured." : "Basic view selected."} />
+      ) : (
+        <StudioErrorBoundary fallback={fallback}>
+          <Suspense fallback={<p className="text-sm text-slate-400">Loading AG Studio…</p>}>
+            <StudioDashboard raw={raw} />
+          </Suspense>
+        </StudioErrorBoundary>
+      )}
     </section>
   );
 }

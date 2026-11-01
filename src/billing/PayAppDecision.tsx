@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import { approvedWorkAndStored, g702Summary } from "../../convex/payApps/g703Math";
 import { getErrorMessage } from "../lib/errors";
+import { isAIReviewProvider } from "../lib/aiProvenance";
 import { Button, Card, ConfirmDialog, MoneyInput, StatusPill, TextInput, formatCents, formatDateTime } from "../ui";
 
 type PayAppView = FunctionReturnType<typeof api.payApps.g703.getPayApp>;
@@ -31,7 +32,7 @@ function pct(fraction: number): string {
 }
 
 function engineLabel(r: Review): string {
-  return r.provider === "Anthropic" ? `Anthropic · ${r.model}` : "Offline rules engine";
+  return isAIReviewProvider(r.provider) ? `${r.provider} · ${r.model}` : "Offline rules engine";
 }
 
 /** GC: the AI review per line and the per-line decision (accept, override with reason, or revise), then approve, send back or reject. */

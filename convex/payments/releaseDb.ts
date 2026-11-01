@@ -7,6 +7,7 @@ import { syncProposalForPayment } from "../payApps/proposalSync";
 import { isCaptureDenied, settleRelease, takeEarlySettlement } from "./captureSettlement";
 import { assertPaymentTransition, canTransitionMilestone, canTransitionPayment, type MilestoneStatus } from "./stateMachine";
 import { checkCaptureAmount, isValidRequestKey, remainingAuthorizedCents } from "./payoutMath";
+import { closeUnsent, initiationRefusal, NOT_CAPTURED_EFFECT } from "./resumeDb";
 
 export const APPROVED_PAY_APP_REQUIRED_MESSAGE =
   "An approved pay app is required: money moves only from an approved pay app's Payment panel. Nothing was captured or paid.";
@@ -182,7 +183,16 @@ export const markCaptureSending = internalMutation({
     const release = await ctx.db.get(releasePaymentId);
     if (release === null || release.kind !== "payout") throw new ConvexError({ code: "NOT_FOUND", message: "Release not found." });
     if (release.status !== "created") return { state: "closed" as const, status: release.status, error: release.error };
-    if (release.captureSubmittedAt === undefined) await ctx.db.patch(release._id, { captureSubmittedAt: Date.now() });
+    if (release.captureSubmittedAt === undefined) {
+      // Approval, compliance or the confirmed payee may have changed during OAuth.
+      // Only an already-submitted capture may reconcile without passing the gate again.
+      const refusal = await initiationRefusal(ctx, release, NOT_CAPTURED_EFFECT, release);
+      if (refusal !== null) {
+        await closeUnsent(ctx, release, refusal.message);
+        return { state: "closed" as const, status: "failed", error: refusal.message };
+      }
+      await ctx.db.patch(release._id, { captureSubmittedAt: Date.now() });
+    }
     return { state: "ready" as const };
   },
 });

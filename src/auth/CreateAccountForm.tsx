@@ -50,14 +50,14 @@ export function CreateAccountForm({
     try {
       const result = await signIn("password", { flow: "signUp", email: normalized, password, name: name.trim() });
       if (!result.signingIn) {
-        onVerify({ kind: "verify", email: normalized, password, codeSent: true });
+        onVerify({ kind: "verify", email: normalized, password, signUpName: name.trim(), codeSent: true });
         return;
       }
     } catch (err) {
       const info = describeAuthError(err, "signUp");
       setSubmitting(false);
       if (isCodeSendError(info)) {
-        onVerify({ kind: "verify", email: normalized, password, codeSent: false, error: info.message, retryAfterMs: info.retryAfterMs });
+        onVerify({ kind: "verify", email: normalized, password, signUpName: name.trim(), codeSent: false, error: info.message, retryAfterMs: info.retryAfterMs });
         return;
       }
       if (info.code === "WEAK_PASSWORD") setErrors({ password: info.message });

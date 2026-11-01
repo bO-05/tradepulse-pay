@@ -340,7 +340,7 @@ export const storeAgentTrace = internalMutation({
       ...trace,
       caseId: payAppId,
       groundTruth: null,
-      status: trace.provider === "Anthropic" ? "AGENT_PROPOSED" : "AGENT_PROPOSED_OFFLINE",
+      status: trace.provider === "Anthropic" || trace.provider === "Mistral" ? "AGENT_PROPOSED" : "AGENT_PROPOSED_OFFLINE",
       costUsd: 0,
       timestamp: now,
     });

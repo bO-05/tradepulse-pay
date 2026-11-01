@@ -9,6 +9,7 @@ import { seedCompliantAgreement } from "../lib/testCompliance";
 import { signInAs } from "../lib/testIdentity";
 import { clearPayPalTokenCache } from "./paypalClient";
 import { payFromTranche } from "../lib/testPayApp";
+import { isCaptureCollected } from "./captureSettlement";
 
 /**
  * Capture settlement: PENDING captures hold the payout until COMPLETED, DENIED captures fail the release,
@@ -59,6 +60,18 @@ function fakePayPal() {
     if (req.method === "POST" && /\/void$/.test(url.pathname)) return new Response(null, { status: 204 });
     if (req.method === "POST" && url.pathname === "/v1/payments/payouts") {
       const sb = body.sender_batch_header.sender_batch_id as string;
+      // Real PayPal deduplicates sender_batch_id even when two actions POST concurrently.
+      const existing = [...batches.values()].find((b) => b.senderBatchId === sb);
+      if (existing) {
+        return json(400, {
+          name: "USER_BUSINESS_ERROR",
+          message: "User business error.",
+          details: [{
+            issue: "Batch with given sender_batch_id already exists",
+            link: [{ rel: "self", href: `https://api.sandbox.paypal.com/v1/payments/payouts/${existing.id}`, method: "GET" }],
+          }],
+        });
+      }
       const id = `BATCH-${++state.n}`;
       batches.set(id, { id, senderBatchId: sb, senderItemId: body.items[0].sender_item_id });
       return json(201, { batch_header: { payout_batch_id: id, batch_status: "PENDING" } });
@@ -75,7 +88,7 @@ function fakePayPal() {
     return json(404, { name: "RESOURCE_NOT_FOUND" });
   });
   const posts = (path: RegExp) => calls.filter((c) => c.method === "POST" && path.test(c.path));
-  return { fetchImpl, calls, posts, state, captureStatusById };
+  return { fetchImpl, calls, posts, state, captureStatusById, batches };
 }
 
 async function setup(authorizedCents = 1_000_000) {
@@ -168,7 +181,34 @@ afterEach(() => {
 
 const payoutPosts = () => fake.posts(/^\/v1\/payments\/payouts$/);
 
+test.each(["PENDING", "DENIED", "DECLINED", "FAILED", "REFUNDED", "PARTIALLY_REFUNDED", "", "UNKNOWN"])(
+  "capture status %s does not prove collected funds",
+  (status) => {
+    expect(isCaptureCollected(status)).toBe(false);
+    expect(isCaptureCollected("COMPLETED")).toBe(true);
+  },
+);
+
 describe("PENDING captures hold the payout", () => {
+  test("a refunded capture cannot fund a payout retry", async () => {
+    const { t, gc, milestoneId, fundingId } = await setup();
+    fake.state.captureStatus = "PENDING";
+    const out = await payFromTranche(t, gc.as, { milestoneId, amountCents: 600_000, requestKey: "test-key-refund-retry" });
+    await t.mutation(internal.payments.captureSettlement.applyCaptureSettlement, {
+      fundingPaymentId: fundingId,
+      captureId: out.captureId!,
+      status: "REFUNDED",
+    });
+    // A failed payout with a refunded funding capture must not become a new money write.
+    await t.run((ctx) => ctx.db.patch(out.paymentId, { status: "failed" }));
+    await expect(gc.as.action(api.payments.payoutRetry.retryPayout, { paymentId: out.paymentId })).rejects.toThrow();
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const r = await rows(t, milestoneId);
+    expect(r.payouts).toHaveLength(1);
+    expect(payoutPosts()).toHaveLength(0);
+    expect(r.ledger).toHaveLength(0);
+  });
+
   test("PENDING → no payout; a COMPLETED webhook pays exactly once", async () => {
     const { t, gc, milestoneId } = await setup();
     fake.state.captureStatus = "PENDING";
@@ -355,6 +395,27 @@ describe("event-first capture settlement", () => {
 });
 
 describe("refunds of older captures", () => {
+  test.each(["REFUNDED", "PARTIALLY_REFUNDED"])(
+    "a delayed COMPLETED event cannot resurrect a %s capture and trigger a payout",
+    async (refundStatus) => {
+      const { t, gc, milestoneId, fundingId } = await setup();
+      fake.state.captureStatus = "PENDING";
+      const out = await payFromTranche(t, gc.as, { milestoneId, amountCents: 600_000, requestKey: `test-key-late-${refundStatus}` });
+      await t.mutation(internal.payments.captureSettlement.applyCaptureSettlement, {
+        fundingPaymentId: fundingId,
+        captureId: out.captureId!,
+        status: refundStatus,
+      });
+      await dispatch(t, captureEvent(`WH-LATE-${refundStatus}`, "COMPLETED", out.captureId!));
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      const r = await rows(t, milestoneId);
+      expect(r.funding.captures?.[0].status).toBe(refundStatus);
+      expect(r.payouts[0].status).toBe("capture_pending");
+      expect(payoutPosts()).toHaveLength(0);
+      expect(r.ledger).toHaveLength(0);
+    },
+  );
+
   test("a refund of the first of two captures (up link only) resolves the funding payment", async () => {
     const { t, gc, milestoneId } = await setup();
     const first = await payFromTranche(t, gc.as, { milestoneId, amountCents: 300_000, requestKey: "test-key-ref1" });
@@ -476,11 +537,10 @@ describe("capture status never moves back to PENDING", () => {
     const { t, gc, milestoneId } = await setup();
     fake.state.captureStatus = "PENDING";
     const out = await payFromTranche(t, gc.as, { milestoneId, amountCents: 600_000, requestKey: "test-key-stuck1" });
-    // The COMPLETED webhook moves the release to created; its scheduled payout never runs here.
+    // The COMPLETED webhook moves the release to created; timers stay paused until after manual resume.
     await dispatch(t, captureEvent("WH-STUCK-1", "COMPLETED", out.captureId!));
     expect((await rows(t, milestoneId)).payouts[0].status).toBe("created");
 
-    vi.advanceTimersByTime(61_000);
     await gc.as.action(api.payments.release.resumeRelease, { paymentId: out.paymentId });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     const r = await rows(t, milestoneId);
@@ -488,5 +548,41 @@ describe("capture status never moves back to PENDING", () => {
     expect(payoutPosts()).toHaveLength(1);
     expect(r.payouts[0].status).toBe("success");
     expect(r.ledger).toHaveLength(1);
+  });
+
+  test("concurrent scheduled-style payout and manual resume reconcile one batch and credit retainage once", async () => {
+    const { t, gc, milestoneId } = await setup();
+    fake.state.captureStatus = "PENDING";
+    const out = await payFromTranche(t, gc.as, { milestoneId, amountCents: 600_000, requestKey: "test-key-concurrent-resume" });
+    await dispatch(t, captureEvent("WH-CONCURRENT-1", "COMPLETED", out.captureId!));
+
+    // Force both actions past their durable send gate before either gets a POST response.
+    let releasePosts!: () => void;
+    const bothPosting = new Promise<void>((resolve) => { releasePosts = resolve; });
+    const inner = fake.fetchImpl.getMockImplementation()!;
+    let posting = 0;
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const req = new Request(input, init);
+      if (req.method === "POST" && new URL(req.url).pathname === "/v1/payments/payouts") {
+        posting += 1;
+        if (posting === 2) releasePosts();
+        await bothPosting;
+      }
+      return await inner(input, init);
+    }));
+    await Promise.all([
+      gc.as.action(api.payments.release.resumeRelease, { paymentId: out.paymentId }),
+      t.action(internal.payments.payouts.payoutSubInternal, { paymentId: out.paymentId }),
+    ]);
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const r = await rows(t, milestoneId);
+    expect(capturePosts()).toHaveLength(1);
+    expect(payoutPosts()).toHaveLength(2);
+    expect(new Set(payoutPosts().map((p) => p.requestId)).size).toBe(1);
+    expect(fake.batches.size).toBe(1);
+    expect(r.payouts).toHaveLength(1);
+    expect(r.payouts[0]).toMatchObject({ status: "success", paypalPayoutBatchId: [...fake.batches.keys()][0] });
+    expect(r.ledger).toHaveLength(1);
+    expect(r.ledger[0].deltaCents).toBe(60_000);
   });
 });

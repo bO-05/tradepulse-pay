@@ -8,6 +8,8 @@ TradePulse Pay is MIT licensed (see [`LICENSE`](./LICENSE)).
 
 > The earlier TradePulse Pro submission for the Convex hackathon lives on a separate, frozen deployment (`brainy-skunk-440`). It is not TradePulse Pay and does not run this code.
 
+**Current tested Mistral recovery preview:** https://cheery-axolotl-689.convex.site is an isolated, non-production build with separate demo data. Real review and proposal-tool calls are verified there; settlement is not. The production URL above has not been replaced. See [recovery status and setup](./docs/recovery-progress.md), including the newer cloud-only waiver feature that must not be overwritten.
+
 ---
 
 ## The problem
@@ -21,10 +23,10 @@ TradePulse Pay takes the contract the GC just awarded in TradePulse Pro and runs
 1. **Execute the agreement.** Code generates the schedule of values (SOV) from the leveled bid, including the excluded-scope lines, and four funded milestones.
 2. **Fund a milestone.** The GC approves a PayPal `AUTHORIZE` order. The money is held, not captured.
 3. **Sub files a pay application**, either a person or the sub's **billing agent** signed in with AgentID.
-4. **AI review.** Anthropic Claude returns per-line verdicts (ok, overbilled, excluded scope, front-loaded, out of sequence). **Code computes every dollar** from the SOV; the model never authors an amount. KERNEL checks the sub's California license (CSLB) in a hosted browser.
+4. **AI review.** The configured Mistral or Anthropic model returns per-line verdicts (ok, overbilled, excluded scope, front-loaded, out of sequence). **Code computes every dollar** from the SOV; the model never authors an amount. KERNEL checks the sub's California license (CSLB) in a hosted browser.
 5. **Pay agent proposes**, the GC approves. The agent can only insert proposals (capture, payout, hold, reschedule). Money moves only after the GC approves: PayPal captures from the authorization, pays the sub net of retainage through Payouts, and credits the retainage ledger.
 6. **Change orders** are invoiced to the Owner with PayPal Invoicing. **Retainage** is released at closeout as one payout of the ledger balance.
-7. **Dashboard.** An AG Studio dashboard shows payments, pay apps, retainage and change orders, with a chat agent that answers from the Convex ledger.
+7. **Dashboard.** A live ledger dashboard shows payments, pay apps, retainage and change orders. A licensed AG Studio view adds layout editing and model-backed chat; the basic React view works without a Studio license.
 
 ---
 
@@ -59,14 +61,14 @@ Convex (convex/)
   lib/money.ts                integer cents; the only place amounts become PayPal strings
   payments/                   SOV, orders, captures, payouts, retainage, invoices, webhook, crons
   payApps/                    submit, withdraw, AI review, proposals, approval
-  agent/                      pay agent (AI SDK v7 + @ai-sdk/anthropic + read-only PayPal agent-toolkit tools)
+  agent/                      pay agent (AI SDK v7 + Mistral/Anthropic + read-only PayPal agent-toolkit tools)
   kernel/                     CSLB license check in KERNEL browsers
-  dashboard/                  dashboard queries and the /ai/studio Anthropic proxy
+  dashboard/                  dashboard queries and the /ai/studio model proxy
   judgeDemo/                  one-click judge demo runner
   http.ts                     /api/auth/*, /paypal/webhook, /ai/studio, /llms.txt, /api/health, demo PDFs
         │
         ▼
-PayPal sandbox · Anthropic · KERNEL → CSLB website · AgentID · AgentMail · Firecrawl
+PayPal sandbox · Mistral / Anthropic · KERNEL → CSLB website · AgentID · AgentMail · Firecrawl
 ```
 
 Rules the code enforces:
@@ -83,17 +85,19 @@ Rules the code enforces:
 
 ### Prerequisites
 
-- Node.js 20+ and npm
+- Node.js 22+ and npm
 - A Convex account (or a deploy key for an existing deployment)
 - A PayPal developer account with a **sandbox** REST app, and sandbox accounts for the GC buyer, three subs and the owner
-- Optional, for the full flow: Anthropic, KERNEL, AgentID, AgentMail and Firecrawl keys
+- For live AI: a funded Mistral or Anthropic API key. Chat subscriptions do not necessarily include API credits.
+- Other integrations: KERNEL, AgentID and AgentMail keys; Firecrawl is required by its component before a backend push.
 
 ### 1. Install
 
 ```bash
 git clone https://github.com/bO-05/tradepulse-pay.git
 cd tradepulse-pay
-git checkout paypal-hackathon
+git checkout recovery/stabilize-2026-11-01
+# Earlier hackathon baseline: git checkout paypal-hackathon
 npm ci
 ```
 
@@ -102,9 +106,9 @@ npm ci
 [`.env.example`](./.env.example) lists every variable name the code reads, with no values. There are two groups:
 
 - **Browser (`.env.local`, gitignored):** `VITE_CONVEX_URL`, `VITE_CONVEX_SITE_URL`, `VITE_PAYPAL_CLIENT_ID` (public by design), `VITE_AG_STUDIO_LICENSE_KEY` (client-side by design).
-- **Convex deployment:** `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL=claude-sonnet-5-5`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_ENV=sandbox`, `PAYPAL_WEBHOOK_ID`, `PAYPAL_SANDBOX_{GC_BUYER,SUB1,SUB2,SUB3,OWNER}_EMAIL`, `KERNEL_API_KEY`, `FIRECRAWL_API_KEY`, `AGENTMAIL_API_KEY`, `AUTH_AGENTID_ID`, `AUTH_AGENTID_SECRET`, `SITE_URL`, plus `JWT_PRIVATE_KEY` and `JWKS` (generated below).
+- **Convex deployment:** `AI_PROVIDER=mistral`, `MISTRAL_API_KEY`, `MISTRAL_MODEL=mistral-large-latest` (or the optional `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` alternative), `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_ENV=sandbox`, `PAYPAL_WEBHOOK_ID`, `PAYPAL_SANDBOX_{GC_BUYER,SUB1,SUB2,SUB3,OWNER}_EMAIL`, `KERNEL_API_KEY`, `FIRECRAWL_API_KEY`, `AGENTMAIL_API_KEY`, `AUTH_AGENTID_ID`, `AUTH_AGENTID_SECRET`, `SITE_URL`, plus `JWT_PRIVATE_KEY` and `JWKS` (generated below).
 
-Names marked `# optional` in `.env.example` are unset on dev and production and the code works without them. [`docs/prod-env-names.md`](./docs/prod-env-names.md) reconciles every backend-read name against the production deployment (names only).
+Names marked `# optional` in `.env.example` are not required for a backend push. Live AI still needs a funded provider. `AI_PROVIDER` selects one provider; the app does not silently spend credits with another provider after a failure. Without an explicit selection, a configured Mistral key takes precedence over Anthropic. [`docs/prod-env-names.md`](./docs/prod-env-names.md) is a historical production reconciliation, not proof of current settings; inspect names with `npx convex env list --names-only`.
 
 Keep real values in a secrets file outside the repo. The setup scripts read it, pipe each value to `npx convex env set` on stdin and print names only. They refuse the frozen `brainy-skunk-440` deployment.
 
@@ -224,13 +228,13 @@ Funded authorizations are watched hourly (`convex/crons.ts`): after the 3-day ho
 | Integration | Live behavior | Fallback or limit (labeled in the app) |
 |---|---|---|
 | PayPal (sandbox) | Orders `AUTHORIZE`, authorize, capture, void, reauthorize; Payouts; Invoicing v2; webhook signature verification. All real sandbox calls. | Sandbox only. An unverified webhook gets 400 and is recorded `verified=false`. PayPal's webhook simulator events fail verification by design. Retainage release needs the sandbox top-up above. |
-| Anthropic | `claude-sonnet-5-5` (from `ANTHROPIC_MODEL`) for pay-app review, the pay agent and the AG Studio chat proxy. | If no provider responds, the review and the agent fall back to a deterministic rules engine labeled **"Offline rules engine"**. The Studio proxy returns 503 when no key is set. |
+| Mistral / Anthropic | The selected provider handles pay-app review, pay-agent tools and the AG Studio chat proxy. Mistral uses `MISTRAL_MODEL`; Anthropic uses `ANTHROPIC_MODEL`. | A missing key or provider failure keeps reviews and the agent explicitly on **"Offline rules engine"**. Studio returns an error rather than pretending to run AI. Provider availability and API credit must be verified separately. |
 | KERNEL | Hosted browser runs the CSLB license lookup, with the live view embedded in the inbox. Results are cached 24 h. | On timeout or failure the check is **"unverified"**; a license is never shown as verified unless CSLB returned it. |
 | AgentID | Billing-agent sign-in (OIDC, PKCE) on the deployment whose redirect URI is registered. | Unlinked agents get "Agent not authorized". Each new deployment needs its redirect URI registered. |
 | AgentMail | Inbox identity for billing agents; RFQ inboxes and outbound email for procurement. | The free plan is at its 3-inbox limit, so new trade packages reuse an existing inbox and the UI labels it **shared**. Inbound `/agentmail/webhook` requires `AGENTMAIL_WEBHOOK_SECRET` (Svix verification) and returns 503 when it is not set. |
 | Firecrawl | Subcontractor discovery by web search, with per-record provenance. | When a search returns nothing usable, no records are created; records stay "Unverified" unless the source is a registry page. |
-| AG Studio | Payments dashboard and chat agent with a STUDIO-PRO-AI trial license (expires 20 Nov 2026). | The chat agent needs the Anthropic key on the deployment (the `/ai/studio` proxy). |
-| OpenAI, Gemini, Vertex | BYOK adapters in the procurement router (`convex/llmRouter.ts`). | Not configured on the TradePulse Pay deployment; procurement AI uses Anthropic or its deterministic fallback. |
+| AG Studio | Licensed payments dashboard and chat agent; the original trial expires 20 Nov 2026. | Chat requires the configured model provider. A basic React ledger remains available without Studio licensing; it does not imitate Studio chat. |
+| OpenAI, Gemini, Vertex | Additional BYOK adapters in the procurement router (`convex/llmRouter.ts`). | Optional. Mistral is the recovery build's intended provider; unavailable inference is not presented as a successful model run. |
 
 ---
 
@@ -240,6 +244,7 @@ Funded authorizations are watched hourly (`convex/crons.ts`): after the 3-day ho
 |---|---|
 | **PayPal** | `@paypal/paypal-server-sdk@2.5.0` for Orders and Payments (`convex/payments/paypalClient.ts`, `orders.ts`); plain REST for Payouts, Invoicing v2 and webhook verification (`payouts.ts`, `invoices.ts`, `webhook.ts`); `@paypal/react-paypal-js@10.6.0` buttons for funding (`src/payments/FundMilestone.tsx`); `@paypal/agent-toolkit@1.11.0` read-only tools (`list_invoices`, `get_invoice`, `get_order`, `list_transactions`) wrapped for AI SDK v7 in `convex/agent/tools.ts`. |
 | **Anthropic** | Claude through `ai@7` and `@ai-sdk/anthropic@4` for structured pay-app verdicts (`convex/payApps/review.ts`) and the pay agent tool loop (`convex/agent/`); the `/ai/studio` HTTP action proxies AG Studio chat to the Anthropic Messages API so the key stays server-side. |
+| **Mistral** | `@ai-sdk/mistral@4` supplies structured pay-app reviews and bounded agent tool calls. The selected provider also serves dashboard chat and procurement reasoning. The funded API key stays server-side; no GPU hosting is required. |
 | **AG Studio** | `ag-studio-react@3.0.0` and `ag-studio@3.0.0` render the lazy-loaded payments dashboard (`src/dashboard/`) from reactive Convex queries, with custom widgets and a "TradePulse pay agent" that delegates to AG's built-in agents. |
 | **APIMatic** | The APIMatic Context Plugin (MCP) was queried while writing the PayPal Server SDK code. Every lookup and the code it informed is in [`docs/apimatic-log.md`](./docs/apimatic-log.md). It covers Orders and Payments only; the app never calls it at runtime. |
 | **Postman** | A v2.1 collection and sandbox environment document every HTTP endpoint and PayPal call the app makes (see "API collection" below). |

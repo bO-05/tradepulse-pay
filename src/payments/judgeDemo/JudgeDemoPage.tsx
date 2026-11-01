@@ -40,6 +40,8 @@ export function JudgeDemoPage() {
   const [closeoutNote, setCloseoutNote] = useState<string | null>(null);
   const [closeoutError, setCloseoutError] = useState<string | null>(null);
   const [closeoutBusy, setCloseoutBusy] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [refreshBusy, setRefreshBusy] = useState(false);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -172,7 +174,7 @@ export function JudgeDemoPage() {
                 <p className="text-xs text-slate-400" data-testid={`judge-demo-detail-${step.id}`}>
                   {step.detail}
                 </p>
-                {step.id === "fund" && step.status === "human" && mobilization && (
+                {step.id === "fund" && (step.status === "human" || step.status === "running") && mobilization && (
                   <div className="space-y-1">
                     <p className="text-xs text-amber-200">
                       Human step: click Fund, choose "Debit or Credit Card" and pay as guest with the sandbox card (4032031427005060,
@@ -199,11 +201,23 @@ export function JudgeDemoPage() {
                     <button
                       type="button"
                       data-testid="judge-demo-refresh-co"
+                      disabled={refreshBusy}
                       className="rounded-lg border border-slate-700 px-3 py-1 hover:bg-slate-800"
-                      onClick={() => void refreshCo({ changeOrderId: changeOrder._id }).catch(() => undefined)}
+                      onClick={async () => {
+                        setRefreshBusy(true);
+                        setRefreshError(null);
+                        try {
+                          await refreshCo({ changeOrderId: changeOrder._id });
+                        } catch (e) {
+                          setRefreshError(readableError(e));
+                        } finally {
+                          setRefreshBusy(false);
+                        }
+                      }}
                     >
-                      Refresh status
+                      {refreshBusy ? "Refreshing…" : "Refresh status"}
                     </button>
+                    {refreshError && <p role="alert" className="text-rose-300">{refreshError}</p>}
                   </div>
                 )}
               </li>

@@ -142,11 +142,11 @@ for (const file of walk(ROOT).sort()) {
       if (verifyAt === -1 || (writeAt !== -1 && writeAt < verifyAt)) problems.push(`${fnName}: no signature verification before writes`);
     } else if (fnName === "dashboard/studioProxy:studioPreflight") {
       guardText = "CORS preflight only, no data access";
-      if (access || /\bfetch\(/.test(body)) problems.push(`${fnName}: preflight touches data`);
+      if (access || /\b(?:fetch|upstreamFetch)\(/.test(body)) problems.push(`${fnName}: preflight touches data`);
     } else if (fnName === "dashboard/studioProxy:studioProxy") {
       const identityAt = body.search(/getUserIdentity/);
       const authorizeAt = body.search(/runQuery\(internal\.dashboard\.studioAccess\.authorizeStudioCaller/);
-      const fetchAt = body.search(/\bfetch\(/);
+      const fetchAt = body.search(/\b(?:fetch|upstreamFetch)\(/);
       guardText = "Bearer token, then authorizeStudioCaller (requireRole + requireCompanyMember) before fetch";
       if (identityAt === -1 || authorizeAt < identityAt || fetchAt < authorizeAt || /runMutation|runAction/.test(body)) {
         problems.push(`${fnName}: model call is not behind the session and company check`);

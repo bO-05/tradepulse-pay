@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { convexTest } from "convex-test";
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import schema from "../schema";
 import { signInAs } from "../lib/testIdentity";
@@ -8,6 +8,16 @@ import { PAY_APP_REVIEW_FIXTURES } from "./reviewEvalFixtures";
 import { evaluateFixtures, suiteProvenance } from "./reviewEvals";
 import { rulesEngineJudgement } from "./reviewMath";
 import type { ModelCaller } from "./reviewModel";
+
+const generateTextMock = vi.hoisted(() => vi.fn());
+vi.mock("ai", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("ai")>();
+  return { ...actual, generateText: generateTextMock };
+});
+afterEach(() => {
+  vi.unstubAllEnvs();
+  generateTextMock.mockReset();
+});
 
 const modules = import.meta.glob("/convex/**/*.ts");
 
@@ -32,9 +42,13 @@ describe("pay-app review eval fixtures", () => {
     expect(suiteProvenance(results.map((r) => r.score))).toEqual({ provider: "Offline rules engine", model: "none" });
   });
 
-  test("a model run is scored against the expectations and labeled with its model id", async () => {
+  test.each([
+    { provider: "anthropic" as const, label: "Anthropic", modelId: "claude-sonnet-5-5" },
+    { provider: "mistral" as const, label: "Mistral", modelId: "mistral-large-latest" },
+  ])("a $label run is scored against model verdicts and labeled with its model id", async ({ provider, label, modelId }) => {
     // A model that misses the front-loaded line but gets everything else right.
-    const callModel: ModelCaller = async ({ prompt }) => {
+    const callModel: ModelCaller = async ({ prompt, provider: selected }) => {
+      expect(selected).toBe(provider);
       const lineCount = prompt.split('"sovLineId"').length - 1;
       const f = PAY_APP_REVIEW_FIXTURES.find(
         (x) =>
@@ -44,19 +58,44 @@ describe("pay-app review eval fixtures", () => {
       )!;
       const judgement = rulesEngineJudgement(f.context);
       judgement.lines = judgement.lines.map((l) => (l.verdict === "front_loaded" ? { ...l, verdict: "ok" } : l));
-      return { judgement, modelId: "claude-sonnet-5-5", inputTokens: 10, outputTokens: 5, rawResponse: "{}" };
+      return { judgement, modelId, inputTokens: 10, outputTokens: 5, rawResponse: "{}" };
     };
-    const results = await evaluateFixtures({ apiKey: "k", modelId: "claude-sonnet-5-5" }, { callModel });
-    expect(results.every((r) => r.run.provider === "Anthropic")).toBe(true);
+    const results = await evaluateFixtures({ apiKey: "k", modelId, provider }, { callModel });
+    expect(results.every((r) => r.run.provider === label)).toBe(true);
+    expect(suiteProvenance(results.map((r) => r.score))).toEqual({ provider: label, model: modelId });
     const byId = new Map(results.map((r) => [r.fixture.fixtureId, r.score]));
     expect(byId.get("payapp_overbilled")!.passed).toBe(true);
-    expect(byId.get("payapp_front_loaded")).toMatchObject({ passed: false, score: 0.667, provider: "Anthropic", model: "claude-sonnet-5-5" });
+    expect(byId.get("payapp_front_loaded")).toMatchObject({ passed: false, score: 0.667, provider: label, model: modelId });
     const excluded = results.find((r) => r.fixture.fixtureId === "payapp_excluded_scope")!;
     expect(excluded.run.review.lines.find((l) => l.sovLineId === "fx-sov-3")!.approvedCents).toBe(0);
   });
 });
 
 describe("eval suite run", () => {
+  test("the configured Mistral suite persists actual provider/model on every score and trace", async () => {
+    vi.stubEnv("AI_PROVIDER", "mistral");
+    vi.stubEnv("MISTRAL_API_KEY", "fake-mistral-eval-key");
+    let fixtureIndex = 0;
+    generateTextMock.mockImplementation(async (options: { model: { provider: string }; prompt: string }) => {
+      expect(options.model.provider).toContain("mistral");
+      const fixture = PAY_APP_REVIEW_FIXTURES[fixtureIndex++];
+      expect(options.prompt).toContain(fixture.context.payApp.periodLabel);
+      return { output: rulesEngineJudgement(fixture.context), response: { modelId: "mistral-large-actual" }, usage: { inputTokens: 10, outputTokens: 5 } };
+    });
+    const t = convexTest(schema, modules);
+    const result = await t.action(internal.payApps.reviewEvals.runPayAppReviewEvalSuite, {});
+    expect(generateTextMock).toHaveBeenCalledTimes(4);
+    expect(result).toMatchObject({ provider: "Mistral", model: "mistral-large-actual", passedCases: 4 });
+    expect(result.fixtureScores.every((score) => score.provider === "Mistral" && score.model === "mistral-large-actual")).toBe(true);
+    const saved = await t.run(async (ctx) => ({
+      run: await ctx.db.query("evalRuns").first(),
+      traces: await ctx.db.query("agentTraces").collect(),
+    }));
+    expect(saved.run).toMatchObject({ provider: "Mistral", model: "mistral-large-actual" });
+    expect(saved.traces).toHaveLength(4);
+    expect(saved.traces.every((trace) => trace.provider === "Mistral" && trace.model === "mistral-large-actual")).toBe(true);
+  });
+
   test("records a pay_app_review evalRuns row with per-fixture scores; the leveling view ignores it", async () => {
     const t = convexTest(schema, modules);
     const res = await t.action(internal.payApps.reviewEvals.runPayAppReviewEvalSuite, {});

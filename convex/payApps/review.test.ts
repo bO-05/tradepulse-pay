@@ -4,6 +4,10 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import schema from "../schema";
 import { signInAs } from "../lib/testIdentity";
+// Resolve the real review/provider graph and the existing downstream test action
+// during collection, not inside the fake-timer scheduler's bounded pump loop.
+import "./review";
+import "../agent/payAgent";
 
 const generateTextMock = vi.hoisted(() => vi.fn());
 vi.mock("ai", async (importOriginal) => {
@@ -132,12 +136,19 @@ describe("pay-app review on submit", () => {
     expect(row.review!.lines.find((l) => l.sovLineId === s.excludedLineId)).toMatchObject({ verdict: "excluded_scope", approvedCents: 0 });
   });
 
-  test("Anthropic structured output explains the lines; code decides verdicts and cents and stores provenance", async () => {
-    vi.stubEnv("ANTHROPIC_API_KEY", "test-key-not-real");
-    vi.stubEnv("ANTHROPIC_MODEL", "claude-sonnet-5-5");
+  test.each([
+    { provider: "anthropic", label: "Anthropic", model: "claude-sonnet-5-5", prefix: "ANTHROPIC" },
+    { provider: "mistral", label: "Mistral", model: "mistral-large-latest", prefix: "MISTRAL" },
+  ])("$label structured output explains the lines; code decides verdicts and cents and stores provenance", async ({ provider, label, model, prefix }) => {
+    vi.stubEnv("AI_PROVIDER", provider);
+    vi.stubEnv(`${prefix}_API_KEY`, "test-key-not-real");
+    vi.stubEnv(`${prefix}_MODEL`, model);
     const s = await setup();
     const [a, b] = s.sov;
-    generateTextMock.mockImplementation(async (opts: { prompt: string }) => {
+    generateTextMock.mockImplementation(async (opts: { prompt: string; model: { provider: string; modelId: string }; output: unknown }) => {
+      expect(opts.model.provider).toContain(provider);
+      expect(opts.model.modelId).toBe(model);
+      expect(opts.output).toBeDefined();
       expect(opts.prompt).toContain("trancheCeilingPctToDate");
       expect(opts.prompt).toContain(String(s.excludedLineId));
       return {
@@ -152,12 +163,12 @@ describe("pay-app review on submit", () => {
           notes: "Three lines flagged.",
         },
         usage: { inputTokens: 1200, outputTokens: 300 },
-        response: { modelId: "claude-sonnet-5-5" },
+        response: { modelId: model },
       };
     });
     const { row, traces } = await submitAndReview(s);
     expect(generateTextMock).toHaveBeenCalledTimes(1);
-    expect(row.review).toMatchObject({ provider: "Anthropic", model: "claude-sonnet-5-5", engine: "Anthropic claude-sonnet-5-5" });
+    expect(row.review).toMatchObject({ provider: label, model, engine: `${label} ${model}` });
     // The model's percent does not set money: the rules hold line 2 at the 30% tranche ceiling.
     const line = row.review!.lines.find((l) => l.sovLineId === b._id)!;
     expect(line).toMatchObject({ verdict: "overbilled", recommendedPctToDate: 0.3, reason: "60% claimed vs 30% supported." });
@@ -169,7 +180,7 @@ describe("pay-app review on submit", () => {
     expect(lineA).toMatchObject({ verdict: "ok", modelVerdict: "front_loaded", approvedCents: requestedA });
     expect(lineA.reason).toContain("The model's verdict (Front-loaded) was replaced by the code rules.");
     expect(row.review!.flags.notes).toBe("Three lines flagged. Code rules replaced the model's verdict on line 1.");
-    expect(traces[0]).toMatchObject({ provider: "Anthropic", model: "claude-sonnet-5-5", inputTokens: 1200, outputTokens: 300 });
+    expect(traces[0]).toMatchObject({ provider: label, model, status: "REVIEWED", inputTokens: 1200, outputTokens: 300 });
     expect(JSON.stringify(traces[0])).not.toContain("test-key-not-real");
   });
 
@@ -251,6 +262,22 @@ describe("pay-app review on submit", () => {
     expect(row.status).toBe("reviewed");
     expect(row.review).toMatchObject({ provider: "Offline rules engine", model: "none", fallbackReason: "AI provider returned HTTP 404." });
     expect(JSON.stringify({ review: row.review, trace: traces[0] }).toLowerCase()).not.toContain("claude");
+  });
+
+  test("Mistral failure falls back offline without trying the depleted Anthropic account", async () => {
+    vi.stubEnv("AI_PROVIDER", "mistral");
+    vi.stubEnv("MISTRAL_API_KEY", "mistral-test-key-not-real");
+    vi.stubEnv("ANTHROPIC_API_KEY", "depleted-test-key-not-real");
+    vi.stubEnv("ANTHROPIC_MODEL", "claude-sonnet-5-5");
+    generateTextMock.mockRejectedValue(Object.assign(new Error("sensitive provider request"), { statusCode: 429 }));
+    const { row, traces } = await submitAndReview(await setup());
+    expect(generateTextMock).toHaveBeenCalledTimes(1);
+    expect(generateTextMock.mock.calls[0][0].model.provider).toContain("mistral");
+    expect(row.review).toMatchObject({ provider: "Offline rules engine", model: "none", fallbackReason: "AI provider returned HTTP 429." });
+    expect(traces[0].status).toBe("REVIEWED_OFFLINE");
+    expect(JSON.stringify(traces)).not.toContain("sensitive provider request");
+    expect(row.status).toBe("reviewed");
+    expect(row.review!.flags.licenseIssue).toBe(true);
   });
 });
 

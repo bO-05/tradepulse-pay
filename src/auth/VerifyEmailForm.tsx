@@ -3,7 +3,7 @@ import { FormEvent, useState } from "react";
 import { Button, TextInput } from "../ui";
 import { AuthLayout, FormAlert, TextLink } from "./AuthLayout";
 import { describeAuthError } from "./authErrors";
-import type { VerifyScreen } from "./authScreens";
+import { verificationResendParams, type VerifyScreen } from "./authScreens";
 import { RESEND_COOLDOWN_MS, useCooldown } from "./useCooldown";
 
 export function CodeInput({ id, value, onChange, error }: { id: string; value: string; onChange: (v: string) => void; error?: string }) {
@@ -64,7 +64,9 @@ export function VerifyEmailForm({ screen, onBack }: { screen: VerifyScreen; onBa
     setError(null);
     setNotice(null);
     try {
-      const result = await signIn("password", { flow: "signIn", email: screen.email, password: screen.password });
+      // Preflight can refuse a sign-up before creating an account. Repeating signIn in that
+      // case can never send a code; signUp safely handles both new and unverified accounts.
+      const result = await signIn("password", verificationResendParams(screen));
       if (!result.signingIn) {
         setNotice(`We sent a new code to ${screen.email}. Codes from earlier emails no longer work.`);
         setCode("");

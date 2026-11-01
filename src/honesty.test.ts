@@ -8,7 +8,7 @@ import { expect, test } from "vitest";
  * "parity / zero cheating" eval framing. If someone reintroduces those strings,
  * this suite fails before the claims reach the deployment.
  */
-const componentSources = import.meta.glob("./components/*.tsx", {
+const componentSources = import.meta.glob(["./components/*.tsx", "!./components/*.test.tsx"], {
   query: "?raw",
   import: "default",
   eager: true,
@@ -45,7 +45,7 @@ const libConvexSources = import.meta.glob("../convex/lib/*.ts", {
 function find(pathFragment: string, sources: Record<string, string>): string {
   const key = Object.keys(sources).find((k) => k.endsWith(pathFragment));
   if (!key) throw new Error(`Source not found: ${pathFragment}`);
-  return sources[key];
+  return sources[key].replace(/\r\n/g, "\n");
 }
 
 test("Discovery never claims registry verification for unverified records", () => {
@@ -130,7 +130,7 @@ test("Model diagnostics disclose unavailable providers instead of silently gradi
 
 test("F3: the New project wizard starts empty and uses placeholders, not silent prefilled values", async () => {
   const fields = (await import("./projects/gc/ProjectSetupFields.tsx?raw")).default as string;
-  const form = (await import("./projects/gc/projectSetupForm.ts?raw")).default as string;
+  const form = ((await import("./projects/gc/projectSetupForm.ts?raw")).default as string).replace(/\r\n/g, "\n");
   expect(fields).toContain('placeholder="e.g. Harbor Point Dental LLC"');
   expect(form).toMatch(/EMPTY_PROJECT_SETUP[^=]*= \{\n  title: "",\n  ownerName: "",/);
   expect(form).toContain("contractValueCents: null,");

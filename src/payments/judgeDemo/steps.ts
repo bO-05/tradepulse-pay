@@ -4,6 +4,7 @@
  */
 import { formatCents } from "../../../convex/lib/money";
 import { changeOrderInvoiced } from "./changeOrderStep";
+import { subPayoutStatusLabel } from "../payoutStatusLabel";
 
 export const JUDGE_DEMO_AUTOSTART_KEY = "tradepulse.judgeDemo.autostart";
 
@@ -72,7 +73,7 @@ export type DemoState = {
 
 export const FUNDED_STATUSES = new Set(["authorized", "partially_captured", "captured"]);
 const REVIEWED = new Set(["reviewed", "approved", "approved_as_noted", "revision_requested", "paid", "rejected"]);
-const DECIDED = new Set(["approved", "executed", "failed"]);
+const DECIDED = new Set(["approved", "executed"]);
 
 export function moneyProposal(item: DemoInboxItem | null, kind: "capture" | "payout"): Proposal | null {
   return item?.proposals.find((p) => p.kind === kind) ?? null;
@@ -88,11 +89,24 @@ export function payoutFinished(item: DemoInboxItem | null): boolean {
 }
 
 const TOTAL_KEYS = ["capturedCents", "paidCents", "retainageHeldCents", "changeOrdersPaidCents"] as const;
-const PAYOUT_SETTLED = new Set(["success", "unclaimed"]);
 
-/** PayPal has settled the payout item (SUCCESS, or UNCLAIMED for a receiver without an account). */
+/** Only SUCCESS means the recipient was paid; UNCLAIMED still requires recipient action. */
 export function payoutSettled(item: DemoInboxItem | null): boolean {
-  return item?.payment != null && PAYOUT_SETTLED.has(item.payment.status);
+  return item?.payment?.status === "success";
+}
+
+/** Stop automation on terminal decisions/failures, rather than timing out or announcing success. */
+export function demoRunBlocker(item: DemoInboxItem | null): string | null {
+  if (!item) return null;
+  if (["rejected", "revision_requested", "withdrawn"].includes(item.payApp.status)) {
+    return `The pay application is ${item.payApp.status.replace(/_/g, " ")}. Review it in the approval inbox; this run cannot approve it automatically.`;
+  }
+  const proposal = item.proposals.find((p) => ["capture", "payout"].includes(p.kind) && ["failed", "rejected"].includes(p.status));
+  if (proposal) return `${proposal.kind} proposal ${proposal.status}${proposal.error ? `: ${proposal.error}` : ""}. Review the approval inbox before continuing.`;
+  if (["failed", "returned"].includes(item.payment?.status ?? "")) {
+    return `${subPayoutStatusLabel(item.payment!.status).status}. Review the agreement ledger and PayPal status; do not assume the subcontractor was paid.`;
+  }
+  return null;
 }
 
 function amountOf(p: Proposal | null): number | null {
@@ -109,13 +123,14 @@ function reviewDetail(item: DemoInboxItem | null): string {
     if (verdict && verdict !== "ok") counts.set(verdict, (counts.get(verdict) ?? 0) + 1);
   }
   const verdicts = counts.size ? [...counts].map(([v, n]) => `${v.replace(/_/g, " ")} ×${n}`).join(", ") : "all lines ok";
-  return `${r.engine}: ${formatCents(r.approvedTotalCents)} of ${formatCents(item.payApp.requestedTotalCents)} approved (${verdicts})`;
+  const offline = r.engine.toLowerCase().includes("offline");
+  return `${r.engine}${offline ? " (not AI; review the recommendation in the approval inbox)" : ""}: ${formatCents(r.approvedTotalCents)} of ${formatCents(item.payApp.requestedTotalCents)} recommended (${verdicts})`;
 }
 
 function payoutDetail(item: DemoInboxItem | null): string {
   const pay = item?.payment;
   if (!pay) return "no payout yet";
-  return `${formatCents(pay.grossCents)} gross → ${formatCents(pay.netCents)} net, ${formatCents(pay.retainageCents)} retainage (${pay.status})`;
+  return `${formatCents(pay.grossCents)} gross → ${formatCents(pay.netCents)} net, ${formatCents(pay.retainageCents)} retainage (${subPayoutStatusLabel(pay.status).status})`;
 }
 
 export function deriveSteps(s: DemoState): DemoStep[] {
@@ -123,11 +138,14 @@ export function deriveSteps(s: DemoState): DemoStep[] {
   const executed = s.agreementStatus === "executed" && (ledger?.sov.length ?? 0) > 0 && (ledger?.milestones.length ?? 0) > 0;
   const mobilization = ledger?.milestones.find((m) => m.name === "Mobilization") ?? null;
   const funded = mobilization?.funding != null && FUNDED_STATUSES.has(mobilization.funding.status);
-  const bothReviewed = REVIEWED.has(s.honest?.payApp.status ?? "") && REVIEWED.has(s.agent?.payApp.status ?? "");
+  const bothReviewed = [s.honest, s.agent].every((item) => item?.payApp.review != null && REVIEWED.has(item.payApp.status));
   const license = s.agent?.license ?? s.honest?.license ?? null;
   const honestPayout = moneyProposal(s.honest, "payout");
   const agentPayout = moneyProposal(s.agent, "payout");
-  const proposalError = [honestPayout, agentPayout].find((p) => p?.status === "failed");
+  const blockers = [s.honest, s.agent].map(demoRunBlocker);
+  const blocked = blockers.some(Boolean);
+  const unclaimed = [s.honest, s.agent].some((item) => item?.payment?.status === "unclaimed");
+  const fundingStatus = mobilization?.funding?.status;
   const co = s.changeOrder;
   const coInvoiced = changeOrderInvoiced(co);
 
@@ -152,11 +170,15 @@ export function deriveSteps(s: DemoState): DemoStep[] {
     {
       id: "fund",
       label: "Fund Mobilization with PayPal (guest card approval)",
-      status: funded ? "done" : executed ? "human" : "todo",
+      status: funded ? "done" : !executed ? "todo" : fundingStatus === "approved" ? "running" : "human",
       detail: funded
         ? `Authorized ${formatCents(mobilization!.funding!.grossCents)} (${mobilization!.funding!.status})`
         : executed
-          ? "Approve the PayPal checkout below with the sandbox guest card"
+          ? fundingStatus === "approved"
+            ? "PayPal checkout approved; waiting for authorization. Use Retry authorization below if it does not finish."
+            : fundingStatus === "failed" || fundingStatus === "expired" || fundingStatus === "voided"
+              ? `Funding ${fundingStatus}; no usable authorization. Use the funding control below to try again.`
+              : "Approve the PayPal checkout below with the sandbox guest card"
           : "waiting for execution",
     },
     {
@@ -173,7 +195,7 @@ export function deriveSteps(s: DemoState): DemoStep[] {
     },
     {
       id: "review",
-      label: "AI review of both pay apps (code computes every dollar)",
+      label: "Review both pay apps (AI or labeled offline rules; code computes every dollar)",
       status: bothReviewed ? "done" : s.honestFiled || s.agentFiled ? "running" : "todo",
       detail: `Honest: ${reviewDetail(s.honest)} · Agent: ${reviewDetail(s.agent)}`,
     },
@@ -194,32 +216,34 @@ export function deriveSteps(s: DemoState): DemoStep[] {
     {
       id: "approve_honest",
       label: "GC approves the honest pay app as proposed",
-      status: honestPayout && DECIDED.has(honestPayout.status) ? (honestPayout.status === "failed" ? "error" : "done") : "todo",
-      detail: honestPayout ? `payout proposal ${honestPayout.status}${honestPayout.error ? `: ${honestPayout.error}` : ""}` : "waiting",
+      status: blockers[0] ? "error" : honestPayout && DECIDED.has(honestPayout.status) ? "done" : "todo",
+      detail: blockers[0] ?? (honestPayout ? `payout proposal ${honestPayout.status}${honestPayout.error ? `: ${honestPayout.error}` : ""}` : "waiting"),
     },
     {
       id: "approve_agent",
       label: "GC edits the agent's proposal down and approves",
-      status: agentPayout && DECIDED.has(agentPayout.status) ? (agentPayout.status === "failed" ? "error" : "done") : "todo",
-      detail: agentPayout
+      status: blockers[1] ? "error" : agentPayout && DECIDED.has(agentPayout.status) ? "done" : "todo",
+      detail: blockers[1] ?? (agentPayout
         ? `${agentPayout.editedAmountCents !== null ? `edited ${formatCents(agentPayout.amountCents ?? 0)} → ${formatCents(agentPayout.editedAmountCents)}` : "not edited yet"} · ${agentPayout.status}${
             agentPayout.error ? `: ${agentPayout.error}` : ""
           }`
-        : "waiting",
+        : "waiting"),
     },
     {
       id: "payout",
       label: "PayPal capture + payout to sub1 with 10% retainage held",
-      status: proposalError
+      status: blocked
         ? "error"
         : payoutSettled(s.honest) && payoutSettled(s.agent)
           ? "done"
-          : payoutFinished(s.honest) || payoutFinished(s.agent)
-            ? "running"
-            : "todo",
+          : unclaimed
+            ? "human"
+            : payoutFinished(s.honest) || payoutFinished(s.agent)
+              ? "running"
+              : "todo",
       detail: `Honest: ${payoutDetail(s.honest)} · Agent: ${payoutDetail(s.agent)}${
         ledger ? ` · Ledger: captured ${formatCents(ledger.totals.capturedCents)}, paid ${formatCents(ledger.totals.paidCents)}, retainage held ${formatCents(ledger.totals.retainageHeldCents)}` : ""
-      }`,
+      }${unclaimed ? " · The recipient must claim the payout in PayPal; it is not paid yet." : ""}${blocked ? ` · ${blockers.filter(Boolean).join(" · ")}` : ""}`,
     },
     {
       id: "change_order",

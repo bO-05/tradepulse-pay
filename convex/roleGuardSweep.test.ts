@@ -643,12 +643,12 @@ describe("static guard sweep over convex/**", () => {
     const proxy = byName.get("dashboard/studioProxy:studioProxy")!;
     const identityAt = proxy.search(/getUserIdentity/);
     const roleAt = proxy.search(/internal\.dashboard\.studioAccess\.authorizeStudioCaller/);
-    const fetchAt = proxy.search(/\bfetch\(/);
+    const fetchAt = proxy.search(/\b(?:fetch|upstreamFetch)\(/);
     expect(identityAt).toBeGreaterThan(-1);
     expect(roleAt).toBeGreaterThan(identityAt);
     expect(fetchAt).toBeGreaterThan(roleAt);
     expect(proxy).not.toMatch(/runMutation|runAction/);
-    expect(byName.get("dashboard/studioProxy:studioPreflight")!).not.toMatch(/runQuery|runMutation|runAction|fetch\(/);
+    expect(byName.get("dashboard/studioProxy:studioPreflight")!).not.toMatch(/runQuery|runMutation|runAction|\b(?:fetch|upstreamFetch)\(/);
 
     const download = byName.get("projectFileDownload:projectFileDownload")!;
     const sessionAt = download.search(/getUserIdentity/);

@@ -19,7 +19,7 @@ export function isCaptureDenied(status: string): boolean {
 
 /** Whether the platform actually collected the capture, so the release it funds may be paid out. */
 export function isCaptureCollected(status: string): boolean {
-  return status !== "PENDING" && !isCaptureDenied(status);
+  return status === "COMPLETED";
 }
 
 const SETTLEMENT_EVENT_STATUS: Record<string, string> = {
@@ -71,9 +71,12 @@ export async function settleRelease(
 /**
  * A capture that left PENDING never goes back: a PENDING GET response or event read before the
  * settlement committed is stale, and applying it would un-collect money a payout may already be queued for.
+ * Likewise, a delayed COMPLETED notification must not resurrect refunded funds.
  */
 export function isStaleCaptureStatus(stored: string, incoming: string): boolean {
-  return incoming === "PENDING" && stored !== "PENDING";
+  if (incoming === "PENDING" && stored !== "PENDING") return true;
+  if ((stored === "REFUNDED" || stored === "PARTIALLY_REFUNDED") && incoming === "COMPLETED") return true;
+  return stored === "REFUNDED" && incoming === "PARTIALLY_REFUNDED";
 }
 
 /** Stores a capture's new PayPal status on its funding row and settles the release it funds. */

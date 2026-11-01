@@ -335,7 +335,8 @@ export class SseParser {
   private buffer = "";
 
   push(chunk: string): unknown[] {
-    this.buffer += chunk.replace(/\r\n/g, "\n");
+    // Normalize after concatenation so a CR/LF split across network chunks still forms one line.
+    this.buffer = (this.buffer + chunk).replace(/\r\n/g, "\n");
     const out: unknown[] = [];
     let sep = this.buffer.indexOf("\n\n");
     while (sep !== -1) {
