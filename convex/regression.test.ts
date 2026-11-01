@@ -5,19 +5,15 @@ import { api, internal } from "./_generated/api";
 import schema from "./schema";
 import { asGc, type GcTest } from "./lib/testIdentity";
 import { validateBidDeadline } from "./validation";
+import { projectSetupArgs } from "./lib/projectSetupFixture";
 
 const modules = import.meta.glob("./**/*.ts");
 
 async function createProject(t: GcTest, title = "Regression Project") {
-  return await t.mutation(api.projects.createProject, {
-    title,
-    location: "Austin, TX",
-    projectType: "Class-A Commercial Mixed-Use",
-    estBudget: 2_500_000,
-    targetCompletionWeeks: 52,
-    specDocumentText: "Regression specification text.",
-    isDemoProject: false,
-  });
+  return await t.mutation(
+    api.projects.createProject,
+    projectSetupArgs({ title, projectType: "Class-A Commercial Mixed-Use", specDocumentText: "Regression specification text." }),
+  );
 }
 
 async function createPackage(t: GcTest, projectId: any) {
@@ -55,11 +51,13 @@ test("F1: created project persists in listProjects", async () => {
 test("F3/F4: saveFileRecord accepts real storage ids and persists records", async () => {
   const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "F4 Upload Project");
+  const { uploadIntentId } = await t.mutation(api.files.generateUploadUrl, { projectId });
   const storageId = await t.run(async (ctx) =>
     await ctx.storage.store(new Blob(["spec body for regression"], { type: "text/plain" }))
   );
   const fileId = await t.mutation(api.files.saveFileRecord, {
     projectId,
+    uploadIntentId,
     storageId,
     fileName: "26_00_00_Regression_Spec.txt",
     fileType: "spec",
@@ -73,7 +71,8 @@ test("F3/F4: saveFileRecord accepts real storage ids and persists records", asyn
 });
 
 test("F3/A7CONV-R2C-F3: addendum requires at least one PM-certified RFI; zero certified is refused server-side", async () => {
-  const t = await asGc(convexTest(schema, modules));
+  const base = convexTest(schema, modules);
+  const t = await asGc(base);
   const projectId = await createProject(t, "F3 Addendum Project");
   // A7CONV-R2C-F3: zero certified RFIs must be refused by the action itself,
   // not only by the disabled UI button.
@@ -99,9 +98,19 @@ test("F3/A7CONV-R2C-F3: addendum requires at least one PM-certified RFI; zero ce
   );
   const result: any = await t.action(api.files.generatePreBidAddendum, { projectId });
   expect(result.success).toBe(true);
-  expect(result.storageId).toBeTruthy();
+  // The filed addendum is reachable only through the authenticated file route, never a public storage URL.
+  expect(result.downloadUrl).toBeUndefined();
+  expect(result.storageId).toBeUndefined();
+  expect(result.downloadPath).toBe(`/api/project-files/${result.fileId}`);
+  expect(JSON.stringify(result)).not.toMatch(/\/api\/storage\/|convex\.cloud/);
   const files = await t.query(api.files.listFilesByProject, { projectId });
   expect(files.some((f) => f.fileType === "addendum")).toBe(true);
+
+  const ok = await t.fetch(result.downloadPath, { method: "GET" });
+  expect(ok.status).toBe(200);
+  expect(await ok.text()).toContain("ADDENDUM");
+  const anon = await base.fetch(result.downloadPath, { method: "GET" });
+  expect([401, 404]).toContain(anon.status);
 });
 
 test("F9: invalid CSI divisions are rejected and valid ones accepted", async () => {
@@ -133,7 +142,7 @@ test("F9: implausible bid amounts are rejected; revisions increment", async () =
       tradePackageId: packageId,
       contractorId,
       subcontractorName: "Regression Electric LLC",
-      baseBidAmount: 1,
+      baseAmountCents: 100,
     })
   ).rejects.toThrow();
 
@@ -142,7 +151,7 @@ test("F9: implausible bid amounts are rejected; revisions increment", async () =
       tradePackageId: packageId,
       contractorId,
       subcontractorName: "Regression Electric LLC",
-      baseBidAmount: 999_999_999,
+      baseAmountCents: 99_999_999_900,
     })
   ).rejects.toThrow();
 
@@ -150,13 +159,13 @@ test("F9: implausible bid amounts are rejected; revisions increment", async () =
     tradePackageId: packageId,
     contractorId,
     subcontractorName: "Regression Electric LLC",
-    baseBidAmount: 1_100_000,
+    baseAmountCents: 110_000_000,
   });
   await t.mutation(api.bids.submitDirectBid, {
     tradePackageId: packageId,
     contractorId,
     subcontractorName: "Regression Electric LLC",
-    baseBidAmount: 1_150_000,
+    baseAmountCents: 115_000_000,
   });
 
   const bids = await t.query(api.bids.listByPackage, { tradePackageId: packageId });
@@ -174,7 +183,7 @@ test("F5: executed agreements block bid changes", async () => {
     tradePackageId: packageId,
     contractorId,
     subcontractorName: "Regression Electric LLC",
-    baseBidAmount: 1_200_000,
+    baseAmountCents: 120_000_000,
   });
   const bids = await t.query(api.bids.listByPackage, { tradePackageId: packageId });
   const bid = bids.find((b) => b.contractorId === contractorId);
@@ -211,7 +220,7 @@ test("F5: executed agreements block bid changes", async () => {
       tradePackageId: packageId,
       contractorId,
       subcontractorName: "Regression Electric LLC",
-      baseBidAmount: 1_250_000,
+      baseAmountCents: 125_000_000,
     })
   ).rejects.toThrow(/immutable/i);
 });
@@ -273,13 +282,13 @@ test("B1/A24-01: clash credit is persisted as a resolution once both trades are 
     tradePackageId: packageId,
     contractorId: elecContractor,
     subcontractorName: "Regression Electric LLC",
-    baseBidAmount: 1_100_000,
+    baseAmountCents: 110_000_000,
   });
   await t.mutation(api.bids.submitDirectBid, {
     tradePackageId: hvacId,
     contractorId: hvacContractor,
     subcontractorName: "Regression Mechanical LLC",
-    baseBidAmount: 1_150_000,
+    baseAmountCents: 115_000_000,
   });
   const result = await t.mutation(api.coordination.deductDoubleBuyCredit, {
     projectId,
@@ -312,14 +321,14 @@ test("Guest RFI: submission without a contractor id succeeds (no v.id failure)",
   expect(result.success).toBe(true);
 });
 
-test("RFQ dispatch with zero discovered contractors is rejected and leaves the package undispached", async () => {
+test("RFQ dispatch with an empty recipient list is rejected and leaves the package undispatched", async () => {
   const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "Zero Recipient RFQ Project");
   const packageId = await createPackage(t, projectId);
 
-  await expect(t.mutation(api.rfq.dispatchRfqs, { tradePackageId: packageId })).rejects.toThrow(
-    /No contractors have been discovered/i
-  );
+  await expect(
+    t.action(api.rfqActions.dispatchRfqsWithNotification, { tradePackageId: packageId, recipients: [] })
+  ).rejects.toThrow(/Choose at least one bidder/i);
 
   const pkg = await t.query(api.tradePackages.getPackage, { tradePackageId: packageId });
   expect(pkg?.status).toBe("draft");
@@ -328,21 +337,22 @@ test("RFQ dispatch with zero discovered contractors is rejected and leaves the p
   expect(logs.some((l) => l.eventType === "rfq_dispatched")).toBe(false);
 });
 
-test("RFQ dispatch with discovered contractors marks them invited", async () => {
+test("RFQ dispatch on a Demo/legacy project sends no email and records not_sent", async () => {
   const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "Recipient RFQ Project");
   const packageId = await createPackage(t, projectId);
   const contractorId = await createContractor(t, packageId);
   await t.run(async (ctx) => await ctx.db.patch(contractorId, { rfqStatus: "discovered" }));
-
-  const result: any = await t.mutation(api.rfq.dispatchRfqs, { tradePackageId: packageId });
-  expect(result.success).toBe(true);
-  expect(result.dispatchedCount).toBe(1);
+  const result: any = await t.action(api.rfqActions.dispatchRfqsWithNotification, {
+    tradePackageId: packageId,
+    recipients: [{ contractorId, email: "estimating@regression-electric.test" }],
+  });
+  expect(result.emailsSent).toBe(0);
+  expect(result.deliveryResults[0]).toMatchObject({ status: "not_sent" });
+  expect(await t.run(async (ctx) => (await ctx.db.query("emailOutbox").collect()).length)).toBe(0);
 
   const contractors = await t.query(api.contractors.listByPackage, { tradePackageId: packageId });
-  expect(contractors.find((c) => c._id === contractorId)?.rfqStatus).toBe("invited");
-  const pkg = await t.query(api.tradePackages.getPackage, { tradePackageId: packageId });
-  expect(pkg?.status).toBe("rfqs_dispatched");
+  expect(contractors.find((c) => c._id === contractorId)).toMatchObject({ rfqEmailStatus: "not_sent" });
 });
 
 /** Force the deterministic (no-network) reasoning path in tests. */
@@ -533,7 +543,7 @@ async function seedAwardedExecuted(t: GcTest, title: string) {
     tradePackageId: packageId,
     contractorId,
     subcontractorName: "Regression Electric LLC",
-    baseBidAmount: 1_100_000,
+    baseAmountCents: 110_000_000,
   });
   const bidId = bidResult.bidId;
   const agreement: any = await t.mutation(api.agreements.generateAgreement, { bidId, tradePackageId: packageId });
@@ -558,7 +568,7 @@ test("A1-02: awarding a different bid cannot silently supersede an executed subc
     tradePackageId: packageId,
     contractorId: secondContractor,
     subcontractorName: "Second Bidder LLC",
-    baseBidAmount: 950_000,
+    baseAmountCents: 95_000_000,
   });
   const secondBid = secondBidResult.bidId;
 
@@ -605,7 +615,7 @@ test("A3-01: creating a trade package requires an existing project", async () =>
       mandatoryInclusions: ["None"],
       bidDeadline: "2026-10-31",
     })
-  ).rejects.toThrow(/project not found/i);
+  ).rejects.toThrow(/Not found/);
 });
 
 test("A3-03: deleting a package with an executed subcontract is refused", async () => {
@@ -625,7 +635,7 @@ test("A10-05/A10-06: long-lead and line-item bounds are enforced on every writer
     tradePackageId: packageId,
     contractorId,
     subcontractorName: "Regression Electric LLC",
-    baseBidAmount: 1_100_000,
+    baseAmountCents: 110_000_000,
   });
   const bidId = created.bidId;
 
@@ -634,8 +644,8 @@ test("A10-05/A10-06: long-lead and line-item bounds are enforced on every writer
       tradePackageId: packageId,
       contractorId,
       subcontractorName: "Regression Electric LLC",
-      baseBidAmount: 1_100_000,
-      lineItems: [{ item: "Bad", unit: "LS", quantity: -5, unitCost: 100, totalCost: -500 }],
+      baseAmountCents: 110_000_000,
+      lineItems: [{ item: "Bad", unit: "LS", quantity: -5, unitCostCents: 10_000, totalCostCents: -50_000 }],
     })
   ).rejects.toThrow(/non-negative/i);
 
@@ -656,7 +666,7 @@ test("A8-03/A10-04: a clash can only be credited once", async () => {
     tradePackageId: packageId,
     contractorId,
     subcontractorName: "Regression Electric LLC",
-    baseBidAmount: 1_100_000,
+    baseAmountCents: 110_000_000,
   });
   // A21-01: a cross-trade credit needs priced proposals on BOTH sides.
   const hvacId = await t.mutation(api.tradePackages.createTradePackage, {
@@ -681,7 +691,7 @@ test("A8-03/A10-04: a clash can only be credited once", async () => {
     tradePackageId: hvacId,
     contractorId: hvacContractor,
     subcontractorName: "Regression Mechanical LLC",
-    baseBidAmount: 1_150_000,
+    baseAmountCents: 115_000_000,
   });
   await t.mutation(api.coordination.deductDoubleBuyCredit, {
     projectId,
@@ -719,15 +729,6 @@ test("A10-01/A10-02: full-cycle simulation and project delete refuse executed su
   expect(agreements.filter((a: any) => a.status === "executed").length).toBe(1);
 });
 
-test("RFQ dispatch without contractors returns a readable error", async () => {
-  const t = await asGc(convexTest(schema, modules));
-  const projectId = await createProject(t, "Readable Dispatch Error");
-  const packageId = await createPackage(t, projectId);
-  await expect(t.mutation(api.rfq.dispatchRfqs, { tradePackageId: packageId })).rejects.toThrow(
-    /Run Discovery before dispatching RFQs/i
-  );
-});
-
 test("A12-01: awarding cannot ride on a superseded agreement", async () => {
   const t = await asGc(convexTest(schema, modules));
   const projectId = await createProject(t, "Superseded Award Guard");
@@ -737,7 +738,7 @@ test("A12-01: awarding cannot ride on a superseded agreement", async () => {
     tradePackageId: packageId,
     contractorId,
     subcontractorName: "Regression Electric LLC",
-    baseBidAmount: 1_100_000,
+    baseAmountCents: 110_000_000,
   });
   await t.mutation(api.agreements.generateAgreement, { bidId: created.bidId, tradePackageId: packageId });
   await t.mutation(api.bids.unawardContract, { bidId: created.bidId, tradePackageId: packageId });
@@ -761,7 +762,7 @@ test("A12-02: a revision to an awarded bid keeps the active agreement in sync", 
     tradePackageId: packageId,
     contractorId,
     subcontractorName: "Regression Electric LLC",
-    baseBidAmount: 1_000_000,
+    baseAmountCents: 100_000_000,
   });
   const agreement: any = await t.mutation(api.agreements.generateAgreement, {
     bidId: created.bidId,
@@ -773,7 +774,7 @@ test("A12-02: a revision to an awarded bid keeps the active agreement in sync", 
     tradePackageId: packageId,
     contractorId,
     subcontractorName: "Someone Else Entirely",
-    baseBidAmount: 1_222_222,
+    baseAmountCents: 122_222_200,
   });
   const agreements: any[] = await t.run(async (ctx) =>
     await ctx.db.query("agreements").withIndex("by_bid" as any, (q: any) => q.eq("bidId", created.bidId)).collect()
@@ -795,7 +796,7 @@ test("A12-03: a package cannot be marked awarded without award evidence", async 
     tradePackageId: packageId,
     contractorId,
     subcontractorName: "Regression Electric LLC",
-    baseBidAmount: 1_100_000,
+    baseAmountCents: 110_000_000,
   });
   await t.mutation(api.agreements.generateAgreement, { bidId: created.bidId, tradePackageId: packageId });
   await t.mutation(api.tradePackages.updateStatus, { tradePackageId: packageId, status: "awarded" });
@@ -910,7 +911,7 @@ test("A21-01: cross-trade clashes and credits require priced evidence on both si
     tradePackageId: elecId,
     contractorId,
     subcontractorName: "Regression Electric LLC",
-    baseBidAmount: 1_100_000,
+    baseAmountCents: 110_000_000,
   });
 
   // Electrical priced, HVAC not: no clash evidence may be asserted.
@@ -942,7 +943,7 @@ test("A21-01: cross-trade clashes and credits require priced evidence on both si
     tradePackageId: hvacId,
     contractorId: hvacContractor,
     subcontractorName: "Regression Mechanical LLC",
-    baseBidAmount: 1_150_000,
+    baseAmountCents: 115_000_000,
   });
   const clashesAfter: any = await t.query(api.coordination.detectCrossTradeClashes, { projectId });
   expect(clashesAfter.doubleBuys.length).toBeGreaterThan(0);
@@ -966,7 +967,7 @@ test("A28-01/02/03/04: clash truth, manual-VE coverage, and credit bounds", asyn
     tradePackageId: elecId,
     contractorId: elecContractor,
     subcontractorName: "Regression Electric LLC",
-    baseBidAmount: 1_100_000,
+    baseAmountCents: 110_000_000,
   });
   const hvacContractor = await t.mutation(api.contractors.createContractor, {
     tradePackageId: hvacId,
@@ -981,7 +982,7 @@ test("A28-01/02/03/04: clash truth, manual-VE coverage, and credit bounds", asyn
     tradePackageId: hvacId,
     contractorId: hvacContractor,
     subcontractorName: "Regression Mechanical LLC",
-    baseBidAmount: 1_150_000,
+    baseAmountCents: 115_000_000,
   });
 
   // A28-01: a "base building ..." inclusion must not count as BAS coverage.
@@ -998,7 +999,7 @@ test("A28-01/02/03/04: clash truth, manual-VE coverage, and credit bounds", asyn
   await t.mutation(api.bids.updateBidAdjustments, {
     bidId: hvacBid.bidId,
     identifiedExclusions: [],
-    valueEngineeringAlternates: [{ description: "Manual VFD starter credit", costDeduct: 1_000, isAccepted: true }],
+    valueEngineeringAlternates: [{ description: "Manual VFD starter credit", costDeductCents: 100_000, isAccepted: true }],
   });
   const after: any = await t.query(api.coordination.detectCrossTradeClashes, { projectId });
   const vfd = after.doubleBuys.find((d: any) => d.id === "clash-vfd-01");
@@ -1136,7 +1137,7 @@ test("A36-01: reversal finds the carrier even when a sibling package id is passe
     tradePackageId: elecId,
     contractorId: elecContractor,
     subcontractorName: "Regression Electric LLC",
-    baseBidAmount: 1_100_000,
+    baseAmountCents: 110_000_000,
   });
   const hvacContractor = await t.mutation(api.contractors.createContractor, {
     tradePackageId: hvacId,
@@ -1151,7 +1152,7 @@ test("A36-01: reversal finds the carrier even when a sibling package id is passe
     tradePackageId: hvacId,
     contractorId: hvacContractor,
     subcontractorName: "Regression Mechanical LLC",
-    baseBidAmount: 1_150_000,
+    baseAmountCents: 115_000_000,
   });
   await t.mutation(api.coordination.deductDoubleBuyCredit, {
     projectId,
@@ -1185,7 +1186,7 @@ test("A3-06: invalid COI status and negative exclusion impacts are rejected", as
     tradePackageId: packageId,
     contractorId,
     subcontractorName: "Regression Electric LLC",
-    baseBidAmount: 1_100_000,
+    baseAmountCents: 110_000_000,
   });
   const bidId = bidCreated.bidId;
   await expect(
@@ -1198,7 +1199,7 @@ test("A3-06: invalid COI status and negative exclusion impacts are rejected", as
   await expect(
     t.mutation(api.bids.updateBidAdjustments, {
       bidId,
-      identifiedExclusions: [{ description: "Negative credit", costImpact: -50_000, severity: "critical" }],
+      identifiedExclusions: [{ description: "Negative credit", costImpactCents: -5_000_000, severity: "critical" }],
     })
   ).rejects.toThrow(/zero or positive/i);
 });

@@ -3,14 +3,15 @@ import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { action, env, internalAction, type ActionCtx } from "../_generated/server";
 import { toPayPalString } from "../lib/money";
-import { requireRoleInAction } from "../lib/roles";
+import { invoiceFailureMessage, payPalDebugIdOf } from "./invoiceSendError";
+import { requireProjectScopeInAction } from "../lib/tenancyAction";
 import { buildInvoiceBody, invoiceIdFromCreateResponse, payerViewUrlFor, type PayPalInvoice } from "./changeOrderMath";
 import type { BeginInvoice } from "./changeOrderDb";
 import { payPalClientForAction, type PayPalClient } from "./paypalClient";
 
 /**
- * Change-order invoices (architecture §4 step 5): the GC creates a change order, which becomes an
- * Invoicing v2 invoice to the Owner's sandbox email (create draft → send). The sandbox sends no email,
+ * Change-order invoices (architecture §4 step 5, §16): once the owner approves a prime change order, the
+ * GC's "Invoice now" makes it an Invoicing v2 invoice to the owner's billing email (create draft → send). The sandbox sends no email,
  * so the stored payer-view URL shown in the app is how the Owner reaches the invoice. Paid status
  * comes from "Refresh status" (GET) or the INVOICING.INVOICE.PAID webhook.
  *
@@ -35,13 +36,6 @@ const refreshResult = v.object({
 });
 type RefreshResult = Infer<typeof refreshResult>;
 
-function errorMessage(e: unknown): string {
-  if (e instanceof ConvexError && typeof e.data === "object" && e.data !== null && typeof e.data.message === "string") {
-    return e.data.message;
-  }
-  return e instanceof Error ? e.message : "Unknown error.";
-}
-
 async function getInvoice(paypal: PayPalClient, invoiceId: string): Promise<PayPalInvoice> {
   const { data } = await paypal.request<PayPalInvoice>({
     method: "GET",
@@ -61,7 +55,11 @@ async function invoiceChangeOrder(ctx: ActionCtx, changeOrderId: Id<"changeOrder
       alreadyInvoiced: true,
     };
   }
-  const paypal = payPalClientForAction(ctx, env, { actor, projectId: begun.projectId, agreementId: begun.agreementId });
+  const paypal = payPalClientForAction(ctx, env, {
+    actor,
+    projectId: begun.projectId,
+    ...(begun.agreementId !== null ? { agreementId: begun.agreementId } : {}),
+  });
   let invoiceId = begun.paypalInvoiceId;
   let auditRecorded = true;
   try {
@@ -69,7 +67,7 @@ async function invoiceChangeOrder(ctx: ActionCtx, changeOrderId: Id<"changeOrder
       const created = await paypal.request<unknown>({
         method: "POST",
         path: "/v2/invoicing/invoices",
-        requestId: `co_${changeOrderId}_create`,
+        requestId: `co_${changeOrderId}_create${begun.createRequestSuffix}`,
         body: buildInvoiceBody(begun.input),
       });
       auditRecorded &&= created.auditRecorded ?? false;
@@ -105,9 +103,9 @@ async function invoiceChangeOrder(ctx: ActionCtx, changeOrderId: Id<"changeOrder
     });
     return { changeOrderId, status: recorded.status, paypalInvoiceId: invoiceId, payerViewUrl, alreadyInvoiced: false };
   } catch (e) {
-    const message = `Invoice not sent: ${errorMessage(e)}`;
+    const message = invoiceFailureMessage(e);
     await ctx.runMutation(internal.payments.changeOrderDb.recordInvoiceError, { changeOrderId, error: message });
-    throw new ConvexError({ code: "INVOICE_FAILED", message, paypalInvoiceId: invoiceId ?? null });
+    throw new ConvexError({ code: "INVOICE_FAILED", message, paypalInvoiceId: invoiceId ?? null, paypalDebugId: payPalDebugIdOf(e) });
   }
 }
 
@@ -125,58 +123,27 @@ async function refreshChangeOrder(ctx: ActionCtx, changeOrderId: Id<"changeOrder
   return { changeOrderId, status: applied.status ?? row.status, paypalInvoiceStatus: invoice.status, changed: applied.changed };
 }
 
-async function actorFor(ctx: ActionCtx, userId: Id<"users">): Promise<string> {
-  return await ctx.runQuery(internal.payments.release.actorForUser, { userId });
-}
-
-const createArgs = {
-  agreementId: v.id("agreements"),
-  number: v.optional(v.number()),
-  description: v.string(),
-  amountCents: v.number(),
-};
-
-/** GC only: records the change order, then creates and sends its PayPal invoice to the Owner. */
-export const createChangeOrder = action({
-  args: createArgs,
-  returns: invoiceResult,
-  handler: async (ctx, args): Promise<InvoiceResult> => {
-    const viewer = await requireRoleInAction(ctx, ["gc"]);
-    const changeOrderId: Id<"changeOrders"> = await ctx.runMutation(internal.payments.changeOrderDb.insertChangeOrder, {
-      ...args,
-      createdBy: viewer.userId,
-    });
-    return await invoiceChangeOrder(ctx, changeOrderId, await actorFor(ctx, viewer.userId));
-  },
-});
-
-/** GC only: retries invoicing a change order whose create or send did not finish. */
+/**
+ * "Invoice now", GC of the project only: invoices an owner-approved prime change order to the project
+ * owner's billing email (create draft → send), or resumes one whose create or send did not finish.
+ * Unapproved and subcontract change orders are refused before PayPal is called.
+ */
 export const sendChangeOrderInvoice = action({
   args: { changeOrderId: v.id("changeOrders") },
   returns: invoiceResult,
   handler: async (ctx, { changeOrderId }): Promise<InvoiceResult> => {
-    const viewer = await requireRoleInAction(ctx, ["gc"]);
-    return await invoiceChangeOrder(ctx, changeOrderId, await actorFor(ctx, viewer.userId));
+    const scope = await requireProjectScopeInAction(ctx, { docs: [{ table: "changeOrders", id: changeOrderId }] }, { roles: ["gc"], write: true });
+    return await invoiceChangeOrder(ctx, changeOrderId, scope.actor);
   },
 });
 
-/** GC or Owner: reads the invoice from PayPal and applies its status (e.g. PAID → paid). Read only at PayPal. */
+/** GC or owner of the project: reads the invoice from PayPal and applies its status (e.g. PAID → paid). Read only at PayPal. */
 export const refreshChangeOrderStatus = action({
   args: { changeOrderId: v.id("changeOrders") },
   returns: refreshResult,
   handler: async (ctx, { changeOrderId }): Promise<RefreshResult> => {
-    const viewer = await requireRoleInAction(ctx, ["gc", "owner"]);
-    return await refreshChangeOrder(ctx, changeOrderId, await actorFor(ctx, viewer.userId));
-  },
-});
-
-/** CLI entry point: `npx convex run payments/invoices:createChangeOrderInternal '{...}'`. */
-export const createChangeOrderInternal = internalAction({
-  args: { ...createArgs, actor: v.optional(v.string()) },
-  returns: invoiceResult,
-  handler: async (ctx, { actor, ...args }): Promise<InvoiceResult> => {
-    const changeOrderId: Id<"changeOrders"> = await ctx.runMutation(internal.payments.changeOrderDb.insertChangeOrder, args);
-    return await invoiceChangeOrder(ctx, changeOrderId, actor ?? "system:internal");
+    const scope = await requireProjectScopeInAction(ctx, { docs: [{ table: "changeOrders", id: changeOrderId }] }, { roles: ["gc", "owner"] });
+    return await refreshChangeOrder(ctx, changeOrderId, scope.actor);
   },
 });
 
@@ -202,7 +169,7 @@ export const recordInvoicePaymentInternal = internalAction({
     const paypal = payPalClientForAction(ctx, env, {
       actor: "system:internal",
       projectId: row.projectId ?? undefined,
-      agreementId: row.agreementId,
+      agreementId: row.agreementId ?? undefined,
     });
     await paypal.request({
       method: "POST",

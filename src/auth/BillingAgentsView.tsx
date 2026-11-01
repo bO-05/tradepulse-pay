@@ -88,7 +88,7 @@ export function BillingAgentsView() {
               <option value="">Select a subcontractor…</option>
               {(contractors ?? []).map((c) => (
                 <option key={c._id} value={c._id}>
-                  {c.companyName}
+                  {c.companyName} · {c.projectTitle}
                 </option>
               ))}
             </select>

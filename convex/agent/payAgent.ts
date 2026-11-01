@@ -7,7 +7,7 @@ import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { internalAction, type ActionCtx } from "../_generated/server";
 import type { LicenseCheckResult } from "../kernel/licenseCheck";
-import { buildAgentPrompt, PAY_AGENT_SYSTEM_PROMPT, policyRationale, runAgentLoop, MAX_AGENT_STEPS } from "./agentLoop";
+import { buildAgentPrompt, payAgentSystemPrompt, policyRationale, runAgentLoop, MAX_AGENT_STEPS } from "./agentLoop";
 import {
   createProposeTools,
   ensureSessionLicense,
@@ -102,9 +102,10 @@ async function runAgent(ctx: ActionCtx, payAppId: Id<"payApplications">): Promis
   const proposeTools = createProposeTools({ checkLicense, insertProposal: (i) => insertProposal(i, "agent") }, record, session);
   const tools = { ...readOnlyToolkitTools(record, secrets), ...proposeTools };
   const prompt = buildAgentPrompt(inputs);
+  const system = payAgentSystemPrompt(inputs.gcCompanyName);
   const started_ = Date.now();
   const loop = await runAgentLoop({
-    system: PAY_AGENT_SYSTEM_PROMPT,
+    system,
     prompt,
     tools,
     apiKey: process.env.ANTHROPIC_API_KEY,
@@ -149,7 +150,7 @@ async function runAgent(ctx: ActionCtx, payAppId: Id<"payApplications">): Promis
       provider: loop.provider,
       model: loop.model,
       rawPrompt: scrubSecrets(prompt, secrets),
-      systemPrompt: PAY_AGENT_SYSTEM_PROMPT,
+      systemPrompt: system,
       rawResponse: toTraceString(loop.text, secrets),
       parsedOutput: {
         kind: "pay_agent",

@@ -16,7 +16,13 @@ import type { PayoutStatus } from "./stateMachine";
 
 export const RETAINAGE_REVERSING_STATUSES: readonly PayoutStatus[] = ["failed", "returned"];
 
-export function retainagePercentFor(agreement: { retainagePercent?: number | null }): number {
+/** The agreement's retainage percent: its stored terms first, then the legacy percent field. */
+export function retainagePercentFor(agreement: {
+  retainagePercent?: number | null;
+  terms?: { retainageBps: number } | null;
+}): number {
+  const bps = agreement.terms?.retainageBps;
+  if (typeof bps === "number" && Number.isSafeInteger(bps) && bps >= 0 && bps <= 10_000) return bps / 100;
   const pct = agreement.retainagePercent;
   return typeof pct === "number" && Number.isFinite(pct) && pct >= 0 && pct <= 100 ? pct : RETAINAGE_PERCENT;
 }

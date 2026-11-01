@@ -1,124 +1,20 @@
 import { ConvexError, v, type Infer } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
-import { internalMutation, internalQuery, query, type MutationCtx } from "../_generated/server";
-import { requireRole } from "../lib/roles";
-import { canMoveChangeOrder, changeOrderLabel, changeOrderStatusFromInvoice, type ChangeOrderStatus } from "./changeOrderMath";
-
-const MAX_DESCRIPTION = 1000;
-
-export function changeOrderView(co: Doc<"changeOrders">, agreement: Doc<"agreements"> | null) {
-  return {
-    _id: co._id,
-    agreementId: co.agreementId,
-    agreementNumber: agreement?.agreementNumber ?? null,
-    number: co.number,
-    label: changeOrderLabel(co.number),
-    description: co.description,
-    amountCents: co.amountCents,
-    status: co.status,
-    paypalInvoiceId: co.paypalInvoiceId ?? null,
-    paypalInvoiceStatus: co.paypalInvoiceStatus ?? null,
-    payerViewUrl: co.payerViewUrl ?? null,
-    recipientEmail: co.recipientEmail ?? null,
-    error: co.error ?? null,
-    createdAt: co.createdAt,
-    invoicedAt: co.invoicedAt ?? null,
-    paidAt: co.paidAt ?? null,
-    statusCheckedAt: co.statusCheckedAt ?? null,
-  };
-}
-export type ChangeOrderView = ReturnType<typeof changeOrderView>;
+import { internalMutation, internalQuery, type MutationCtx } from "../_generated/server";
+import { changeOrdersOnSubmittedOwnerPayApps, ownerPayAppBilledReason } from "../billing/changeOrderView";
+import { invoiceRecipientForProject } from "./changeOrderRecipient";
+import {
+  canMoveChangeOrder,
+  changeOrderLabel,
+  changeOrderScopeOf,
+  changeOrderStatusFromInvoice,
+  type ChangeOrderStatus,
+} from "./changeOrderMath";
 
 /**
- * Change orders on one agreement for the GC and the Owner (the parties to the invoice). Subs get an
- * empty list. Returns null when the agreement does not exist.
+ * Invoice bookkeeping for the legacy "Invoice now" on approved prime change orders (architecture §16):
+ * the PayPal invoice to the project owner's billing email and the status it reports back.
  */
-export const listForAgreement = query({
-  args: { agreementId: v.string() },
-  handler: async (ctx, args) => {
-    const viewer = await requireRole(ctx, ["gc", "sub", "owner"]);
-    const id = ctx.db.normalizeId("agreements", args.agreementId);
-    if (id === null) return null;
-    const agreement = await ctx.db.get(id);
-    if (agreement === null) return null;
-    if (viewer.role === "sub") return { canCreate: false, canRefresh: false, nextNumber: 1, changeOrders: [] };
-    const rows = await ctx.db
-      .query("changeOrders")
-      .withIndex("by_agreementId_and_number", (q) => q.eq("agreementId", id))
-      .take(200);
-    const isGc = viewer.role === "gc";
-    return {
-      canCreate: isGc,
-      canRefresh: true,
-      nextNumber: (rows.at(-1)?.number ?? 0) + 1,
-      changeOrders: rows.filter((co) => isGc || co.status !== "draft").map((co) => changeOrderView(co, agreement)),
-    };
-  },
-});
-
-export const insertChangeOrder = internalMutation({
-  args: {
-    agreementId: v.id("agreements"),
-    number: v.optional(v.number()),
-    description: v.string(),
-    amountCents: v.number(),
-    createdBy: v.optional(v.id("users")),
-  },
-  returns: v.id("changeOrders"),
-  handler: async (ctx, args) => {
-    const agreement = await ctx.db.get(args.agreementId);
-    if (agreement === null || agreement.status === "superseded") {
-      throw new ConvexError({ code: "NOT_FOUND", message: "Agreement not found." });
-    }
-    const description = args.description.trim();
-    if (description.length === 0) throw new ConvexError({ code: "INVALID_ARGUMENT", message: "Describe the change order." });
-    if (description.length > MAX_DESCRIPTION) {
-      throw new ConvexError({ code: "INVALID_ARGUMENT", message: `The description is limited to ${MAX_DESCRIPTION} characters.` });
-    }
-    if (!Number.isSafeInteger(args.amountCents)) {
-      throw new ConvexError({ code: "INVALID_ARGUMENT", message: "The change order amount must be whole cents." });
-    }
-    if (args.amountCents <= 0) throw new ConvexError({ code: "INVALID_ARGUMENT", message: "The change order amount must be greater than $0.00." });
-
-    const last = await ctx.db
-      .query("changeOrders")
-      .withIndex("by_agreementId_and_number", (q) => q.eq("agreementId", args.agreementId))
-      .order("desc")
-      .first();
-    const number = args.number ?? (last?.number ?? 0) + 1;
-    if (!Number.isSafeInteger(number) || number < 1) {
-      throw new ConvexError({ code: "INVALID_ARGUMENT", message: "The change order number must be a whole number of at least 1." });
-    }
-    const existing = await ctx.db
-      .query("changeOrders")
-      .withIndex("by_agreementId_and_number", (q) => q.eq("agreementId", args.agreementId).eq("number", number))
-      .first();
-    if (existing !== null) {
-      throw new ConvexError({
-        code: "DUPLICATE_CHANGE_ORDER",
-        message: `${changeOrderLabel(number)} already exists on agreement ${agreement.agreementNumber}.`,
-      });
-    }
-    return await ctx.db.insert("changeOrders", {
-      agreementId: args.agreementId,
-      number,
-      description,
-      amountCents: args.amountCents,
-      status: "draft",
-      createdBy: args.createdBy,
-      createdAt: Date.now(),
-    });
-  },
-});
-
-async function ownerInvoiceEmail(ctx: MutationCtx): Promise<string | undefined> {
-  const owners = await ctx.db
-    .query("userProfiles")
-    .withIndex("by_role", (q) => q.eq("role", "owner"))
-    .take(20);
-  const fromProfile = owners.find((p) => p.paypalEmail)?.paypalEmail?.trim();
-  return fromProfile || process.env.PAYPAL_SANDBOX_OWNER_EMAIL?.trim() || undefined;
-}
 
 const beginInvoiceResult = v.union(
   v.object({
@@ -130,16 +26,17 @@ const beginInvoiceResult = v.union(
   v.object({
     state: v.literal("ready"),
     paypalInvoiceId: v.optional(v.string()),
+    createRequestSuffix: v.string(),
     projectId: v.id("projects"),
-    agreementId: v.id("agreements"),
+    agreementId: v.union(v.id("agreements"), v.null()),
     input: v.object({
-      number: v.number(),
+      label: v.string(),
+      title: v.string(),
       description: v.string(),
       amountCents: v.number(),
       recipientEmail: v.string(),
-      agreementNumber: v.string(),
       projectTitle: v.string(),
-      subcontractorName: v.string(),
+      agreementNumber: v.union(v.string(), v.null()),
     }),
   }),
 );
@@ -152,31 +49,74 @@ export const beginInvoice = internalMutation({
   handler: async (ctx, { changeOrderId }): Promise<BeginInvoice> => {
     const co = await ctx.db.get(changeOrderId);
     if (co === null) throw new ConvexError({ code: "NOT_FOUND", message: "Change order not found." });
-    if (co.status !== "draft") {
+    if (changeOrderScopeOf(co) !== "prime") {
+      throw new ConvexError({
+        code: "NOT_INVOICEABLE",
+        message: "Only prime change orders approved by the owner are invoiced. Subcontract change orders are billed through pay apps.",
+      });
+    }
+    if (co.status === "invoiced" || co.status === "paid" || co.status === "cancelled") {
       return { state: "done", status: co.status, paypalInvoiceId: co.paypalInvoiceId, payerViewUrl: co.payerViewUrl };
     }
-    const agreement = await ctx.db.get(co.agreementId);
-    if (agreement === null) throw new ConvexError({ code: "NOT_FOUND", message: "Agreement not found." });
-    const recipientEmail = co.recipientEmail ?? (await ownerInvoiceEmail(ctx));
-    if (!recipientEmail) {
-      const message = "No Owner PayPal email is on file, so no invoice was created.";
-      await ctx.db.patch(changeOrderId, { error: message });
-      throw new ConvexError({ code: "NO_OWNER_EMAIL", message });
+    if (co.status !== "approved") {
+      throw new ConvexError({
+        code: "NOT_INVOICEABLE",
+        message: `${changeOrderLabel(co.number, "prime")} is ${co.status}; only a change order the owner approved can be invoiced.`,
+      });
     }
-    if (co.recipientEmail === undefined) await ctx.db.patch(changeOrderId, { recipientEmail });
+    if (co.amountCents <= 0) {
+      throw new ConvexError({ code: "NOT_INVOICEABLE", message: "A deductive change order is credited, not invoiced." });
+    }
+    const agreement = co.agreementId ? await ctx.db.get(co.agreementId) : null;
+    const projectId = co.projectId ?? agreement?.projectId;
+    const project = projectId ? await ctx.db.get(projectId) : null;
+    if (project === null) throw new ConvexError({ code: "NOT_FOUND", message: "Project not found." });
+    // One billing path per prime CO: once an owner pay app carrying it was submitted, it is billed there.
+    // An invoice already created here is only resumed (the owner pay app roll-up leaves such a CO off).
+    if (co.paypalInvoiceId === undefined) {
+      const applicationNo = (await changeOrdersOnSubmittedOwnerPayApps(ctx, project._id)).get(co._id);
+      if (applicationNo !== undefined) {
+        throw new ConvexError({ code: "BILLED_ON_OWNER_PAY_APP", message: ownerPayAppBilledReason(co.number, applicationNo) });
+      }
+    }
+    // A cached recipient is never trusted on its own: the owner may have been removed or replaced
+    // since the last attempt, so every attempt re-resolves the project's current owner.
+    const recipient = await invoiceRecipientForProject(ctx, project._id);
+    if (!recipient.ok) {
+      await ctx.db.patch(changeOrderId, { error: recipient.reason });
+      throw new ConvexError({ code: "NO_OWNER_EMAIL", message: recipient.reason });
+    }
+    const recipientEmail = recipient.email;
+    const cached = co.recipientEmail;
+    const recipientChanged = cached !== undefined && cached.toLowerCase() !== recipientEmail.toLowerCase();
+    if (recipientChanged && co.paypalInvoiceId !== undefined) {
+      const reason =
+        "The PayPal invoice draft for this change order is addressed to a previous project owner, so it was not sent. Create a new change order to invoice the current owner.";
+      await ctx.db.patch(changeOrderId, { error: reason });
+      throw new ConvexError({ code: "OWNER_CHANGED", message: reason });
+    }
+    if (cached !== recipientEmail || co.directInvoiceStartedAt === undefined) {
+      await ctx.db.patch(changeOrderId, {
+        recipientEmail,
+        directInvoiceStartedAt: co.directInvoiceStartedAt ?? Date.now(),
+        ...(recipientChanged ? { recipientRevision: (co.recipientRevision ?? 0) + 1 } : {}),
+      });
+    }
+    const revision = recipientChanged ? (co.recipientRevision ?? 0) + 1 : (co.recipientRevision ?? 0);
     return {
       state: "ready",
       paypalInvoiceId: co.paypalInvoiceId,
-      projectId: agreement.projectId,
-      agreementId: agreement._id,
+      createRequestSuffix: revision > 0 ? `_r${revision}` : "",
+      projectId: project._id,
+      agreementId: agreement?._id ?? null,
       input: {
-        number: co.number,
-        description: co.description,
+        label: changeOrderLabel(co.number, "prime"),
+        title: co.title ?? co.description,
+        description: co.title === undefined ? "" : co.description,
         amountCents: co.amountCents,
         recipientEmail,
-        agreementNumber: agreement.agreementNumber,
-        projectTitle: agreement.projectTitle,
-        subcontractorName: agreement.subcontractorName,
+        projectTitle: project.title,
+        agreementNumber: agreement?.agreementNumber ?? null,
       },
     };
   },
@@ -296,7 +236,15 @@ export const changeOrderRow = internalQuery({
   handler: async (ctx, { changeOrderId }) => {
     const co = await ctx.db.get(changeOrderId);
     if (co === null) return null;
-    const agreement = await ctx.db.get(co.agreementId);
-    return { ...changeOrderView(co, agreement), projectId: agreement?.projectId ?? null };
+    const agreement = co.agreementId ? await ctx.db.get(co.agreementId) : null;
+    return {
+      _id: co._id,
+      label: changeOrderLabel(co.number, changeOrderScopeOf(co)),
+      status: co.status,
+      amountCents: co.amountCents,
+      paypalInvoiceId: co.paypalInvoiceId ?? null,
+      agreementId: co.agreementId ?? null,
+      projectId: co.projectId ?? agreement?.projectId ?? null,
+    };
   },
 });

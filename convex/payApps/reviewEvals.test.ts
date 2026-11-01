@@ -39,6 +39,7 @@ describe("pay-app review eval fixtures", () => {
       const f = PAY_APP_REVIEW_FIXTURES.find(
         (x) =>
           x.context.lines.length === lineCount &&
+          prompt.includes(JSON.stringify(x.context.payApp.notes)) &&
           x.context.lines.every((l) => prompt.includes(`"sovLineId": "${l.sovLineId}"`) && prompt.includes(`"claimedPctToDate": ${l.claimedPctToDate},`)),
       )!;
       const judgement = rulesEngineJudgement(f.context);
@@ -51,7 +52,7 @@ describe("pay-app review eval fixtures", () => {
     expect(byId.get("payapp_overbilled")!.passed).toBe(true);
     expect(byId.get("payapp_front_loaded")).toMatchObject({ passed: false, score: 0.667, provider: "Anthropic", model: "claude-sonnet-5-5" });
     const excluded = results.find((r) => r.fixture.fixtureId === "payapp_excluded_scope")!;
-    expect(excluded.run.review.lines.find((l) => l.sovLineId === "fx-sov-5")!.approvedCents).toBe(0);
+    expect(excluded.run.review.lines.find((l) => l.sovLineId === "fx-sov-3")!.approvedCents).toBe(0);
   });
 });
 

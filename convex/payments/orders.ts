@@ -4,6 +4,7 @@ import { internal } from "../_generated/api";
 import { action, env } from "../_generated/server";
 import { toPayPalString } from "../lib/money";
 import { requireRoleInAction } from "../lib/roles";
+import { requireProjectScopeInAction } from "../lib/tenancyAction";
 import {
   authorizationWindow,
   fundingFailureMessage,
@@ -38,10 +39,10 @@ export const createFundingOrder = action({
   args: { milestoneId: v.id("milestones") },
   returns: createdOrderValidator,
   handler: async (ctx, { milestoneId }): Promise<Infer<typeof createdOrderValidator>> => {
-    const viewer = await requireRoleInAction(ctx, ["gc"]);
+    const scope = await requireProjectScopeInAction(ctx, { docs: [{ table: "milestones", id: milestoneId }] }, { roles: ["gc"], write: true });
     const prepared: PreparedFunding = await ctx.runMutation(internal.payments.funding.prepareFundingOrder, {
       milestoneId,
-      userId: viewer.userId,
+      userId: scope.userId,
     });
     if (prepared.paypalOrderId !== undefined) {
       return { paymentId: prepared.paymentId, orderId: prepared.paypalOrderId, reused: true };
@@ -107,7 +108,13 @@ export const authorizeFundingOrder = action({
   args: { orderId: v.string() },
   returns: authorizedValidator,
   handler: async (ctx, { orderId }): Promise<Infer<typeof authorizedValidator>> => {
-    const viewer = await requireRoleInAction(ctx, ["gc"]);
+    await requireRoleInAction(ctx, ["gc", "sub", "owner"]);
+    const fundingPaymentId = await ctx.runQuery(internal.payments.funding.fundingPaymentIdForOrder, { paypalOrderId: orderId });
+    const scope = await requireProjectScopeInAction(
+      ctx,
+      { docs: [{ table: "payments", id: fundingPaymentId ?? undefined }] },
+      { roles: ["gc"], write: true },
+    );
     const begun: BeginAuthorization = await ctx.runMutation(internal.payments.funding.beginAuthorization, { paypalOrderId: orderId });
     if (begun.state === "done") {
       return {
@@ -120,7 +127,7 @@ export const authorizeFundingOrder = action({
     }
 
     const paypal = payPalClientForAction(ctx, env, {
-      actor: `user:${viewer.userId}`,
+      actor: scope.actor,
       projectId: begun.projectId,
       agreementId: begun.agreementId,
     });

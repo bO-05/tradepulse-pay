@@ -1,5 +1,6 @@
 import { action, query, internalMutation } from "./_generated/server";
-import { requireRole, requireRoleInAction } from "./lib/roles";
+import { requireDemoCompany } from "./lib/projectScope";
+import { requireDemoCompanyInAction } from "./lib/tenancyAction";
 import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
 import { OFFLINE_RULES_ENGINE } from "./lib/aiLabels";
@@ -100,7 +101,7 @@ export const recordEvalRun = internalMutation({
 export const getLatestEvalRun = query({
   args: {},
   handler: async (ctx) => {
-    await requireRole(ctx, ["gc", "owner"]);
+    await requireDemoCompany(ctx, ["gc"]);
     // Other suites (e.g. pay-app review) record their own runs; this view is bid leveling only.
     const recentRuns = await ctx.db
       .query("evalRuns")
@@ -131,11 +132,19 @@ export const getLatestEvalRun = query({
 export const listTracesForRun = query({
   args: { runId: v.string() },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc", "owner"]);
-    return await ctx.db
-      .query("agentTraces")
+    await requireDemoCompany(ctx, ["gc"]);
+    // agentTraces also holds real companies' pay-app review and agent traces, so only runs of the
+    // Demo-only eval suites are listed, and traces about a pay application are never returned.
+    const run = await ctx.db
+      .query("evalRuns")
       .withIndex("by_runId", (q) => q.eq("runId", args.runId))
-      .collect();
+      .first();
+    if (run === null) return [];
+    const traces = await ctx.db
+      .query("agentTraces")
+      .withIndex("by_runId", (q) => q.eq("runId", run.runId))
+      .take(500);
+    return traces.filter((t) => ctx.db.normalizeId("payApplications", t.caseId) === null);
   },
 });
 
@@ -149,7 +158,7 @@ export const executeEvalSuite = action({
     triggeredBy: v.optional(v.string()), // "cli_benchmark" | "judge_diagnostics"
   },
   handler: async (ctx, args): Promise<any> => {
-    await requireRoleInAction(ctx, ["gc"]);
+    await requireDemoCompanyInAction(ctx, ["gc"]);
     const startTime = Date.now();
     const runId = `eval_${Date.now()}`;
     const targetEnv = args.targetEnvironment || "prod";

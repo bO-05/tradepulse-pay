@@ -6,6 +6,7 @@ import { isInterruptedRelease } from "../../convex/payments/retainageMath";
 import { readableError } from "./FundMilestone";
 import { formatCents, formatDate } from "./format";
 import { BADGE, type MilestoneRelease } from "./ReleaseMilestone";
+import { ConfirmDialog } from "../ui";
 
 /** Closeout retainage releases recorded on the agreement; GC can refresh a pending one. */
 export function RetainageReleaseList({ releases, canRefresh }: { releases: MilestoneRelease[]; canRefresh: boolean }) {
@@ -99,6 +100,7 @@ export function RetainageReleaseControl({
   const releaseRetainage = useAction(api.payments.retainage.releaseRetainage);
   const resumeRelease = useAction(api.payments.retainage.resumeRetainageRelease);
   const [busy, setBusy] = useState(false);
+  const [confirmResume, setConfirmResume] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const created = releases.filter((r) => r.status === "created");
@@ -150,7 +152,7 @@ export function RetainageReleaseControl({
             type="button"
             data-testid="resume-retainage-button"
             disabled={busy}
-            onClick={() => void run(() => resumeRelease({ paymentId: interrupted.paymentId }))}
+            onClick={() => setConfirmResume(true)}
             className="rounded-lg px-3 py-1.5 text-sm font-semibold border border-amber-500 text-amber-200 hover:bg-amber-500/10 disabled:opacity-50"
           >
             {busy ? "Resuming…" : "Resume release"}
@@ -169,6 +171,23 @@ export function RetainageReleaseControl({
         <p className="text-xs text-rose-300 max-w-md" role="alert" data-testid="retainage-release-error">
           {error}
         </p>
+      )}
+      {interrupted && (
+        <ConfirmDialog
+          open={confirmResume}
+          title="Resume the retainage release?"
+          amountCents={interrupted.netCents}
+          amountLabel="Retainage payout"
+          payee={interrupted.receiverEmail ?? "The sub's confirmed PayPal payee"}
+          payeeLabel="Payee (confirmed PayPal email)"
+          effect={`Sends the interrupted ${formatCents(interrupted.netCents)} retainage payout to PayPal under the same batch id. If PayPal already received it, PayPal returns that payout instead of paying twice. This can't be undone.`}
+          confirmLabel={`Resume ${formatCents(interrupted.netCents)} payout`}
+          onCancel={() => setConfirmResume(false)}
+          onConfirm={async () => {
+            setConfirmResume(false);
+            await run(() => resumeRelease({ paymentId: interrupted.paymentId }));
+          }}
+        />
       )}
     </div>
   );

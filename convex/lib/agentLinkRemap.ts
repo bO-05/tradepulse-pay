@@ -2,6 +2,7 @@ import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { findDemoContractorId } from "../demoAccounts";
 import { syncAgentProfilesForEmail } from "./agentAccess";
+import { findDemoGcCompanyId } from "./demoTenancy";
 
 /**
  * A demo reseed deletes and recreates contractors and agreements, so active billing-agent links would
@@ -12,8 +13,14 @@ import { syncAgentProfilesForEmail } from "./agentAccess";
 
 export type AgentLinkSnapshot = { linkId: Id<"agentLinks">; contractorName: string | null }[];
 
+/** Only the Demo GC company's links are snapshotted; other companies' links are never remapped. */
 export async function snapshotActiveAgentLinks(ctx: MutationCtx): Promise<AgentLinkSnapshot> {
-  const links = await ctx.db.query("agentLinks").take(500);
+  const demoGcId = await findDemoGcCompanyId(ctx);
+  if (demoGcId === null) return [];
+  const links = await ctx.db
+    .query("agentLinks")
+    .withIndex("by_gcCompanyId", (q) => q.eq("gcCompanyId", demoGcId))
+    .take(500);
   const snapshot: AgentLinkSnapshot = [];
   for (const link of links) {
     if (link.status !== "active") continue;
@@ -47,6 +54,7 @@ export async function remapAgentLinks(
     if (contractorId === link.contractorId && !agreementGone) continue;
     await ctx.db.patch(link._id, {
       contractorId,
+      ...(snap.contractorName ? { contractorName: snap.contractorName } : {}),
       ...(agreementGone ? { agreementId: undefined } : {}),
     });
     if (contractorId !== link.contractorId) remapped++;

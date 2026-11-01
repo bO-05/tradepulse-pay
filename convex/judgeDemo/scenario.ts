@@ -92,9 +92,10 @@ export function demoEditedApprovalCents(proposedCents: number): number | null {
   return edited > 0 && edited < proposedCents ? edited : null;
 }
 
-/** Change-order amount billed to the Owner at the end of the demo. */
+/** Prime change order approved for the demo owner and invoiced to it at the end of the demo. */
 export const DEMO_CHANGE_ORDER = {
-  description: "Judge demo: add two EV charger circuits in the garage (Owner-requested change)",
+  title: "Judge demo: add two EV charger circuits in the garage",
+  description: "Owner-requested change, billed to the owner as a PayPal invoice.",
   amountCents: 1_850_00,
 };
 

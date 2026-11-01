@@ -1,5 +1,6 @@
 import { cronJobs } from "convex/server";
 import { requireRole } from "./lib/roles";
+import { auditActor, requireProjectScope } from "./lib/projectScope";
 import { internalMutation, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
@@ -25,6 +26,14 @@ crons.interval(
   "watch-authorization-honor-periods",
   { hours: 1 },
   internal.payments.honorPeriod.watchAuthorizations,
+  {}
+);
+
+// Compliance expiry: in-app notifications for COIs and licenses expiring within 30 days or expired.
+crons.daily(
+  "compliance-expiry-notifications",
+  { hourUTC: 14, minuteUTC: 0 },
+  internal.compliance.expiry.runExpiryNotifications,
   {}
 );
 
@@ -177,10 +186,11 @@ export const auditContractorCompliance = internalMutation({
 export const runDeadlineMonitorNow = mutation({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const project = await ctx.db.get(args.projectId);
-    if (!project) throw new Error("Project not found");
-    const packages = await ctx.db.query("tradePackages").collect();
+    const access = await requireProjectScope(ctx, args.projectId, { roles: ["gc"], write: true });
+    const packages = await ctx.db
+      .query("tradePackages")
+      .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
+      .collect();
     const now = Date.now();
     let monitoredCount = 0;
     let transitionedCount = 0;
@@ -227,7 +237,7 @@ export const runDeadlineMonitorNow = mutation({
         eventType: "cron_executed",
         title: "Manual Trigger: Bid Deadline Monitor Executed",
         description: `Audited ${monitoredCount} CSI trade packages (${transitionedCount} transitioned to active leveling).`,
-        actor: "Lead Project Manager",
+        ...auditActor(access),
         timestamp: Date.now(),
     });
 
@@ -238,19 +248,19 @@ export const runDeadlineMonitorNow = mutation({
 export const runComplianceAuditNow = mutation({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const project = await ctx.db.get(args.projectId);
-    if (!project) throw new Error("Project not found");
-    let contractors = await ctx.db.query("contractors").collect();
-    let bids = await ctx.db.query("bids").collect();
-
+    const access = await requireProjectScope(ctx, args.projectId, { roles: ["gc"], write: true });
     const projectPackages = await ctx.db
         .query("tradePackages")
         .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
         .collect();
-    const pkgIds = new Set(projectPackages.map((p) => p._id));
-    contractors = contractors.filter((c) => pkgIds.has(c.tradePackageId));
-    bids = bids.filter((b) => pkgIds.has(b.tradePackageId));
+    const contractors = [];
+    const bids = [];
+    for (const pkg of projectPackages) {
+      contractors.push(
+        ...(await ctx.db.query("contractors").withIndex("by_package", (q) => q.eq("tradePackageId", pkg._id)).collect()),
+      );
+      bids.push(...(await ctx.db.query("bids").withIndex("by_package", (q) => q.eq("tradePackageId", pkg._id)).collect()));
+    }
 
     let verifiedCount = 0;
     let coiDeficiencies = 0;
@@ -272,7 +282,7 @@ export const runComplianceAuditNow = mutation({
         eventType: "compliance_audit",
         title: "Manual Trigger: Subcontractor Compliance Sweep",
         description: `Live audit verified ${verifiedCount} licensed contractors and identified ${coiDeficiencies} insurance deficiencies.`,
-        actor: "Director of Risk Management",
+        ...auditActor(access),
         timestamp: Date.now(),
     });
 
@@ -299,6 +309,11 @@ export const getCronStatus = query({
           name: "audit-contractor-compliance",
           schedule: "Every 6 hours",
           description: "Sweeps recorded contractor license statuses and ACORD 25 insurance flags (no registry lookup is performed)",
+        },
+        {
+          name: "compliance-expiry-notifications",
+          schedule: "Daily at 14:00 UTC",
+          description: "Notifies subs and their GC in-app when an accepted certificate of insurance or license expires within 30 days or has expired",
         },
       ],
       engine: "Convex Native cronJobs()",

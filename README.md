@@ -149,9 +149,11 @@ Open **http://localhost:3150** (not `127.0.0.1`). Convex Auth redirects to `SITE
 
 ## Demo accounts and password
 
-TradePulse Pay requires sign-in. Signed-out visitors only see the sign-in page; `/llms.txt` and `/api/health` stay public. Self sign-up is disabled: accounts come from the demo seed.
+TradePulse Pay requires sign-in. Signed-out visitors only see the sign-in page; `/llms.txt` and `/api/health` stay public.
 
-All demo accounts share the public demo password **`TradePulseDemo!2026`**.
+**New accounts.** The sign-in page has **Create account** (name, email, password of at least 10 characters mixing two kinds of characters) and **Forgot password?**. Both email an 8-digit code from "TradePulse Pay" (`cleverneed464@agentmail.to`); codes are typed in and expire after 15 minutes, and a new code can be requested every 30 seconds. After verifying, a person with no company or invite sets up their general contractor company (name, address, state, phone) and becomes its admin. Resetting a password signs the account out everywhere else. Code emails count against the deployment's daily email budget (`EMAIL_DAILY_BUDGET`); when it is used up, the screen says no code was sent.
+
+**Demo access.** The sign-in page shows no demo credentials. The seeded demo accounts below sign in with email and password only (they are marked verified, so no code is sent). All demo accounts share the public demo password **`TradePulseDemo!2026`**.
 
 | Account | Role | What it sees |
 |---|---|---|
@@ -190,7 +192,7 @@ The AgentID client is registered per deployment with the redirect URI `https://<
 
 ## TradePulse Pay judge demo (PayPal sandbox, about 1–3 minutes)
 
-Sign in as `gc@demo.tradepulse`, open the **⚡ 60s Judge Dock** and click **Run TradePulse Pay demo** (or use the **Judge demo** item in the navigation). Each run creates a fresh, labeled demo award for sub1's contractor (Rosendin Electric, $59,500 with an excluded $4,500 seismic bracing line) and then uses the app's regular functions:
+Sign in as `gc@demo.tradepulse`, open the **Demo simulator** and click **Run TradePulse Pay demo** (or use the **Guided demo** item in the navigation). The simulator, guided tour, guided demo and model checks exist only for the Demo company and are labeled "Demo"; real companies never see them. Each run creates a fresh, labeled demo award for sub1's contractor (Rosendin Electric, $59,500 with an excluded $4,500 seismic bracing line) and then uses the app's regular functions:
 
 1. Execute the agreement; the schedule of values and four milestones are generated.
 2. **You** fund Mobilization ($5,950.00) in the PayPal popup with the guest card above. The demo waits for the real authorization.
@@ -210,7 +212,7 @@ The ledger (`#/payments/<agreementId>`) shows these totals, all in integer cents
 
 - **Paid** = net of successful payouts plus successful retainage releases.
 - **Retainage held** = balance of the retainage ledger (credits on accepted payouts, debits on releases).
-- **Balance** = contract sum − (paid + retainage held). The same formula is printed under the totals.
+- **Balance** = contract sum to date (original contract sum plus approved change orders) − (paid + retainage held). The same formula is printed under the totals.
 - Reconciliation row: funded but not captured, captured, captured but not paid out (for example a failed payout waiting for "Retry payout"), retainage released, and change orders invoiced and paid.
 
 Funded authorizations are watched hourly (`convex/crons.ts`): after the 3-day honor period they are reauthorized once, and an authorization that reaches its expiry marks the milestone "Funding expired" so it can be funded again.

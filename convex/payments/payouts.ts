@@ -4,7 +4,7 @@ import type { Id } from "../_generated/dataModel";
 import { env, internalAction, type ActionCtx } from "../_generated/server";
 import { toPayPalString } from "../lib/money";
 import { paypalErrorData } from "./captures";
-import type { BeginPayout } from "./payoutDb";
+import type { BeginPayout, MarkPayoutSending } from "./payoutDb";
 import { batchIdFromLinks, isDuplicateBatchError, payoutStatusFromPayPal } from "./payoutMath";
 import { payPalClientForAction } from "./paypalClient";
 
@@ -54,6 +54,18 @@ export async function payoutSub(
     projectId: begun.projectId,
     agreementId: begun.agreementId,
   });
+  await paypal.getAccessToken();
+  const gate: MarkPayoutSending = await ctx.runMutation(internal.payments.payoutDb.markPayoutSending, {
+    paymentId: args.paymentId,
+    receiverEmail: begun.receiverEmail,
+  });
+  if (gate.state === "done") return { batchId: gate.batchId, status: gate.status, duplicate: false, alreadySent: true };
+  if (gate.state === "closed") {
+    throw new ConvexError({
+      code: "PAYOUT_CLOSED",
+      message: gate.error ?? `This payout is ${gate.status} and cannot be sent again.`,
+    });
+  }
   let batchId: string | undefined;
   let auditRecorded = true;
   let duplicate = false;
@@ -71,7 +83,7 @@ export async function payoutSub(
         items: [
           {
             recipient_type: "EMAIL",
-            amount: { value: toPayPalString(begun.netCents), currency: "USD" },
+            amount: { value: toPayPalString(gate.netCents), currency: "USD" },
             receiver: begun.receiverEmail,
             note: begun.note,
             sender_item_id: args.paymentId,

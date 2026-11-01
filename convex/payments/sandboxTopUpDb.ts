@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { internalMutation, internalQuery, query } from "../_generated/server";
-import { requireRole } from "../lib/roles";
+import { requireDemoCompany } from "../lib/projectScope";
 
 /** Database side of the sandbox-only platform top-up (see sandboxTopUp.ts). */
 
@@ -75,11 +75,11 @@ export function topUpStatusForCapture(captureStatus: string | undefined): "pendi
   }
 }
 
-/** The latest sandbox top-ups, GC only. */
+/** The latest sandbox top-ups, Demo company GC only. */
 export const listTopUps = query({
   args: {},
   handler: async (ctx) => {
-    await requireRole(ctx, ["gc"]);
+    await requireDemoCompany(ctx, ["gc"]);
     const rows = await ctx.db.query("sandboxTopUps").withIndex("by_createdAt").order("desc").take(10);
     return rows.map((r) => ({
       _id: r._id,

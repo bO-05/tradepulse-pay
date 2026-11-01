@@ -2,7 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, internalQuery, mutation, query, type MutationCtx, type QueryCtx } from "../_generated/server";
-import { requireRole } from "../lib/roles";
+import { findDocScope, requireDocScope } from "../lib/projectScope";
 import { licenseStatusValidator } from "../schema";
 import { CACHEABLE_STATUSES, LICENSE_CACHE_MS, RUNNING_STALE_MS, normalizeLicenseNumber, type CslbStatus } from "./cslb";
 
@@ -53,14 +53,32 @@ export type BeginResult =
   | { kind: "cached" | "in_flight" | "no_license"; checkId: Id<"licenseChecks"> }
   | { kind: "started"; checkId: Id<"licenseChecks">; licenseNumber: string };
 
+/**
+ * Keeps a compliance license record's `verification` in step with its CSLB lookup: "cslb_live" once
+ * CSLB returned a page (any status), "unverified" while running or after a failure. Advisory only.
+ */
+export async function syncComplianceVerification(ctx: MutationCtx, check: Doc<"licenseChecks">): Promise<void> {
+  const items = await ctx.db
+    .query("complianceItems")
+    .withIndex("by_cslbCheckId", (q) => q.eq("cslbCheckId", check._id))
+    .take(50);
+  const verification = check.phase !== "running" && CACHEABLE_STATUSES.has(check.status) ? "cslb_live" : "unverified";
+  for (const item of items) {
+    if (item.license === undefined || item.license.state !== "CA" || item.license.verification === verification) continue;
+    await ctx.db.patch(item._id, { license: { ...item.license, verification } });
+  }
+}
+
 export async function beginCheckInTx(
   ctx: MutationCtx,
   contractorId: Id<"contractors">,
   trigger: string,
+  opts: { licenseNumber?: string; complianceItemId?: Id<"complianceItems"> } = {},
 ): Promise<BeginResult> {
   const contractor = await ctx.db.get(contractorId);
   if (contractor === null) throw new ConvexError({ code: "NOT_FOUND", message: "Contractor not found." });
-  const licenseNumber = normalizeLicenseNumber(contractor.licenseNumber ?? "");
+  const licenseNumber = normalizeLicenseNumber(opts.licenseNumber ?? contractor.licenseNumber ?? "");
+  const itemField = opts.complianceItemId !== undefined ? { complianceItemId: opts.complianceItemId } : {};
   const now = Date.now();
   if (licenseNumber === "" || /^not verified$/i.test(licenseNumber)) {
     const checkId = await ctx.db.insert("licenseChecks", {
@@ -74,6 +92,7 @@ export async function beginCheckInTx(
       startedAt: now,
       durationMs: 0,
       trigger,
+      ...itemField,
     });
     return { kind: "no_license", checkId };
   }
@@ -89,6 +108,7 @@ export async function beginCheckInTx(
     phase: "running",
     startedAt: now,
     trigger,
+    ...itemField,
   });
   await ctx.scheduler.runAfter(RUNNING_STALE_MS, internal.kernel.licenseChecks.expireStaleCheck, { checkId });
   return { kind: "started", checkId, licenseNumber };
@@ -108,6 +128,8 @@ export const expireStaleCheck = internalMutation({
       checkedAt: now,
       durationMs: now - (row.startedAt ?? row.checkedAt),
     });
+    const done = await ctx.db.get(row._id);
+    if (done !== null) await syncComplianceVerification(ctx, done);
     return null;
   },
 });
@@ -146,6 +168,8 @@ export const finishCheck = internalMutation({
       checkedAt: now,
       durationMs: now - (row.startedAt ?? row.checkedAt),
     });
+    const done = await ctx.db.get(args.checkId);
+    if (done !== null) await syncComplianceVerification(ctx, done);
     const contractor = await ctx.db.get(row.contractorId);
     await ctx.db.insert("auditLogs", {
       eventType: "license_check",
@@ -207,10 +231,9 @@ function toView(row: Doc<"licenseChecks">) {
 export const getContractorLicense = query({
   args: { contractorId: v.string() },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const id = ctx.db.normalizeId("contractors", args.contractorId);
-    const contractor = id === null ? null : await ctx.db.get(id);
-    if (contractor === null) return null;
+    const scope = await findDocScope(ctx, "contractors", args.contractorId, { roles: ["gc"] });
+    if (scope === null) return null;
+    const contractor = scope.doc;
     const rows = await ctx.db
       .query("licenseChecks")
       .withIndex("by_contractorId_and_checkedAt", (q) => q.eq("contractorId", contractor._id))
@@ -228,9 +251,8 @@ export const getContractorLicense = query({
 export const requestLicenseCheck = mutation({
   args: { contractorId: v.string() },
   handler: async (ctx, args): Promise<{ checkId: Id<"licenseChecks">; kind: BeginResult["kind"] }> => {
-    await requireRole(ctx, ["gc"]);
-    const id = ctx.db.normalizeId("contractors", args.contractorId);
-    if (id === null) throw new ConvexError({ code: "NOT_FOUND", message: "Contractor not found." });
+    const scope = await requireDocScope(ctx, "contractors", args.contractorId, { roles: ["gc"], write: true });
+    const id = scope.doc._id;
     const result = await beginCheckInTx(ctx, id, "gc");
     if (result.kind === "started") {
       await ctx.scheduler.runAfter(0, internal.kernel.licenseCheck.performLicenseCheck, {

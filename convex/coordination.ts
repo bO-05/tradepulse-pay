@@ -1,8 +1,11 @@
 import { query, mutation, action } from "./_generated/server";
-import { requireRole, requireRoleInAction } from "./lib/roles";
+import { auditActor, requireDocOfProject, requireProjectScope } from "./lib/projectScope";
+import { requireProjectScopeInAction } from "./lib/tenancyAction";
 import { v, ConvexError } from "convex/values";
 import { internal, api } from "./_generated/api";
 import { syncAgreementForBid } from "./agreements";
+import { CLEAR_LEGACY_BID_DOLLARS, bidCents, computeLeveledTotalCents } from "./lib/bidMoney";
+import { centsToDollarsForDisplay, formatCents, fromDollars } from "./lib/money";
 import { validateNonNegativeAmount, validatePositiveAmount, validateProjectText } from "./validation";
 
 export interface DoubleBuyClash {
@@ -81,7 +84,7 @@ async function recordClashResolution(
 export const detectCrossTradeClashes = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc", "owner"]);
+    await requireProjectScope(ctx, args.projectId, { roles: ["gc"] });
     const packages = await ctx.db
       .query("tradePackages")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
@@ -162,7 +165,7 @@ export const detectCrossTradeClashes = query({
     const manualCoverageFor = (rx: RegExp) =>
       allVe
         .filter((v) => v.isAccepted && rx.test(v.description))
-        .reduce((sum, v) => sum + (v.costDeduct || 0), 0);
+        .reduce((sum, v) => sum + centsToDollarsForDisplay(v.costDeductCents ?? 0), 0);
     const vfdManualCoverage = manualCoverageFor(/VFD|Variable Frequency/i);
     // A30-02: "switch" alone matches unrelated alternates ("Switchgear arc-flash
     // credit"); only true disconnect scope may offset the disconnect clash.
@@ -364,14 +367,9 @@ export const deductDoubleBuyCredit = mutation({
     bidId: v.optional(v.id("bids")),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const project = await ctx.db.get(args.projectId);
-    if (!project) throw new Error("Project not found");
-    const tradePkg = await ctx.db.get(args.tradePackageId);
-    if (!tradePkg) throw new Error("Trade package not found");
-    if (tradePkg.projectId !== args.projectId) {
-      throw new Error("The trade package does not belong to the selected project.");
-    }
+    const access = await requireProjectScope(ctx, args.projectId, { roles: ["gc"], write: true });
+    const tradePkg = await requireDocOfProject(ctx, access, "tradePackages", args.tradePackageId);
+    const explicitBid = args.bidId === undefined ? null : await requireDocOfProject(ctx, access, "bids", args.bidId);
     const deductAmount = validatePositiveAmount(args.deductAmount, "Double-buy credit");
     const description = validateProjectText(args.description, "Double-buy description");
     await assertCrossTradeEvidence(ctx, args.projectId);
@@ -395,10 +393,9 @@ export const deductDoubleBuyCredit = mutation({
 
     // Locate single target bid: explicitly passed, or awarded bid, or best leveled bid
     let targetBid: any = null;
-    if (args.bidId) {
-      targetBid = await ctx.db.get(args.bidId);
-      if (!targetBid) throw new Error("The selected bid was not found.");
-      if (targetBid && targetBid.tradePackageId !== args.tradePackageId) {
+    if (explicitBid !== null) {
+      targetBid = explicitBid;
+      if (targetBid.tradePackageId !== args.tradePackageId) {
         throw new Error("The selected bid does not belong to the target trade package.");
       }
     } else {
@@ -408,7 +405,7 @@ export const deductDoubleBuyCredit = mutation({
         .collect();
       targetBid =
         bids.find((b) => b.isAwarded) ||
-        [...bids].sort((a, b) => a.leveledTotalCost - b.leveledTotalCost)[0] ||
+        [...bids].sort((a, b) => bidCents(a).leveledTotalCents - bidCents(b).leveledTotalCents)[0] ||
         null;
     }
 
@@ -427,9 +424,11 @@ export const deductDoubleBuyCredit = mutation({
     const veDescription = `Cross-Trade Clash Credit [${args.clashId}]: Deduct redundant ${description}`;
     // A28-04: a credit can never exceed the proposal's leveled cost; an oversized
     // credit overstated the recovery and wrote an impossible audit value.
-    if (deductAmount > targetBid.leveledTotalCost) {
+    const deductCents = fromDollars(deductAmount);
+    const targetCents = bidCents(targetBid);
+    if (deductCents > targetCents.leveledTotalCents) {
       throw new ConvexError(
-        `The credit $${deductAmount.toLocaleString()} exceeds the proposal's leveled cost of $${targetBid.leveledTotalCost.toLocaleString()}. Reduce the credit before applying it.`
+        `The credit ${formatCents(deductCents)} exceeds the proposal's leveled cost of ${formatCents(targetCents.leveledTotalCents)}. Reduce the credit before applying it.`
       );
     }
     const currentAlternates = targetBid.valueEngineeringAlternates || [];
@@ -445,31 +444,25 @@ export const deductDoubleBuyCredit = mutation({
       ),
       {
         description: veDescription,
-        costDeduct: deductAmount,
+        costDeductCents: deductCents,
         isAccepted: true,
       },
     ];
 
-    // Recalculate leveledTotalCost per ADR-0003
-    const activeExclusionsCost = (targetBid.identifiedExclusions || []).reduce(
-      (sum: number, x: any) => (x.isWaived ? sum : sum + (x.costImpact || 0)),
-      0
-    );
-    const acceptedVeDeduct = updatedAlternates.reduce(
-      (sum: number, x: any) => (x.isAccepted ? sum + (x.costDeduct || 0) : sum),
-      0
-    );
-
-    const newLeveledCost =
-      targetBid.baseBidAmount +
-      activeExclusionsCost +
-      (targetBid.leadTimePenalty || 0) +
-      (targetBid.coiPenalty || 0) -
-      acceptedVeDeduct;
+    const newLeveledCents = computeLeveledTotalCents({
+      baseAmountCents: targetCents.baseAmountCents,
+      exclusions: targetBid.identifiedExclusions || [],
+      veAlternates: updatedAlternates,
+      leadTimePenaltyCents: targetCents.leadTimePenaltyCents,
+      coiPenaltyCents: targetCents.coiPenaltyCents,
+    });
+    const newLeveledCost = centsToDollarsForDisplay(newLeveledCents);
 
     await ctx.db.patch(targetBid._id, {
+      ...CLEAR_LEGACY_BID_DOLLARS,
+      ...targetCents,
       valueEngineeringAlternates: updatedAlternates,
-      leveledTotalCost: Math.max(0, newLeveledCost),
+      leveledTotalCents: newLeveledCents,
     });
 
     // Synchronize active agreement contractSum, inclusions, and contractText if present
@@ -481,8 +474,8 @@ export const deductDoubleBuyCredit = mutation({
       tradePackageId: args.tradePackageId,
       eventType: "bid_leveled",
       title: `Double-Buy Credit Deducted: -$${deductAmount.toLocaleString()}`,
-      description: `Applied 1-click cross-trade deduct credit to ${targetBid.subcontractorName} in Division ${tradePkg.csiDivision} (${tradePkg.tradeName}) for redundant ${description}. Normalized leveled cost updated to $${newLeveledCost.toLocaleString()}.`,
-      actor: "Cross-Trade Clash Coordination Engine",
+      description: `Applied 1-click cross-trade deduct credit to ${targetBid.subcontractorName} in Division ${tradePkg.csiDivision} (${tradePkg.tradeName}) for redundant ${description}. Normalized leveled cost updated to ${formatCents(newLeveledCents)}.`,
+      ...auditActor(access),
       timestamp: Date.now(),
     });
 
@@ -509,13 +502,8 @@ export const reverseDoubleBuyCredit = mutation({
     tradePackageId: v.id("tradePackages"),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const project = await ctx.db.get(args.projectId);
-    if (!project) throw new ConvexError("Project not found.");
-    const tradePkg = await ctx.db.get(args.tradePackageId);
-    if (!tradePkg || tradePkg.projectId !== args.projectId) {
-      throw new ConvexError("The trade package does not belong to the selected project.");
-    }
+    const access = await requireProjectScope(ctx, args.projectId, { roles: ["gc"], write: true });
+    await requireDocOfProject(ctx, access, "tradePackages", args.tradePackageId);
     const resolutions = await ctx.db
       .query("clashResolutions")
       .withIndex("by_project_and_clash", (q) =>
@@ -557,7 +545,7 @@ export const reverseDoubleBuyCredit = mutation({
         eventType: "bid_leveled",
         title: `Double-Buy Credit Record Cleared: ${args.clashId}`,
         description: `A stale $${resolution.amount.toLocaleString()} credit record existed for ${args.clashId} but no proposal carried the credit. The record was cleared; the credit can be applied again.`,
-        actor: "Cross-Trade Clash Coordination Engine",
+        ...auditActor(access),
         timestamp: Date.now(),
       });
       return { success: true, note: "Stale credit record cleared; the proposal no longer carried it." };
@@ -565,29 +553,25 @@ export const reverseDoubleBuyCredit = mutation({
 
     const currentAlternates = targetBid.valueEngineeringAlternates || [];
     const matchingCredits = currentAlternates.filter((a: any) => creditMatchesClash(a));
-    const reversedAmount = matchingCredits.reduce((sum: number, a: any) => sum + (a.costDeduct || 0), 0);
+    const reversedCents = matchingCredits.reduce((sum: number, a: any) => sum + (a.costDeductCents ?? 0), 0);
+    const reversedAmount = centsToDollarsForDisplay(reversedCents);
 
     const updatedAlternates = currentAlternates.filter((a: any) => !matchingCredits.includes(a));
-    const acceptedVeDeduct = updatedAlternates.reduce(
-      (sum: number, x: any) => (x.isAccepted ? sum + (x.costDeduct || 0) : sum),
-      0
-    );
-    const activeExclusionsCost = (targetBid.identifiedExclusions || []).reduce(
-      (sum: number, x: any) => (x.isWaived ? sum : sum + (x.costImpact || 0)),
-      0
-    );
-    const newLeveledCost = Math.max(
-      0,
-      targetBid.baseBidAmount +
-        activeExclusionsCost +
-        (targetBid.leadTimePenalty || 0) +
-        (targetBid.coiPenalty || 0) -
-        acceptedVeDeduct
-    );
+    const targetCents = bidCents(targetBid);
+    const newLeveledCents = computeLeveledTotalCents({
+      baseAmountCents: targetCents.baseAmountCents,
+      exclusions: targetBid.identifiedExclusions || [],
+      veAlternates: updatedAlternates,
+      leadTimePenaltyCents: targetCents.leadTimePenaltyCents,
+      coiPenaltyCents: targetCents.coiPenaltyCents,
+    });
+    const newLeveledCost = centsToDollarsForDisplay(newLeveledCents);
 
     await ctx.db.patch(targetBid._id, {
+      ...CLEAR_LEGACY_BID_DOLLARS,
+      ...targetCents,
       valueEngineeringAlternates: updatedAlternates,
-      leveledTotalCost: newLeveledCost,
+      leveledTotalCents: newLeveledCents,
     });
     await syncAgreementForBid(ctx, targetBid._id);
     await ctx.db.delete(resolution._id);
@@ -595,9 +579,9 @@ export const reverseDoubleBuyCredit = mutation({
       projectId: args.projectId,
       tradePackageId: targetBid.tradePackageId,
       eventType: "bid_leveled",
-      title: `Double-Buy Credit Reversed: $${reversedAmount.toLocaleString()}`,
-      description: `Reversed the cross-trade credit of $${reversedAmount.toLocaleString()} on ${targetBid.subcontractorName}. Normalized leveled cost restored to $${newLeveledCost.toLocaleString()}.`,
-      actor: "Cross-Trade Clash Coordination Engine",
+      title: `Double-Buy Credit Reversed: ${formatCents(reversedCents)}`,
+      description: `Reversed the cross-trade credit of ${formatCents(reversedCents)} on ${targetBid.subcontractorName}. Normalized leveled cost restored to ${formatCents(newLeveledCents)}.`,
+      ...auditActor(access),
       timestamp: Date.now(),
     });
 
@@ -620,15 +604,11 @@ export const assignScopeVoidToTrade = mutation({
     bidId: v.optional(v.id("bids")),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const project = await ctx.db.get(args.projectId);
-    if (!project) throw new Error("Project not found");
-    const tradePkg = await ctx.db.get(args.tradePackageId);
-    if (!tradePkg) throw new Error("Trade package not found");
-    if (tradePkg.projectId !== args.projectId) {
-      throw new Error("The trade package does not belong to the selected project.");
-    }
+    const access = await requireProjectScope(ctx, args.projectId, { roles: ["gc"], write: true });
+    const tradePkg = await requireDocOfProject(ctx, access, "tradePackages", args.tradePackageId);
+    const explicitBid = args.bidId === undefined ? null : await requireDocOfProject(ctx, access, "bids", args.bidId);
     const additionalCost = validateNonNegativeAmount(args.additionalCost, "Scope void cost");
+    const additionalCents = fromDollars(additionalCost);
     const description = validateProjectText(args.description, "Scope void description");
     await assertCrossTradeEvidence(ctx, args.projectId);
     if (!KNOWN_SCOPE_VOID_IDS.has(args.voidId)) {
@@ -656,10 +636,9 @@ export const assignScopeVoidToTrade = mutation({
 
     // Locate target bid: explicitly passed, or awarded bid, or best leveled bid
     let targetBid: any = null;
-    if (args.bidId) {
-      targetBid = await ctx.db.get(args.bidId);
-      if (!targetBid) throw new Error("The selected bid was not found.");
-      if (targetBid && targetBid.tradePackageId !== args.tradePackageId) {
+    if (explicitBid !== null) {
+      targetBid = explicitBid;
+      if (targetBid.tradePackageId !== args.tradePackageId) {
         throw new Error("The selected bid does not belong to the target trade package.");
       }
     } else {
@@ -669,7 +648,7 @@ export const assignScopeVoidToTrade = mutation({
         .collect();
       targetBid =
         bids.find((b) => b.isAwarded) ||
-        [...bids].sort((a, b) => a.leveledTotalCost - b.leveledTotalCost)[0] ||
+        [...bids].sort((a, b) => bidCents(a).leveledTotalCents - bidCents(b).leveledTotalCents)[0] ||
         null;
     }
 
@@ -683,35 +662,27 @@ export const assignScopeVoidToTrade = mutation({
             item: itemTitle,
             unit: "LS",
             quantity: 1,
-            unitCost: additionalCost,
-            totalCost: additionalCost,
+            unitCostCents: additionalCents,
+            totalCostCents: additionalCents,
           },
         ];
 
-        // Update base and leveled cost
-        const newBase = targetBid.baseBidAmount + additionalCost;
-        const activeExclusionsCost = (targetBid.identifiedExclusions || []).reduce(
-          (sum: number, x: any) => (x.isWaived ? sum : sum + (x.costImpact || 0)),
-          0
-        );
-        const acceptedVeDeduct = (targetBid.valueEngineeringAlternates || []).reduce(
-          (sum: number, x: any) => (x.isAccepted ? sum + (x.costDeduct || 0) : sum),
-          0
-        );
-
-        const newLeveled = Math.max(
-          0,
-          newBase +
-          activeExclusionsCost +
-          (targetBid.leadTimePenalty || 0) +
-          (targetBid.coiPenalty || 0) -
-          acceptedVeDeduct
-        );
+        const targetCents = bidCents(targetBid);
+        const newBaseCents = targetCents.baseAmountCents + additionalCents;
+        const newLeveledCents = computeLeveledTotalCents({
+          baseAmountCents: newBaseCents,
+          exclusions: targetBid.identifiedExclusions || [],
+          veAlternates: targetBid.valueEngineeringAlternates || [],
+          leadTimePenaltyCents: targetCents.leadTimePenaltyCents,
+          coiPenaltyCents: targetCents.coiPenaltyCents,
+        });
 
         await ctx.db.patch(targetBid._id, {
+          ...CLEAR_LEGACY_BID_DOLLARS,
+          ...targetCents,
           lineItems: updatedItems,
-          baseBidAmount: newBase,
-          leveledTotalCost: newLeveled,
+          baseAmountCents: newBaseCents,
+          leveledTotalCents: newLeveledCents,
         });
 
         // Synchronize active agreement contractSum, inclusions, and contractText if present
@@ -726,7 +697,7 @@ export const assignScopeVoidToTrade = mutation({
       eventType: "compliance_audit",
       title: `Scope Void Assigned: ${description}`,
       description: `Assigned orphaned $${additionalCost.toLocaleString()} scope void to Division ${tradePkg.csiDivision} (${tradePkg.tradeName}). Added to mandatory contract scope obligations.`,
-      actor: "Cross-Trade Clash Coordination Engine",
+      ...auditActor(access),
       timestamp: Date.now(),
     });
 
@@ -746,7 +717,7 @@ export const assignScopeVoidToTrade = mutation({
 export const scanCrossTradeClashes = action({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
-    await requireRoleInAction(ctx, ["gc"]);
+    await requireProjectScopeInAction(ctx, { projectId: args.projectId }, { roles: ["gc"], write: true });
     // A19-02: cross-trade clash detection is only meaningful with both trades
     // and priced proposals. Never ask the model to invent clashes otherwise.
     const packages: any = await ctx.runQuery(api.tradePackages.listByProject, { projectId: args.projectId });
@@ -772,10 +743,14 @@ export const scanCrossTradeClashes = action({
     }
 
     const prompt = `Perform cross-trade commercial MEP scope clash detection between CSI Division 26 (Electrical) and Division 23 (HVAC). Detect any Double-Buys (e.g. VFDs, disconnects) and Scope Voids (e.g. low-voltage control wiring, duct smoke detector installation).`;
+    const gcCompanyName: string | null = await ctx.runQuery(internal.projects.getProjectCompanyNameInternal, {
+      projectId: args.projectId,
+    });
     await ctx.runAction(internal.llmRouter.executeReasoning, {
       taskType: "clash_detection",
       prompt,
-      systemPrompt: "You are the TradePulse Cross-Trade MEP Coordination & Clash Detection Specialist.",
+      systemPrompt: `You are the TradePulse Pay Cross-Trade MEP Coordination & Clash Detection Specialist${gcCompanyName ? `, working on behalf of ${gcCompanyName}` : ""}.`,
+      companyName: gcCompanyName ?? undefined,
     });
 
     // Return a summary derived from the real computed clashes, not the model text.
@@ -811,7 +786,7 @@ export const extractDynamicClashes = action({
     div23ScopeText: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<any> => {
-    await requireRoleInAction(ctx, ["gc"]);
+    await requireProjectScopeInAction(ctx, { projectId: args.projectId }, { roles: ["gc"], write: true });
     // 1. Fetch live trade packages and proposals if not provided
     const packages: any = await ctx.runQuery(api.tradePackages.listByProject, { projectId: args.projectId });
     const elecPkg = packages.find((p: any) => p.csiDivision.startsWith("26"));
@@ -829,10 +804,14 @@ Identify:
 1. Double-Buy Equipment: items priced in both scopes that will cause duplicate buyout (e.g. Variable Frequency Drives, Disconnect Switches).
 2. Scope Voids: items omitted in the boundary between trades (e.g. low-voltage BAS control wiring, duct smoke detector installation & interlock).`;
 
+    const gcCompanyName: string | null = await ctx.runQuery(internal.projects.getProjectCompanyNameInternal, {
+      projectId: args.projectId,
+    });
     const reasoning: any = await ctx.runAction(internal.llmRouter.executeReasoning, {
       taskType: "clash_detection",
       prompt,
-      systemPrompt: "You are the TradePulse Chief MEP Coordination Specialist.",
+      systemPrompt: `You are the TradePulse Pay Chief MEP Coordination Specialist${gcCompanyName ? `, working on behalf of ${gcCompanyName}` : ""}.`,
+      companyName: gcCompanyName ?? undefined,
     });
 
     // 3. Extract verified clashes with canonical matching

@@ -6,7 +6,8 @@ import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import schema from "./schema";
 import { agentIdProfile, syncAgentProfile } from "./lib/agentAccess";
-import { signInAs } from "./lib/testIdentity";
+import { withSession, signInAs } from "./lib/testIdentity";
+import { projectSetupArgs } from "./lib/projectSetupFixture";
 
 const modules = import.meta.glob("./**/*.ts");
 type T = TestConvex<typeof schema>;
@@ -31,7 +32,7 @@ async function signInUnlinkedAgent(t: T) {
     await ctx.db.insert("authAccounts", { userId, provider: "agentid", providerAccountId: id });
     return userId;
   });
-  return t.withIdentity({ subject: `${userId}|agent-session`, email });
+  return await withSession(t, userId, email);
 }
 
 async function setup() {
@@ -45,7 +46,16 @@ async function setup() {
     const contractor = (await ctx.db.query("contractors").first())!;
     const conversation = (await ctx.db.query("conversations").first())!;
     const file = (await ctx.db.query("projectFiles").first())!;
+    const uploadIntentId = await ctx.db.insert("uploadIntents", {
+      userId: (await ctx.db.query("users").first())!._id,
+      companyId: (await ctx.db.query("companies").first())!._id,
+      projectId: project._id,
+      createdAt: 0,
+      expiresAt: 0,
+    });
+    await ctx.db.delete(uploadIntentId);
     return {
+      uploadIntentId,
       projectId: project._id,
       packageId: pkg._id,
       bidId: bid._id,
@@ -75,7 +85,7 @@ async function setup() {
     sub: (await signInAs(t, "sub", { contractorId: ids.contractorId })).as,
     owner: (await signInAs(t, "owner")).as,
     "unlinked agent": await signInUnlinkedAgent(t),
-    "linked billing agent": t.withIdentity({ subject: `${linkedAgentId}|agent-session`, email: linkedEmail }),
+    "linked billing agent": await withSession(t, linkedAgentId, linkedEmail),
   };
   return { t, gc, ids: { ...ids, agreementId }, callers };
 }
@@ -95,13 +105,14 @@ const a = (name: string, fn: Case["fn"], args: Case["args"]): Case => ({ name, k
 
 const CASES: Case[] = [
   m("bids:deleteBid", api.bids.deleteBid, (i) => ({ bidId: i.bidId })),
-  m("bids:updateBidLeveling", api.bids.updateBidLeveling, (i) => ({ bidId: i.bidId, baseBidAmount: 1 })),
+  m("bids:updateBidLeveling", api.bids.updateBidLeveling, (i) => ({ bidId: i.bidId, baseAmountCents: 100 })),
   m("bids:updateBidAdjustments", api.bids.updateBidAdjustments, (i) => ({ bidId: i.bidId, identifiedExclusions: [] })),
+  m("bids:setExclusionPlug", api.bids.setExclusionPlug, (i) => ({ bidId: i.bidId, exclusionIndex: 0, amountCents: 1_500_000 })),
   m("bids:submitDirectBid", api.bids.submitDirectBid, (i) => ({
     tradePackageId: i.packageId,
     contractorId: i.contractorId,
     subcontractorName: "Forged Sub",
-    baseBidAmount: 1000,
+    baseAmountCents: 100_000,
   })),
   m("bids:awardContract", api.bids.awardContract, (i) => ({ bidId: i.bidId, tradePackageId: i.bidPackageId })),
   m("bids:unawardContract", api.bids.unawardContract, (i) => ({ bidId: i.bidId, tradePackageId: i.bidPackageId })),
@@ -114,6 +125,7 @@ const CASES: Case[] = [
     mandatoryInclusions: [],
     bidDeadline: "2026-12-01",
   })),
+  m("tradePackages:updateBidDue", api.tradePackages.updateBidDue, (i) => ({ tradePackageId: i.packageId, bidDeadline: "2099-01-05", bidDueTime: "14:00" })),
   m("tradePackages:updateStatus", api.tradePackages.updateStatus, (i) => ({ tradePackageId: i.packageId, status: "awarded" })),
   m("tradePackages:deleteTradePackage", api.tradePackages.deleteTradePackage, (i) => ({ tradePackageId: i.packageId })),
   a("tradePackages:generateTradePackagesFromSpec", api.tradePackages.generateTradePackagesFromSpec, (i) => ({
@@ -168,9 +180,10 @@ const CASES: Case[] = [
   m("crons:runDeadlineMonitorNow", api.crons.runDeadlineMonitorNow, (i) => ({ projectId: i.projectId })),
   m("crons:runComplianceAuditNow", api.crons.runComplianceAuditNow, (i) => ({ projectId: i.projectId })),
   a("evals:executeEvalSuite", api.evals.executeEvalSuite, () => ({})),
-  m("files:generateUploadUrl", api.files.generateUploadUrl, () => ({})),
+  m("files:generateUploadUrl", api.files.generateUploadUrl, (i) => ({ projectId: i.projectId })),
   m("files:saveFileRecord", api.files.saveFileRecord, (i) => ({
     projectId: i.projectId,
+    uploadIntentId: i.uploadIntentId,
     storageId: "forged",
     fileName: "forged.pdf",
     fileType: "spec",
@@ -191,18 +204,9 @@ const CASES: Case[] = [
   })),
   a("files:generatePreBidAddendum", api.files.generatePreBidAddendum, (i) => ({ projectId: i.projectId })),
   a("llmRouter:runModelDiagnostic", api.llmRouter.runModelDiagnostic, () => ({ model: "claude", promptType: "spec_div26" })),
-  m("projects:createProject", api.projects.createProject, () => ({
-    title: "Forged",
-    location: "Austin, TX",
-    projectType: "x",
-    estBudget: 1,
-    targetCompletionWeeks: 1,
-    specDocumentText: "x",
-    isDemoProject: false,
-  })),
+  m("projects:createProject", api.projects.createProject, () => projectSetupArgs({ title: "Forged" })),
   m("projects:seedInitialData", api.projects.seedInitialData, () => ({ force: true })),
   m("projects:deleteProject", api.projects.deleteProject, (i) => ({ projectId: i.projectId })),
-  m("rfq:dispatchRfqs", api.rfq.dispatchRfqs, (i) => ({ tradePackageId: i.packageId })),
   m("rfq:reviewEscalatedRfi", api.rfq.reviewEscalatedRfi, (i) => ({ conversationId: i.conversationId, status: "rejected" })),
   a("rfq:generatePreBidAddendum", api.rfq.generatePreBidAddendum, (i) => ({ projectId: i.projectId })),
   a("rfqActions:provisionPackageInbox", api.rfqActions.provisionPackageInbox, (i) => ({
@@ -211,9 +215,15 @@ const CASES: Case[] = [
   })),
   a("rfqActions:dispatchRfqsWithNotification", api.rfqActions.dispatchRfqsWithNotification, (i) => ({
     tradePackageId: i.packageId,
+    recipients: [{ contractorId: i.contractorId, email: "bids@example.test" }],
   })),
   a("rfqActions:dispatchSingleRfqWithNotification", api.rfqActions.dispatchSingleRfqWithNotification, (i) => ({
     contractorId: i.contractorId,
+    email: "bids@example.test",
+  })),
+  m("rfqRecipients:confirmBidderEmail", api.rfqRecipients.confirmBidderEmail, (i) => ({
+    contractorId: i.contractorId,
+    email: "bids@example.test",
   })),
   m("simulation:triggerJudgeSimulation", api.simulation.triggerJudgeSimulation, (i) => ({
     tradePackageId: i.packageId,
@@ -231,7 +241,7 @@ const CASES: Case[] = [
   m("agreements:voidExecutedAgreement", api.agreements.voidExecutedAgreement, (i) => ({ agreementId: i.agreementId, reason: "x" })),
 ];
 
-const DENIED = /Not authenticated|Forbidden/;
+const DENIED = /Not authenticated|Forbidden|Not found/;
 
 describe("legacy public mutations and actions are GC-only", () => {
   const fetchSpy = vi.fn(async () => {
@@ -268,8 +278,53 @@ describe("legacy public mutations and actions are GC-only", () => {
       const mod = path.replace(/^\.\//, "").replace(/\.ts$/, "");
       for (const match of src.matchAll(/^export const (\w+) = (?:mutation|action)\(/gm)) exported.push(`${mod}:${match[1]}`);
     }
-    // agentLinks is GC-guarded and has its own denial tests in agentLinks.test.ts.
-    const covered = new Set([...CASES.map((c) => c.name), "agentLinks:addAgentLink", "agentLinks:revokeAgentLink"]);
+    // agentLinks is GC-guarded and has its own denial tests in agentLinks.test.ts; onboarding is
+    // for verified users without a company, covered in onboarding.test.ts. Invites, People and
+    // Company settings have their permission and cross-company tests in invites.test.ts. Project
+    // settings, archive/restore and company defaults have theirs in projectSetup.test.ts. Agreement
+    // terms edits have their party, lock and cross-company tests in agreementTerms.test.ts. Vendor
+    // directory writes and directory bidders have theirs in vendors.test.ts. Payee control, billing
+    // email and notifications have theirs in payee.test.ts and notifications.test.ts. Bid portal
+    // submissions, GC bid entry/confirmation and Q&A publishing have theirs in bidPortal.test.ts.
+    // RFI answer sends and addendum acknowledgments have theirs in rfiAnswers.test.ts.
+    const covered = new Set([
+      ...CASES.map((c) => c.name),
+      "agentLinks:addAgentLink",
+      "agentLinks:revokeAgentLink",
+      "onboarding:createCompany",
+      "companies:updateProfile",
+      "companies:setMemberRole",
+      "companies:removeMember",
+      "invites:create",
+      "invites:resend",
+      "invites:revoke",
+      "invites:accept",
+      "invites:acceptMine",
+      "people:removeProjectMember",
+      "projects:updateProject",
+      "projects:archiveProject",
+      "projects:restoreProject",
+      "companies:updateDefaults",
+      "agreementTerms:updateAgreementTerms",
+      "vendors:createVendor",
+      "vendors:updateVendor",
+      "vendors:setVendorStatus",
+      "vendors:importVendors",
+      "contractors:addBiddersFromDirectory",
+      "contractors:createVendorBidder",
+      "payee:setPayoutEmail",
+      "payee:setBillingEmail",
+      "payee:confirmPayee",
+      "notifications:markRead",
+      "notifications:markAllRead",
+      "bidPortal:submitPortalBid",
+      "bidPortal:askBidQuestion",
+      "bidPortal:enterBidOnBehalf",
+      "bidPortal:confirmParsedBid",
+      "bidPortal:publishQuestion",
+      "rfiAnswers:sendRfiAnswer",
+      "addenda:acknowledgeAddendum",
+    ]);
     expect(exported.filter((name) => !covered.has(name))).toEqual([]);
   });
 

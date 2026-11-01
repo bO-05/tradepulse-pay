@@ -59,6 +59,16 @@ export async function captureApproved(
     projectId: begun.projectId,
     agreementId: begun.agreementId,
   });
+  if (args.releasePaymentId !== undefined) {
+    await paypal.getAccessToken();
+    const gate = await ctx.runMutation(internal.payments.releaseDb.markCaptureSending, { releasePaymentId: args.releasePaymentId });
+    if (gate.state === "closed") {
+      throw new ConvexError({
+        code: "RELEASE_CLOSED",
+        message: gate.error ?? `This release is ${gate.status.replace(/_/g, " ")}; nothing was captured.`,
+      });
+    }
+  }
   const fail = async (message: string) => {
     await ctx.runMutation(internal.payments.releaseDb.recordCaptureFailure, {
       fundingPaymentId: args.paymentId,

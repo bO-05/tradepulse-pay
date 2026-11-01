@@ -94,13 +94,13 @@ export async function loadAgreementHistory(
   };
 }
 
-/** Every pay application of an agreement (all statuses), newest-first bounded, in creation order. */
+/** Every submitted pay application of an agreement (any status but draft), newest-first bounded, in creation order. */
 export async function loadAgreementPayApps(
   ctx: QueryCtx,
   agreementId: Id<"agreements">,
   budget?: ReadBudget,
 ): Promise<Bounded<Doc<"payApplications">>> {
-  return await newestFirst(
+  const bounded = await newestFirst(
     (n) =>
       ctx.db
         .query("payApplications")
@@ -110,6 +110,8 @@ export async function loadAgreementPayApps(
     AGREEMENT_HISTORY_BOUNDS.payApps,
     budget,
   );
+  // Drafts are the sub's unsent work and never part of the agreement's billing history.
+  return { ...bounded, rows: bounded.rows.filter((p) => p.status !== "draft") };
 }
 
 export type AgreementFinancials = {

@@ -1,5 +1,6 @@
 import type { Doc, Id } from "../_generated/dataModel";
-import type { MutationCtx } from "../_generated/server";
+import type { MutationCtx, QueryCtx } from "../_generated/server";
+import { projectStartMs } from "../billing/trancheRules";
 import { fromDollars } from "../lib/money";
 import {
   DEFAULT_MILESTONES,
@@ -8,8 +9,22 @@ import {
   sovSourceFingerprint,
   splitMilestoneAmounts,
 } from "./sovMath";
+import { assertBaseLineCapacity, loadSovRows } from "../lib/sovLines";
+import { loadTranches } from "../lib/trancheRows";
 
-export function agreementContractSumCents(agreement: { contractSum: number }): number {
+/**
+ * Demo and Phase-1 seed projects (flagged demo, owned by the Demo company, or created by seeds before
+ * companies existed) keep the generated milestones and the legacy pay-agent approval path. Projects of
+ * real companies use GC-defined funding tranches and the pay-app decision.
+ */
+export async function isDemoBillingProject(ctx: QueryCtx, project: Doc<"projects">): Promise<boolean> {
+  if (project.isDemoProject) return true;
+  if (project.gcCompanyId === undefined) return true;
+  return (await ctx.db.get(project.gcCompanyId))?.isDemo === true;
+}
+
+export function agreementContractSumCents(agreement: { contractSum: number; contractSumCents?: number }): number {
+  if (typeof agreement.contractSumCents === "number" && Number.isSafeInteger(agreement.contractSumCents)) return Math.max(0, agreement.contractSumCents);
   return fromDollars(Math.max(0, agreement.contractSum));
 }
 
@@ -33,14 +48,8 @@ export async function hasMoneyActivity(ctx: MutationCtx, agreementId: Id<"agreem
 }
 
 async function loadRows(ctx: MutationCtx, agreementId: Id<"agreements">) {
-  const sovRows = await ctx.db
-    .query("scheduleOfValues")
-    .withIndex("by_agreementId_and_lineNo", (q) => q.eq("agreementId", agreementId))
-    .take(500);
-  const milestoneRows = await ctx.db
-    .query("milestones")
-    .withIndex("by_agreementId_and_order", (q) => q.eq("agreementId", agreementId))
-    .take(50);
+  const sovRows = await loadSovRows(ctx, agreementId);
+  const milestoneRows = await loadTranches(ctx, agreementId);
   return { sovRows, milestoneRows };
 }
 
@@ -65,44 +74,63 @@ async function auditKeptRows(ctx: MutationCtx, agreement: Doc<"agreements">, why
   });
 }
 
+export function sovIsApproved(agreement: Pick<Doc<"agreements">, "sov">): boolean {
+  return agreement.sov?.status === "approved";
+}
+
+export const LEGACY_SOV_APPROVER = "Approved before SOV approval existed (billing had already started)";
+
 /**
- * Creates the schedule of values and the four default milestones for an
- * executed agreement. Re-executing with the same award inputs keeps the same
- * rows. If the award inputs changed (same total but a different bid, scope or
- * lead time), the rows are regenerated unless money has already moved against
- * them, in which case they are kept and an audit warning is written.
+ * SOV state for an agreement that has none yet. Agreements billed before SOV approval existed keep
+ * billing (their lines are already referenced by pay apps); everything else starts as a draft.
+ */
+export async function initialSovState(ctx: MutationCtx, agreementId: Id<"agreements">): Promise<NonNullable<Doc<"agreements">["sov"]>> {
+  if (await hasMoneyActivity(ctx, agreementId)) {
+    return { status: "approved", approvedAt: Date.now(), approvedByName: LEGACY_SOV_APPROVER };
+  }
+  return { status: "draft" };
+}
+
+/**
+ * Creates the draft schedule of values prefilled from the award (generated or executed
+ * agreements) and, once a demo agreement is executed, the default milestones. Re-running with the same award inputs
+ * keeps the same rows. If the award inputs changed, untouched draft lines are regenerated unless
+ * money has already moved against them (then they are kept and an audit warning is written).
+ * Lines the GC edited or approved are never regenerated here.
  */
 export async function ensureSovAndMilestones(
   ctx: MutationCtx,
   agreementId: Id<"agreements">,
 ): Promise<{ sovCreated: number; milestonesCreated: number }> {
   const agreement = await ctx.db.get(agreementId);
-  if (agreement === null || agreement.status !== "executed") {
+  if (agreement === null || (agreement.status !== "executed" && agreement.status !== "generated")) {
     return { sovCreated: 0, milestonesCreated: 0 };
   }
+  const executed = agreement.status === "executed";
+  const gcOwnsLines = sovIsApproved(agreement) || agreement.sov?.editedAt !== undefined;
   const contractSumCents = agreementContractSumCents(agreement);
   const bid = await ctx.db.get(agreement.bidId);
   const lineItems = bid?.lineItems ?? [];
-  const exclusions = bid?.identifiedExclusions ?? [];
+  const acceptedAlternates = agreement.acceptedAlternates ?? [];
   const leadWeeks = bid?.longLeadEquipmentWeeks ?? 0;
   const fingerprint = sovSourceFingerprint({
     bidId: agreement.bidId,
     contractSumCents,
     lineItems,
-    exclusions,
+    acceptedAlternates,
     leadWeeks,
   });
 
   let rows = await loadRows(ctx, agreementId);
-  const sovStale = rows.sovRows.some((r) => r.sourceFingerprint !== fingerprint);
-  const orphanMilestones = rows.sovRows.length === 0 && rows.milestoneRows.length > 0;
+  const sovStale = !gcOwnsLines && rows.sovRows.some((r) => r.sourceFingerprint !== fingerprint);
+  const orphanMilestones = !gcOwnsLines && rows.sovRows.length === 0 && rows.milestoneRows.length > 0;
   if (sovStale || orphanMilestones) {
     if (await hasMoneyActivity(ctx, agreementId)) {
       if (sovStale) {
         await auditKeptRows(
           ctx,
           agreement,
-          `The award behind ${agreement.agreementNumber} changed (bid, scope, exclusions or lead time) after its schedule of values was generated.`,
+          `The award behind ${agreement.agreementNumber} changed (bid, scope, accepted alternates or lead time) after its schedule of values was generated.`,
         );
       }
     } else {
@@ -113,26 +141,30 @@ export async function ensureSovAndMilestones(
 
   let sovRows = rows.sovRows;
   let sovCreated = 0;
-  if (sovRows.length === 0) {
+  if (sovRows.length === 0 && agreement.sov?.editedAt === undefined) {
     const drafts = buildSovLines({
       contractSumCents,
       lineItems,
-      exclusions,
+      acceptedAlternates,
       csiDivision: agreement.csiDivision,
       tradeName: agreement.tradeName,
     });
+    assertBaseLineCapacity(drafts.length);
     for (const line of drafts) {
       await ctx.db.insert("scheduleOfValues", { agreementId, ...line, sourceFingerprint: fingerprint });
     }
     sovCreated = drafts.length;
     sovRows = (await loadRows(ctx, agreementId)).sovRows;
   }
+  if (agreement.sov === undefined) await ctx.db.patch(agreementId, { sov: await initialSovState(ctx, agreementId) });
 
   let milestonesCreated = 0;
-  if (rows.milestoneRows.length === 0) {
-    const project = await ctx.db.get(agreement.projectId);
+  const project = await ctx.db.get(agreement.projectId);
+  // Real projects get GC-defined funding tranches (billing/tranches.ts); only the Phase-1 demo keeps
+  // the four generated milestones its judge flow funds.
+  if (executed && rows.milestoneRows.length === 0 && project !== null && (await isDemoBillingProject(ctx, project))) {
     const dates = planMilestoneDates({
-      projectStartMs: project?.createdAt ?? agreement.createdAt,
+      projectStartMs: projectStartMs(project) ?? project.createdAt,
       executedAtMs: agreement.executedAt ?? Date.now(),
       leadWeeks,
       durationWeeks: project?.targetCompletionWeeks ?? 52,

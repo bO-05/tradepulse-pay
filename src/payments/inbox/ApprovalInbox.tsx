@@ -8,6 +8,7 @@ import { formatCents, formatDate } from "../format";
 import { LicenseBadge, LicenseCheckPanel, type LicenseBadgeStatus } from "../LicenseCheck";
 import { PayAppReviewCard } from "../PayAppReviews";
 import { JudgeDemoBadge } from "../JudgeDemoBadge";
+import { TextInput } from "../../ui";
 
 type InboxItem = FunctionReturnType<typeof api.payApps.proposals.listInbox>[number];
 type Proposal = InboxItem["proposals"][number];
@@ -80,6 +81,28 @@ function useRun() {
   return { busy, error, run };
 }
 
+/**
+ * The GC's reason, sent with every proposal decision. The server requires it when the decision
+ * leaves nothing to pay and so rejects the pay application; the sub sees it.
+ */
+function DecisionReason({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <TextInput
+      className="max-w-md"
+      label="Reason for the sub"
+      hint="Required when this decision leaves nothing to pay and rejects the pay application."
+      value={value}
+      maxLength={500}
+      onChange={onChange}
+      data-testid="proposal-reason"
+    />
+  );
+}
+
+function withReason(reason: string): { reason?: string } {
+  return reason.trim() === "" ? {} : { reason: reason.trim() };
+}
+
 function MoneyProposalActions({ proposal, retainagePercent }: { proposal: Proposal; retainagePercent: number }) {
   const approve = useMutation(api.payApps.proposals.approveProposal);
   const edit = useMutation(api.payApps.proposals.editProposal);
@@ -88,6 +111,7 @@ function MoneyProposalActions({ proposal, retainagePercent }: { proposal: Propos
   const [editing, setEditing] = useState(false);
   const [amount, setAmount] = useState(() => toDollarString(proposal.editedAmountCents ?? proposal.amountCents ?? 0));
   const [override, setOverride] = useState(false);
+  const [reason, setReason] = useState("");
   const held = proposal.flags.includes("license_hold");
 
   async function saveEdit() {
@@ -133,13 +157,14 @@ function MoneyProposalActions({ proposal, retainagePercent }: { proposal: Propos
         <button
           type="button"
           disabled={busy}
-          onClick={() => void run(() => reject({ proposalId: proposal._id }))}
+          onClick={() => void run(() => reject({ proposalId: proposal._id, ...withReason(reason) }))}
           className="rounded-lg border border-rose-800 px-3 py-1 text-xs text-rose-200 hover:bg-rose-950 disabled:opacity-50"
           data-testid="reject-proposal"
         >
           Reject
         </button>
       </div>
+      <DecisionReason value={reason} onChange={setReason} />
       {editing ? (
         <div className="flex flex-wrap items-end gap-2" data-testid="edit-proposal-form">
           <label className="text-xs text-slate-300">
@@ -178,13 +203,14 @@ function SimpleProposalActions({ proposal }: { proposal: Proposal }) {
   const approve = useMutation(api.payApps.proposals.approveProposal);
   const reject = useMutation(api.payApps.proposals.rejectProposal);
   const { busy, error, run } = useRun();
+  const [reason, setReason] = useState("");
   return (
     <div className="space-y-1" data-testid="proposal-actions">
       <div className="flex gap-2">
         <button
           type="button"
           disabled={busy}
-          onClick={() => void run(() => approve({ proposalId: proposal._id }))}
+          onClick={() => void run(() => approve({ proposalId: proposal._id, ...withReason(reason) }))}
           className="rounded-lg border border-emerald-700 px-3 py-1 text-xs text-emerald-200 hover:bg-emerald-950 disabled:opacity-50"
           data-testid="approve-proposal"
         >
@@ -193,13 +219,14 @@ function SimpleProposalActions({ proposal }: { proposal: Proposal }) {
         <button
           type="button"
           disabled={busy}
-          onClick={() => void run(() => reject({ proposalId: proposal._id }))}
+          onClick={() => void run(() => reject({ proposalId: proposal._id, ...withReason(reason) }))}
           className="rounded-lg border border-slate-700 px-3 py-1 text-xs hover:bg-slate-800 disabled:opacity-50"
           data-testid="reject-proposal"
         >
           Dismiss
         </button>
       </div>
+      <DecisionReason value={reason} onChange={setReason} />
       {error ? (
         <p role="alert" className="text-xs text-red-300" data-testid="proposal-error">
           {error}
@@ -337,12 +364,33 @@ function AgentTrace({ payAppId }: { payAppId: string }) {
 function RejectPayAppButton({ payAppId }: { payAppId: string }) {
   const reject = useMutation(api.payApps.proposals.rejectPayApp);
   const { busy, error, run } = useRun();
+  const [reason, setReason] = useState("");
+  const [missing, setMissing] = useState(false);
   return (
     <div className="flex flex-col items-end gap-1">
+      <TextInput
+        className="w-64"
+        label="Rejection reason"
+        required
+        value={reason}
+        maxLength={500}
+        error={missing ? "Enter the reason the sub will see." : undefined}
+        onChange={(v) => {
+          setReason(v);
+          if (v.trim() !== "") setMissing(false);
+        }}
+        data-testid="reject-payapp-reason"
+      />
       <button
         type="button"
         disabled={busy}
-        onClick={() => void run(() => reject({ payAppId }))}
+        onClick={() => {
+          if (reason.trim() === "") {
+            setMissing(true);
+            return;
+          }
+          void run(() => reject({ payAppId, reason: reason.trim() }));
+        }}
         className="rounded-lg border border-rose-800 px-3 py-1 text-xs text-rose-200 hover:bg-rose-950 disabled:opacity-50"
         data-testid="reject-payapp"
       >

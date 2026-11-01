@@ -1,12 +1,15 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { registerStaticRoutes } from "@convex-dev/static-hosting";
-import { AgentMail } from "@agentmail/convex";
-import { components, internal } from "./_generated/api";
+import { components } from "./_generated/api";
+import { agentmailWebhook } from "./agentmailWebhook";
 import { getRealDocumentPdfBytes } from "./realDocuments";
 import { auth } from "./auth";
 import { paypalWebhook } from "./payments/webhook";
 import { studioPreflight, studioProxy } from "./dashboard/studioProxy";
+import { projectFileDownload, projectFilePreflight } from "./projectFileDownload";
+import { documentDownload, documentPreflight } from "./documents/download";
+import { buildLlmsTxt, PRODUCT_NAME } from "./lib/llmsTxt";
 
 const http = httpRouter();
 
@@ -25,45 +28,8 @@ http.route({
 http.route({ path: "/ai/studio", method: "POST", handler: studioProxy });
 http.route({ path: "/ai/studio", method: "OPTIONS", handler: studioPreflight });
 
-// Inbound AgentMail Webhook. Never mutate procurement records without Svix verification.
-http.route({
-  path: "/agentmail/webhook",
-  method: "POST",
-  handler: httpAction(async (ctx, req) => {
-    const secret = process.env.AGENTMAIL_WEBHOOK_SECRET;
-    const hasSvixHeaders =
-      Boolean(req.headers.get("svix-id")) &&
-      Boolean(req.headers.get("svix-signature"));
-
-    // Enforce Svix cryptographic verification whenever secret is configured
-    if (secret) {
-      if (!hasSvixHeaders) {
-        return new Response(
-          JSON.stringify({ error: "Missing required svix headers for signature verification" }),
-          { status: 401, headers: { "Content-Type": "application/json" } }
-        );
-      }
-      try {
-        const activeAgentMail = new AgentMail(components.agentmail, {
-          webhookSecret: secret,
-          onMessageReceived: internal.email.onMessageReceived,
-        });
-        return await activeAgentMail.handleWebhook(ctx as any, req);
-      } catch (err: any) {
-        console.warn("AgentMail Svix verification failed:", err?.message || err);
-        return new Response(
-          JSON.stringify({ error: err?.message || "Webhook verification failed" }),
-          { status: 401, headers: { "Content-Type": "application/json" } }
-        );
-      }
-    }
-
-    return new Response(
-      JSON.stringify({ error: "Webhook verification is not configured." }),
-      { status: 503, headers: { "Content-Type": "application/json" } }
-    );
-  }),
-});
+// Inbound AgentMail webhook: public, but every delivery is Svix signature-verified before any write.
+http.route({ path: "/agentmail/webhook", method: "POST", handler: agentmailWebhook });
 
 // AgentMail Webhook status / health probe
 http.route({
@@ -88,44 +54,13 @@ http.route({
   }),
 });
 
-// Wayne Sutton / Vibe Apps llms.txt discoverability endpoint
+// Machine-readable product description
 http.route({
   path: "/llms.txt",
   method: "GET",
   handler: httpAction(async (_ctx, req) => {
     const siteUrl = process.env.CONVEX_SITE_URL || new URL(req.url).origin;
-    const manifest = `# TradePulse Pro - Autonomous Construction Procurement API
-> Autonomous Trade Subcontractor Procurement, RFQ Distribution & Real-Time Bid Leveling
-> Built for the Convex "All Gas" Hackathon 2026
-
-## Overview
-TradePulse Pro automates the $1.8T commercial construction subcontractor procurement workflow:
-1. CSI MasterFormat Trade Scoping (Div 22 Plumbing, Div 23 HVAC, Div 26 Electrical)
-2. Subcontractor Web Discovery with per-record provenance (license data only when published in the source)
-3. Programmatic Project Inboxes via AgentMail (@agentmail.to) — shared when the free-tier plan limit is reached, disclosed on each package
-4. Autonomous Pre-Bid RFI Clarifications via OpenAI, Gemini & Claude high-throughput reasoning (OpenAI is a BYOK adapter; Gemini/Claude run when no OpenAI key is configured)
-5. Forensic Bid Leveling & Scope Gap Normalization via Claude & OpenAI (OpenAI is a BYOK adapter)
-
-## Live Endpoints & Endpoints Specification
-- Web UI: ${siteUrl}
-- Webhook Ingest: POST ${siteUrl}/agentmail/webhook
-- Discoverability: GET ${siteUrl}/llms.txt
-- Reactive Engine: Convex Realtime WebSockets (Zero Polling Invariant)
-
-## Verification & Audit Trail
-- Public repository: https://github.com/bO-05/tradepulse-pro
-- Independent audit + remediation reports: docs/audits/ (audit-6-usefulness, audit-6-remediation)
-- Browser-only re-verification guide for auditors: docs/audits/audit-6-remediation.md (section 9)
-
-## Normalization Formula (ADR-0003)
-Leveled Cost = Base Bid + Sum(Scope Gaps) + Lead Time Penalty + COI Penalty - Accepted Alternates
-
-## Sponsor Synergy
-- Convex: Reactive backend, real-time database, scheduled functions, HTTP actions, static hosting
-- OpenAI: BYOK adapter for structured extraction and bid parsing (activates when OPENAI_API_KEY is configured; the pipeline routes to Gemini/Claude otherwise)
-- Firecrawl: Subcontractor web discovery with provenance labels; state-registry verification only when a registry page is actually the source
-- AgentMail: Stateful programmatic email inboxes for subcontractor bidding
-`;
+    const manifest = buildLlmsTxt(siteUrl);
     return new Response(manifest, {
       status: 200,
       headers: {
@@ -144,7 +79,7 @@ http.route({
     return new Response(
       JSON.stringify({
         status: "ok",
-        app: "TradePulse Pro",
+        app: PRODUCT_NAME,
         timestamp: Date.now(),
         version: "1.0.0",
       }),
@@ -235,6 +170,14 @@ http.route({
     return serveRealDocument(fileName);
   }),
 });
+
+// Project uploads: bytes only for callers with access to the file's project (bearer token).
+http.route({ pathPrefix: "/api/project-files/", method: "GET", handler: projectFileDownload });
+http.route({ pathPrefix: "/api/project-files/", method: "OPTIONS", handler: projectFilePreflight });
+
+// Generated billing documents: bytes only for parties who may see the source record (bearer token).
+http.route({ pathPrefix: "/api/documents/", method: "GET", handler: documentDownload });
+http.route({ pathPrefix: "/api/documents/", method: "OPTIONS", handler: documentPreflight });
 
 // 5. Universal Document Access Endpoints
 http.route({

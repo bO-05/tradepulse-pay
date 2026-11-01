@@ -23,6 +23,11 @@ export interface TradePackage {
   scopeSummary: string;
   mandatoryInclusions: string[];
   bidDeadline: string;
+  bidDueTime?: string;
+  bidDueTimeZone?: string;
+  /** "Oct 30, 2026, 2:00 PM PT" or "Oct 30, 2026, end of day PT", computed by the server. */
+  dueLabel?: string;
+  bidClosesAt?: number | null;
   status: "draft" | "rfqs_dispatched" | "leveling" | "awarded";
 }
 
@@ -35,7 +40,20 @@ export interface Contractor {
   licenseNumber: string;
   licenseStatus: string;
   sourceUrl: string;
-  rfqStatus: "discovered" | "invited" | "rfi_submitted" | "bid_received";
+  rfqStatus:
+    | "discovered"
+    | "invited"
+    | "rfi_submitted"
+    | "bid_received"
+    | "sent"
+    | "failed"
+    | "skipped_budget"
+    | "blocked_recipient"
+    | "bounced"
+    | "replied";
+  rfqEmailStatus?: "sent" | "failed" | "skipped_budget" | "blocked_recipient" | "bounced" | "replied" | "not_sent";
+  rfqEmailError?: string;
+  rfqSentAt?: number;
   dispatchedAt?: number;
   updatedAt?: number;
 }
@@ -63,20 +81,21 @@ export interface BidLineItem {
   item: string;
   unit: string;
   quantity: number;
-  unitCost: number;
-  totalCost: number;
+  unitCostCents: number;
+  totalCostCents: number;
 }
 
 export interface ScopeExclusion {
   description: string;
-  costImpact: number;
+  costImpactCents: number;
   severity: "critical" | "moderate" | "minor";
   isWaived?: boolean;
+  source?: "gc" | "bidder";
 }
 
 export interface ValueEngineeringAlternate {
   description: string;
-  costDeduct: number;
+  costDeductCents: number;
   isAccepted: boolean;
 }
 
@@ -85,23 +104,48 @@ export interface Bid {
   tradePackageId: string;
   contractorId: string;
   subcontractorName: string;
-  baseBidAmount: number;
+  baseAmountCents: number;
   lineItems: BidLineItem[];
   identifiedExclusions: ScopeExclusion[];
   valueEngineeringAlternates?: ValueEngineeringAlternate[];
   longLeadEquipmentWeeks: number;
-  leadTimePenalty: number;
+  leadTimePenaltyCents: number;
   /** GC-owned baseline the penalty was computed against (12 Div 26 / 16 Div 22-23). */
   leadTimeTargetWeeks?: number;
   coiComplianceStatus: "compliant" | "deficiency_detected";
-  coiPenalty: number;
-  leveledTotalCost: number;
+  coiPenaltyCents: number;
+  leveledTotalCents: number;
   isAwarded: boolean;
   sourceFileId?: string;
   revisionNumber?: number;
   lastRevisedAt?: number;
   receivedAt: number;
+  alternates?: BidAlternate[];
+  exclusions?: string[];
+  inclusions?: string[];
+  unitPrices?: BidUnitPrice[];
+  qualifications?: string;
+  validUntil?: string;
+  source?: BidSource;
+  sourceInboundEmailId?: string;
+  submittedByName?: string;
+  confirmedByName?: string;
+  confirmedAt?: number;
 }
+
+/** A bidder's priced alternate; a negative amount is a deduct. */
+export interface BidAlternate {
+  description: string;
+  amountCents: number;
+}
+
+export interface BidUnitPrice {
+  item: string;
+  unit: string;
+  unitPriceCents: number;
+}
+
+export type BidSource = "portal" | "gc_entered" | "email_ai" | "document_ai" | "seed" | "legacy";
 
 export interface Agreement {
   _id: string;
@@ -119,6 +163,9 @@ export interface Agreement {
   csiDivision: string;
   tradeName: string;
   contractSum: number;
+  /** Original contract sum and contract sum to date (original plus approved change orders), from listAgreements. */
+  originalContractSumCents?: number;
+  contractSumToDateCents?: number;
   retainagePercent: number;
   liquidatedDamagesDaily: number;
   scopeSummary: string;
@@ -140,6 +187,8 @@ export interface ProjectFile {
   uploadedBy: string;
   uploadedAt: number;
   url?: string | null;
+  /** Authenticated download route for uploaded bytes (never a raw storage URL). */
+  downloadPath?: string | null;
   textContent?: string;
 }
 

@@ -1,17 +1,20 @@
 import { mutation, internalMutation, internalQuery } from "./_generated/server";
-import { requireRole } from "./lib/roles";
+import { auditActor, requireDocOfProject, requireDocScope, requireProjectScope } from "./lib/projectScope";
+import { attributeDemoPlugsForProject } from "./lib/demoPlugs";
 import { v, ConvexError } from "convex/values";
+import { notFound } from "./lib/tenancy";
 import { deleteAgreementCascade } from "./payments/cascade";
 import { internal } from "./_generated/api";
-import { generateAiaA401AgreementText, getStateAbbreviation } from "./agreements";
+import { defaultTermsForProject, legacyTermFields, refreshAgreementDocument } from "./lib/agreementDocument";
 import { persistPendingRfi } from "./rfq";
-import { LIQUIDATED_DAMAGES_PER_DAY, RETAINAGE_PERCENT } from "./terms";
+import { fromDollars } from "./lib/money";
+import { attachBidderVendor } from "./lib/vendorDirectory";
+import { seededProposalBidRow } from "./lib/bidMoney";
 
 /**
- * 60-Second Judge Simulation Engine:
- * Executes simulated subcontractor events (RFI questions, quotes with hidden exclusions)
- * directly into the internal reactive pipeline, bypassing external Svix webhook signatures.
- * Enables 100% reliable 1-click evaluations for judges and automated tests.
+ * Demo simulation (Demo company only; everyone else gets "Not found."): inserts simulated
+ * subcontractor events (RFI questions, quotes with hidden exclusions) directly into the inbound
+ * pipeline. Nothing is emailed; the sender addresses are only used as labels.
  */
 export const triggerJudgeSimulation = mutation({
   args: {
@@ -23,9 +26,9 @@ export const triggerJudgeSimulation = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const tradePkg = await ctx.db.get(args.tradePackageId);
-    if (!tradePkg) throw new Error("Trade package not found");
+    const scope = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"], write: true });
+    if (scope.company?.isDemo !== true) throw notFound();
+    const tradePkg = scope.doc;
 
     const isHvac = tradePkg.csiDivision.startsWith("23");
     const isPlumbing = tradePkg.csiDivision.startsWith("22");
@@ -252,7 +255,7 @@ export const createSimulatedContractor = internalMutation({
       if (stateMatch) statePrefix = stateMatch[1];
     }
 
-    return await ctx.db.insert("contractors", {
+    const contractorId = await ctx.db.insert("contractors", {
       tradePackageId: args.tradePackageId,
       companyName,
       contactEmail: args.fromEmail,
@@ -263,6 +266,8 @@ export const createSimulatedContractor = internalMutation({
       rfqStatus: "invited",
       dispatchedAt: Date.now(),
     });
+    await attachBidderVendor(ctx, contractorId);
+    return contractorId;
   },
 });
 
@@ -274,9 +279,9 @@ export const submitCustomRfi = mutation({
     question: v.string(),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const tradePkg = await ctx.db.get(args.tradePackageId);
-    if (!tradePkg) throw new ConvexError("The selected trade package could not be found.");
+    const access = await requireDocScope(ctx, "tradePackages", args.tradePackageId, { roles: ["gc"], write: true });
+    const contractor =
+      args.contractorId === undefined ? null : await requireDocOfProject(ctx, access, "contractors", args.contractorId);
 
     const subject = args.subject.trim();
     const question = args.question.trim();
@@ -290,11 +295,10 @@ export const submitCustomRfi = mutation({
       throw new ConvexError("RFI subject lines are limited to 200 characters.");
     }
 
-    let fromEmail = "guest.inquiry@tradepulse-pro.test";
+    let fromEmail = "guest.inquiry@tradepulse-pay.test";
     let resolvedContractorId: any = args.contractorId;
-    if (args.contractorId) {
-      const contractor = await ctx.db.get(args.contractorId);
-      if (!contractor || contractor.tradePackageId !== args.tradePackageId) {
+    if (contractor !== null) {
+      if (contractor.tradePackageId !== args.tradePackageId) {
         throw new ConvexError("The selected contractor does not belong to this trade package.");
       }
       fromEmail = contractor.contactEmail;
@@ -314,10 +318,9 @@ export const submitCustomRfi = mutation({
           tradePackageId: args.tradePackageId,
           companyName: "Guest / Inquiring Subcontractor",
           contactEmail: fromEmail,
-          phone: "+1 (512) 555-0100",
-          licenseNumber: "GUEST-INQUIRY",
+                    licenseNumber: "GUEST-INQUIRY",
           licenseStatus: "Unverified / Guest Inquiry",
-          sourceUrl: "https://tradepulse-pro.test/guest",
+          sourceUrl: "https://tradepulse-pay.test/guest",
           rfqStatus: "discovered",
         });
       }
@@ -349,7 +352,7 @@ export const submitCustomRfi = mutation({
     return {
       success: true,
       conversationId,
-      message: "Custom RFI submitted to TradePulse autonomous AI clarification engine.",
+      message: "RFI recorded; the AI clarification draft is being prepared.",
     };
   },
 });
@@ -361,9 +364,7 @@ export const submitCustomRfi = mutation({
 export const retryRfiAnalysis = mutation({
   args: { conversationId: v.id("conversations") },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const convo = await ctx.db.get(args.conversationId);
-    if (!convo) throw new ConvexError("The RFI record could not be found.");
+    const { doc: convo } = await requireDocScope(ctx, "conversations", args.conversationId, { roles: ["gc"], write: true });
     if (convo.status === "clarified" || convo.status === "escalated_to_pm") {
       return { success: false, message: "This RFI has already been analyzed." };
     }
@@ -398,10 +399,10 @@ export const retryRfiAnalysis = mutation({
 });
 
 /**
- * 1-Click Full Autonomous Procurement Lifecycle Simulation:
+ * Demo company only. 1-click full procurement lifecycle simulation (no email is sent):
  * Executes the entire causal lifecycle from discovery -> RFQ dispatch ->
  * pre-bid RFI clarification -> dual-quote ingestion & forensic leveling ->
- * to AIA Document A401 contract award in a single click.
+ * to subcontract award in a single click.
  */
 export const runFullProcurementCycle = mutation({
   args: {
@@ -409,15 +410,14 @@ export const runFullProcurementCycle = mutation({
     tradePackageId: v.optional(v.id("tradePackages")),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["gc"]);
-    const project = await ctx.db.get(args.projectId);
-    if (!project) throw new Error("Project not found");
+    const access = await requireProjectScope(ctx, args.projectId, { roles: ["gc"], write: true });
+    if (access.company?.isDemo !== true) throw notFound();
+    const project = access.project;
 
     // 1. Select or create trade package
-    let tradePkg = args.tradePackageId ? await ctx.db.get(args.tradePackageId) : null;
-    if (tradePkg && tradePkg.projectId !== args.projectId) {
-      throw new Error("The trade package does not belong to the selected project.");
-    }
+    let tradePkg = args.tradePackageId
+      ? await requireDocOfProject(ctx, access, "tradePackages", args.tradePackageId)
+      : null;
     if (!tradePkg) {
       tradePkg = await ctx.db
         .query("tradePackages")
@@ -500,6 +500,7 @@ export const runFullProcurementCycle = mutation({
         sourceUrl: c1Url,
         rfqStatus: "discovered",
       });
+      await attachBidderVendor(ctx, c1Id);
       c1 = await ctx.db.get(c1Id);
     }
 
@@ -519,6 +520,7 @@ export const runFullProcurementCycle = mutation({
         sourceUrl: c2Url,
         rfqStatus: "discovered",
       });
+      await attachBidderVendor(ctx, c2Id);
       c2 = await ctx.db.get(c2Id);
     }
 
@@ -568,8 +570,8 @@ export const runFullProcurementCycle = mutation({
       projectId: tradePkg.projectId,
       tradePackageId: packageId,
       eventType: "rfi_clarified",
-      title: "Pre-Bid RFI Clarified by AI Agent",
-      description: `Autonomous model answered ${tradePkg.tradeName} query citing Section ${tradePkg.csiDivision} with 98% confidence.`,
+      title: "Pre-Bid RFI AI draft ready for review (Demo)",
+      description: `Simulated: the AI drafted an answer to a ${tradePkg.tradeName} question citing Section ${tradePkg.csiDivision}. It is a draft for GC review; nothing is emailed in the Demo.`,
       actor: "TradePulse AI Spec Agent",
       timestamp: now + 500,
     });
@@ -754,51 +756,16 @@ export const runFullProcurementCycle = mutation({
       hiddenExclusionsCost = 88500;
     }
 
-    const bid1Id = await ctx.db.insert("bids", bid1Data);
-    await ctx.db.insert("bids", bid2Data);
+    const bid1Id = await ctx.db.insert("bids", seededProposalBidRow(bid1Data) as any);
+    await ctx.db.insert("bids", seededProposalBidRow(bid2Data) as any);
+    await attributeDemoPlugsForProject(ctx, project._id, { userId: access.user._id, name: auditActor(access).actor });
 
     await ctx.db.patch(packageId, { status: "awarded" });
 
-    // 6. Generate AIA Document A401 Subcontract Agreement for Winning Bidder
+    // 6. Generate the subcontract draft (AIA-style terms) for the winning bidder
     const divPrefix = tradePkg.csiDivision.replace(/\s+/g, "").slice(0, 4);
-    const agreementNumber = `A401-2026-${divPrefix}-${now.toString().slice(-4)}`;
-    const formattedDate = `${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" })} (UTC)`;
-    const locParts = (project?.location || "Austin, Texas").split(",").map((s: string) => s.trim());
-    const gcCity = locParts[0] || "Austin";
-    const gcState = locParts[1] || "Texas";
-    const stateAbbr = getStateAbbreviation(gcState);
-    const acceptedVeTotal = (bid1Data.valueEngineeringAlternates || []).reduce(
-      (sum: number, ve: any) => (ve.isAccepted ? sum + (ve.costDeduct || 0) : sum),
-      0
-    );
-
-    const agreementText = generateAiaA401AgreementText({
-      agreementNumber,
-      formattedDate,
-      generalContractor: "Austin Commercial, LP",
-      gcCity,
-      gcState,
-      stateAbbr,
-      subName: c1Name,
-      contactEmail: c1Email,
-      licenseNumber: c1License,
-      licenseStatus: "Unverified — demo record; registry lookup not performed",
-      projectTitle: project?.title || "The Domain Tower B - Commercial MEP",
-      projectLocation: project?.location || "Austin, TX",
-      projectType: project?.projectType || "Class-A Commercial Mixed-Use",
-      csiDivision: tradePkg.csiDivision,
-      tradeName: tradePkg.tradeName,
-      scopeSummary: tradePkg.scopeSummary,
-      mandatoryInclusions: tradePkg.mandatoryInclusions || [],
-      contractSum: winningCost,
-      baseBidAmount: bid1Data.baseBidAmount,
-      acceptedVeTotal,
-      leveledTotalCost: bid1Data.leveledTotalCost,
-      retainagePercent: RETAINAGE_PERCENT,
-      liquidatedDamagesDaily: LIQUIDATED_DAMAGES_PER_DAY,
-      bidDeadline: tradePkg.bidDeadline || "2026-09-30",
-    });
-
+    const agreementNumber = `SC-${divPrefix}-${now.toString().slice(-6)}`;
+    const terms = await defaultTermsForProject(ctx, project, fromDollars(winningCost));
     // A10-01: an executed subcontract is immutable; the full-cycle simulation must
     // never delete it. Refuse before any destructive work happens for this package.
     const packageAgreementsBefore = await ctx.db
@@ -808,7 +775,7 @@ export const runFullProcurementCycle = mutation({
     const executedAgreement = packageAgreementsBefore.find((a) => a.status === "executed");
     if (executedAgreement) {
       throw new ConvexError(
-        `This package has an executed subcontract (${executedAgreement.agreementNumber}). The full-cycle simulation cannot run here â€” choose a package without an executed contract.`
+        `This package has an executed subcontract (${executedAgreement.agreementNumber}). The full-cycle simulation cannot run here — choose a package without an executed contract.`
       );
     }
 
@@ -824,7 +791,7 @@ export const runFullProcurementCycle = mutation({
       bidId: bid1Id,
       contractorId: c1!._id,
       agreementNumber,
-      documentTitle: "Subcontract Agreement (A401-style structure) â€” generated draft, not an AIA-licensed form",
+      documentTitle: "Subcontract Agreement (AIA-style terms) — generated draft, not an AIA form",
       subcontractorName: c1Name,
       generalContractorName: "Austin Commercial, LP",
       projectTitle: project?.title || "The Domain Tower B - Commercial MEP",
@@ -832,21 +799,22 @@ export const runFullProcurementCycle = mutation({
       csiDivision: tradePkg.csiDivision,
       tradeName: tradePkg.tradeName,
       contractSum: winningCost,
-      retainagePercent: RETAINAGE_PERCENT,
-      liquidatedDamagesDaily: LIQUIDATED_DAMAGES_PER_DAY,
+      ...legacyTermFields(terms),
+      terms,
       scopeSummary: tradePkg.scopeSummary,
       mandatoryInclusions: tradePkg.mandatoryInclusions,
       status: "generated",
-      contractText: agreementText,
+      contractText: "",
       createdAt: now + 2000,
     });
+    await refreshAgreementDocument(ctx, agreementId, terms);
 
     await ctx.db.insert("auditLogs", {
       projectId: tradePkg.projectId,
       tradePackageId: packageId,
       eventType: "contract_awarded",
       title: `Subcontract Awarded: ${c1Name}`,
-      description: `Awarded Division ${tradePkg.csiDivision} to ${c1Name} at $${winningCost.toLocaleString()} leveled cost. A401-style subcontract draft generated (not an AIA-licensed form).`,
+      description: `Awarded Division ${tradePkg.csiDivision} to ${c1Name} at $${winningCost.toLocaleString()} leveled cost. AIA-style subcontract draft generated (not an AIA form).`,
       actor: "Autonomous Procurement Engine (ADR-0003)",
       timestamp: now + 2000,
     });

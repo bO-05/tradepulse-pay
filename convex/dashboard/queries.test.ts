@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import schema from "../schema";
 import { agentIdProfile, syncAgentProfile } from "../lib/agentAccess";
-import { signInAs } from "../lib/testIdentity";
+import { withSession, signInAs } from "../lib/testIdentity";
 import { createReadBudget, loadAgreementHistory } from "../payments/agreementHistory";
 import type { Id } from "../_generated/dataModel";
 
@@ -26,7 +26,7 @@ async function signInAgent(t: T, email: string, sub: string) {
     await ctx.db.insert("authAccounts", { userId, provider: "agentid", providerAccountId: id });
     return userId;
   });
-  return t.withIdentity({ subject: `${userId}|agent-session`, email });
+  return await withSession(t, userId, email);
 }
 
 async function setup() {
@@ -89,6 +89,8 @@ async function setup() {
     });
     await ctx.db.insert("changeOrders", {
       agreementId: agreement._id,
+      projectId: agreement.projectId,
+      scope: "prime",
       number: 1,
       description: "Added outlets",
       amountCents: 7_500,
@@ -119,12 +121,16 @@ describe("dashboard data", () => {
     expect(Number.isInteger(a.retainageCapCents)).toBe(true);
   });
 
-  test("owner gets the same rows marked read-only", async () => {
+  test("owner gets a read-only owner-safe view: no subcontract payments, agreements or retainage", async () => {
     const { gc, owner } = await setup();
     const asGc = await gc.as.query(api.dashboard.queries.getDashboardData, {});
+    expect(asGc.payments.length).toBeGreaterThan(0);
     const asOwner = await owner.as.query(api.dashboard.queries.getDashboardData, {});
     expect(asOwner.readOnly).toBe(true);
-    expect(asOwner.payments).toEqual(asGc.payments);
+    expect(asOwner.payments).toEqual([]);
+    expect(asOwner.agreements).toEqual([]);
+    expect(asOwner.retainage).toEqual([]);
+    expect(asOwner.totals.contractSumCents).toBe(0);
   });
 
   test("subs, linked and unlinked billing agents, no-role users and signed-out callers are refused", async () => {
@@ -228,7 +234,8 @@ describe("dashboard data", () => {
     expect(after.retainage.filter((r) => r.agreementId === agreement._id)).toHaveLength(1);
     const asOwner = await owner.as.query(api.dashboard.queries.getDashboardData, {});
     expect(asOwner.readOnly).toBe(true);
-    expect(asOwner.totals).toEqual(after.totals);
+    expect(asOwner.totals.paidCents).toBe(0);
+    expect(asOwner.totals.changeOrdersInvoicedCents).toBe(after.totals.changeOrdersInvoicedCents);
     const summary = await gc.as.query(api.dashboard.payAgent.getPaySummary, {});
     expect(summary.agreements.find((a) => a.agreementId === agreement._id)).toMatchObject({ status: "superseded" });
   });

@@ -2,7 +2,7 @@ import { describe, expect, test, vi } from "vitest";
 import { changeOrderInvoiced, ensureChangeOrderInvoiced, type DriverChangeOrder } from "./changeOrderStep";
 import { deriveSteps, type DemoState } from "./steps";
 
-/** A fake backend that mirrors createChangeOrder: the draft row is committed before the PayPal invoice call. */
+/** A fake backend that mirrors prepareDemoChangeOrder + sendChangeOrderInvoice: the approved row is committed before the PayPal invoice call. */
 function fakeBackend() {
   const state: { co: DriverChangeOrder | null; failInvoice: boolean } = { co: null, failInvoice: false };
   const invoice = async () => {
@@ -10,7 +10,7 @@ function fakeBackend() {
     state.co = { ...state.co!, status: "invoiced", payerViewUrl: "https://www.sandbox.paypal.com/invoice/p/#INV2-TEST" };
   };
   const create = vi.fn(async () => {
-    state.co = { _id: "co1", status: "draft", payerViewUrl: null };
+    state.co = { _id: "co1", status: "approved", payerViewUrl: null };
     await invoice();
   });
   const resume = vi.fn(async (id: string) => {
@@ -40,11 +40,11 @@ const demoState = (co: DriverChangeOrder | null): DemoState => ({
 const coStep = (co: DriverChangeOrder | null) => deriveSteps(demoState(co)).find((s) => s.id === "change_order")!;
 
 describe("judge demo change-order step", () => {
-  test("an interrupted invoice creation leaves a draft that continuation resumes instead of reporting Done", async () => {
+  test("an interrupted invoice creation leaves an approved change order that continuation resumes instead of reporting Done", async () => {
     const b = fakeBackend();
     b.state.failInvoice = true;
     await expect(ensureChangeOrderInvoiced(b.deps)).rejects.toThrow(/Invoice not sent/);
-    expect(b.state.co).toMatchObject({ status: "draft", payerViewUrl: null });
+    expect(b.state.co).toMatchObject({ status: "approved", payerViewUrl: null });
     expect(coStep(b.state.co).status).not.toBe("done");
 
     b.state.failInvoice = false;
@@ -57,7 +57,7 @@ describe("judge demo change-order step", () => {
 
   test("continuation does not finish while the resumed invoice is still unsent", async () => {
     const b = fakeBackend();
-    b.state.co = { _id: "co1", status: "draft", payerViewUrl: null };
+    b.state.co = { _id: "co1", status: "approved", payerViewUrl: null };
     b.resume.mockImplementationOnce(async () => undefined);
     await expect(ensureChangeOrderInvoiced(b.deps)).rejects.toThrow(/Timed out/);
     expect(b.create).not.toHaveBeenCalled();

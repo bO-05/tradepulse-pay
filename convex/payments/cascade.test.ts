@@ -5,7 +5,8 @@ import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import schema from "../schema";
 import { agentIdProfile, syncAgentProfile } from "../lib/agentAccess";
-import { signInAs } from "../lib/testIdentity";
+import { withSession, signInAs } from "../lib/testIdentity";
+import { projectSetupArgs } from "../lib/projectSetupFixture";
 
 const modules = import.meta.glob("/convex/**/*.ts");
 const AGENT_EMAIL = "boldlevel182@agentmail.to";
@@ -169,15 +170,7 @@ describe("agreement cascade delete", () => {
     const afterReseed = await allIds();
     expect(afterReseed).toEqual(expect.arrayContaining(before));
 
-    const projectId = await gc.as.mutation(api.projects.createProject, {
-      title: "Audit retention project",
-      location: "Austin, TX",
-      projectType: "Commercial",
-      estBudget: 1_000_000,
-      targetCompletionWeeks: 10,
-      specDocumentText: "test",
-      isDemoProject: false,
-    });
+    const projectId = await gc.as.mutation(api.projects.createProject, projectSetupArgs({ title: "Audit retention project" }));
     const project = { _id: projectId };
     await t.run(async (ctx) => {
       await ctx.db.insert("auditLogs", {
@@ -199,7 +192,7 @@ describe("agreement cascade delete", () => {
     for (const l of listed) {
       if (l.projectId) expect(await t.run(async (ctx) => await ctx.db.get(l.projectId!))).not.toBeNull();
     }
-    expect(await gc.as.query(api.auditLogs.listRecentLogs, { projectId: project._id })).toEqual([]);
+    await expect(gc.as.query(api.auditLogs.listRecentLogs, { projectId: project._id })).rejects.toThrow(/Not found/);
   });
 
   test("deleting a trade package removes its agreements' payment rows", async () => {
@@ -220,7 +213,7 @@ async function signInAgent(t: TestConvex<typeof schema>, email: string) {
     await ctx.db.insert("authAccounts", { userId, provider: "agentid", providerAccountId: id });
     return userId;
   });
-  return { userId, as: t.withIdentity({ subject: `${userId}|agent-session`, email }) };
+  return { userId, as: await withSession(t, userId, email) };
 }
 
 describe("billing-agent links across a reseed", () => {

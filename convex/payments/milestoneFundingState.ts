@@ -1,5 +1,6 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
+import { loadTranches } from "../lib/trancheRows";
 
 export type MilestoneFundingState = "not_funded" | "funded" | "captured" | "paid";
 
@@ -33,10 +34,7 @@ export function milestoneFundingLabel(state: MilestoneFundingState): string {
 
 /** Read-only milestone funding rows for one agreement; callers must check agreement access first. */
 export async function loadMilestoneFunding(ctx: QueryCtx, agreementId: Id<"agreements">) {
-  const milestones = await ctx.db
-    .query("milestones")
-    .withIndex("by_agreementId_and_order", (q) => q.eq("agreementId", agreementId))
-    .take(50);
+  const milestones = await loadTranches(ctx, agreementId);
   const rows = [];
   for (const m of milestones) {
     const payments = await ctx.db

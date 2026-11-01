@@ -5,6 +5,7 @@ import { api, internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import schema from "./schema";
 import { signInAs } from "./lib/testIdentity";
+import { buildTenancyFixture, insertProjectFor } from "./lib/tenancyFixtures";
 
 const modules = import.meta.glob("/convex/**/*.ts");
 
@@ -48,6 +49,7 @@ async function insertPayApp(
     ctx.db.insert("payApplications", {
       agreementId: agreement._id,
       contractorId: agreement.contractorId,
+      subCompanyId: (await ctx.db.get(agreement.contractorId!))?.linkedCompanyId,
       subUserId: userId,
       periodLabel,
       lines: [],
@@ -90,10 +92,12 @@ describe("mySubPayApps history", () => {
     const base = Date.now() - 1_000_000;
     const oldestId = await insertPayApp(t, agreement, sub1.userId, "Oldest", "submitted", base);
     await t.run(async (ctx) => {
+      const subCompanyId = (await ctx.db.get(agreement.contractorId!))?.linkedCompanyId;
       for (let i = 0; i < 520; i++) {
         await ctx.db.insert("payApplications", {
           agreementId: agreement._id,
           contractorId: agreement.contractorId,
+          subCompanyId,
           subUserId: sub1.userId,
           periodLabel: `Old #${i}`,
           lines: [],
@@ -132,6 +136,103 @@ describe("mySubPayApps history", () => {
     expect((await page(sub2, 25)).page).toEqual([]);
     const loose = await signInAs(t, "sub", { email: "loose@test.tradepulse" });
     expect(await page(loose, 25)).toMatchObject({ page: [], isDone: true });
+  });
+});
+
+describe("mySubPayApps across contractor relationships", () => {
+  test("a sub company working for two GCs pages through both, and keeps the second after the first is removed", async () => {
+    const t = convexTest(schema, modules);
+    const fx = await buildTenancyFixture(t);
+    const second = await t.run((ctx) =>
+      insertProjectFor(ctx, fx.gcB.companyId, { title: "Camelback Suite 500", subCompanyId: fx.sub.companyId, bidderName: "Eastbay Electric" }),
+    );
+    const kim = fx.sub.admin;
+    const agreements = await t.run(async (ctx) => ({
+      first: (await ctx.db.get(fx.gcA.project.agreementId))!,
+      second: (await ctx.db.get(second.agreementId))!,
+    }));
+    const base = Date.now();
+    for (let i = 0; i < 3; i++) {
+      await insertPayApp(t, agreements.first, kim.userId, `Bayview #${i}`, "submitted", base + 2 * i);
+      await insertPayApp(t, agreements.second, kim.userId, `Sonoran #${i}`, "submitted", base + 2 * i + 1);
+    }
+    const all = await allPages(kim, 2);
+    expect(all.map((p) => p.periodLabel)).toEqual(["Sonoran #2", "Bayview #2", "Sonoran #1", "Bayview #1", "Sonoran #0", "Bayview #0"]);
+
+    await t.run(async (ctx) => {
+      const rows = await ctx.db
+        .query("projectMembers")
+        .withIndex("by_project_company_and_status", (q) => q.eq("projectId", fx.gcA.project.projectId).eq("companyId", fx.sub.companyId))
+        .collect();
+      for (const r of rows) await ctx.db.patch(r._id, { status: "removed" });
+    });
+    expect((await allPages(kim, 2)).map((p) => p.periodLabel)).toEqual(["Sonoran #2", "Sonoran #1", "Sonoran #0"]);
+    expect((await fx.gcB.admin.as.query(api.portal.mySubPayApps, { paginationOpts: { numItems: 10, cursor: null } }).catch(() => null))).toBeNull();
+  });
+
+  test("the backfill stamps older rows with the sub company so the portal lists them", async () => {
+    const t = convexTest(schema, modules);
+    const fx = await buildTenancyFixture(t);
+    const kim = fx.sub.admin;
+    const agreement = (await t.run((ctx) => ctx.db.get(fx.gcA.project.agreementId)))!;
+    const id = await insertPayApp(t, agreement, kim.userId, "Legacy", "submitted", Date.now());
+    await t.run((ctx) => ctx.db.patch(id, { contractorId: undefined, subCompanyId: undefined }));
+    expect((await page(kim, 10)).page).toEqual([]);
+    await t.mutation(internal.payApps.backfill.backfillPayAppContractorIds, {});
+    expect((await page(kim, 10)).page.map((p) => p.periodLabel)).toEqual(["Legacy"]);
+  });
+
+  /**
+   * usePaginatedQuery keeps loaded pages subscribed: once a page has loaded, it is re-run with the
+   * same start cursor and its first continueCursor as endCursor. Re-running both loaded pages after
+   * a change must still show every visible row exactly once.
+   */
+  test("loaded pages neither hide nor duplicate rows after a new submission or a relationship removal", async () => {
+    const t = convexTest(schema, modules);
+    const fx = await buildTenancyFixture(t);
+    const second = await t.run((ctx) =>
+      insertProjectFor(ctx, fx.gcB.companyId, { title: "Camelback Suite 500", subCompanyId: fx.sub.companyId, bidderName: "Eastbay Electric" }),
+    );
+    const kim = fx.sub.admin;
+    const agreements = await t.run(async (ctx) => ({
+      first: (await ctx.db.get(fx.gcA.project.agreementId))!,
+      second: (await ctx.db.get(second.agreementId))!,
+    }));
+    const base = Date.now();
+    for (let i = 0; i < 3; i++) {
+      await insertPayApp(t, agreements.first, kim.userId, `Bayview #${i}`, "submitted", base + 2 * i);
+      await insertPayApp(t, agreements.second, kim.userId, `Sonoran #${i}`, "submitted", base + 2 * i + 1);
+    }
+    const p1 = await page(kim, 2);
+    const p2 = await page(kim, 2, p1.continueCursor);
+    const p3 = await page(kim, 2, p2.continueCursor);
+    const loaded = [
+      { cursor: null, endCursor: p1.continueCursor },
+      { cursor: p1.continueCursor, endCursor: p2.continueCursor },
+      { cursor: p2.continueCursor, endCursor: p3.continueCursor },
+    ];
+    const rerun = async () => {
+      const rows = [];
+      for (const range of loaded) {
+        const r = await kim.as.query(api.portal.mySubPayApps, { paginationOpts: { numItems: 2, ...range } });
+        rows.push(...r.page.map((p) => p.periodLabel));
+      }
+      return rows;
+    };
+    expect(await rerun()).toEqual(["Sonoran #2", "Bayview #2", "Sonoran #1", "Bayview #1", "Sonoran #0", "Bayview #0"]);
+
+    vi.setSystemTime(base + 100);
+    await insertPayApp(t, agreements.first, kim.userId, "Bayview new", "submitted", base + 100);
+    expect(await rerun()).toEqual(["Bayview new", "Sonoran #2", "Bayview #2", "Sonoran #1", "Bayview #1", "Sonoran #0", "Bayview #0"]);
+
+    await t.run(async (ctx) => {
+      const rows = await ctx.db
+        .query("projectMembers")
+        .withIndex("by_project_company_and_status", (q) => q.eq("projectId", fx.gcA.project.projectId).eq("companyId", fx.sub.companyId))
+        .collect();
+      for (const r of rows) await ctx.db.patch(r._id, { status: "removed" });
+    });
+    expect(await rerun()).toEqual(["Sonoran #2", "Sonoran #1", "Sonoran #0"]);
   });
 });
 

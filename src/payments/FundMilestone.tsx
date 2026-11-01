@@ -4,6 +4,7 @@ import { ConvexError } from "convex/values";
 import { useState, type ReactNode } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
+import { ConfirmDialog } from "../ui";
 import { formatCents, formatDate } from "./format";
 
 export type MilestoneFunding = {
@@ -122,6 +123,7 @@ export function FundMilestoneControl({ milestone }: { milestone: FundableMilesto
   const createFundingOrder = useAction(api.payments.orders.createFundingOrder);
   const authorizeFundingOrder = useAction(api.payments.orders.authorizeFundingOrder);
   const [open, setOpen] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -154,7 +156,7 @@ export function FundMilestoneControl({ milestone }: { milestone: FundableMilesto
           data-testid="fund-milestone-button"
           disabled={busy || pendingApproval !== null}
           onClick={() => {
-            setOpen(true);
+            setConfirming(true);
             setError(null);
             setNotice(null);
           }}
@@ -213,6 +215,19 @@ export function FundMilestoneControl({ milestone }: { milestone: FundableMilesto
           </button>
         </div>
       )}
+      <ConfirmDialog
+        open={confirming}
+        title={`Fund ${milestone.name}?`}
+        amountCents={milestone.amountCents}
+        amountLabel="Authorize at PayPal"
+        effect="Opens PayPal checkout to authorize this amount. The money is held, not captured; the sub is paid only from an approved pay app."
+        confirmLabel="Continue to PayPal"
+        onCancel={() => setConfirming(false)}
+        onConfirm={() => {
+          setConfirming(false);
+          setOpen(true);
+        }}
+      />
       {busy && (
         <p className="text-xs text-slate-300" role="status">
           Authorizing with PayPal…

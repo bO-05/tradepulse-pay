@@ -1,6 +1,6 @@
 import { ConvexError, v, type Infer } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
-import { internalMutation, type MutationCtx } from "../_generated/server";
+import { internalMutation, internalQuery, type MutationCtx } from "../_generated/server";
 import {
   FUNDED_FUNDING_STATUSES,
   assertMilestoneTransition,
@@ -190,6 +190,19 @@ export const beginAuthorizationValidator = v.union(
 );
 export type PreparedFunding = Infer<typeof preparedFundingValidator>;
 export type BeginAuthorization = Infer<typeof beginAuthorizationValidator>;
+
+/** The funding payment of a PayPal order, so the action can authorize the caller on its project first. */
+export const fundingPaymentIdForOrder = internalQuery({
+  args: { paypalOrderId: v.string() },
+  returns: v.union(v.id("payments"), v.null()),
+  handler: async (ctx, { paypalOrderId }) => {
+    const p = await ctx.db
+      .query("payments")
+      .withIndex("by_paypalOrderId", (q) => q.eq("paypalOrderId", paypalOrderId))
+      .unique();
+    return p !== null && p.kind === "funding" ? p._id : null;
+  },
+});
 
 /**
  * Called from onApprove. Moves created → approved and returns what authorize needs, or the stored

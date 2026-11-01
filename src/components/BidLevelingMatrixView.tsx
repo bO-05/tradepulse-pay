@@ -29,11 +29,22 @@ import {
 } from "lucide-react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../convex/_generated/api.js";
+import type { Id } from "../../convex/_generated/dataModel";
 import { Bid, TradePackage, Agreement, Contractor, ScopeExclusion, ValueEngineeringAlternate } from "../types.ts";
-import { extractTextFromPdfStream } from "../standaloneStore.ts";
+import { extractTextFromPdfStream } from "../lib/documentText.ts";
 import { getDeceptiveBidIds, getSuspiciouslyLowBidIds, leadPenaltyArithmetic, leadTargetWeeksFor } from "../leveling.ts";
 import { ConfirmDialog } from "./ConfirmDialog.tsx";
-import { roundDollarsToCents } from "../../convex/lib/money.ts";
+import { ConfirmDialog as UiConfirmDialog } from "../ui/ConfirmDialog.tsx";
+import { AWARD_SUM_RULE, LevelingAwardPanel, PLUGS_NOT_INCLUDED } from "../bids/LevelingAwardPanel.tsx";
+import { awardConfirmation } from "../bids/awardConfirm.ts";
+import { centsToDollarsForDisplay, formatCents, fromDollars, toDollarString } from "../../convex/lib/money.ts";
+
+// The adjustment modal edits dollars in number inputs; blank or invalid input counts as $0.
+const LEGACY_ACCEPTED_ALTERNATES: readonly number[] = [];
+
+const inputDollarsToCents = (dollars: number): number =>
+  Number.isFinite(dollars) ? fromDollars(dollars) : 0;
+import { AgreementTermsPanel } from "../contracts/AgreementTermsPanel.tsx";
 import { useDialogFocus, useEscapeToClose } from "../lib/useDialogFocus.ts";
 import { printContractText } from "../lib/printContract.ts";
 
@@ -42,8 +53,9 @@ interface BidLevelingMatrixViewProps {
   tradePackages?: TradePackage[];
   onSelectPackage?: (id: string) => void;
   bids: Bid[];
-  onAwardContract: (bidId: string, tradePackageId: string) => Promise<void>;
-  onOpenSimulation: () => void;
+  onAwardContract: (bidId: string, tradePackageId: string, acceptedAlternateIndexes: number[]) => Promise<void>;
+  /** Demo companies only; real companies get no simulation controls or copy. */
+  onOpenSimulation?: () => void;
   contractors?: Contractor[];
   onNavigateToCoordination?: () => void;
   agreements?: Agreement[];
@@ -51,8 +63,8 @@ interface BidLevelingMatrixViewProps {
     bidId: string,
     exclusions: ScopeExclusion[],
     alternates: ValueEngineeringAlternate[],
-    leadPenalty: number,
-    coiPenalty: number
+    leadPenaltyCents: number,
+    coiPenaltyCents: number
   ) => Promise<void>;
   onUnawardContract?: (bidId: string, tradePackageId: string) => Promise<void>;
   onDeleteBid?: (bidId: string, tradePackageId?: string) => Promise<void>;
@@ -254,6 +266,7 @@ const [scannedPdfWarning, setScannedPdfWarning] = useState<string | null>(null);
   const [adjustmentError, setAdjustmentError] = useState<string | null>(null);
   const [bidToDelete, setBidToDelete] = useState<Bid | null>(null);
   const [bidToUnaward, setBidToUnaward] = useState<Bid | null>(null);
+  const [bidToAward, setBidToAward] = useState<Bid | null>(null);
   const [agreementToExecute, setAgreementToExecute] = useState<string | null>(null);
 
   const executeAgreementMutation = useMutation(api.agreements.executeAgreement);
@@ -287,10 +300,23 @@ const [scannedPdfWarning, setScannedPdfWarning] = useState<string | null>(null);
     );
   }
 
-  const handleAwardAndGenerate = async (bidId: string) => {
+  // Every award goes through the confirmation dialog; nothing awards on a single click.
+  const handleAwardAndGenerate = (bidId: string) => {
+    setBidToAward(bids.find((bid) => bid._id === bidId) || null);
+  };
+
+  // This dialog awards with no bid alternates; accepting alternates happens in the Leveling and award panel.
+  const legacyAwardConfirm = bidToAward
+    ? awardConfirmation(bidToAward, LEGACY_ACCEPTED_ALTERNATES, { noAlternatesNote: "None (accept alternates in Leveling and award above)" })
+    : null;
+
+  const confirmAward = async () => {
+    if (!bidToAward) return;
+    const bidId = bidToAward._id;
     setAwardingId(bidId);
     try {
-      await onAwardContract(bidId, currentPackage._id);
+      await onAwardContract(bidId, currentPackage._id, [...LEGACY_ACCEPTED_ALTERNATES]);
+      setBidToAward(null);
       setViewingAgreementBidId(bidId);
     } finally {
       setAwardingId(null);
@@ -364,8 +390,8 @@ const [scannedPdfWarning, setScannedPdfWarning] = useState<string | null>(null);
     setAdjustmentError(null);
     setTempExclusions([...(bid.identifiedExclusions || [])]);
     setTempAlternates([...(bid.valueEngineeringAlternates || [])]);
-    setTempLeadPenalty(bid.leadTimePenalty);
-    setTempCoiPenalty(bid.coiPenalty);
+    setTempLeadPenalty(centsToDollarsForDisplay(bid.leadTimePenaltyCents));
+    setTempCoiPenalty(centsToDollarsForDisplay(bid.coiPenaltyCents));
   };
 
   const toggleWaiveExclusion = (index: number) => {
@@ -392,7 +418,7 @@ const [scannedPdfWarning, setScannedPdfWarning] = useState<string | null>(null);
       ...tempAlternates,
       {
         description: newVeDesc.trim(),
-        costDeduct: Number(newVeDeduct) || 0,
+        costDeductCents: inputDollarsToCents(Number(newVeDeduct)),
         isAccepted: true,
       },
     ]);
@@ -406,7 +432,7 @@ const [scannedPdfWarning, setScannedPdfWarning] = useState<string | null>(null);
       ...tempExclusions,
       {
         description: newExcDesc.trim(),
-        costImpact: Number(newExcCost) || 0,
+        costImpactCents: inputDollarsToCents(Number(newExcCost)),
         severity: "moderate",
         isWaived: false,
       },
@@ -419,19 +445,19 @@ const [scannedPdfWarning, setScannedPdfWarning] = useState<string | null>(null);
   const calculatePreviewCost = () => {
     if (!adjustingBid) return 0;
     const activeExclusions = tempExclusions.reduce(
-      (sum, exc) => (exc.isWaived ? sum : sum + (exc.costImpact || 0)),
+      (sum, exc) => (exc.isWaived ? sum : sum + (exc.costImpactCents || 0)),
       0
     );
     const acceptedVeDeduct = tempAlternates.reduce(
-      (sum, ve) => (ve.isAccepted ? sum + (ve.costDeduct || 0) : sum),
+      (sum, ve) => (ve.isAccepted ? sum + (ve.costDeductCents || 0) : sum),
       0
     );
     return Math.max(
       0,
-      adjustingBid.baseBidAmount +
+      adjustingBid.baseAmountCents +
       activeExclusions +
-      tempLeadPenalty +
-      tempCoiPenalty -
+      inputDollarsToCents(tempLeadPenalty) +
+      inputDollarsToCents(tempCoiPenalty) -
       acceptedVeDeduct
     );
   };
@@ -445,16 +471,16 @@ const [scannedPdfWarning, setScannedPdfWarning] = useState<string | null>(null);
           adjustingBid._id,
           tempExclusions,
           tempAlternates,
-          tempLeadPenalty,
-          tempCoiPenalty
+          inputDollarsToCents(tempLeadPenalty),
+          inputDollarsToCents(tempCoiPenalty)
         );
       } else if (!adjustingBid._id.startsWith("bid_")) {
         await updateAdjustmentsMutation({
           bidId: adjustingBid._id as any,
           identifiedExclusions: tempExclusions,
           valueEngineeringAlternates: tempAlternates,
-          leadTimePenalty: tempLeadPenalty,
-          coiPenalty: tempCoiPenalty,
+          leadTimePenaltyCents: inputDollarsToCents(tempLeadPenalty),
+          coiPenaltyCents: inputDollarsToCents(tempCoiPenalty),
         });
       }
       setAdjustingBid(null);
@@ -515,7 +541,7 @@ const [scannedPdfWarning, setScannedPdfWarning] = useState<string | null>(null);
     if (csi.startsWith("23")) {
       // Division 23 HVAC Mechanical
       if (type === "deceptive") {
-        setIngestFileName("Deceptive_Low_HVAC_Bid.pdf");
+        setIngestFileName("Exclusion_Heavy_HVAC_Bid.pdf");
         setIngestQuoteText(`PROPOSAL AND QUOTATION\nProject: Commercial HVAC & Mechanical Scope\nBase Bid Price: $1,320,000.00\nEXCLUSIONS:\n- Crane hoisting & rigging for 350-ton rooftop chillers excluded (GC to furnish crane & street closure permits)\n- Vibration isolation springs & seismic engineering excluded (By others)\n- NEBB certified air balancing and TAB commissioning excluded\n- Overtime and weekend premium hours excluded from base rate\nLead time on chillers: 22 weeks.\nInsurance: Standard statutory limits (Umbrella endorsement fee not included).`);
         setNewContractorName("Breeze Air Mechanical (Low Bidder)");
         setIngestContractorId("new_contractor");
@@ -528,7 +554,7 @@ const [scannedPdfWarning, setScannedPdfWarning] = useState<string | null>(null);
     } else if (csi.startsWith("22")) {
       // Division 22 Plumbing
       if (type === "deceptive") {
-        setIngestFileName("Deceptive_Low_Plumbing_Bid.pdf");
+        setIngestFileName("Exclusion_Heavy_Plumbing_Bid.pdf");
         setIngestQuoteText(`PROPOSAL AND QUOTATION\nProject: Commercial Plumbing Scope\nBase Bid Price: $660,000.00\nEXCLUSIONS:\n- Core drilling through post-tensioned concrete slab excluded (By GC/others)\n- Gas piping from meter manifold to rooftop mechanical equipment excluded\n- Grease interceptor excavation and backfill excluded\nLead time on booster pumps: 16 weeks.\nInsurance: Standard statutory limits (Umbrella endorsement fee not included).`);
         setNewContractorName("QuickFlow Plumbing (Low Bidder)");
         setIngestContractorId("new_contractor");
@@ -541,7 +567,7 @@ const [scannedPdfWarning, setScannedPdfWarning] = useState<string | null>(null);
     } else if (csi.startsWith("03")) {
       // Division 03 Concrete
       if (type === "deceptive") {
-        setIngestFileName("Deceptive_Low_Concrete_Bid.pdf");
+        setIngestFileName("Exclusion_Heavy_Concrete_Bid.pdf");
         setIngestQuoteText(`PROPOSAL AND QUOTATION\nProject: Commercial Structural Concrete Scope\nBase Bid Price: $1,890,000.00\nEXCLUSIONS:\n- Concrete pump truck hoisting and staging excluded (GC to furnish pump)\n- Winter weather heating, blankets, and curing accelerators excluded\n- Vapor retarder barrier membrane under slab on grade excluded (By GC)\nLead time on post-tensioning steel: 14 weeks.\nInsurance: Standard statutory limits (Umbrella endorsement fee not included).`);
         setNewContractorName("Rapid Pour Concrete (Low Bidder)");
         setIngestContractorId("new_contractor");
@@ -554,7 +580,7 @@ const [scannedPdfWarning, setScannedPdfWarning] = useState<string | null>(null);
     } else {
       // Division 26 Electrical or Default
       if (type === "deceptive") {
-        setIngestFileName("Deceptive_Low_Electrical_Bid.pdf");
+        setIngestFileName("Exclusion_Heavy_Electrical_Bid.pdf");
         setIngestQuoteText(`PROPOSAL AND QUOTATION\nProject: Commercial MEP\nBase Bid Price: $1,080,000.00\nEXCLUSIONS:\n- Crane hoisting & rigging to penthouse mechanical floor excluded (GC to furnish)\n- UL 1479 firestop floor penetrations excluded (By drywall trade)\n- Seismic engineered structural bracing excluded (By others)\n- Overtime/weekend acceleration excluded from base rate\nLead time on switchgear: 16 weeks.\nInsurance: Standard statutory limits (Umbrella endorsement fee not included).`);
         setNewContractorName("Apex Electric (Low Bidder)");
         setIngestContractorId("new_contractor");
@@ -595,28 +621,27 @@ const [scannedPdfWarning, setScannedPdfWarning] = useState<string | null>(null);
 
     const rows = sortedBids.map((bid, index) => {
       const exclusions = bid.identifiedExclusions || [];
-      const totalExclusions = exclusions.reduce((s, x) => (x.isWaived ? s : s + (x.costImpact || 0)), 0);
+      const totalExclusionsCents = exclusions.reduce((s, x) => (x.isWaived ? s : s + (x.costImpactCents || 0)), 0);
       const alternates = bid.valueEngineeringAlternates || [];
-      const totalVeDeduct = alternates.reduce((s, x) => (x.isAccepted ? s + x.costDeduct : s), 0);
-      const topCost = sortedBids[0]?.leveledTotalCost ?? bid.leveledTotalCost;
-      // A7CONV-A-03: avoid float artifacts like 20722.869999999995 in the CSV.
-      const variance = index === 0 ? 0 : roundDollarsToCents(bid.leveledTotalCost - topCost);
+      const totalVeDeductCents = alternates.reduce((s, x) => (x.isAccepted ? s + (x.costDeductCents || 0) : s), 0);
+      const topCostCents = sortedBids[0]?.leveledTotalCents ?? bid.leveledTotalCents;
+      const varianceCents = index === 0 ? 0 : bid.leveledTotalCents - topCostCents;
       return [
         `#${index + 1}`,
         bid.subcontractorName || "",
         packageCsiDivision,
         packageTradeName,
-        bid.baseBidAmount,
+        toDollarString(bid.baseAmountCents),
         exclusions.length,
-        totalExclusions,
+        toDollarString(totalExclusionsCents),
         alternates.length,
-        totalVeDeduct,
+        toDollarString(totalVeDeductCents),
         bid.longLeadEquipmentWeeks,
-        bid.leadTimePenalty,
+        toDollarString(bid.leadTimePenaltyCents),
         bid.coiComplianceStatus,
-        bid.coiPenalty,
-        bid.leveledTotalCost,
-        variance,
+        toDollarString(bid.coiPenaltyCents),
+        toDollarString(bid.leveledTotalCents),
+        toDollarString(varianceCents),
         bid.isAwarded ? "AWARDED" : "UNAWARDED",
       ];
     });
@@ -648,7 +673,7 @@ const [scannedPdfWarning, setScannedPdfWarning] = useState<string | null>(null);
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `${agreement.agreementNumber}_A401-style_Subcontract_Draft.txt`);
+    link.setAttribute("download", `${agreement.agreementNumber}_AIA-style_Subcontract_Draft.txt`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -660,12 +685,12 @@ const [scannedPdfWarning, setScannedPdfWarning] = useState<string | null>(null);
   };
 
   // Sort bids by leveled total cost ascending (lowest normalized cost first)
-  const sortedBids = [...bids].sort((a, b) => a.leveledTotalCost - b.leveledTotalCost);
-  const rank1Cost = sortedBids[0]?.leveledTotalCost ?? 0;
+  const sortedBids = [...bids].sort((a, b) => a.leveledTotalCents - b.leveledTotalCents);
+  const rank1Cost = sortedBids[0]?.leveledTotalCents ?? 0;
 
-  // Check if there is a deceptive low bidder
+  // Is the apparent low (lowest base) different from the leveled low?
   const lowestBaseBid = bids.reduce<Bid | null>(
-    (min, b) => (!min || b.baseBidAmount < min.baseBidAmount ? b : min),
+    (min, b) => (!min || b.baseAmountCents < min.baseAmountCents ? b : min),
     null
   );
   const lowestLeveledBid = sortedBids[0] || null;
@@ -726,6 +751,11 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                 Real-Time Bid Leveling Matrix
               </h2>
             </div>
+            {currentPackage.dueLabel && (
+              <p className="text-xs text-slate-300 mb-1" data-testid="leveling-bid-due">
+                {currentPackage.tradeName} bids due {currentPackage.dueLabel}
+              </p>
+            )}
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-xs text-slate-400">
                 Normalizing contractor quotes to true "apples-to-apples" baselines using the{" "}
@@ -800,15 +830,16 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
               Export Leveling CSV
             </button>
 
-            {/* Open simulation scenarios */}
+            {onOpenSimulation && (
             <button
               onClick={onOpenSimulation}
               className="bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-slate-950 font-bold text-xs px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition shadow-sm"
-              title="Opens the 60-second demo dock. Scenario B (deceptive bid) and Scenario C (compliant bid) ingest a simulated proposal for the active package."
+              title="Opens the 60-second demo dock. Scenario B (exclusion-heavy bid) and Scenario C (compliant bid) ingest a simulated proposal for the active package."
             >
               <Zap className="w-3.5 h-3.5 fill-slate-950" />
               Open Demo Simulation…
             </button>
+            )}
           </div>
         </div>
 
@@ -816,10 +847,14 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
         {showWhyCare && (
           <div className="mt-3 pt-3 border-t border-slate-800 text-xs text-slate-300 leading-relaxed bg-slate-950/60 rounded-lg p-3 border animate-in fade-in">
             <span className="font-semibold text-emerald-400">The $186,000 Scope Exclusion Trap: </span>
-            Subcontractors submit deceptively low base prices on paper, but bury exclusions for crane hoisting, UL firestopping, and seismic bracing in proposal fine print. TradePulse Pro's ADR-0003 engine parses proposal exclusions, applies lead-time delay penalties ($6,000/wk schedule-impact rate, distinct from the contract's $1,200/day liquidated damages), adds COI insurance penalties, and subtracts accepted Value Engineering (VE) alternates—to deliver apples-to-apples procurement.
+            Subcontractors can submit low base prices on paper but bury exclusions for crane hoisting, UL firestopping, and seismic bracing in proposal fine print. TradePulse Pay's ADR-0003 engine parses proposal exclusions, applies lead-time delay penalties ($6,000/wk schedule-impact rate, distinct from the contract's $1,200/day liquidated damages), adds COI insurance penalties, and subtracts accepted Value Engineering (VE) alternates—to deliver apples-to-apples procurement.
           </div>
         )}
       </div>
+
+      {bids.length > 0 && !currentPackage._id.startsWith("pkg_") && (
+        <LevelingAwardPanel tradePackageId={currentPackage._id as Id<"tradePackages">} />
+      )}
 
       {/* Post-Award Celebratory Guidance Banner */}
       {awardedBid && (
@@ -834,11 +869,11 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                   Subcontract Awarded: <strong className="text-emerald-300">{awardedBid.subcontractorName}</strong>
                 </span>
                 <span className="text-[10px] font-mono bg-emerald-950 text-emerald-300 border border-emerald-800 px-2 py-0.5 rounded-full font-bold">
-                  ${awardedBid.baseBidAmount.toLocaleString()} Base • ${awardedBid.leveledTotalCost.toLocaleString()} Leveled
+                  {formatCents(awardedBid.baseAmountCents)} Base • {formatCents(awardedBid.leveledTotalCents)} Leveled
                 </span>
               </div>
               <p className="text-xs text-slate-300 mt-0.5">
-                Subcontract agreement drafted with all mandatory inclusions and retainage. Ready for cross-trade clash deduction or AIA A401 execution.
+                Subcontract agreement drafted with all mandatory inclusions and retainage. Ready for cross-trade clash deduction or execution.
               </p>
             </div>
           </div>
@@ -882,14 +917,14 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                 </span>
               </div>
               <p className="text-slate-300 text-[11px] leading-tight">
-                <strong className="text-white">{lowestLeveledBid.subcontractorName}</strong>'s leveled cost of <strong className="text-rose-300">${lowestLeveledBid.leveledTotalCost.toLocaleString()}</strong> is far below the ${currentPackage.budgetEstimate.toLocaleString()} package budget. This usually means an omitted scope, a unit error, or a mis-read document — confirm the proposal before awarding.
+                <strong className="text-white">{lowestLeveledBid.subcontractorName}</strong>'s leveled cost of <strong className="text-rose-300">{formatCents(lowestLeveledBid.leveledTotalCents)}</strong> is far below the {formatCents(fromDollars(currentPackage.budgetEstimate))} package budget. This usually means an omitted scope, a unit error, or a mis-read document — confirm the proposal before awarding.
               </p>
             </div>
           </div>
         </div>
       )}
 
-      {/* Deceptive Bid Warning Banner */}
+      {/* Apparent low vs leveled low banner */}
       {isDeceptiveGap && lowestBaseBid && lowestLeveledBid && (
         <div className="bg-gradient-to-r from-amber-950/70 via-slate-900 to-amber-950/70 border border-amber-500/60 rounded-xl p-2.5 sm:px-4 sm:py-2 flex flex-wrap items-center justify-between gap-3 shadow-md animate-in fade-in">
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -898,13 +933,13 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
             </div>
             <div className="text-xs">
               <div className="font-bold text-amber-300 flex items-center gap-2">
-                <span>Deceptive Low Bid Flagged</span>
+                <span>Apparent low is not the leveled low</span>
                 <span className="text-[10px] font-mono bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.2 rounded font-bold">
-                  +${(lowestBaseBid.leveledTotalCost - lowestLeveledBid.leveledTotalCost).toLocaleString()} True Variance
+                  +{formatCents(lowestBaseBid.leveledTotalCents - lowestLeveledBid.leveledTotalCents)} leveled difference
                 </span>
               </div>
               <p className="text-slate-300 text-[11px] leading-tight">
-                <strong className="text-white">{lowestBaseBid.subcontractorName}</strong> (${lowestBaseBid.baseBidAmount.toLocaleString()} base) has a lower paper price but a higher normalized cost of <strong className="text-amber-400">${lowestBaseBid.leveledTotalCost.toLocaleString()}</strong> vs <strong className="text-emerald-400">{lowestLeveledBid.subcontractorName} (${lowestLeveledBid.leveledTotalCost.toLocaleString()})</strong>.
+                <strong className="text-white">{lowestBaseBid.subcontractorName}</strong> ({formatCents(lowestBaseBid.baseAmountCents)} base) has a lower paper price but a higher normalized cost of <strong className="text-amber-400">{formatCents(lowestBaseBid.leveledTotalCents)}</strong> vs <strong className="text-emerald-400">{lowestLeveledBid.subcontractorName} ({formatCents(lowestLeveledBid.leveledTotalCents)})</strong>.
               </p>
             </div>
           </div>
@@ -914,7 +949,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
               disabled={awardingId === lowestLeveledBid._id}
               onClick={() => handleAwardAndGenerate(lowestLeveledBid._id)}
               className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs py-1.5 px-3.5 rounded-lg flex items-center justify-center gap-1.5 shadow transition shrink-0 max-w-full cursor-pointer active:scale-95"
-              title={`Award the lowest leveled bidder: ${lowestLeveledBid.subcontractorName} ($${lowestLeveledBid.leveledTotalCost.toLocaleString()} leveled)`}
+              title={`Award the lowest leveled bidder: ${lowestLeveledBid.subcontractorName} (${formatCents(lowestLeveledBid.leveledTotalCents)} leveled)`}
             >
               <Award className="w-3.5 h-3.5 fill-slate-950 shrink-0" />
               <span className="truncate">Award Compliant Winner ({lowestLeveledBid.subcontractorName})</span>
@@ -983,8 +1018,10 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
               </button>
             </div>
             <p className="text-[11px] text-slate-400 text-center">
-              Bids are also ingested by the AI from uploaded quote files on the CSI Scoping tab, or simulated from the
-              «Open Demo Simulation…» control in the toolbar above (Scenario B or C ingests a proposal).
+              Bids are also ingested by the AI from uploaded quote files on the CSI Scoping tab
+              {onOpenSimulation
+                ? ", or simulated from the «Open Demo Simulation…» control in the toolbar above (Scenario B or C ingests a proposal)."
+                : "."}
             </p>
           </div>
         </div>
@@ -1023,7 +1060,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                           </span>
                         ) : (
                           <span className="text-[10px] font-mono text-amber-400 font-semibold">
-                            +${(bid.leveledTotalCost - rank1Cost).toLocaleString()} vs #1
+                            +{formatCents(bid.leveledTotalCents - rank1Cost)} vs #1
                           </span>
                         )}
                         {suspiciousLowBidIds.has(bid._id) && (
@@ -1050,7 +1087,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                   </td>
                   {sortedBids.map((bid) => (
                     <td key={bid._id} className="px-3 py-2 font-mono text-slate-200 border-l border-slate-800 text-xs font-semibold">
-                      ${bid.baseBidAmount.toLocaleString()}
+                      {formatCents(bid.baseAmountCents)}
                     </td>
                   ))}
                 </tr>
@@ -1063,7 +1100,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                   </td>
                   {sortedBids.map((bid) => {
                     const exclusions = bid.identifiedExclusions || [];
-                    const activeCost = exclusions.reduce((s, x) => (x.isWaived ? s : s + (x.costImpact || 0)), 0);
+                    const activeCost = exclusions.reduce((s, x) => (x.isWaived ? s : s + (x.costImpactCents || 0)), 0);
                     return (
                       <td key={bid._id} className="px-3 py-2 border-l border-slate-800 space-y-1 align-top">
                         {exclusions.length === 0 ? (
@@ -1073,7 +1110,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                         ) : (
                           <>
                             <div className="font-mono text-amber-400 font-semibold text-xs">
-                              +${activeCost.toLocaleString()} ({exclusions.filter((x) => !x.isWaived).length} active)
+                              +{formatCents(activeCost)} ({exclusions.filter((x) => !x.isWaived).length} active)
                             </div>
                             <div className="space-y-0.5">
                               {exclusions.map((exc, i) => (
@@ -1082,7 +1119,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                                     • {exc.description}
                                   </span>
                                   <span className={`shrink-0 font-mono ${exc.isWaived ? "text-slate-600 line-through" : "text-amber-400 font-semibold"}`}>
-                                    {exc.isWaived ? "[Waived]" : `+$${(exc.costImpact || 0).toLocaleString()}`}
+                                    {exc.isWaived ? "[Waived]" : `+${formatCents(exc.costImpactCents || 0)}`}
                                   </span>
                                 </div>
                               ))}
@@ -1102,7 +1139,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                   </td>
                   {sortedBids.map((bid) => {
                     const alternates = bid.valueEngineeringAlternates || [];
-                    const acceptedDeduct = alternates.reduce((s, x) => (x.isAccepted ? s + (x.costDeduct || 0) : s), 0);
+                    const acceptedDeduct = alternates.reduce((s, x) => (x.isAccepted ? s + (x.costDeductCents || 0) : s), 0);
                     return (
                       <td key={bid._id} className="px-3 py-2 border-l border-slate-800 space-y-1 align-top">
                         {alternates.length === 0 ? (
@@ -1110,7 +1147,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                         ) : (
                           <>
                             <div className="font-mono text-emerald-400 font-semibold text-xs">
-                              -${acceptedDeduct.toLocaleString()} ({alternates.filter((x) => x.isAccepted).length} accepted)
+                              -{formatCents(acceptedDeduct)} ({alternates.filter((x) => x.isAccepted).length} accepted)
                             </div>
                             <div className="space-y-0.5">
                               {alternates.map((alt, i) => (
@@ -1119,7 +1156,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                                     • {alt.description}
                                   </span>
                                   <span className={`shrink-0 font-mono font-semibold ${alt.isAccepted ? "text-emerald-400" : "text-slate-600"}`}>
-                                    {alt.isAccepted ? `-$${(alt.costDeduct || 0).toLocaleString()}` : `$${(alt.costDeduct || 0).toLocaleString()} (declined)`}
+                                    {alt.isAccepted ? `-${formatCents(alt.costDeductCents || 0)}` : `${formatCents(alt.costDeductCents || 0)} (declined)`}
                                   </span>
                                 </div>
                               ))}
@@ -1143,8 +1180,8 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                         {bid.longLeadEquipmentWeeks} weeks
                         <span className="text-slate-400 font-normal"> vs {leadTargetWeeksFor(bid, currentPackage?.csiDivision)}-wk baseline</span>
                       </div>
-                      <div className={`font-mono text-[10px] font-semibold mt-0.5 ${bid.leadTimePenalty > 0 ? "text-amber-400" : "text-emerald-400"}`}>
-                        {bid.leadTimePenalty > 0
+                      <div className={`font-mono text-[10px] font-semibold mt-0.5 ${bid.leadTimePenaltyCents > 0 ? "text-amber-400" : "text-emerald-400"}`}>
+                        {bid.leadTimePenaltyCents > 0
                           ? leadPenaltyArithmetic(bid, currentPackage?.csiDivision)
                           : `$0 (${leadPenaltyArithmetic(bid, currentPackage?.csiDivision)})`}
                       </div>
@@ -1161,8 +1198,8 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                   {sortedBids.map((bid) => (
                     <td key={bid._id} className="px-3 py-2 border-l border-slate-800 align-top">
                       <div className="text-slate-200 capitalize font-medium text-xs">{bid.coiComplianceStatus}</div>
-                      <div className={`font-mono text-[10px] font-semibold mt-0.5 ${bid.coiPenalty > 0 ? "text-rose-400" : "text-emerald-400"}`}>
-                        {bid.coiPenalty > 0 ? `+$${bid.coiPenalty.toLocaleString()} penalty` : "$0 (Fully Compliant)"}
+                      <div className={`font-mono text-[10px] font-semibold mt-0.5 ${bid.coiPenaltyCents > 0 ? "text-rose-400" : "text-emerald-400"}`}>
+                        {bid.coiPenaltyCents > 0 ? `+${formatCents(bid.coiPenaltyCents)} penalty` : "$0 (Fully Compliant)"}
                       </div>
                     </td>
                   ))}
@@ -1176,7 +1213,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                   {sortedBids.map((bid, idx) => (
                     <td key={bid._id} className="px-3 py-2.5 border-l border-slate-800 font-mono text-white align-top">
                       <div className={idx === 0 ? "text-emerald-400 font-black text-base sm:text-lg" : "text-white font-black text-base sm:text-lg"}>
-                        ${bid.leveledTotalCost.toLocaleString()}
+                        {formatCents(bid.leveledTotalCents)}
                       </div>
                       <div className="text-[10px] font-normal text-slate-400 mt-0.5">
                         {idx === 0 ? (
@@ -1185,7 +1222,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                           </span>
                         ) : (
                           <span className="text-amber-400 font-semibold font-mono">
-                            +${(bid.leveledTotalCost - rank1Cost).toLocaleString()} vs Rank #1
+                            +{formatCents(bid.leveledTotalCents - rank1Cost)} vs Rank #1
                           </span>
                         )}
                       </div>
@@ -1263,9 +1300,9 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
             const isWinner = index === 0;
             const isExpanded = expandedBidId === bid._id;
             const exclusions = bid.identifiedExclusions || [];
-            const activeGapsCost = exclusions.reduce((sum, exc) => (exc.isWaived ? sum : sum + (exc.costImpact || 0)), 0);
+            const activeGapsCost = exclusions.reduce((sum, exc) => (exc.isWaived ? sum : sum + (exc.costImpactCents || 0)), 0);
             const alternates = bid.valueEngineeringAlternates || [];
-            const varianceVsRank1 = bid.leveledTotalCost - rank1Cost;
+            const varianceVsRank1 = bid.leveledTotalCents - rank1Cost;
 
             return (
               <div
@@ -1291,7 +1328,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                         </span>
                       ) : (
                         <span className="text-[11px] font-mono font-bold text-amber-400 bg-amber-950/60 border border-amber-800/80 px-2 py-0.5 rounded-full">
-                          +${varianceVsRank1.toLocaleString()} vs Rank #1
+                          +{formatCents(varianceVsRank1)} vs Rank #1
                         </span>
                       )}
                       {suspiciousLowBidIds.has(bid._id) && (
@@ -1350,7 +1387,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                     <div>
                       <span className="text-[10px] text-slate-400 block mb-0.5 uppercase tracking-wide">Submitted Base Bid</span>
                       <span className="text-sm sm:text-base font-bold text-slate-300 font-mono">
-                        ${bid.baseBidAmount.toLocaleString()}
+                        {formatCents(bid.baseAmountCents)}
                       </span>
                     </div>
 
@@ -1359,7 +1396,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                         True Leveled Cost
                       </span>
                       <span className="text-base sm:text-lg font-black text-white font-mono flex items-center gap-1">
-                        ${bid.leveledTotalCost.toLocaleString()}
+                        {formatCents(bid.leveledTotalCents)}
                       </span>
                     </div>
                   </div>
@@ -1392,7 +1429,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                         Scope Exclusions ({exclusions.length}):
                       </span>
                       <span className={`font-mono font-semibold ${activeGapsCost > 0 ? "text-amber-400" : "text-emerald-400"}`}>
-                        {activeGapsCost > 0 ? `+$${activeGapsCost.toLocaleString()}` : "$0 (Complete)"}
+                        {activeGapsCost > 0 ? `+${formatCents(activeGapsCost)}` : "$0 (Complete)"}
                       </span>
                     </div>
 
@@ -1404,7 +1441,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                           VE Alternates ({alternates.length}):
                         </span>
                         <span className="font-mono font-semibold text-emerald-400">
-                          -${alternates.reduce((s, x) => (x.isAccepted ? s + (x.costDeduct || 0) : s), 0).toLocaleString()} (Accepted)
+                          -{formatCents(alternates.reduce((s, x) => (x.isAccepted ? s + (x.costDeductCents || 0) : s), 0))} (Accepted)
                         </span>
                       </div>
                     )}
@@ -1415,19 +1452,19 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                         <Clock className="w-3.5 h-3.5 text-sky-400" />
                         Lead Time ({bid.longLeadEquipmentWeeks} wks vs {leadTargetWeeksFor(bid, currentPackage?.csiDivision)}-wk baseline):
                       </span>
-                      <span className={`font-mono font-semibold ${bid.leadTimePenalty > 0 ? "text-amber-400" : "text-emerald-400"}`}>
-                        {bid.leadTimePenalty > 0 ? leadPenaltyArithmetic(bid, currentPackage?.csiDivision) : `$0 (${leadPenaltyArithmetic(bid, currentPackage?.csiDivision)})`}
+                      <span className={`font-mono font-semibold ${bid.leadTimePenaltyCents > 0 ? "text-amber-400" : "text-emerald-400"}`}>
+                        {bid.leadTimePenaltyCents > 0 ? leadPenaltyArithmetic(bid, currentPackage?.csiDivision) : `$0 (${leadPenaltyArithmetic(bid, currentPackage?.csiDivision)})`}
                       </span>
                     </div>
 
                     {/* COI Compliance */}
                     <div className="flex items-center justify-between text-slate-300 text-[11px]">
                       <span className="flex items-center gap-1.5 text-slate-400">
-                        <ShieldAlert className={`w-3.5 h-3.5 ${bid.coiPenalty > 0 ? "text-rose-400" : "text-emerald-400"}`} />
+                        <ShieldAlert className={`w-3.5 h-3.5 ${bid.coiPenaltyCents > 0 ? "text-rose-400" : "text-emerald-400"}`} />
                         ACORD 25 COI:
                       </span>
-                      <span className={`font-mono font-semibold ${bid.coiPenalty > 0 ? "text-rose-400" : "text-emerald-400"}`}>
-                        {bid.coiPenalty > 0 ? `+$${bid.coiPenalty.toLocaleString()} (Deficient)` : "$0 (Compliant)"}
+                      <span className={`font-mono font-semibold ${bid.coiPenaltyCents > 0 ? "text-rose-400" : "text-emerald-400"}`}>
+                        {bid.coiPenaltyCents > 0 ? `+${formatCents(bid.coiPenaltyCents)} (Deficient)` : "$0 (Compliant)"}
                       </span>
                     </div>
                   </div>
@@ -1444,7 +1481,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                             • {exc.description} {exc.isWaived && <span className="text-emerald-400 ml-1 font-semibold">[Waived by GC]</span>}
                           </span>
                           <span className={`font-mono shrink-0 font-semibold ${exc.isWaived ? "text-slate-400 line-through" : "text-amber-400"}`}>
-                            {exc.isWaived ? "$0" : `+$${(exc.costImpact || 0).toLocaleString()}`}
+                            {exc.isWaived ? "$0" : `+${formatCents(exc.costImpactCents || 0)}`}
                           </span>
                         </div>
                       ))}
@@ -1463,7 +1500,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                             • {alt.description}
                           </span>
                           <span className={`font-mono shrink-0 font-semibold ${alt.isAccepted ? "text-emerald-400" : "text-slate-400"}`}>
-                            {alt.isAccepted ? `-$${(alt.costDeduct || 0).toLocaleString()} (Accepted)` : `$${(alt.costDeduct || 0).toLocaleString()} (Declined)`}
+                            {alt.isAccepted ? `-${formatCents(alt.costDeductCents || 0)} (Accepted)` : `${formatCents(alt.costDeductCents || 0)} (Declined)`}
                           </span>
                         </div>
                       ))}
@@ -1485,7 +1522,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                         <div key={i} className="flex items-center justify-between text-slate-300 text-[11px]">
                           <span className="truncate max-w-[200px]">{item.item}</span>
                           <span className="font-mono text-slate-400">
-                            {item.quantity} {item.unit} @ ${item.unitCost} = <strong className="text-white">${(item.totalCost || 0).toLocaleString()}</strong>
+                            {item.quantity} {item.unit} @ {formatCents(item.unitCostCents || 0)} = <strong className="text-white">{formatCents(item.totalCostCents || 0)}</strong>
                           </span>
                         </div>
                       ))}
@@ -1552,7 +1589,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
           </div>
           <p className="text-xs text-slate-400 mt-1 max-w-xl">
             {awardedBid
-              ? `Subcontract awarded to ${awardedBid.subcontractorName}. Proceed to cross-trade scope clash detection or inspect the generated A401-style subcontract draft.`
+              ? `Subcontract awarded to ${awardedBid.subcontractorName}. Proceed to cross-trade scope clash detection or inspect the generated AIA-style subcontract draft.`
               : "ADR-0003 leveling normalized base bids against exclusions and penalties. Advance to cross-trade clash coordination or contractual registers."}
           </p>
         </div>
@@ -1722,7 +1759,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                     onClick={() => populateSampleQuote("deceptive")}
                     className="bg-amber-950/40 hover:bg-amber-950/80 text-amber-300 border border-amber-800/80 px-2.5 py-1.5 rounded text-[11px] font-semibold transition"
                   >
-                    ⚠️ Load Deceptive Low Bid Sample
+                    Load exclusion-heavy bid sample
                   </button>
                   <button
                     type="button"
@@ -1880,22 +1917,22 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                     ADR-0003 Recalculated Leveled Cost Preview
                   </span>
                   <span className="text-lg font-black text-emerald-400 font-mono">
-                    ${calculatePreviewCost().toLocaleString()}
+                    {formatCents(calculatePreviewCost())}
                   </span>
                 </div>
                 <div className="font-mono text-[11px] text-slate-400 flex items-center gap-1.5 flex-wrap">
-                  <span>Base: ${adjustingBid.baseBidAmount.toLocaleString()}</span>
+                  <span>Base: {formatCents(adjustingBid.baseAmountCents)}</span>
                   <span>+</span>
                   <span className="text-amber-400">
-                    Active Gaps: ${tempExclusions.reduce((s, x) => (x.isWaived ? s : s + (x.costImpact || 0)), 0).toLocaleString()}
+                    Active Gaps: {formatCents(tempExclusions.reduce((s, x) => (x.isWaived ? s : s + (x.costImpactCents || 0)), 0))}
                   </span>
                   <span>+</span>
-                  <span className="text-sky-400">Lead: ${tempLeadPenalty.toLocaleString()}</span>
+                  <span className="text-sky-400">Lead: {formatCents(inputDollarsToCents(tempLeadPenalty))}</span>
                   <span>+</span>
-                  <span className="text-rose-400">COI: ${tempCoiPenalty.toLocaleString()}</span>
+                  <span className="text-rose-400">COI: {formatCents(inputDollarsToCents(tempCoiPenalty))}</span>
                   <span>-</span>
                   <span className="text-emerald-400 font-bold">
-                    VE Deducts: ${tempAlternates.reduce((s, x) => (x.isAccepted ? s + (x.costDeduct || 0) : s), 0).toLocaleString()}
+                    VE Deducts: {formatCents(tempAlternates.reduce((s, x) => (x.isAccepted ? s + (x.costDeductCents || 0) : s), 0))}
                   </span>
                 </div>
               </div>
@@ -1927,7 +1964,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                             {exc.description}
                           </div>
                           <div className="font-mono text-[11px] text-amber-400 mt-0.5">
-                            Estimated Scope Gap Impact: +${(exc.costImpact || 0).toLocaleString()}
+                            Estimated Scope Gap Impact: +{formatCents(exc.costImpactCents || 0)}
                           </div>
                         </div>
                         <button
@@ -1999,7 +2036,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                           {alt.description}
                         </div>
                         <div className="font-mono text-[11px] text-emerald-400 mt-0.5">
-                          Cost Deduct Savings: -${(alt.costDeduct || 0).toLocaleString()}
+                          Cost Deduct Savings: -{formatCents(alt.costDeductCents || 0)}
                         </div>
                       </div>
                       <button
@@ -2011,7 +2048,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                             : "bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700"
                         }`}
                       >
-                        {alt.isAccepted ? "✓ Accepted (-$" + (alt.costDeduct || 0).toLocaleString() + ")" : "Accept Alternate"}
+                        {alt.isAccepted ? "✓ Accepted (-" + formatCents(alt.costDeductCents || 0) + ")" : "Accept Alternate"}
                       </button>
                     </div>
                   ))}
@@ -2087,7 +2124,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                 {adjustmentError ? (
                   <span className="text-rose-400">{adjustmentError}</span>
                 ) : (
-                  <>Updated Total: <strong className="text-emerald-400">${calculatePreviewCost().toLocaleString()}</strong></>
+                  <>Updated Total: <strong className="text-emerald-400">{formatCents(calculatePreviewCost())}</strong></>
                 )}
               </div>
               <div className="flex items-center gap-2">
@@ -2113,7 +2150,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
         </div>
       )}
 
-      {/* AIA Document A401 Agreement Viewer Modal */}
+      {/* Subcontract agreement viewer modal */}
       {viewingAgreementBidId && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in"
@@ -2131,7 +2168,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                 </div>
                 <div>
                   <h3 id="leveling-agreement-title" className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
-                    A401-style Subcontract Draft
+                    AIA-style Subcontract Draft
                     {activeAgreement?.status === "executed" ? (
                       <span className="text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800 px-2 py-0.5 rounded-full">
                         Execution status recorded • external signature required
@@ -2143,7 +2180,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                     )}
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Generated draft based on the A401 article structure — not an AIA-licensed form • {activeAgreement?.agreementNumber ?? "Loading..."}
+                    Generated AIA-style draft — not an AIA form • {activeAgreement?.agreementNumber ?? "Loading..."}
                   </p>
                 </div>
               </div>
@@ -2212,7 +2249,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                     </div>
                     <div>
                       <span className="text-slate-400 block text-[10px] uppercase">Liquidated Damages</span>
-                      <span className="font-bold text-slate-300">${activeAgreement.liquidatedDamagesDaily}/day</span>
+                      <span className="font-bold text-slate-300">{activeAgreement.liquidatedDamagesDaily > 0 ? `${formatCents(fromDollars(activeAgreement.liquidatedDamagesDaily))}/day` : "None"}</span>
                     </div>
                   </div>
 
@@ -2224,7 +2261,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                         </div>
                         <div>
                           <div className="font-bold text-xs tracking-wider uppercase text-emerald-300">
-                            ✓ Execution recorded in TradePulse for this A401-style draft
+                            ✓ Execution recorded in TradePulse for this AIA-style draft
                           </div>
                           <div className="text-[10px] text-emerald-400/80 font-mono">
                             Audit record: {activeAgreement.agreementNumber}-EXE • External signature verification required
@@ -2237,14 +2274,19 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                     </div>
                   )}
 
-                  <pre className="whitespace-pre-wrap font-mono text-xs bg-slate-900 p-6 rounded-xl border border-slate-800/80 leading-relaxed text-slate-200 print:border-none print:p-0 print:text-black">
+                  <div className="font-sans not-italic print:hidden">
+                    <AgreementTermsPanel agreementId={activeAgreement._id} />
+                  </div>
+
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 font-sans print:hidden">Subcontract preview</h4>
+                  <pre aria-label="Subcontract preview" className="whitespace-pre-wrap font-mono text-xs bg-slate-900 p-6 rounded-xl border border-slate-800/80 leading-relaxed text-slate-200 print:border-none print:p-0 print:text-black">
                     {activeAgreement.contractText}
                   </pre>
                 </div>
               ) : (
                 <div className="p-12 text-center text-slate-400 flex items-center justify-center gap-2">
                   <Clock className="w-4 h-4 animate-spin text-emerald-400" />
-                  Generating A401-style Subcontract Draft...
+                  Generating AIA-style Subcontract Draft...
                 </div>
               )}
             </div>
@@ -2254,7 +2296,7 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
               <div className="p-4 border-t border-slate-800 bg-slate-900 flex flex-wrap items-center justify-between gap-3 text-xs">
                 <div className="text-slate-400 text-[11px] flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                  Generated A401-style draft — not an AIA-licensed form • Verified CSI Division {activeAgreement.csiDivision}
+                  Generated AIA-style draft — not an AIA form • CSI Division {activeAgreement.csiDivision}
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -2303,6 +2345,29 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
         confirmLabel="Record execution"
         onCancel={() => setAgreementToExecute(null)}
         onConfirm={confirmExecuteAgreement}
+      />
+      <UiConfirmDialog
+        open={Boolean(bidToAward)}
+        title={bidToAward ? `Award to ${bidToAward.subcontractorName}?` : "Award"}
+        payee={bidToAward?.subcontractorName}
+        payeeLabel="Bidder"
+        amountCents={legacyAwardConfirm?.contractSumCents}
+        amountLabel="Contract sum"
+        details={legacyAwardConfirm?.details}
+        effect={
+          <>
+            {PLUGS_NOT_INCLUDED} {AWARD_SUM_RULE} Awarding generates the subcontract draft and marks the other bidders as
+            not awarded.
+            {legacyAwardConfirm?.error && (
+              <span role="alert" className="mt-2 block text-rose-300">
+                {legacyAwardConfirm.error}
+              </span>
+            )}
+          </>
+        }
+        confirmLabel="Award and generate subcontract"
+        onCancel={() => setBidToAward(null)}
+        onConfirm={confirmAward}
       />
     </div>
   );

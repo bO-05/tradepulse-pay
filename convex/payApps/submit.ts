@@ -2,7 +2,8 @@ import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import { internal } from "../_generated/api";
 import { mutation, query, type MutationCtx, type QueryCtx } from "../_generated/server";
-import { requireRole, type Viewer } from "../lib/roles";
+import type { Viewer } from "../lib/roles";
+import { auditActor, findSubcontractDocScope, requireDocScope } from "../lib/projectScope";
 import { formatCents } from "../lib/money";
 import { viewerAgentAuditFields, type AgentAuditFields } from "../lib/agentAudit";
 import {
@@ -12,25 +13,19 @@ import {
   type SovLineContext,
 } from "./validation";
 import { billingPayAppHistory } from "./billingHistory";
+import { sovIsApproved } from "../payments/sov";
+import { SOV_NOT_APPROVED_MESSAGE } from "../lib/sovRules";
+import { notifyPayAppSubmitted } from "./g703";
+import { loadSovRows } from "../lib/sovLines";
 
-const NOT_OWN_AGREEMENT = "Forbidden: you can only submit pay applications for your own agreements.";
-const NOT_OWN_PAY_APP = "Forbidden: you can only withdraw your own pay applications.";
-
-/** The agreement when the sub (or linked agent) viewer's contractor holds it; otherwise null. */
-async function ownAgreement(ctx: QueryCtx, viewer: Viewer, agreementId: string): Promise<Doc<"agreements"> | null> {
-  const id = ctx.db.normalizeId("agreements", agreementId);
-  if (id === null) return null;
-  const agreement = await ctx.db.get(id);
-  const contractorId = viewer.profile.contractorId;
-  if (agreement === null || contractorId === undefined || agreement.contractorId !== contractorId) return null;
-  return agreement;
+function assertSovApproved(agreement: Doc<"agreements">): void {
+  if (!sovIsApproved(agreement)) {
+    throw new ConvexError({ code: "SOV_NOT_APPROVED", message: SOV_NOT_APPROVED_MESSAGE });
+  }
 }
 
 async function sovContext(ctx: QueryCtx, agreementId: Id<"agreements">) {
-  const sov = await ctx.db
-    .query("scheduleOfValues")
-    .withIndex("by_agreementId_and_lineNo", (q) => q.eq("agreementId", agreementId))
-    .take(500);
+  const sov = await loadSovRows(ctx, agreementId);
   const baseline = sovBaselineByLine(await billingPayAppHistory(ctx, agreementId), sov);
   return sov.map((s) => {
     const b = baseline.get(s._id)!;
@@ -66,14 +61,21 @@ function submittedByFor(viewer: Viewer): Doc<"payApplications">["submittedBy"] {
 export const payAppFormContext = query({
   args: { agreementId: v.string() },
   handler: async (ctx, args) => {
-    const viewer = await requireRole(ctx, ["sub"]);
-    const agreement = await ownAgreement(ctx, viewer, args.agreementId);
-    if (agreement === null) return null;
+    const scope = await findSubcontractDocScope(ctx, "agreements", args.agreementId, { roles: ["sub"] });
+    if (scope === null) return null;
+    const agreement = scope.doc;
+    const sovApproved = sovIsApproved(agreement);
     return {
       agreementId: agreement._id,
       agreementNumber: agreement.agreementNumber,
       status: agreement.status,
-      sovLines: agreement.status === "executed" ? await sovContext(ctx, agreement._id) : [],
+      sovApproved,
+      blockedReason: !sovApproved
+        ? SOV_NOT_APPROVED_MESSAGE
+        : agreement.status !== "executed"
+          ? "Pay applications open once the GC records execution of this agreement."
+          : null,
+      sovLines: agreement.status === "executed" && sovApproved ? await sovContext(ctx, agreement._id) : [],
     };
   },
 });
@@ -95,10 +97,11 @@ export const submitPayApplication = mutation({
     lienWaiver: v.boolean(),
   },
   handler: async (ctx, args) => {
-    const viewer = await requireRole(ctx, ["sub"]);
-    // Missing and "not yours" give the same error so a sub cannot probe other agreements.
-    const agreement = await ownAgreement(ctx, viewer, args.agreementId);
-    if (agreement === null) throw new ConvexError({ code: "FORBIDDEN", message: NOT_OWN_AGREEMENT });
+    // Missing, another company's and another sub's agreements all read "Not found.".
+    const scope = await requireDocScope(ctx, "agreements", args.agreementId, { roles: ["sub"], write: true });
+    const agreement = scope.doc;
+    const viewer = scope.viewer;
+    assertSovApproved(agreement);
     if (agreement.status !== "executed") {
       throw new ConvexError({
         code: "INVALID_STATE",
@@ -108,7 +111,7 @@ export const submitPayApplication = mutation({
     return await recordPayApplication(ctx, agreement, args, {
       submittedBy: submittedByFor(viewer),
       subUserId: viewer.userId,
-      actor: viewer.user.email ?? viewer.profile.displayName,
+      ...auditActor(scope),
       auditFields: viewerAgentAuditFields(viewer),
     });
   },
@@ -133,11 +136,14 @@ export async function recordPayApplication(
     submittedBy: Doc<"payApplications">["submittedBy"];
     subUserId: Id<"users">;
     actor: string;
+    actorUserId?: Id<"users">;
+    actorCompanyId?: Id<"companies">;
     auditFields: AgentAuditFields;
     judgeDemo?: Doc<"payApplications">["judgeDemo"];
     auditNote?: string;
   },
 ): Promise<Id<"payApplications">> {
+  assertSovApproved(agreement);
   const sov = await sovContext(ctx, agreement._id);
   const sovForValidation: SovLineContext[] = sov.map((s) => ({ ...s, _id: s._id as string }));
   const result = validatePayApp(args, sovForValidation);
@@ -150,9 +156,11 @@ export async function recordPayApplication(
   }
   const lines = result.lines.map((l) => ({ ...l, sovLineId: l.sovLineId as Id<"scheduleOfValues"> }));
   const now = Date.now();
+  const contractor = agreement.contractorId ? await ctx.db.get(agreement.contractorId) : null;
   const payAppId = await ctx.db.insert("payApplications", {
     agreementId: agreement._id,
     contractorId: agreement.contractorId,
+    ...(contractor?.linkedCompanyId ? { subCompanyId: contractor.linkedCompanyId } : {}),
     subUserId: who.subUserId,
     periodLabel: args.periodLabel.trim(),
     lines,
@@ -174,10 +182,14 @@ export async function recordPayApplication(
       isAgent ? " by billing agent" : ""
     }${who.auditNote ? ` ${who.auditNote}` : ""}.`,
     actor: who.actor,
+    ...(who.actorUserId ? { actorUserId: who.actorUserId } : {}),
+    ...(who.actorCompanyId ? { actorCompanyId: who.actorCompanyId } : {}),
     timestamp: now,
     ...who.auditFields,
   });
   await ctx.scheduler.runAfter(0, internal.payApps.review.reviewPayApp, { payAppId });
+  const stored = await ctx.db.get(payAppId);
+  if (stored !== null) await notifyPayAppSubmitted(ctx, agreement, stored, result.requestedTotalCents);
   return payAppId;
 }
 
@@ -187,31 +199,30 @@ export async function payAppSovContext(ctx: QueryCtx, agreementId: Id<"agreement
 }
 
 /**
- * Withdraws a submitted or under-review pay app of the caller's contractor and
+ * Withdraws a pay app of the caller's contractor that awaits a GC decision and
  * cancels its pending proposals. Moves no money.
  */
 export const withdrawPayApplication = mutation({
   args: { payAppId: v.string() },
   handler: async (ctx, args) => {
-    const viewer = await requireRole(ctx, ["sub"]);
-    const id = ctx.db.normalizeId("payApplications", args.payAppId);
-    const payApp = id === null ? null : await ctx.db.get(id);
-    const agreement = payApp === null ? null : await ownAgreement(ctx, viewer, payApp.agreementId);
-    if (payApp === null || agreement === null) {
-      throw new ConvexError({ code: "FORBIDDEN", message: NOT_OWN_PAY_APP });
-    }
-    if (!WITHDRAWABLE_PAY_APP_STATUSES.has(payApp.status)) {
-      throw new ConvexError({
-        code: "INVALID_STATE",
-        message: `Only submitted or under-review pay applications can be withdrawn (this one is ${payApp.status}).`,
-      });
-    }
-    const now = Date.now();
-    await ctx.db.patch(payApp._id, { status: "withdrawn", withdrawnAt: now });
+    const scope = await requireDocScope(ctx, "payApplications", args.payAppId, { roles: ["sub"], write: true });
+    const payApp = scope.doc;
+    const viewer = scope.viewer;
+    const agreement = await ctx.db.get(payApp.agreementId);
+    if (agreement === null) throw new ConvexError({ code: "NOT_FOUND", message: "Not found." });
     const proposals = await ctx.db
       .query("agentProposals")
       .withIndex("by_payAppId", (q) => q.eq("payAppId", payApp._id))
       .take(200);
+    const gcDecided = proposals.some((p) => p.status === "approved" || p.status === "executed");
+    if (!WITHDRAWABLE_PAY_APP_STATUSES.has(payApp.status) || gcDecided) {
+      throw new ConvexError({
+        code: "INVALID_STATE",
+        message: `Only pay applications awaiting a GC decision can be withdrawn (this one is ${payApp.status}${gcDecided ? " with an approved payment" : ""}).`,
+      });
+    }
+    const now = Date.now();
+    await ctx.db.patch(payApp._id, { status: "withdrawn", withdrawnAt: now });
     let cancelled = 0;
     for (const p of proposals) {
       if (p.status !== "pending") continue;
@@ -224,7 +235,7 @@ export const withdrawPayApplication = mutation({
       eventType: "pay_app_withdrawn",
       title: "Pay application withdrawn",
       description: `${agreement.agreementNumber} ${payApp.periodLabel} withdrawn; ${cancelled} pending proposal(s) cancelled.`,
-      actor: viewer.user.email ?? viewer.profile.displayName,
+      ...auditActor(scope),
       timestamp: now,
       ...viewerAgentAuditFields(viewer),
     });

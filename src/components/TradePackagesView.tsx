@@ -1,5 +1,7 @@
 import { getErrorMessage } from "../lib/errors.ts";
-import React, { useState } from "react";
+import { BID_DUE_TIME_HINT, BidDueEditor } from "../projects/gc/BidDueEditor";
+import React, { useEffect, useState } from "react";
+import { consumeSpecBreakdownRequest } from "../projects/gc/specBreakdownRequest";
 import {
   Layers,
   DollarSign,
@@ -42,6 +44,7 @@ interface TradePackagesViewProps {
     scopeSummary: string;
     mandatoryInclusions: string[];
     bidDeadline: string;
+    bidDueTime?: string;
   }) => Promise<void>;
   onGenerateTradePackagesFromSpec?: (
     specText: string,
@@ -90,6 +93,7 @@ export const TradePackagesView: React.FC<TradePackagesViewProps> = ({
   const [scopeSummary, setScopeSummary] = useState("");
   const [mandatoryInclusions, setMandatoryInclusions] = useState("Crane hoisting\nSeismic bracing\nTemporary power");
   const [bidDeadline, setBidDeadline] = useState("2026-09-30");
+  const [bidDueTime, setBidDueTime] = useState("");
 
   const generateTradePackagesAction = useAction(api.tradePackages.generateTradePackagesFromSpec);
   // A6-29: real per-package email delivery outcome from the audit trail.
@@ -118,6 +122,7 @@ export const TradePackagesView: React.FC<TradePackagesViewProps> = ({
         scopeSummary,
         mandatoryInclusions: mandatoryInclusions.split("\n").map((s) => s.trim()).filter(Boolean),
         bidDeadline,
+        ...(bidDueTime ? { bidDueTime } : {}),
       });
       setIsModalOpen(false);
       setTradeName("");
@@ -212,6 +217,22 @@ Furnish and install domestic cold, hot, and recirculated water piping, sanitary 
     );
   };
 
+  const openSpecBreakdownDialog = () => {
+    // A18-01: start each breakdown from a clean draft.
+    setPreviewPackages(null);
+    setGenerationErrorMessage(null);
+    setSpecInputText("");
+    setIsSpecModalOpen(true);
+    populateSampleSpec();
+  };
+
+  // The New project wizard's "AI spec breakdown" lands here and asks for the dialog once.
+  const currentProjectId = currentProject?._id;
+  useEffect(() => {
+    if (consumeSpecBreakdownRequest(currentProjectId)) openSpecBreakdownDialog();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentProjectId]);
+
   const getStatusBadge = (status: TradePackage["status"]) => {
     switch (status) {
       case "awarded":
@@ -273,14 +294,7 @@ Furnish and install domestic cold, hot, and recirculated water piping, sanitary 
           <div className="flex items-center gap-2.5">
             {currentProject && (
               <button
-                onClick={() => {
-                  // A18-01: start each breakdown from a clean draft.
-                  setPreviewPackages(null);
-                  setGenerationErrorMessage(null);
-                  setSpecInputText("");
-                  setIsSpecModalOpen(true);
-                  populateSampleSpec();
-                }}
+                onClick={openSpecBreakdownDialog}
                 className="bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-slate-950 font-bold text-xs px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition shadow-sm"
               >
                 <Sparkles className="w-4 h-4 fill-slate-950" />
@@ -296,6 +310,7 @@ Furnish and install domestic cold, hot, and recirculated water piping, sanitary 
                 setScopeSummary("");
                 setMandatoryInclusions("Crane hoisting\nSeismic bracing\nTemporary power");
                 setBidDeadline("2026-09-30");
+                setBidDueTime("");
                 setCreationError(null);
                 setIsModalOpen(true);
               }}
@@ -311,7 +326,7 @@ Furnish and install domestic cold, hot, and recirculated water piping, sanitary 
         {showWhyCare && (
           <div className="mt-3 pt-3 border-t border-slate-800 text-xs text-slate-300 leading-relaxed bg-slate-950/60 rounded-lg p-3 border animate-in fade-in">
             <span className="font-semibold text-emerald-400">GC Preconstruction Baseline: </span>
-            General Contractors prevent scope voids and trade clash claims by defining clear CSI MasterFormat boundaries before soliciting bids. TradePulse provisions programmatic <code className="text-emerald-300 bg-slate-900 px-1 py-0.5 rounded font-mono">@agentmail.to</code> inboxes per trade package — shared when the AgentMail plan limit is reached, and labeled as shared on the package card — so all subcontractor communications are tracked and audit-ready.
+            General Contractors prevent scope voids and trade clash claims by defining clear CSI MasterFormat boundaries before soliciting bids. TradePulse Pay provisions programmatic <code className="text-emerald-300 bg-slate-900 px-1 py-0.5 rounded font-mono">@agentmail.to</code> inboxes per trade package — shared when the AgentMail plan limit is reached, and labeled as shared on the package card — so all subcontractor communications are tracked and audit-ready.
           </div>
         )}
       </div>
@@ -328,7 +343,7 @@ Furnish and install domestic cold, hot, and recirculated water piping, sanitary 
           <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center text-slate-400">
             <Layers className="w-6 h-6" />
           </div>
-          <h3 className="text-base font-bold text-white">No Trade Packages Configured</h3>
+          <h3 className="text-base font-bold text-white">No trade packages yet</h3>
           <p className="text-xs text-slate-400 max-w-md">
             Break down your architectural specifications into CSI MasterFormat buyout packages using AI Spec Breakdown, or create a package manually.
           </p>
@@ -381,15 +396,20 @@ Furnish and install domestic cold, hot, and recirculated water piping, sanitary 
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400 flex items-center gap-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-slate-400 flex items-center gap-1 shrink-0">
                         <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                        Bid Deadline:
+                        Bids due:
                       </span>
-                      <span className="text-slate-300 font-mono text-[11px]">
-                        {pkg.bidDeadline}
+                      <span className="text-slate-300 text-[11px] text-right" data-testid="procurement-bid-due">
+                        {pkg.dueLabel ?? pkg.bidDeadline}
                       </span>
                     </div>
+                    {pkg.status !== "awarded" && !pkg._id.startsWith("pkg_") && (
+                      <div className="flex justify-end">
+                        <BidDueEditor pkg={pkg} compact hideLabel />
+                      </div>
+                    )}
 
                     <div className="flex items-center justify-between">
                       <span className="text-slate-400 flex items-center gap-1">
@@ -465,10 +485,10 @@ Furnish and install domestic cold, hot, and recirculated water piping, sanitary 
                       handleDispatch(pkg._id);
                     }}
                     className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-semibold py-1.5 px-3 rounded-lg flex items-center gap-1 transition"
-                    title="Dispatch RFQ emails to discovered contractors via AgentMail"
+                    title="Review the recipient list, then send RFQ emails"
                   >
                     <Send className="w-3 h-3" />
-                    Dispatch RFQs
+                    Send RFQs
                   </button>
 
                   {onDeletePackage && (
@@ -747,17 +767,32 @@ Furnish and install domestic cold, hot, and recirculated water piping, sanitary 
                 />
               </div>
 
-              <div>
-                <label className="block text-slate-400 font-medium mb-1">Bid Deadline</label>
-                <input
-                  type="date"
-                  required
-                  aria-label="Bid deadline"
-                  value={bidDeadline}
-                  min={localDateInputValue()}
-                  onChange={(e) => setBidDeadline(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-400 font-medium mb-1">Bid Deadline</label>
+                  <input
+                    type="date"
+                    required
+                    aria-label="Bid deadline"
+                    value={bidDeadline}
+                    min={localDateInputValue()}
+                    onChange={(e) => setBidDeadline(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-400 font-medium mb-1" htmlFor="create-pkg-due-time">Due time (optional)</label>
+                  <input
+                    id="create-pkg-due-time"
+                    type="time"
+                    step={60}
+                    value={bidDueTime}
+                    onChange={(e) => setBidDueTime(e.target.value.slice(0, 5))}
+                    aria-describedby="create-pkg-due-time-hint"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-500 [color-scheme:dark]"
+                  />
+                </div>
+                <p id="create-pkg-due-time-hint" className="col-span-2 text-[11px] text-slate-400">{BID_DUE_TIME_HINT}</p>
               </div>
 
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">

@@ -71,7 +71,7 @@ export type DemoState = {
 };
 
 export const FUNDED_STATUSES = new Set(["authorized", "partially_captured", "captured"]);
-const REVIEWED = new Set(["reviewed", "approved", "paid", "rejected"]);
+const REVIEWED = new Set(["reviewed", "approved", "approved_as_noted", "revision_requested", "paid", "rejected"]);
 const DECIDED = new Set(["approved", "executed", "failed"]);
 
 export function moneyProposal(item: DemoInboxItem | null, kind: "capture" | "payout"): Proposal | null {

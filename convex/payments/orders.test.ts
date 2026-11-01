@@ -231,7 +231,7 @@ describe("createFundingOrder", () => {
     const { t, milestone } = await setup();
     const caller = role === null ? t : (await signInAs(t, role)).as;
     const err = await errorOf(caller.action(api.payments.orders.createFundingOrder, { milestoneId: milestone._id }));
-    expect(String(err.data?.message ?? err.message)).toMatch(/Not authenticated|Forbidden/);
+    expect(String(err.data?.message ?? err.message)).toMatch(/Not authenticated|Forbidden|Not found/);
     expect(fake.calls).toHaveLength(0);
     expect(await fundingRows(t, milestone._id)).toHaveLength(0);
   });
@@ -390,7 +390,7 @@ describe("authorizeFundingOrder", () => {
     const { orderId } = await gc.as.action(api.payments.orders.createFundingOrder, { milestoneId: milestone._id });
     const caller = role === null ? t : (await signInAs(t, role)).as;
     const err = await errorOf(caller.action(api.payments.orders.authorizeFundingOrder, { orderId }));
-    expect(String(err.data?.message ?? err.message)).toMatch(/Not authenticated|Forbidden/);
+    expect(String(err.data?.message ?? err.message)).toMatch(/Not authenticated|Forbidden|Not found/);
     expect(fake.posts(/\/authorize$/)).toHaveLength(0);
     expect((await fundingRows(t, milestone._id))[0].status).toBe("created");
   });

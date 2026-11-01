@@ -1,4 +1,4 @@
-/** The demo's change order as the driver needs it (the first change order on the demo agreement). */
+/** The demo's prime change order as the driver needs it (the run's change order). */
 export type DriverChangeOrder = { _id: string; status: string; payerViewUrl: string | null };
 
 /** The change order is invoiced only when PayPal sent (or the Owner paid) the invoice and a payer URL exists. */
@@ -17,9 +17,10 @@ export type ChangeOrderStepDeps<Id extends string> = {
 };
 
 /**
- * Ensures the demo's change-order invoice is sent. createChangeOrder stores a draft before calling
- * PayPal, so an interrupted run can leave a draft behind; that draft is resumed through
- * sendChangeOrderInvoice (whose request ids prevent a second invoice), never counted as done.
+ * Ensures the demo's change-order invoice is sent. `create` records the prime change order approved for
+ * the demo owner and then invoices it, so an interrupted run can leave an approved change order without
+ * an invoice; that one is resumed through sendChangeOrderInvoice (whose request ids prevent a second
+ * invoice), never counted as done.
  */
 export async function ensureChangeOrderInvoiced<Id extends string>(deps: ChangeOrderStepDeps<Id>): Promise<"created" | "resumed" | "already"> {
   const co = await deps.current();
@@ -29,7 +30,7 @@ export async function ensureChangeOrderInvoiced<Id extends string>(deps: ChangeO
     deps.onPhase?.("Invoicing a change order to the Owner…");
     await deps.create();
     outcome = "created";
-  } else if (co.status === "draft") {
+  } else if (co.status === "approved") {
     deps.onPhase?.("Resuming the change-order invoice to the Owner…");
     await deps.resume(co._id);
     outcome = "resumed";
