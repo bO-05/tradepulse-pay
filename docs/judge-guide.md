@@ -11,9 +11,14 @@ This is the tested recovery-dev sandbox, not production. The guide signs into or
 | Subcontractor | `sub1@demo.tradepulse` | My agreements & pay applications |
 | Owner | `owner@demo.tradepulse` | Home, change orders, invoice payment |
 
-All three use `TradePulseDemo!2026`. Use separate private-browser contexts for simultaneous roles.
+All three use `TradePulseDemo!2026`. Use isolated browser contexts/profiles for simultaneous roles;
+two tabs or private windows can share one login and are not sufficient isolation.
 Do not put personal information or real payment details in these shared accounts.
 The app does not require your own PayPal, model, AgentID or Studio account for the core demonstration.
+
+For independent QA, give a new reviewer the [blind first-use brief](./browser-audit-start.md) first,
+then the [detailed browser audit playbook](./browser-agent-audit.md). Those are audit assignments,
+not claims that the independent checks have already passed.
 
 ## Two-minute inspection, no new payment
 
