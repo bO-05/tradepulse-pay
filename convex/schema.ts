@@ -1034,6 +1034,8 @@ export default defineSchema({
     targetCompletionWeeks: v.number(),
     specDocumentText: v.string(),
     isDemoProject: v.boolean(), // Allows public read access for judges
+    // The settled recovery demo is readable but cannot accept user-initiated workflow or money writes.
+    readOnlyReference: v.optional(v.boolean()),
     generalContractorName: v.optional(v.string()),
     // Owning GC company. Optional only until every writer sets it; the tenancy migration backfills it.
     gcCompanyId: v.optional(v.id("companies")),

@@ -40,7 +40,7 @@ async function makePackage(t: T, projectId: any, csi = "26 00 00", budget = 1_25
     budgetEstimate: budget,
     scopeSummary: "QA7 verification scope.",
     mandatoryInclusions: ["Code compliance"],
-    bidDeadline: "2026-10-31",
+    bidDeadline: new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10),
   });
 }
 
@@ -105,7 +105,7 @@ test("QA7-1: createTradePackage rejects a nonexistent projectId and inserts noth
       budgetEstimate: 100_000,
       scopeSummary: "Must be rejected.",
       mandatoryInclusions: ["None"],
-      bidDeadline: "2026-10-31",
+      bidDeadline: new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10),
     })
   ).rejects.toThrow(/Not found/);
   const all = await t.run(async (ctx) => await ctx.db.query("tradePackages").collect());

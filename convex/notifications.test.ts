@@ -44,6 +44,10 @@ afterEach(() => {
 });
 
 describe("notify()", () => {
+  test("dated business references survive without exposing adjacent secrets", () => {
+    expect(sanitizeNotificationText("A401-DEMO-PAY-20261101-02 on project 20261101-02 code 12345678 token abcdefghijklmnopqrstuvwxyz", 400))
+      .toBe("A401-DEMO-PAY-20261101-02 on project 20261101-02 code [hidden] token [hidden]");
+  });
   test("a company target writes one row per active human member; a company outside the project gets none", async () => {
     const { t, fx } = await setup();
     const written = await t.run(async (ctx) => [

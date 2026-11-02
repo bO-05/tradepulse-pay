@@ -5,7 +5,7 @@ import { api } from "../../convex/_generated/api";
 import { readableError } from "./FundMilestone";
 import { formatCents, formatDate } from "./format";
 import { LicenseCheckPanel } from "./LicenseCheck";
-import { JudgeDemoBadge } from "./JudgeDemoBadge";
+import { submissionAttribution } from "./SubmissionAttribution";
 import { isAIReviewProvider } from "../lib/aiProvenance";
 
 type PayAppWithReview = FunctionReturnType<typeof api.payApps.review.listAgreementPayApps>[number];
@@ -89,24 +89,20 @@ function RerunReviewButton({ payAppId, label }: { payAppId: string; label: strin
 }
 
 /** One pay application with its per-line review. Dollar amounts come from code, never from the model. */
-export function PayAppReviewCard({ payApp, canRerun }: { payApp: PayAppWithReview; canRerun: boolean }) {
+export function PayAppReviewCard({ payApp, canRerun, showAttribution = true }: { payApp: PayAppWithReview; canRerun: boolean; showAttribution?: boolean }) {
   const review = payApp.review;
   const rerunnable = ["submitted", "under_review", "reviewed"].includes(payApp.status);
   return (
     <article className="border border-slate-800 rounded-xl p-4 space-y-3" data-testid="payapp-review-card">
       <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <h3 className="font-semibold">{payApp.periodLabel}</h3>
-          <p className="text-xs text-slate-400">
-            Submitted {formatDate(payApp.createdAt)} by{" "}
-            {payApp.submittedBy.actorType === "agent"
-              ? `billing agent ${payApp.submittedBy.agentEmail ?? ""}${payApp.submittedBy.onBehalfOf ? ` on behalf of ${payApp.submittedBy.onBehalfOf}` : ""}`
-              : "the subcontractor"}
+          <p className="text-xs text-slate-400 [overflow-wrap:anywhere]">
+            Submitted {formatDate(payApp.createdAt)}{showAttribution ? ` · ${submissionAttribution(payApp.submittedBy, payApp.judgeDemoFiledBy)}` : ""}
             {" · "}status <span data-testid="payapp-review-status">{payApp.status}</span>
           </p>
-          <JudgeDemoBadge filedBy={payApp.judgeDemoFiledBy} />
         </div>
-        <dl className="flex gap-4 text-sm">
+        <dl className="grid w-full gap-3 text-sm sm:w-auto sm:grid-cols-3">
           <div>
             <dt className="text-xs text-slate-400">Requested</dt>
             <dd className="tabular-nums" data-testid="payapp-requested-total">{formatCents(payApp.requestedTotalCents)}</dd>
@@ -160,7 +156,7 @@ export function PayAppReviewCard({ payApp, canRerun }: { payApp: PayAppWithRevie
         </p>
       )}
 
-      <div className="overflow-x-auto">
+      <div className="table-scroll" role="region" aria-label="Pay application review lines" tabIndex={0}>
         <table className="w-full text-sm" data-testid="payapp-review-lines">
           <thead className="text-xs text-slate-400 text-left">
             <tr>
@@ -221,7 +217,7 @@ export function PayAppReviewCard({ payApp, canRerun }: { payApp: PayAppWithRevie
 }
 
 /** GC section of the agreement ledger: every pay application and its review. */
-export function AgreementPayAppReviews({ agreementId, contractorId }: { agreementId: string; contractorId: string }) {
+export function AgreementPayAppReviews({ agreementId, contractorId, readOnly = false }: { agreementId: string; contractorId: string; readOnly?: boolean }) {
   const payApps = useQuery(api.payApps.review.listAgreementPayApps, { agreementId });
   return (
     <section aria-labelledby="ledger-payapps" className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
@@ -232,7 +228,7 @@ export function AgreementPayAppReviews({ agreementId, contractorId }: { agreemen
         Each submitted pay application is reviewed line by line. The reviewer recommends a percent complete; approved
         amounts are computed by code as round(scheduled value × recommended %) − previously billed, capped at the request.
       </p>
-      <LicenseCheckPanel contractorId={contractorId} />
+      <LicenseCheckPanel contractorId={contractorId} readOnly={readOnly} />
       {payApps === undefined ? (
         <p className="text-sm text-slate-400" role="status">Loading pay applications…</p>
       ) : payApps.length === 0 ? (
@@ -240,7 +236,7 @@ export function AgreementPayAppReviews({ agreementId, contractorId }: { agreemen
       ) : (
         <div className="space-y-4">
           {payApps.map((p) => (
-            <PayAppReviewCard key={p._id} payApp={p} canRerun />
+            <PayAppReviewCard key={p._id} payApp={p} canRerun={!readOnly} />
           ))}
         </div>
       )}

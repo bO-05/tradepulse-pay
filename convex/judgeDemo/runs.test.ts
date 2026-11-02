@@ -47,6 +47,51 @@ async function errorOf(p: Promise<unknown>): Promise<{ code?: string; message?: 
 }
 
 describe("judge demo runs", () => {
+  test("ledger resolves each payout capture receipt from its funding capture history", async () => {
+    const { t, gc } = await setup();
+    const run = await gc.as.mutation(api.judgeDemo.runs.startRun, {});
+    await gc.as.mutation(api.agreements.executeAgreement, { agreementId: run.agreementId });
+    await t.run(async (ctx) => {
+      const milestone = await ctx.db.query("milestones").withIndex("by_agreementId_and_order", (q) => q.eq("agreementId", run.agreementId)).first();
+      const base = { agreementId: run.agreementId, milestoneId: milestone!._id, grossCents: 10000, retainageCents: 1000, netCents: 9000, createdAt: Date.now() };
+      const releasePaymentId = await ctx.db.insert("payments", { ...base, kind: "payout", status: "success", paypalPayoutItemId: "ITEM-ONE", idempotencyKey: "receipt-release" });
+      await ctx.db.insert("payments", { ...base, kind: "funding", status: "partially_captured", idempotencyKey: "receipt-funding",
+        captures: [{ captureId: "CAPTURE-ONE", amountCents: 10000, requestKey: "receipt-capture", finalCapture: false, status: "COMPLETED", releasePaymentId, capturedAt: Date.now() }] });
+    });
+    const ledger = await gc.as.query(api.payments.ledger.getAgreementLedger, { agreementId: run.agreementId });
+    expect(ledger?.milestones.flatMap((m) => m.releases)).toMatchObject([{ paypalCaptureId: "CAPTURE-ONE", paypalPayoutItemId: "ITEM-ONE" }]);
+  });
+
+  test("locked references stay readable but deny workflow and provider-refresh writes", async () => {
+    const { t, gc, sub1 } = await setup();
+    await signInAs(t, "owner", { email: "owner@demo.tradepulse" });
+    const run = await gc.as.mutation(api.judgeDemo.runs.startRun, {});
+    await gc.as.mutation(api.agreements.executeAgreement, { agreementId: run.agreementId });
+    const payAppId = await gc.as.mutation(api.judgeDemo.runs.fileDemoPayApp, { runId: run.runId, kind: "honest" });
+    const changeOrderId = await gc.as.mutation(api.judgeDemo.runs.prepareDemoChangeOrder, { runId: run.runId });
+    const info = await gc.as.query(api.judgeDemo.runs.getRun, { runId: run.runId });
+    await t.run((ctx) => ctx.db.patch(info!.projectId, { readOnlyReference: true }));
+    const ledger = await gc.as.query(api.payments.ledger.getAgreementLedger, { agreementId: run.agreementId });
+    expect(ledger).toMatchObject({ readOnlyReference: true, canFund: false });
+    expect(await gc.as.query(api.billing.tranches.listTranches, { agreementId: run.agreementId })).toMatchObject({ canEdit: false });
+    expect((await gc.as.query(api.payApps.proposals.listInbox, { agreementId: run.agreementId }))[0].readOnlyReference).toBe(true);
+    for (const call of [
+      gc.as.mutation(api.judgeDemo.runs.fileDemoPayApp, { runId: run.runId, kind: "honest" }),
+      gc.as.mutation(api.judgeDemo.runs.prepareDemoChangeOrder, { runId: run.runId }),
+      gc.as.mutation(api.billing.tranches.createTranche, { agreementId: run.agreementId, name: "Not allowed", amountCents: 100 }),
+      sub1.as.mutation(api.payApps.g703.startPayApp, { agreementId: run.agreementId }),
+      gc.as.action(api.payments.invoices.refreshChangeOrderStatus, { changeOrderId }),
+    ]) expect((await errorOf(call)).code).toBe("READ_ONLY_REFERENCE");
+    expect((await gc.as.query(api.payApps.g703.getPayApp, { payAppId })).canReject).toBe(false);
+    const fresh = await gc.as.mutation(api.judgeDemo.runs.startRun, {});
+    await gc.as.mutation(api.agreements.executeAgreement, { agreementId: fresh.agreementId });
+    expect((await gc.as.query(api.payments.ledger.getAgreementLedger, { agreementId: fresh.agreementId }))?.canFund).toBe(true);
+  });
+
+  test("malformed run paths return missing without validator errors", async () => {
+    const { gc } = await setup();
+    for (const runId of ["bad", "%", "undefined", "123"]) expect(await gc.as.query(api.judgeDemo.runs.getRunByPath, { runId })).toBeNull();
+  });
   test("history belongs to the demo GC, explicit selection survives newer shared-account runs", async () => {
     const { t, gc, gc2, sub1 } = await setup();
     const first = await gc.as.mutation(api.judgeDemo.runs.startRun, {});

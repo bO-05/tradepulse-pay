@@ -4,7 +4,7 @@ import { api } from "../../convex/_generated/api";
 import type { FunctionReturnType } from "convex/server";
 import { payAppHash } from "../auth/navigation";
 import { getErrorMessage } from "../lib/errors";
-import { Button, Card, EmptyState, PageHeader, StatusPill, formatCents, formatDate } from "../ui";
+import { Button, Card, ConfirmDialog, EmptyState, PageHeader, StatusPill, formatCents, formatDate } from "../ui";
 import { DocumentDownloadButton } from "../documents/DocumentDownload";
 import { payAppTitle } from "./PayAppPage";
 
@@ -39,6 +39,7 @@ function AgreementPayApps({ row }: { row: AgreementRow }) {
   const start = useMutation(api.payApps.g703.startPayApp);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmNew, setConfirmNew] = useState(false);
   const open = row.openPayApp;
   const next = row.nextApplication;
   const reasonId = useId();
@@ -66,7 +67,7 @@ function AgreementPayApps({ row }: { row: AgreementRow }) {
             {open.status === "draft" ? "Continue" : "Open"} {payAppTitle(open)}
           </a>
         ) : next ? (
-          <Button onClick={() => void onNew()} loading={busy} data-testid="new-pay-app">
+          <Button onClick={() => setConfirmNew(true)} loading={busy} data-testid="new-pay-app">
             New pay app
           </Button>
         ) : row.blockedReason ? (
@@ -76,6 +77,15 @@ function AgreementPayApps({ row }: { row: AgreementRow }) {
         ) : null
       }
     >
+      <ConfirmDialog
+        open={confirmNew}
+        title="Create a pay application draft?"
+        effect="Creates a saved draft for this billing period. It does not submit to the GC or move money. Cancel leaves no new record."
+        details={next ? [{ label: "Application", value: `No. ${next.applicationNo}` }, { label: "Period", value: `${formatDate(next.periodStart)} – ${formatDate(next.periodEnd)}` }] : []}
+        confirmLabel="Create draft"
+        onCancel={() => setConfirmNew(false)}
+        onConfirm={async () => { await onNew(); setConfirmNew(false); }}
+      />
       {row.blockedReason ? (
         <p id={reasonId} className="text-sm text-amber-200" data-testid="new-pay-app-blocked-reason">
           {row.blockedReason}

@@ -19,10 +19,10 @@ export function AgreementSummaryView({ agreementId, backHash }: { agreementId: s
 
   return (
     <div className="max-w-3xl bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
+      <div className="flex flex-col items-start justify-between gap-4 sm:flex-row">
+        <div className="min-w-0">
           <p className="text-xs text-slate-400">{agreement.agreementNumber}</p>
-          <h2 className="text-lg font-semibold">{agreement.subcontractorName}</h2>
+          <h1 className="text-lg font-semibold">{agreement.subcontractorName}</h1>
           <p className="text-sm text-slate-400">
             {agreement.projectTitle} · Division {agreement.csiDivision} {agreement.tradeName}
           </p>
@@ -50,9 +50,9 @@ export function AgreementSummaryView({ agreementId, backHash }: { agreementId: s
       </dl>
       {agreement.baseBidCents !== null && (
         <section aria-labelledby="agreement-award-breakdown" className="text-sm">
-          <h3 id="agreement-award-breakdown" className="text-sm font-semibold mb-1">
+          <h2 id="agreement-award-breakdown" className="text-sm font-semibold mb-1">
             How the contract sum was set
-          </h3>
+          </h2>
           <ul className="space-y-0.5 text-slate-300">
             <li>Base bid: {formatCents(agreement.baseBidCents)}</li>
             {agreement.acceptedAlternates.map((a) => (
@@ -76,9 +76,9 @@ export function AgreementSummaryView({ agreementId, backHash }: { agreementId: s
       )}
       {agreement.excludedScopeNotes.length > 0 && (
         <section aria-labelledby="agreement-excluded-scope" className="text-sm">
-          <h3 id="agreement-excluded-scope" className="text-sm font-semibold mb-1">
+          <h2 id="agreement-excluded-scope" className="text-sm font-semibold mb-1">
             Excluded scope (not in contract)
-          </h3>
+          </h2>
           <ul className="list-disc pl-5 text-slate-300">
             {agreement.excludedScopeNotes.map((note) => (
               <li key={note}>{note}</li>
@@ -89,13 +89,13 @@ export function AgreementSummaryView({ agreementId, backHash }: { agreementId: s
       <AgreementTermsPanel agreementId={agreement._id} />
       {agreement.status === "executed" ? (
         <section aria-labelledby="agreement-milestone-funding">
-          <h3 id="agreement-milestone-funding" className="text-sm font-semibold mb-1">
+          <h2 id="agreement-milestone-funding" className="text-sm font-semibold mb-1">
             Milestone funding
-          </h3>
+          </h2>
           <MilestoneFundingTable milestones={agreement.milestones} label={`Milestone funding for ${agreement.agreementNumber}`} />
         </section>
       ) : null}
-      <div className="flex gap-4">
+      <div className="flex flex-wrap gap-4">
         <a href={sovHash(agreement._id)} className="inline-block text-sm text-emerald-400 hover:text-emerald-300">
           Schedule of values
         </a>

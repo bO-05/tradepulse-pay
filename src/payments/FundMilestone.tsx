@@ -58,7 +58,7 @@ export function FundingProvider({ children }: { children: ReactNode }) {
 /** Funding state text shown to every role. */
 export function FundingStatus({ milestone }: { milestone: FundableMilestone }) {
   const f = milestone.funding;
-  if (f === null) return <span className="text-xs text-slate-500">Not funded</span>;
+  if (f === null) return <span className="text-xs text-slate-400">Not funded</span>;
   if (f.paypalAuthorizationId && (f.status === "partially_captured" || f.status === "captured" || f.status === "voided")) {
     const captured = formatCents(f.capturedCents ?? 0);
     const text =

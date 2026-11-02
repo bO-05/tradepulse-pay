@@ -17,6 +17,7 @@ import {
   type ContractSumBreakdown,
 } from "../payments/changeOrderMath";
 import { agreementContractSumCents } from "../payments/sov";
+import { isReadOnlyReference } from "../lib/demoReference";
 
 /**
  * Read side of change orders v2 (architecture §16, §22): row views with the caller's capabilities,
@@ -105,13 +106,14 @@ export function changeOrderRowView(
     sovLineNo?: number | null;
     linkedLabel?: string | null;
     ownerPayAppNo?: number | null;
+    readOnly?: boolean;
   },
 ) {
   const scope = changeOrderScopeOf(co);
   const status = co.status as ChangeOrderStatus;
-  const mine = requesterPartyOf(co) === opts.party;
-  const decides = deciderOf(scope) === opts.party;
-  const editBlock = changeOrderEditBlock(status);
+  const mine = !opts.readOnly && requesterPartyOf(co) === opts.party;
+  const decides = !opts.readOnly && deciderOf(scope) === opts.party;
+  const editBlock = opts.readOnly ? "This settled reference is read-only." : changeOrderEditBlock(status);
   const prime = scope === "prime";
   const invoice = invoiceControlFor(co, opts.party, opts.recipient, opts.ownerPayAppNo ?? null);
   return {
@@ -154,8 +156,8 @@ export function changeOrderRowView(
     canWithdraw: mine && status === "submitted",
     canApprove: decides && status === "submitted",
     canReject: decides && status === "submitted",
-    invoice,
-    canRefresh: prime && (opts.party === "gc" || opts.party === "owner") && co.paypalInvoiceId !== undefined,
+    invoice: opts.readOnly ? { show: false, enabled: false, reason: "This settled reference is read-only." } : invoice,
+    canRefresh: !opts.readOnly && prime && (opts.party === "gc" || opts.party === "owner") && co.paypalInvoiceId !== undefined,
   };
 }
 export type ChangeOrderRowView = ReturnType<typeof changeOrderRowView>;
@@ -255,6 +257,8 @@ export async function rowViews(
     }
     const line = co.sovLineId ? await ctx.db.get(co.sovLineId) : null;
     const linked = co.linkedChangeOrderId && opts.party !== "owner" ? await ctx.db.get(co.linkedChangeOrderId) : null;
+    const projectId = co.projectId ?? agreement?.projectId;
+    const project = projectId ? await ctx.db.get(projectId) : null;
     out.push(
       changeOrderRowView(co, {
         party: opts.party,
@@ -263,6 +267,7 @@ export async function rowViews(
         sovLineNo: line?.lineNo ?? null,
         linkedLabel: linked ? changeOrderLabel(linked.number, changeOrderScopeOf(linked)) : null,
         ownerPayAppNo,
+        readOnly: isReadOnlyReference(project),
       }),
     );
   }

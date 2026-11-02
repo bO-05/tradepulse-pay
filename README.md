@@ -9,6 +9,7 @@ This is the tested, isolated recovery-dev build, not production. No signup is ne
 All PayPal calls use the sandbox (`api-m.sandbox.paypal.com`); no real money moves.
 Read the [judge walkthrough](./docs/judge-guide.md) for the short inspection path, hands-on checkout and real-user onboarding.
 The [submission draft and video handoff](./docs/submission-draft.md) separate verified evidence from the remaining owner publishing steps.
+The [November 2 audit retest handoff](./docs/external-audit-fixes.md) records the fixes, test scope and remaining owner actions without publishing the private audit.
 **Source matching this demo:** [recovery branch](https://github.com/bO-05/tradepulse-pay/tree/recovery/stabilize-2026-11-01).
 The default `main` branch is the preserved baseline, not the recovered build.
 
@@ -40,7 +41,7 @@ TradePulse Pay takes the contract the GC just awarded in TradePulse Pro and runs
 
 ## What changed since Oct 1
 
-The TradePulse Pay work is the commit range **`2ad5543..paypal-hackathon`** on branch `paypal-hackathon` (first commit `fc2f763`, Oct 7 2026). `2ad5543` is the last TradePulse Pro commit (Sep 22 2026). See them with `git log --oneline 2ad5543..paypal-hackathon`.
+The original TradePulse Pay work is the commit range **`2ad5543..paypal-hackathon`** on branch `paypal-hackathon` (first commit `c7986da`, Oct 7 2026). `2ad5543` is the last TradePulse Pro commit (Sep 22 2026), from the earlier Convex-hackathon submission. Recovery work continues on `recovery/stabilize-2026-11-01`. See the full update with `git log --oneline 2ad5543..recovery/stabilize-2026-11-01`.
 
 - **Sign-in and roles (AUTH).** Convex Auth email + password with roles gc, sub and owner; AgentID sign-in for billing agents with GC-managed links; every public Convex function, old and new, is role-guarded (`docs/guard-audit.md`).
 - **Payments (PAY).** Payments schema and integer-cents money helpers; PayPal client with token cache, `PayPal-Request-Id` idempotency, backoff and audit logs; SOV and milestones on execution; AUTHORIZE funding; partial capture, void and reauthorize; payouts net of retainage; retainage ledger and closeout release; change-order invoices; signature-verified `/paypal/webhook`; hourly honor-period watcher; payout retry and ledger reconciliation; a read-only milestone funding summary for subs.

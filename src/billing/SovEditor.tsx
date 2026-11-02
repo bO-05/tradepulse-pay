@@ -114,6 +114,7 @@ function SovEditor({ sov }: { sov: SovData }) {
   return (
     <Card
       title="Schedule of values"
+      headingLevel={1}
       description={`${sov.agreementNumber} · ${sov.subcontractorName} · ${sov.projectTitle}`}
       actions={
         <div className="flex flex-wrap items-center gap-2">
@@ -249,7 +250,7 @@ function SovEditor({ sov }: { sov: SovData }) {
       ) : null}
 
       {showLines ? (
-        <div className="mt-4 overflow-x-auto">
+        <div className="mt-4 table-scroll" role="region" aria-label="Schedule of values lines" tabIndex={0}>
           <table className="w-full text-sm" data-testid="sov-lines">
             <caption className="sr-only">
               Schedule of values lines for {sov.agreementNumber}

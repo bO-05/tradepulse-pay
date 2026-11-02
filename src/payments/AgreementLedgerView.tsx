@@ -10,6 +10,7 @@ import { payAppHash } from "../auth/navigation";
 import { FundingTranches } from "../billing/FundingTranches";
 import { RetainageReleaseControl, RetainageReleaseList } from "./RetainageRelease";
 import { DocumentDownloadButton } from "../documents/DocumentDownload";
+import { ReferenceNotice } from "./ReferenceNotice";
 
 const TOTALS: { key: "contractSumCents" | "billedCents" | "paidCents" | "retainageHeldCents" | "balanceCents"; label: string }[] = [
   { key: "contractSumCents", label: "Contract sum to date" },
@@ -29,13 +30,21 @@ const RECONCILIATION: {
     | "changeOrdersPaidCents";
   label: string;
 }[] = [
-  { key: "fundedCents", label: "Funded, not captured" },
+  { key: "fundedCents", label: "Remaining authorization" },
   { key: "capturedCents", label: "Captured" },
   { key: "capturedNotPaidCents", label: "Captured, not paid out" },
   { key: "retainageReleasedCents", label: "Retainage released" },
   { key: "changeOrdersInvoicedCents", label: "Change orders invoiced" },
   { key: "changeOrdersPaidCents", label: "Change orders paid" },
 ];
+const MONEY_DEFINITIONS: Record<string, string> = {
+  fundedCents: "Money still authorized at PayPal, after completed captures. This is not a new deposit or a payment to the sub.",
+  capturedCents: "Confirmed completed PayPal captures. Pending captures are excluded; a capture is not a successful payout.",
+  capturedNotPaidCents: "Captured money whose associated subcontractor payout has not succeeded.",
+  retainageReleasedCents: "Previously held retainage released at closeout, net of reversals.",
+  changeOrdersInvoicedCents: "Separate Owner change-order invoices still awaiting payment.",
+  changeOrdersPaidCents: "Separate paid Owner change-order invoices, not subcontractor payouts.",
+};
 
 export function AgreementLedgerView({ agreementId, backHash }: { agreementId: string; backHash: string }) {
   const ledger = useQuery(api.payments.ledger.getAgreementLedger, { agreementId });
@@ -50,22 +59,23 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
 
   return (
     <div className="max-w-5xl space-y-6">
+      {ledger.readOnlyReference && <ReferenceNotice />}
       <section className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
-        <div className="flex items-start justify-between gap-4">
-          <div>
+        <div className="flex flex-col items-start justify-between gap-4 sm:flex-row">
+          <div className="min-w-0">
             <a href={backHash} className="text-xs text-emerald-400 hover:text-emerald-300">
               ← Payments
             </a>
             <p className="text-xs text-slate-400 mt-1" data-testid="ledger-agreement-number">
               {agreement.agreementNumber}
             </p>
-            <h2 className="text-lg font-semibold">{agreement.subcontractorName}</h2>
+            <h1 className="text-lg font-semibold">{agreement.subcontractorName} payment ledger</h1>
             <p className="text-sm text-slate-400">
               {agreement.projectTitle} · Division {agreement.csiDivision} {agreement.tradeName} · Retainage{" "}
               {agreement.retainagePercent}%
             </p>
           </div>
-          <div className="flex flex-col items-end gap-2">
+          <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
             <span className="text-xs font-semibold uppercase tracking-wide rounded-full px-2.5 py-1 bg-slate-800 border border-slate-700">
               {agreement.status}
             </span>
@@ -103,19 +113,22 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
         <dl className="grid grid-cols-2 sm:grid-cols-6 gap-3 text-xs" data-testid="ledger-reconciliation">
           {RECONCILIATION.map((t) => (
             <div key={t.key} className="border border-slate-800 rounded-lg p-2">
-              <dt className="text-slate-400">{t.label}</dt>
+              <dt className="text-slate-400">
+                <abbr className="cursor-help no-underline" title={MONEY_DEFINITIONS[t.key]}>{t.label}</abbr>
+              </dt>
               <dd className="font-semibold tabular-nums text-slate-200" data-testid={`ledger-${t.key}`}>
                 {formatCents(totals[t.key])}
               </dd>
             </div>
           ))}
         </dl>
+        <p className="text-xs text-slate-300">Remaining authorization is the PayPal-authorized amount less completed captures, not cash paid to the sub. Captured is confirmed money collected; captured, not paid out is awaiting a successful subcontractor payout.</p>
       </section>
 
       <section aria-labelledby="ledger-sov" className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-        <h3 id="ledger-sov" className="text-base font-semibold mb-3">
+        <h2 id="ledger-sov" className="text-base font-semibold mb-3">
           Schedule of values
-        </h3>
+        </h2>
         {sov.length === 0 ? (
           <p className="text-sm text-slate-400">
             {agreement.status === "executed"
@@ -123,6 +136,7 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
               : "The schedule of values is created when the agreement is executed."}
           </p>
         ) : (
+          <div className="table-scroll" role="region" aria-label="Schedule of values, scroll horizontally on narrow screens" tabIndex={0}>
           <table className="w-full text-sm" data-testid="ledger-sov-table">
             <thead className="text-xs text-slate-400 text-left">
               <tr>
@@ -161,6 +175,7 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
               </tr>
             </tfoot>
           </table>
+          </div>
         )}
         {agreement.excludedScopeNotes.length > 0 && (
           <div className="mt-4" data-testid="ledger-excluded-scope">
@@ -168,7 +183,11 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
             <p className="text-xs text-slate-400">Excluded in the bid; not billable and not part of the schedule of values.</p>
             <ul className="mt-1 list-disc pl-5 text-sm text-slate-300">
               {agreement.excludedScopeNotes.map((note) => (
-                <li key={note}>{note}</li>
+                <li key={note}>{note}
+                  {ledger.excludedScopeEstimates.find((e) => e.description === note)?.amountCents != null && (
+                    <> · estimated excluded-scope value {formatCents(ledger.excludedScopeEstimates.find((e) => e.description === note)!.amountCents!)} (not added to the contract)</>
+                  )}
+                </li>
               ))}
             </ul>
           </div>
@@ -176,18 +195,18 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
       </section>
 
       <section aria-labelledby="ledger-milestones" className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-        <h3 id="ledger-milestones" className="text-base font-semibold mb-3">
+        <h2 id="ledger-milestones" className="text-base font-semibold mb-3">
           Funding tranches
-        </h3>
+        </h2>
         <MaybeFundingProvider enabled={canFund}>
           <FundingTranches agreementId={agreement._id} ledgerMilestones={milestones} isGc={canFund} />
         </MaybeFundingProvider>
       </section>
 
       <section aria-labelledby="ledger-retainage" className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
-        <h3 id="ledger-retainage" className="text-base font-semibold">
+        <h2 id="ledger-retainage" className="text-base font-semibold">
           Retainage ledger
-        </h3>
+        </h2>
         <p className="text-sm text-slate-300" data-testid="retainage-summary">
           Retainage held: <span className="font-semibold tabular-nums">{formatCents(totals.retainageHeldCents)}</span> · Released:{" "}
           <span className="font-semibold tabular-nums" data-testid="retainage-released">
@@ -215,6 +234,7 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
         {retainageLedger.length === 0 ? (
           <p className="text-sm text-slate-400">No retainage held yet. Each paid pay app withholds its approved retainage ({agreement.retainagePercent}% per line).</p>
         ) : (
+          <div className="table-scroll" role="region" aria-label="Retainage entries, scroll horizontally on narrow screens" tabIndex={0}>
           <table className="w-full text-sm" data-testid="retainage-ledger-table">
             <thead className="text-xs text-slate-400 text-left">
               <tr>
@@ -254,10 +274,11 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
               </tr>
             </tfoot>
           </table>
+          </div>
         )}
       </section>
 
-      {canFund ? <AgreementPayAppReviews agreementId={agreement._id} contractorId={agreement.contractorId} /> : null}
+      {ledger.canViewReviews ? <AgreementPayAppReviews agreementId={agreement._id} contractorId={agreement.contractorId} readOnly={ledger.readOnlyReference} /> : null}
 
       <AgreementChangeOrders agreementId={agreement._id} />
     </div>

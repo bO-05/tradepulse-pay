@@ -2,7 +2,7 @@ import { useAction, useQuery } from "convex/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
-import { DEMO_BILLING_AGENT_EMAIL, DEMO_CONTRACT_SUM } from "../../../convex/judgeDemo/scenario";
+import { DEMO_CONTRACT_SUM } from "../../../convex/judgeDemo/scenario";
 import { judgeDemoHash, ledgerHash } from "../../auth/navigation";
 import { FundingProvider, FundMilestoneControl, readableError } from "../FundMilestone";
 import { formatCents } from "../format";
@@ -10,6 +10,8 @@ import { LicenseCheckPanel } from "../LicenseCheck";
 import { SandboxTopUpPanel } from "./SandboxTopUpPanel";
 import { deriveSteps, JUDGE_DEMO_AUTOSTART_KEY, type DemoInboxItem, type StepStatus } from "./steps";
 import { useJudgeDemoDriver } from "./useJudgeDemoDriver";
+import { NotFoundState } from "../../ui/NotFoundState";
+import { ReferenceNotice } from "../ReferenceNotice";
 
 const STATUS_STYLE: Record<StepStatus, { label: string; style: string }> = {
   todo: { label: "Waiting", style: "border-slate-700 bg-slate-800 text-slate-300" },
@@ -27,7 +29,9 @@ function elapsed(ms: number): string {
 /** Demo-company GC only: one-click guided demo against the real sandbox, reachable from the demo simulator and the nav. */
 export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
   const [runId, setRunId] = useState<Id<"judgeDemoRuns"> | null>((initialRunId as Id<"judgeDemoRuns"> | undefined) ?? null);
-  const run = useQuery(api.judgeDemo.runs.getRun, runId ? { runId } : {});
+  const defaultRun = useQuery(api.judgeDemo.runs.getRun, runId ? "skip" : {});
+  const selectedRun = useQuery(api.judgeDemo.runs.getRunByPath, runId ? { runId } : "skip");
+  const run = runId ? selectedRun : defaultRun;
   const history = useQuery(api.judgeDemo.runs.listRuns, {});
   const agreementId = run?.agreementId;
   const ledger = useQuery(api.payments.ledger.getAgreementLedger, agreementId ? { agreementId } : "skip");
@@ -77,7 +81,7 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
 
   const autostarted = useRef(false);
   useEffect(() => {
-    if (autostarted.current || run === undefined) return;
+    if (autostarted.current || run === undefined || (runId !== null && run === null)) return;
     if (sessionStorage.getItem(JUDGE_DEMO_AUTOSTART_KEY) === "1") {
       autostarted.current = true;
       sessionStorage.removeItem(JUDGE_DEMO_AUTOSTART_KEY);
@@ -97,6 +101,7 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
   });
   const mobilization = ledger?.milestones.find((m) => m.name === "Mobilization") ?? null;
   const invoicedAt = changeOrder?.invoicedAt ?? null;
+  if (runId !== null && run === null) return <NotFoundState />;
 
   return (
     <div className="max-w-4xl space-y-4" data-testid="judge-demo-page">
@@ -110,10 +115,11 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
         <p className="text-sm text-slate-300">
           One click runs the full pay-application flow against the real PayPal sandbox, the configured AI provider and KERNEL: execute a fresh demo
           agreement (${DEMO_CONTRACT_SUM.toLocaleString("en-US")}, seismic bracing excluded) for sub1's contractor, fund Mobilization, file an
-          honest pay app for sub1 and an overbilled one for the billing agent {DEMO_BILLING_AGENT_EMAIL}, run the AI review and the
+          honest pay app for sub1 and an overbilled one for a labeled billing-agent stand-in, run the AI review and the
           CSLB license check, approve (editing the agent's amount down), capture and pay with 10% retainage, and invoice a change
           order to the Owner.
         </p>
+        {run?.readOnlyReference && <ReferenceNotice />}
         <p className="text-xs text-amber-200">
           The two pay apps are filed by this demo as stand-ins and are labeled "Guided demo (Demo)" wherever they appear. PayPal approval
           and the Owner's invoice payment are real browser steps and are never faked. The driver stops after invoice submission;
@@ -142,7 +148,7 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
           >
             Run TradePulse Pay demo
           </button>
-          {run && (
+          {run && !run.readOnlyReference && (
             <button
               type="button"
               data-testid="judge-demo-continue"
@@ -198,7 +204,7 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
                 <p className="text-xs text-slate-400" data-testid={`judge-demo-detail-${step.id}`}>
                   {step.detail}
                 </p>
-                {step.id === "fund" && (step.status === "human" || step.status === "running") && mobilization && (
+                {step.id === "fund" && !run.readOnlyReference && (step.status === "human" || step.status === "running") && mobilization && (
                   <div className="space-y-1">
                     <p className="text-xs text-amber-200">
                       Human step: click Fund, choose "Debit or Credit Card" and pay as guest with the sandbox card (4032031427005060,
@@ -212,9 +218,9 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
                   </div>
                 )}
                 {step.id === "license" && run.contractorId && (run.agentPayAppId || run.honestPayAppId) && (
-                  <LicenseCheckPanel contractorId={run.contractorId} />
+                  <LicenseCheckPanel contractorId={run.contractorId} readOnly={run.readOnlyReference} />
                 )}
-                {step.id === "owner_pays" && step.status === "human" && changeOrder?.payerViewUrl && (
+                {step.id === "owner_pays" && !run.readOnlyReference && step.status === "human" && changeOrder?.payerViewUrl && (
                   <div className="space-y-1 text-xs">
                     <p className="text-amber-200">
                       Human step: sign in as owner@demo.tradepulse in another browser, open Projects &amp; change orders and pay{" "}
@@ -250,7 +256,7 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
             ))}
           </ol>
 
-          <section className="rounded-xl border border-slate-800 p-4 space-y-3" aria-label="Closeout" data-testid="judge-demo-closeout">
+          {!run.readOnlyReference && <section className="rounded-xl border border-slate-800 p-4 space-y-3" aria-label="Closeout" data-testid="judge-demo-closeout">
             <h2 className="font-semibold">Optional closeout: release retainage</h2>
             <p className="text-xs text-slate-400">
               Retainage held on this agreement: {formatCents(ledger?.retainageReleasableCents ?? 0)}. Release only when appropriate for
@@ -279,7 +285,7 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
             </button>
             {closeoutNote && <p className="text-xs text-emerald-300" role="status">{closeoutNote}</p>}
             {closeoutError && <p className="text-xs text-rose-300" role="alert">{closeoutError}</p>}
-          </section>
+          </section>}
 
           <p className="text-sm">
             See the same numbers in the{" "}

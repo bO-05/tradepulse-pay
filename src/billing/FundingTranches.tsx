@@ -6,6 +6,7 @@ import { calendarDateToMs, isCalendarDate, plannedDateWarning, projectStartMs } 
 import { getErrorMessage } from "../lib/errors";
 import { FundMilestoneControl, FundingStatus } from "../payments/FundMilestone";
 import { ReleaseList } from "../payments/ReleaseMilestone";
+import { ReceiptId } from "../payments/ReceiptId";
 import { Button, ConfirmDialog, DateInput, MoneyInput, StatusPill, TextInput, formatCents } from "../ui";
 
 type Ledger = NonNullable<FunctionReturnType<typeof api.payments.ledger.getAgreementLedger>>;
@@ -68,7 +69,7 @@ export function FundingTranches({ agreementId, ledgerMilestones, isGc }: { agree
           {list.canEdit ? "No funding tranches yet. Add the first one below." : "No funding tranches yet."}
         </p>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="table-scroll" role="region" aria-label="Funding tranches, scroll horizontally on narrow screens" tabIndex={0}>
           <table className="w-full text-sm" data-testid="tranches-table">
             <caption className="sr-only">Funding tranches</caption>
             <thead className="text-xs text-slate-400 text-left">
@@ -194,6 +195,8 @@ function TrancheRow({
         {milestone ? (
           <>
             <FundingStatus milestone={milestone} />
+            <ReceiptId label="PayPal order" value={milestone.funding?.paypalOrderId} />
+            <ReceiptId label="PayPal authorization" value={milestone.funding?.paypalAuthorizationId} />
             {isGc && !editing ? <FundMilestoneControl milestone={milestone} /> : null}
             <ReleaseList milestone={milestone} canRelease={isGc} />
             {isGc ? <CloseTrancheControl milestone={milestone} /> : null}
@@ -206,7 +209,7 @@ function TrancheRow({
             {editing ? (
               <>
                 <Button size="sm" loading={busy} onClick={() => void save()} data-testid="tranche-save">
-                  Save
+                  Save tranche
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => { setEditing(false); setError(null); }}>
                   Cancel

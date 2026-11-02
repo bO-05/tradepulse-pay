@@ -19,6 +19,7 @@ import { approvedG702Figures } from "./g703";
 import { REJECTION_REASON_REQUIRED } from "./decisions";
 import { payAppView, sovMapFor } from "./review";
 import { inboxItemValidator } from "./viewValidators";
+import { isReadOnlyReference } from "../lib/demoReference";
 
 /**
  * GC approval inbox (architecture §7). The pay agent only creates pending proposals; money moves
@@ -174,7 +175,9 @@ export const listInbox = query({
       const payment = proposals.find((pr) => pr.kind === "payout" && pr.paymentId)?.paymentId;
       const paymentRow = payment ? await ctx.db.get(payment) : null;
       const license = await latestCompletedCheck(ctx, agreement.contractorId);
+      const project = await ctx.db.get(agreement.projectId);
       items.push({
+        readOnlyReference: isReadOnlyReference(project),
         payApp: await payAppView(ctx, p, sov),
         agreement: {
           _id: agreement._id,

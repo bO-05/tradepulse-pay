@@ -29,7 +29,7 @@ export default function PaymentsDashboard() {
         <div>
           <h1 className="text-xl font-semibold">Payments dashboard</h1>
           <p className="text-xs text-slate-400" data-testid="dashboard-convex-totals">
-            Live from Convex · paid {formatCents(totals.paidCents)} · retainage held{" "}
+            Live from Convex · subcontract payouts {formatCents(totals.paidCents)} · retainage held{" "}
             {formatCents(totals.retainageHeldCents)} · released {formatCents(totals.retainageReleasedCents)} · pending
             pay apps {formatCents(totals.pendingPayAppCents)} ·{" "}
             {raw.payments.length} payments, {raw.payApps.length} pay apps, {raw.retainage.length} retainage entries,{" "}
@@ -56,6 +56,17 @@ export default function PaymentsDashboard() {
           )}
         </div>
       </header>
+      <dl className="grid gap-3 sm:grid-cols-2" aria-label="Owner change order payments">
+        <div className="rounded-xl border border-slate-700 bg-slate-900 p-4">
+          <dt className="text-sm text-slate-300">Owner change orders paid</dt>
+          <dd className="text-xl font-semibold tabular-nums">{formatCents(totals.changeOrdersPaidCents)}</dd>
+        </div>
+        <div className="rounded-xl border border-slate-700 bg-slate-900 p-4">
+          <dt className="text-sm text-slate-300">Owner change orders invoiced, unpaid</dt>
+          <dd className="text-xl font-semibold tabular-nums">{formatCents(totals.changeOrdersInvoicedCents)}</dd>
+        </div>
+      </dl>
+      {raw.role === "owner" ? <p className="text-xs text-slate-400">Owner invoice payments are separate from subcontractor payouts. Subcontract payment details are not shared with the Owner.</p> : null}
       {incomplete.truncated ? (
         <p
           role="alert"

@@ -20,6 +20,8 @@ import {
 } from "./trancheRules";
 import { loadSovRows } from "../lib/sovLines";
 import { loadTranches } from "../lib/trancheRows";
+import { isReadOnlyReference, READ_ONLY_REFERENCE_MESSAGE } from "../lib/demoReference";
+import { milestoneStatusValidator, paymentStatusValidator } from "../schema";
 
 /**
  * GC-defined funding tranches (architecture §16), stored as `milestones` rows. The GC adds, renames,
@@ -281,6 +283,17 @@ async function trancheRows(ctx: QueryCtx, agreement: Doc<"agreements">, startMs:
 /** One agreement's tranches for the GC (with edit state) and the agreement's own sub (read-only). */
 export const listTranches = query({
   args: { agreementId: v.string() },
+  returns: v.union(v.null(), v.object({
+    agreementId: v.id("agreements"), canEdit: v.boolean(), editBlockedReason: v.union(v.string(), v.null()),
+    contractSumToDateCents: v.number(), trancheTotalCents: v.number(),
+    projectStartDate: v.union(v.string(), v.null()), defaultPlannedDate: v.number(),
+    tranches: v.array(v.object({
+      _id: v.id("milestones"), name: v.string(), order: v.number(), amountCents: v.number(), plannedDate: v.number(),
+      status: milestoneStatusValidator, sovLineIds: v.array(v.id("scheduleOfValues")), locked: v.boolean(),
+      fundingStatus: v.union(paymentStatusValidator, v.null()), authorizedCents: v.number(), capturedCents: v.number(),
+      dateWarning: v.union(v.string(), v.null()),
+    })),
+  })),
   handler: async (ctx, args) => {
     const scope = await findSubcontractDocScope(ctx, "agreements", args.agreementId, { roles: ["gc", "sub"] });
     if (scope === null) return null;
@@ -288,12 +301,15 @@ export const listTranches = query({
     const startMs = projectStartMs(scope.project);
     const tranches = await trancheRows(ctx, agreement, startMs);
     const sum = await contractSumToDateCents(ctx, agreement._id);
-    const canEdit = scope.partyRole === "gc" && agreement.status === "executed" && sovIsApproved(agreement);
+    const protectedReference = isReadOnlyReference(scope.project);
+    const canEdit = scope.partyRole === "gc" && !protectedReference && agreement.status === "executed" && sovIsApproved(agreement);
     return {
       agreementId: agreement._id,
       canEdit,
       editBlockedReason:
-        scope.partyRole !== "gc"
+        protectedReference
+          ? READ_ONLY_REFERENCE_MESSAGE
+          : scope.partyRole !== "gc"
           ? null
           : agreement.status !== "executed"
             ? "Funding tranches can be added once the subcontract is executed."

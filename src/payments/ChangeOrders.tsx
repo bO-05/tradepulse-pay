@@ -328,10 +328,10 @@ function ChangeOrderRow({ co, showAgreement, recipientEmail }: { co: ChangeOrder
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-sm">
-            <span className="font-semibold" data-testid="change-order-label">
+            <a href={`#/change-orders/${encodeURIComponent(co._id)}`} className="font-semibold text-emerald-300 underline" data-testid="change-order-label">
               {co.label}
-            </span>
-            {showAgreement && co.agreementNumber ? <span className="text-ink-subtle"> · {co.agreementNumber}</span> : null} ·{" "}
+            </a>
+            {(showAgreement || co.scope === "prime") && co.agreementNumber ? <span className="text-ink-subtle"> · {co.agreementNumber}</span> : null} ·{" "}
             <span data-testid="change-order-title-text">{co.title}</span>
           </p>
           {co.description ? <p className="text-xs text-ink-subtle">{co.description}</p> : null}
@@ -340,9 +340,9 @@ function ChangeOrderRow({ co, showAgreement, recipientEmail }: { co: ChangeOrder
             {co.requestedByParty === "sub" ? "Requested by the sub" : "Requested by the GC"}
             {co.sovLineNo !== null ? ` · SOV line ${co.sovLineNo}` : ""}
             {co.linkedLabel ? ` · linked to ${co.linkedLabel}` : ""}
-            {co.approvedAt ? ` · approved ${formatDate(co.approvedAt)}` : ""}
+            {co.approvedAt ? ` · approved ${formatDate(co.approvedAt, { timeZone: "UTC" })} UTC` : ""}
             {co.judgeDemoApproval ? ` (by the guided demo for ${co.judgeDemoApproval})` : ""}
-            {co.paidAt ? ` · paid ${formatDate(co.paidAt)}` : co.invoicedAt ? ` · invoiced ${formatDate(co.invoicedAt)}` : ""}
+            {co.paidAt ? ` · payment recorded ${formatDate(co.paidAt, { timeZone: "UTC" })} UTC` : co.invoicedAt ? ` · invoiced ${formatDate(co.invoicedAt, { timeZone: "UTC" })} UTC` : ""}
           </p>
           {co.rejectionReason ? (
             <p className="text-xs text-rose-300" data-testid="change-order-rejection-reason">

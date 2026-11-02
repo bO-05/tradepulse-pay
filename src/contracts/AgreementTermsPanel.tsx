@@ -85,7 +85,7 @@ export function TermsSummary({ terms }: { terms: AgreementTerms }) {
   return (
     <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
       {rows.map(([label, value]) => (
-        <div key={label} className="flex justify-between gap-3 border-b border-line/60 py-1">
+        <div key={label} className="flex min-w-0 flex-wrap justify-between gap-3 border-b border-line/60 py-1">
           <dt className="text-ink-subtle">{label}</dt>
           <dd className="text-right font-medium text-ink">{value}</dd>
         </div>

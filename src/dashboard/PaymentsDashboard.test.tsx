@@ -20,7 +20,8 @@ test("missing Studio license shows live basic dashboard without loading Studio",
     retainage: [],
     changeOrders: [],
     readOnly: true,
-    totals: { paidCents: 0, retainageHeldCents: 0, retainageReleasedCents: 0, pendingPayAppCents: 0 },
+    role: "owner",
+    totals: { paidCents: 0, retainageHeldCents: 0, retainageReleasedCents: 0, pendingPayAppCents: 0, changeOrdersPaidCents: 185000, changeOrdersInvoicedCents: 0 },
     incomplete: { truncated: false },
   } as unknown as DashboardRaw);
   const html = renderToStaticMarkup(<PaymentsDashboard />);
@@ -29,4 +30,7 @@ test("missing Studio license shows live basic dashboard without loading Studio",
   expect(html).toContain("Read-only");
   expect(html).toContain("Live from Convex");
   expect(html).not.toContain("Loading AG Studio");
+  expect(html).toContain("Owner change orders paid");
+  expect(html).toContain("$1,850.00");
+  expect(html).toContain("subcontract payouts $0.00");
 });

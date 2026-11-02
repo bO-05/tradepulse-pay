@@ -24,7 +24,7 @@ async function createPackage(t: GcTest, projectId: any) {
     budgetEstimate: 1_250_000,
     scopeSummary: "Switchgear, distribution, and branch power.",
     mandatoryInclusions: ["Crane hoisting", "Seismic bracing"],
-    bidDeadline: "2026-10-31",
+    bidDeadline: new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10),
   });
 }
 
@@ -124,7 +124,7 @@ test("F9: invalid CSI divisions are rejected and valid ones accepted", async () 
       budgetEstimate: 100_000,
       scopeSummary: "Should be rejected.",
       mandatoryInclusions: ["None"],
-      bidDeadline: "2026-10-31",
+      bidDeadline: new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10),
     })
   ).rejects.toThrow();
   const pkgId = await createPackage(t, projectId);
@@ -245,7 +245,7 @@ test("Clash guard: both packages but zero bids return no clashes (no priced evid
     budgetEstimate: 1_500_000,
     scopeSummary: "Rooftop units and distribution.",
     mandatoryInclusions: ["TAB report"],
-    bidDeadline: "2026-10-31",
+    bidDeadline: new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10),
   });
   expect(hvacId).toBeTruthy();
   const zeroBid = await t.query(api.coordination.detectCrossTradeClashes, { projectId });
@@ -266,7 +266,7 @@ test("B1/A24-01: clash credit is persisted as a resolution once both trades are 
     budgetEstimate: 1_200_000,
     scopeSummary: "Rooftop units and hydronic piping.",
     mandatoryInclusions: ["Crane pick"],
-    bidDeadline: "2026-10-31",
+    bidDeadline: new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10),
   });
   const elecContractor = await createContractor(t, packageId);
   const hvacContractor = await t.mutation(api.contractors.createContractor, {
@@ -504,7 +504,7 @@ test("F6: an RFI targeting another package is stored on that package, not the ac
     budgetEstimate: 620_000,
     scopeSummary: "Domestic water and sanitary.",
     mandatoryInclusions: ["Backflow certification"],
-    bidDeadline: "2026-10-31",
+    bidDeadline: new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10),
   });
 
   const res: any = await t.mutation(api.simulation.submitCustomRfi, {
@@ -613,7 +613,7 @@ test("A3-01: creating a trade package requires an existing project", async () =>
       budgetEstimate: 100_000,
       scopeSummary: "Should not exist.",
       mandatoryInclusions: ["None"],
-      bidDeadline: "2026-10-31",
+      bidDeadline: new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10),
     })
   ).rejects.toThrow(/Not found/);
 });
@@ -676,7 +676,7 @@ test("A8-03/A10-04: a clash can only be credited once", async () => {
     budgetEstimate: 1_200_000,
     scopeSummary: "Rooftop units and hydronic piping.",
     mandatoryInclusions: ["Crane pick"],
-    bidDeadline: "2026-10-31",
+    bidDeadline: new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10),
   });
   const hvacContractor = await t.mutation(api.contractors.createContractor, {
     tradePackageId: hvacId,
@@ -904,7 +904,7 @@ test("A21-01: cross-trade clashes and credits require priced evidence on both si
     budgetEstimate: 1_200_000,
     scopeSummary: "Rooftop units and hydronic piping.",
     mandatoryInclusions: ["Crane pick"],
-    bidDeadline: "2026-10-31",
+    bidDeadline: new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10),
   });
   const contractorId = await createContractor(t, elecId);
   await t.mutation(api.bids.submitDirectBid, {
@@ -960,7 +960,7 @@ test("A28-01/02/03/04: clash truth, manual-VE coverage, and credit bounds", asyn
     budgetEstimate: 1_200_000,
     scopeSummary: "Rooftop units and hydronic piping.",
     mandatoryInclusions: ["Crane pick"],
-    bidDeadline: "2026-10-31",
+    bidDeadline: new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10),
   });
   const elecContractor = await createContractor(t, elecId);
   await t.mutation(api.bids.submitDirectBid, {
@@ -1130,7 +1130,7 @@ test("A36-01: reversal finds the carrier even when a sibling package id is passe
     budgetEstimate: 1_200_000,
     scopeSummary: "Rooftop units and hydronic piping.",
     mandatoryInclusions: ["Crane pick"],
-    bidDeadline: "2026-10-31",
+    bidDeadline: new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10),
   });
   const elecContractor = await createContractor(t, elecId);
   await t.mutation(api.bids.submitDirectBid, {

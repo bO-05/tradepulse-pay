@@ -9,6 +9,31 @@
   body {
     @apply bg-slate-950 text-slate-100 antialiased font-sans;
   }
+  :focus-visible {
+    outline: 2px solid #38bdf8;
+    outline-offset: 3px;
+  }
+}
+
+.skip-link {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 100;
+  transform: translateY(-200%);
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: #f1f5f9;
+  color: #0f172a;
+}
+.skip-link:focus { transform: translateY(0); }
+.workspace-content > * { min-width: 0; max-width: 100%; }
+.workspace-content .overflow-x-auto { position: relative; min-width: 0; max-width: 100%; }
+.table-scroll { position: relative; width: 100%; min-width: 0; max-width: 100%; overflow-x: auto; }
+.table-scroll table { min-width: 34rem; }
+.receipt-id { overflow-wrap: anywhere; }
+@media (max-width: 639px) {
+  .workspace-content :is(button, select, input:not([type="checkbox"]):not([type="radio"])) { min-height: 44px; }
 }
 
 /* Custom Scrollbars */

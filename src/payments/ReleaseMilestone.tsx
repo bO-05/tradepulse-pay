@@ -4,6 +4,7 @@ import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { readableError } from "./FundMilestone";
 import { formatCents, formatDate } from "./format";
+import { ReceiptId } from "./ReceiptId";
 
 export type MilestoneRelease = {
   paymentId: Id<"payments">;
@@ -12,6 +13,7 @@ export type MilestoneRelease = {
   retainageCents: number;
   netCents: number;
   paypalPayoutBatchId: string | null;
+  paypalCaptureId?: string | null;
   paypalPayoutItemId: string | null;
   paypalItemStatus: string | null;
   receiverEmail: string | null;
@@ -77,7 +79,7 @@ export function ReleaseList({ milestone, canRelease }: { milestone: ReleasableMi
               <span className="tabular-nums text-slate-300">
                 Gross {formatCents(r.grossCents)} · retainage {formatCents(r.retainageCents)} · net {formatCents(r.netCents)}
               </span>
-              <span className="text-slate-500">{formatDate(r.createdAt)}</span>
+              <span className="text-slate-400">{formatDate(r.createdAt)}</span>
               {r.retryOfPaymentId && (
                 <span className="text-slate-400" data-testid="release-retry-tag">
                   Payout retry
@@ -90,12 +92,15 @@ export function ReleaseList({ milestone, canRelease }: { milestone: ReleasableMi
               )}
             </div>
             {(r.paypalPayoutBatchId || r.receiverEmail) && (
-              <div className="text-slate-500">
+              <div className="text-slate-400 [overflow-wrap:anywhere]">
                 {r.receiverEmail ? `To ${r.receiverEmail}` : ""}
                 {r.paypalPayoutBatchId ? ` · batch ${r.paypalPayoutBatchId}` : ""}
                 {r.paypalItemStatus ? ` · PayPal item ${r.paypalItemStatus}` : ""}
               </div>
             )}
+            <ReceiptId label="PayPal capture ID" value={r.paypalCaptureId} />
+            <ReceiptId label="PayPal payout batch" value={r.paypalPayoutBatchId} />
+            <ReceiptId label="PayPal payout item" value={r.paypalPayoutItemId} />
             {r.error && (
               <p className={r.status === "success" ? "text-slate-400" : "text-rose-300"} data-testid="release-error">
                 {r.error}

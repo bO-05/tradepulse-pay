@@ -7,7 +7,8 @@ import { readableError } from "../FundMilestone";
 import { formatCents, formatDate } from "../format";
 import { LicenseBadge, LicenseCheckPanel, type LicenseBadgeStatus } from "../LicenseCheck";
 import { PayAppReviewCard } from "../PayAppReviews";
-import { JudgeDemoBadge } from "../JudgeDemoBadge";
+import { submissionAttribution } from "../SubmissionAttribution";
+import { payAppHash, ledgerHash } from "../../auth/navigation";
 import { TextInput } from "../../ui";
 import { isAIReviewProvider } from "../../lib/aiProvenance";
 
@@ -46,21 +47,6 @@ const FLAG_TEXT: Record<string, string> = {
 function flagText(flag: string): string {
   if (flag.startsWith("license_") && flag !== "license_hold") return `License ${flag.slice("license_".length).replace("_", " ")}`;
   return FLAG_TEXT[flag] ?? flag.replace(/_/g, " ");
-}
-
-function Attribution({ submittedBy }: { submittedBy: InboxItem["payApp"]["submittedBy"] }) {
-  if (submittedBy.actorType === "agent") {
-    return (
-      <p className="text-sm text-violet-200" data-testid="inbox-attribution" data-actor="agent">
-        Submitted by billing agent {submittedBy.agentEmail ?? "(unknown)"} on behalf of {submittedBy.onBehalfOf ?? "(unknown owner)"}
-      </p>
-    );
-  }
-  return (
-    <p className="text-sm text-slate-300" data-testid="inbox-attribution" data-actor="human">
-      Submitted by {submittedBy.userEmail ?? "the subcontractor"} (subcontractor, human)
-    </p>
-  );
 }
 
 function useRun() {
@@ -408,11 +394,11 @@ function RejectPayAppButton({ payAppId }: { payAppId: string }) {
 
 function InboxEntry({ item }: { item: InboxItem }) {
   const [showTrace, setShowTrace] = useState(false);
-  const decidable = item.payApp.status === "reviewed";
+  const decidable = item.payApp.status === "reviewed" && !item.readOnlyReference;
   return (
     <article className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4" data-testid="inbox-entry" data-payapp-id={item.payApp._id}>
       <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
+        <div className="min-w-0 space-y-1 [overflow-wrap:anywhere]">
           <h2 className="text-base font-semibold">
             {item.agreement.subcontractorName} · {item.payApp.periodLabel}
           </h2>
@@ -420,13 +406,17 @@ function InboxEntry({ item }: { item: InboxItem }) {
             {item.agreement.agreementNumber} · {item.agreement.projectTitle} · status{" "}
             <span data-testid="inbox-payapp-status">{item.payApp.status}</span>
           </p>
-          <Attribution submittedBy={item.payApp.submittedBy} />
-          <JudgeDemoBadge filedBy={item.payApp.judgeDemoFiledBy} />
+          <p className="text-sm text-slate-300" data-testid="inbox-attribution" data-actor={item.payApp.submittedBy.actorType}>{submissionAttribution(item.payApp.submittedBy, item.payApp.judgeDemoFiledBy)}</p>
+          <div className="flex flex-wrap gap-3 text-xs text-emerald-300">
+            <a href={payAppHash(item.payApp._id)} className="underline">Open pay application</a>
+            <a href={ledgerHash(item.agreement._id)} className="underline">Agreement ledger</a>
+          </div>
+          {item.readOnlyReference && <p className="text-xs text-amber-200">Settled reference · read-only</p>}
         </div>
-        {["submitted", "under_review", "reviewed"].includes(item.payApp.status) ? <RejectPayAppButton payAppId={item.payApp._id} /> : null}
+        {!item.readOnlyReference && ["submitted", "under_review", "reviewed"].includes(item.payApp.status) ? <RejectPayAppButton payAppId={item.payApp._id} /> : null}
       </header>
 
-      <LicenseCheckPanel contractorId={item.agreement.contractorId} />
+      <LicenseCheckPanel contractorId={item.agreement.contractorId} readOnly={item.readOnlyReference} />
 
       <section aria-label="Agent proposals" className="space-y-2">
         <h3 className="text-sm font-semibold">Pay agent proposals</h3>
@@ -442,7 +432,7 @@ function InboxEntry({ item }: { item: InboxItem }) {
           </ul>
         )}
         {item.payment ? (
-          <p className="text-xs text-slate-300" data-testid="inbox-payment">
+          <p className="text-xs text-slate-300 [overflow-wrap:anywhere]" data-testid="inbox-payment">
             Payout {item.payment.status}: {formatCents(item.payment.grossCents)} gross, {formatCents(item.payment.retainageCents)} retainage held,{" "}
             {formatCents(item.payment.netCents)} net to {item.payment.receiverEmail ?? "the sub"}
             {item.payment.batchId ? ` · batch ${item.payment.batchId}` : ""}
@@ -455,7 +445,7 @@ function InboxEntry({ item }: { item: InboxItem }) {
         {showTrace ? <AgentTrace payAppId={item.payApp._id} /> : null}
       </section>
 
-      <PayAppReviewCard payApp={item.payApp} canRerun />
+      <PayAppReviewCard payApp={item.payApp} canRerun={!item.readOnlyReference} showAttribution={false} />
     </article>
   );
 }
@@ -463,8 +453,12 @@ function InboxEntry({ item }: { item: InboxItem }) {
 /** GC approval inbox: the pay agent's proposals per pay application. Nothing moves until the GC approves. */
 export function ApprovalInbox() {
   const items = useQuery(api.payApps.proposals.listInbox, {});
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("all");
+  const filtered = items?.filter((item) => (status === "all" || item.payApp.status === status) &&
+    [item.agreement.agreementNumber, item.agreement.projectTitle, item.agreement.subcontractorName, item.payApp.periodLabel, item.payApp._id].join(" ").toLowerCase().includes(search.toLowerCase().trim()));
   return (
-    <div className="max-w-6xl mx-auto p-6 space-y-4">
+    <div className="min-w-0 max-w-6xl mx-auto space-y-4">
       <header className="space-y-1">
         <h1 className="text-xl font-semibold">Approval inbox</h1>
         <p className="text-sm text-slate-400">
@@ -472,12 +466,24 @@ export function ApprovalInbox() {
           computed by code. Nothing is captured or paid until you approve.
         </p>
       </header>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="text-sm">Search loaded applications
+          <input className="mt-1 block w-full rounded-lg border border-slate-600 bg-slate-900 p-2" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Agreement, project, company or pay app ID" />
+        </label>
+        <label className="text-sm">Status
+          <select className="mt-1 block w-full rounded-lg border border-slate-600 bg-slate-900 p-2" value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="all">All statuses</option>
+            {["submitted", "under_review", "reviewed", "approved", "approved_as_noted", "revision_requested", "paid", "rejected"].map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
+          </select>
+        </label>
+      </div>
+      {items && <p role="status" className="text-xs text-slate-400">Showing {filtered?.length} of {items.length} loaded applications. Inbox loads up to 60 recent applications across up to 200 agreements; use Payments for an older agreement's full ledger.</p>}
       {items === undefined ? (
         <p className="text-sm text-slate-400" role="status">Loading the inbox…</p>
       ) : items.length === 0 ? (
         <p className="text-sm text-slate-400">No pay applications to review.</p>
       ) : (
-        items.map((item) => <InboxEntry key={item.payApp._id} item={item} />)
+        filtered?.length ? filtered.map((item) => <InboxEntry key={item.payApp._id} item={item} />) : <p>No applications match these filters.</p>
       )}
     </div>
   );

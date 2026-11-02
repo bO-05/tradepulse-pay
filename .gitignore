@@ -53,6 +53,7 @@ test-temp/
 *.scratch
 *.scratch.*
 evidence/
+docs/external-audit/
 downloads/
 test-results/
 playwright-report/

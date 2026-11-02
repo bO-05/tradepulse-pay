@@ -186,7 +186,7 @@ export const refreshCaptureStatus = action({
   args: { paymentId: v.id("payments") },
   returns: v.object({ captureStatus: v.string(), status: v.string() }),
   handler: async (ctx, { paymentId }): Promise<{ captureStatus: string; status: string }> => {
-    await requireProjectScopeInAction(ctx, { docs: [{ table: "payments", id: paymentId }] }, { roles: ["gc"] });
+    await requireProjectScopeInAction(ctx, { docs: [{ table: "payments", id: paymentId }] }, { roles: ["gc"], write: true });
     const found = await ctx.runQuery(internal.payments.captureSettlement.captureForRelease, { paymentId });
     if (found === null) throw new ConvexError({ code: "NOT_FOUND", message: "This release has no stored capture yet." });
     const paypal = payPalClientForAction(ctx, env, { actor: "system:capture-refresh" });
@@ -209,7 +209,7 @@ export const refreshPayoutStatus = action({
   args: { paymentId: v.id("payments") },
   returns: v.object({ status: v.string(), settled: v.boolean() }),
   handler: async (ctx, { paymentId }) => {
-    await requireProjectScopeInAction(ctx, { docs: [{ table: "payments", id: paymentId }] }, { roles: ["gc"] });
+    await requireProjectScopeInAction(ctx, { docs: [{ table: "payments", id: paymentId }] }, { roles: ["gc"], write: true });
     return await refreshPayout(ctx, paymentId);
   },
 });

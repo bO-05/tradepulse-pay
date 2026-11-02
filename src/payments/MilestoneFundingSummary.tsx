@@ -20,6 +20,7 @@ const TONE: Record<MilestoneFundingState, string> = {
 export function MilestoneFundingTable({ milestones, label }: { milestones: MilestoneFundingRow[]; label: string }) {
   if (milestones.length === 0) return <p className="text-sm text-slate-400">No milestones yet.</p>;
   return (
+    <div className="table-scroll" role="region" aria-label={label} tabIndex={0}>
     <table className="w-full text-sm" aria-label={label} data-testid="sub-milestone-funding-table">
       <thead className="text-xs text-slate-400 text-left">
         <tr>
@@ -49,5 +50,6 @@ export function MilestoneFundingTable({ milestones, label }: { milestones: Miles
         ))}
       </tbody>
     </table>
+    </div>
   );
 }

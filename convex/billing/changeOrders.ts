@@ -8,6 +8,8 @@ import { requireRole } from "../lib/roles";
 import { loadSovRows } from "../lib/sovLines";
 import { SOV_CAPACITY_MESSAGE, SOV_MAX_TOTAL_LINES } from "../lib/sovRules";
 import { notFound, type ProjectAccess } from "../lib/tenancy";
+import { isReadOnlyReference } from "../lib/demoReference";
+import { agreementChangeOrdersValidator, changeOrderDetailValidator, projectChangeOrdersValidator } from "./changeOrderValidators";
 import { g703Context } from "../payApps/g703";
 import {
   CO_APPROVED_STATUSES,
@@ -153,6 +155,7 @@ function otherParty(co: Doc<"changeOrders">, party: CoParty): CoParty {
  */
 export const listForProject = query({
   args: { projectId: v.string() },
+  returns: projectChangeOrdersValidator,
   handler: async (ctx, args) => {
     const access = await requireProjectScope(ctx, args.projectId, { roles: ALL_PARTIES });
     const party = partyOf(access);
@@ -178,7 +181,7 @@ export const listForProject = query({
           sovApproved: sovIsApproved(agreement),
           contractSum: sum,
           breakdownText: breakdownText(sum),
-          canCreate: agreement.status === "executed",
+          canCreate: agreement.status === "executed" && !isReadOnlyReference(project),
           changeOrders: await rowViews(ctx, cos, { party, recipient }),
         });
       }
@@ -188,7 +191,7 @@ export const listForProject = query({
         ? null
         : {
             contractSum: await primeContractSum(ctx, project),
-            canCreate: party === "gc",
+            canCreate: party === "gc" && !isReadOnlyReference(project),
             changeOrders: await rowViews(ctx, await primeChangeOrders(ctx, project._id), { party, recipient }),
           };
     return {
@@ -220,6 +223,7 @@ export const myChangeOrderProjects = query({
 /** Subcontract change orders of one agreement (GC and that sub); null when the caller cannot see it. */
 export const listForAgreement = query({
   args: { agreementId: v.string() },
+  returns: agreementChangeOrdersValidator,
   handler: async (ctx, args) => {
     const scope = await findDocScope(ctx, "agreements", args.agreementId, { roles: GC_SUB });
     if (scope === null) return null;
@@ -232,7 +236,7 @@ export const listForAgreement = query({
       party,
       contractSum: sum,
       breakdownText: breakdownText(sum),
-      canCreate: scope.doc.status === "executed",
+      canCreate: scope.doc.status === "executed" && !isReadOnlyReference(scope.project),
       changeOrders: await rowViews(ctx, cos, { party, recipient: null }),
     };
   },
@@ -244,6 +248,7 @@ export const listForAgreement = query({
  */
 export const getChangeOrder = query({
   args: { changeOrderId: v.string() },
+  returns: changeOrderDetailValidator,
   handler: async (ctx, args) => {
     const scope = partyScope(await requireDocScope(ctx, "changeOrders", args.changeOrderId, { roles: ALL_PARTIES }));
     const co = scope.doc;

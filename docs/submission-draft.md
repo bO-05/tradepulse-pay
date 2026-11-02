@@ -79,7 +79,8 @@ AgentID integration code exists, but recovery OAuth registration is **not certif
 ## Existing-project disclosure
 
 TradePulse Pro's procurement system predates this entry. PayPal-era work begins after baseline `2ad5543`,
-with first PayPal commit `fc2f763` on October 7, 2026; see `2ad5543..paypal-hackathon`.
+with first PayPal commit `c7986da` on October 7, 2026; see `2ad5543..paypal-hackathon`.
+The September TradePulse Pro procurement base was previously submitted to the Convex hackathon.
 The November recovery branch adds funded Mistral support, payment-state and reconciliation corrections,
 recovery-only integration setup, public judge access, independent run selection, workflow repairs and
 actual multi-role/email/sandbox settlement evidence. Do not claim that the earlier procurement app was

@@ -51,16 +51,16 @@ export function BillingAgentsView() {
   return (
     <div className="space-y-6 max-w-4xl">
       <section aria-labelledby="billing-agents-heading" className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-        <h2 id="billing-agents-heading" className="text-base font-semibold mb-1">
+        <h1 id="billing-agents-heading" className="text-base font-semibold mb-1">
           Authorized billing agents
-        </h2>
+        </h1>
         <p className="text-xs text-slate-400 mb-4">
           A subcontractor's AI billing agent signs in with AgentID. It can view that subcontractor's agreements and
           submit pay applications only while its email is linked here. It can never approve, fund or pay. Revoking a
           link removes access on the agent's next request.
         </p>
         <form onSubmit={onAdd} className="flex flex-wrap items-end gap-3" aria-label="Add billing agent">
-          <div className="space-y-1">
+          <div className="w-full max-w-72 space-y-1">
             <label htmlFor="agent-email" className="block text-xs font-medium text-slate-300">
               Agent email
             </label>
@@ -71,10 +71,10 @@ export function BillingAgentsView() {
               placeholder="agent@agentmail.to"
               value={agentEmail}
               onChange={(e) => setAgentEmail(e.target.value)}
-              className="w-72 rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
+              className="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
             />
           </div>
-          <div className="space-y-1">
+          <div className="w-full max-w-64 space-y-1">
             <label htmlFor="agent-contractor" className="block text-xs font-medium text-slate-300">
               Subcontractor
             </label>
@@ -83,7 +83,7 @@ export function BillingAgentsView() {
               required
               value={contractorId}
               onChange={(e) => setContractorId(e.target.value)}
-              className="w-64 rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
+              className="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
             >
               <option value="">Select a subcontractor…</option>
               {(contractors ?? []).map((c) => (

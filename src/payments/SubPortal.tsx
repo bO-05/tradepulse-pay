@@ -4,7 +4,7 @@ import { agreementHash, payAppHash, sovHash } from "../auth/navigation";
 import { formatCents, formatDate, formatDollars } from "./format";
 import { subPayoutStatusLabel } from "./payoutStatusLabel";
 import { WithdrawPayAppButton } from "./WithdrawPayAppButton";
-import { JudgeDemoBadge } from "./JudgeDemoBadge";
+import { submissionAttribution } from "./SubmissionAttribution";
 import { MilestoneFundingTable } from "./MilestoneFundingSummary";
 
 const PAY_APP_PAGE_SIZE = 25;
@@ -19,6 +19,7 @@ export function SubPortal() {
 
   return (
     <div className="space-y-6 max-w-5xl">
+      <h1 className="text-xl font-semibold">My agreements & pay applications</h1>
       <section aria-labelledby="sub-profile" className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
         <h2 id="sub-profile" className="text-base font-semibold mb-3">
           Subcontractor profile
@@ -50,7 +51,7 @@ export function SubPortal() {
         {portal.agreements.length === 0 ? (
           <p className="text-sm text-slate-400">No agreements for your company yet.</p>
         ) : (
-          <table className="w-full text-sm">
+          <div className="table-scroll" role="region" aria-label="My agreements" tabIndex={0}><table className="w-full text-sm">
             <thead className="text-xs text-slate-400 text-left">
               <tr>
                 <th className="py-2 pr-3 font-medium">Agreement</th>
@@ -83,7 +84,7 @@ export function SubPortal() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </section>
 
@@ -132,7 +133,7 @@ export function SubPortal() {
         ) : payApps.results.length === 0 ? (
           <p className="text-sm text-slate-400">No pay applications yet.</p>
         ) : (
-          <table className="w-full text-sm">
+          <div className="table-scroll" role="region" aria-label="My pay applications" tabIndex={0}><table className="w-full text-sm">
             <thead className="text-xs text-slate-400 text-left">
               <tr>
                 <th className="py-2 pr-3 font-medium">Period</th>
@@ -167,12 +168,7 @@ export function SubPortal() {
                   </td>
                   <td className="py-2 pr-3">{formatDate(p.createdAt)}</td>
                   <td className="py-2 pr-3 text-xs">
-                    {p.submittedBy.actorType === "agent"
-                      ? `Billing agent ${p.submittedBy.agentEmail ?? ""}${p.submittedBy.onBehalfOf ? ` on behalf of ${p.submittedBy.onBehalfOf}` : ""}`
-                      : "Subcontractor (human)"}
-                    <span className="block mt-1">
-                      <JudgeDemoBadge filedBy={p.judgeDemoFiledBy} />
-                    </span>
+                    {submissionAttribution(p.submittedBy, p.judgeDemoFiledBy)}
                   </td>
                   <td className="py-2 pr-3 text-right">
                     {p.canWithdraw ? <WithdrawPayAppButton payAppId={p._id} periodLabel={p.periodLabel} /> : null}
@@ -180,7 +176,7 @@ export function SubPortal() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
         {payApps.status === "CanLoadMore" || payApps.status === "LoadingMore" ? (
           <button

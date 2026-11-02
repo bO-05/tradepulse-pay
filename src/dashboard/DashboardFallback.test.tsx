@@ -4,6 +4,16 @@ import { DashboardFallback, StudioErrorBoundary } from "./DashboardFallback";
 import type { DashboardRaw } from "./dataSources";
 
 describe("license-independent dashboard", () => {
+  test("Owner change orders are not an empty subcontract ledger", () => {
+    const html = renderToStaticMarkup(<DashboardFallback raw={{ agreements: [], changeOrders: [{
+      changeOrderId: "co1", number: 1, description: "Owner extra work", amountCents: 185000, status: "paid",
+    }] } as unknown as DashboardRaw} reason="Basic view selected." />);
+    expect(html).toContain("$1,850.00");
+    expect(html).toContain("Change order payment history");
+    expect(html).not.toContain("No agreements to report.");
+    expect(html).toContain('href="#/change-orders/co1"');
+    expect(html).not.toContain('href="#/payments/');
+  });
   test("renders actual per-agreement totals and ledger links without AG Studio", () => {
     const raw = { agreements: [{
       agreementId: "agreement1",

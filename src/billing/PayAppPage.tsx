@@ -59,12 +59,14 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
   const submit = useMutation(api.payApps.g703.submitPayApp);
   const withdraw = useMutation(api.payApps.submit.withdrawPayApplication);
   const revise = useMutation(api.payApps.decisions.revisePayApp);
+  const discard = useMutation(api.payApps.g703.discardDraft);
   const editable = view.editable;
   const [entries, setEntries] = useState<Record<string, Entry>>(() => entriesFrom(view.lines));
   const [saveState, setSaveState] = useState<{ kind: "idle" | "saving" | "saved" | "error"; at?: number; message?: string }>(
     view.savedAt !== null && editable ? { kind: "saved", at: view.savedAt } : { kind: "idle" },
   );
-  const [confirm, setConfirm] = useState<"submit" | "withdraw" | "revise" | null>(null);
+  const [confirm, setConfirm] = useState<"submit" | "withdraw" | "revise" | "discard" | null>(null);
+  const discarding = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pending = useRef<Record<string, Entry> | null>(null);
 
@@ -79,6 +81,7 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
   const flush = useCallback(async () => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
+    if (discarding.current) return;
     const e = pending.current;
     if (e === null) return;
     pending.current = null;
@@ -98,7 +101,8 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
   useEffect(
     () => () => {
       // Leaving the page saves what was typed last.
-      if (pending.current !== null) void flush();
+      if (timer.current) clearTimeout(timer.current);
+      if (!discarding.current && pending.current !== null) void flush();
     },
     [flush],
   );
@@ -172,6 +176,7 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
           <div className="flex flex-wrap items-start gap-2">
             <DocumentDownloadButton kind="sub_pay_app_pdf" relatedId={view._id} label="Download PDF" testId="payapp-download-pdf" />
             <DocumentDownloadButton kind="pay_app_lines_csv" relatedId={view._id} label="Export lines CSV" testId="payapp-export-csv" />
+            {view.canDiscard ? <Button variant="danger" onClick={() => setConfirm("discard")}>Discard draft</Button> : null}
             {editable ? (
               <Button onClick={() => setConfirm("submit")} disabled={!canSubmit} data-testid="payapp-submit">
                 Submit pay app
@@ -249,6 +254,19 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
         ) : null}
       </Card>
 
+      {view.approvalHistory && view.status !== "draft" && (
+        <Card title="Submission and GC approval history" padded>
+          <ol className="space-y-2 text-sm">
+            <li>Submitted: {formatDateTime(view.approvalHistory.submittedAt, { timeZone: "UTC" })} UTC · requested gross {formatCents(view.approvalHistory.requestedGrossCents)}</li>
+            {view.approvalHistory.reviewedAt !== null && <li>Review completed: {formatDateTime(view.approvalHistory.reviewedAt, { timeZone: "UTC" })} UTC. A review is a recommendation, not a payment approval.</li>}
+            {view.approvalHistory.approvedGrossCents !== null && <li>
+              GC approved gross {formatCents(view.approvalHistory.approvedGrossCents)} · reduction from request {formatCents(view.approvalHistory.requestedGrossCents - view.approvalHistory.approvedGrossCents)}.
+              {view.approvalHistory.approvedAt !== null && <> Approved by {view.approvalHistory.approvedBy ?? "the GC"} · {formatDateTime(view.approvalHistory.approvedAt, { timeZone: "UTC" })} UTC.</>}
+              <p className="mt-1 text-slate-300">GC explanation: {view.approvalHistory.reason ?? "No additional GC explanation was recorded. Review reasons are not a GC-authored explanation."}</p>
+            </li>}
+          </ol>
+        </Card>
+      )}
       {view.revisionRequest ? (
         <DecisionCard
           decision={view.revisionRequest}
@@ -286,6 +304,26 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
       ) : null}
       <VersionHistory versions={view.versions} />
 
+      <ConfirmDialog
+        open={confirm === "discard"}
+        title={`Discard ${title}?`}
+        tone="danger"
+        effect="Deletes only this never-submitted initial draft and its unsent edits. Submitted versions and payment history cannot be discarded."
+        confirmLabel="Discard draft"
+        onCancel={() => setConfirm(null)}
+        onConfirm={async () => {
+          discarding.current = true;
+          if (timer.current) clearTimeout(timer.current);
+          pending.current = null;
+          try {
+            await discard({ payAppId: view._id });
+            window.location.hash = backHash;
+          } catch (err) {
+            discarding.current = false;
+            throw err;
+          }
+        }}
+      />
       <ConfirmDialog
         open={confirm === "submit"}
         title={`Submit ${title}?`}

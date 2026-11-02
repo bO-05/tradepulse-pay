@@ -29,6 +29,7 @@ export function OwnerPortal({ role }: { role?: Role }) {
 
   return (
     <div className="space-y-6 max-w-5xl">
+      <h1 className="text-xl font-semibold">{role === "gc" ? "Project summaries" : "Owner home"}</h1>
       {projects.map((project) => (
         <section key={project._id} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
           <div>
@@ -45,7 +46,7 @@ export function OwnerPortal({ role }: { role?: Role }) {
             {project.agreements.length === 0 ? (
               <p className="text-sm text-slate-400">No agreements yet.</p>
             ) : (
-              <table className="w-full text-sm">
+              <div className="table-scroll" role="region" aria-label="Subcontract agreements" tabIndex={0}><table className="w-full text-sm">
                 <thead className="text-xs text-slate-400 text-left">
                   <tr>
                     <th className="py-2 pr-3 font-medium">Agreement</th>
@@ -70,7 +71,7 @@ export function OwnerPortal({ role }: { role?: Role }) {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             )}
           </div>
           )}
@@ -134,7 +135,7 @@ function OwnerTrancheStatus({ projectId }: { projectId: string }) {
       {trades.length === 0 ? (
         <p className="text-sm text-slate-400">No funding tranches yet.</p>
       ) : (
-        <table className="w-full text-sm">
+        <div className="table-scroll" role="region" aria-label="Funding tranche status" tabIndex={0}><table className="w-full text-sm">
           <thead className="text-xs text-slate-400 text-left">
             <tr>
               <th className="py-2 pr-3 font-medium">Trade</th>
@@ -155,7 +156,7 @@ function OwnerTrancheStatus({ projectId }: { projectId: string }) {
               )),
             )}
           </tbody>
-        </table>
+        </table></div>
       )}
     </div>
   );

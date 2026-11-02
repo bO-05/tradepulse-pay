@@ -125,6 +125,25 @@ async function submitPayApp1(s: Setup) {
 }
 
 describe("G703 drafts", () => {
+  test("discard permits only the filing sub's never-submitted initial draft", async () => {
+    const s = await setup();
+    const sub = s.f.sub.admin.as;
+    const { payAppId } = await sub.mutation(api.payApps.g703.startPayApp, { agreementId: s.agreementId });
+    await sub.mutation(api.payApps.g703.saveDraft, { payAppId, lines: [entry(s.sov[0], 15000)] });
+    for (const caller of [s.t, s.f.gcA.admin.as, s.lakeshore]) {
+      await expect(caller.mutation(api.payApps.g703.discardDraft, { payAppId })).rejects.toThrow();
+    }
+    expect((await sub.query(api.payApps.g703.getPayApp, { payAppId })).canDiscard).toBe(true);
+    await sub.mutation(api.payApps.g703.discardDraft, { payAppId });
+    expect(await s.t.run((ctx) => ctx.db.get(payAppId))).toBeNull();
+    const next = await sub.mutation(api.payApps.g703.startPayApp, { agreementId: s.agreementId });
+    expect((await sub.query(api.payApps.g703.getPayApp, { payAppId: next.payAppId })).applicationNo).toBe(1);
+    await s.t.run((ctx) => ctx.db.patch(next.payAppId, { version: 2 }));
+    await expect(sub.mutation(api.payApps.g703.discardDraft, { payAppId: next.payAppId })).rejects.toThrow(/never-submitted/);
+    await s.t.run((ctx) => ctx.db.patch(next.payAppId, { version: 1, status: "submitted", submittedAt: Date.now() }));
+    await expect(sub.mutation(api.payApps.g703.discardDraft, { payAppId: next.payAppId })).rejects.toThrow(/never-submitted/);
+  });
+
   test("pay app 1 opens on the project billing day and autosaves its entries", async () => {
     const s = await setup();
     const kim = s.f.sub.admin.as;

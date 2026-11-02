@@ -33,7 +33,7 @@ describe("sign-out route reset", () => {
     expect(location).toEqual({ pathname: "/", search: "", hash: "" });
     expect(resolveRoute("sub", location.hash, false, location.search)).toEqual({ area: "sub-portal" });
     expect(resolveRoute("owner", location.hash, false, location.search)).toEqual({ area: "owner-portal" });
-    expect(resolveRoute("gc", location.hash, false, location.search)).toEqual({ area: "procurement" });
+    expect(resolveRoute("gc", location.hash, false, location.search)).toEqual({ area: "inbox" });
   });
 
   test("forgets the previous user's project and package selection but nothing else", () => {

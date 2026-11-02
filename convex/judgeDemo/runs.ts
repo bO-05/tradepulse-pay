@@ -1,6 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
-import { mutation, query, type MutationCtx } from "../_generated/server";
+import { mutation, query, type MutationCtx, type QueryCtx } from "../_generated/server";
+import { isReadOnlyReference, REFERENCE_RUN_ID } from "../lib/demoReference";
 import { normalizeAgentEmail, syncAgentProfilesForEmail } from "../lib/agentAccess";
 import { requireRole } from "../lib/roles";
 import { requireDemoCompany, requireProjectScope } from "../lib/projectScope";
@@ -216,10 +217,12 @@ async function loadRun(ctx: MutationCtx, runId: Id<"judgeDemoRuns">, userId: Id<
  */
 export const fileDemoPayApp = mutation({
   args: { runId: v.id("judgeDemoRuns"), kind: v.union(v.literal("honest"), v.literal("agent")) },
+  returns: v.id("payApplications"),
   handler: async (ctx, args) => {
     await requireDemoCompany(ctx, ["gc"]);
     const viewer = await requireRole(ctx, ["gc"]);
     const run = await loadRun(ctx, args.runId, viewer.userId);
+    await requireProjectScope(ctx, run.projectId, { roles: ["gc"], write: true });
     const existing = args.kind === "honest" ? run.honestPayAppId : run.agentPayAppId;
     if (existing !== undefined) return existing;
     const agreement = await ctx.db.get(run.agreementId);
@@ -288,12 +291,13 @@ export const fileDemoPayApp = mutation({
  */
 export const prepareDemoChangeOrder = mutation({
   args: { runId: v.id("judgeDemoRuns") },
+  returns: v.id("changeOrders"),
   handler: async (ctx, args) => {
     await requireDemoCompany(ctx, ["gc"]);
     const viewer = await requireRole(ctx, ["gc"]);
     const run = await loadRun(ctx, args.runId, viewer.userId);
-    if (run.changeOrderId !== undefined) return run.changeOrderId;
     const access = await requireProjectScope(ctx, run.projectId, { roles: ["gc"], write: true });
+    if (run.changeOrderId !== undefined) return run.changeOrderId;
     const owner = await ctx.db
       .query("users")
       .withIndex("email", (q) => q.eq("email", OWNER_EMAIL))
@@ -341,38 +345,53 @@ export const listRuns = query({
   },
 });
 
-/** The GC's latest run (or a given one) with the ids the demo page needs. */
-export const getRun = query({
-  args: { runId: v.optional(v.id("judgeDemoRuns")) },
-  returns: v.union(v.null(), v.object({
+const runViewValidator = v.union(v.null(), v.object({
     _id: v.id("judgeDemoRuns"), agreementId: v.id("agreements"), agreementNumber: v.string(),
     agreementStatus: v.string(), contractorId: v.union(v.id("contractors"), v.null()),
     honestPayAppId: v.union(v.id("payApplications"), v.null()), agentPayAppId: v.union(v.id("payApplications"), v.null()),
     projectId: v.id("projects"), changeOrderId: v.union(v.id("changeOrders"), v.null()), createdAt: v.number(),
-  })),
+    readOnlyReference: v.boolean(),
+}));
+
+async function runView(ctx: QueryCtx, userId: Id<"users">, runId?: Id<"judgeDemoRuns">) {
+    const referenceId = ctx.db.normalizeId("judgeDemoRuns", REFERENCE_RUN_ID);
+    const reference = !runId && referenceId ? await ctx.db.get(referenceId) : null;
+    const run = runId
+      ? await ctx.db.get(runId)
+      : reference?.startedBy === userId
+        ? reference
+        : await ctx.db.query("judgeDemoRuns").withIndex("by_startedBy", (q) => q.eq("startedBy", userId)).order("desc").first();
+    if (run === null || run.startedBy !== userId) return null;
+    const agreement = await ctx.db.get(run.agreementId);
+    const project = await ctx.db.get(run.projectId);
+    return {
+      _id: run._id, agreementId: run.agreementId, agreementNumber: run.agreementNumber,
+      agreementStatus: agreement?.status ?? "missing", contractorId: agreement?.contractorId ?? null,
+      honestPayAppId: run.honestPayAppId ?? null, agentPayAppId: run.agentPayAppId ?? null,
+      projectId: run.projectId, changeOrderId: run.changeOrderId ?? null, createdAt: run.createdAt,
+      readOnlyReference: project ? isReadOnlyReference(project) : false,
+    };
+}
+
+/** Prefer the settled reference for judge inspection; explicit selections still preserve their own run. */
+export const getRun = query({
+  args: { runId: v.optional(v.id("judgeDemoRuns")) },
+  returns: runViewValidator,
   handler: async (ctx, args) => {
     await requireDemoCompany(ctx, ["gc"]);
     const viewer = await requireRole(ctx, ["gc"]);
-    const run = args.runId
-      ? await ctx.db.get(args.runId)
-      : await ctx.db
-          .query("judgeDemoRuns")
-          .withIndex("by_startedBy", (q) => q.eq("startedBy", viewer.userId))
-          .order("desc")
-          .first();
-    if (run === null || run.startedBy !== viewer.userId) return null;
-    const agreement = await ctx.db.get(run.agreementId);
-    return {
-      _id: run._id,
-      agreementId: run.agreementId,
-      agreementNumber: run.agreementNumber,
-      agreementStatus: agreement?.status ?? "missing",
-      contractorId: agreement?.contractorId ?? null,
-      honestPayAppId: run.honestPayAppId ?? null,
-      agentPayAppId: run.agentPayAppId ?? null,
-      projectId: run.projectId,
-      changeOrderId: run.changeOrderId ?? null,
-      createdAt: run.createdAt,
-    };
+    return await runView(ctx, viewer.userId, args.runId);
+  },
+});
+
+/** URL selectors are untrusted strings; malformed/wrong-table IDs get the same missing-record result. */
+export const getRunByPath = query({
+  args: { runId: v.string() },
+  returns: runViewValidator,
+  handler: async (ctx, args) => {
+    await requireDemoCompany(ctx, ["gc"]);
+    const viewer = await requireRole(ctx, ["gc"]);
+    const id = ctx.db.normalizeId("judgeDemoRuns", args.runId);
+    return id ? await runView(ctx, viewer.userId, id) : null;
   },
 });

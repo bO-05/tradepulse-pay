@@ -17,6 +17,8 @@ let checked = 0;
 function walk(dir, out = []) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
+    // Private reviewer material is local evidence, not a judge-facing deliverable.
+    if (entry.isDirectory() && path.resolve(full) === path.resolve("docs/external-audit")) continue;
     if (entry.isDirectory()) walk(full, out);
     else if (/\.(html?|md)$/i.test(entry.name)) out.push(full);
   }

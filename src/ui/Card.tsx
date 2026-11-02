@@ -7,13 +7,13 @@ export interface CardProps extends Omit<HTMLAttributes<HTMLElement>, "title"> {
   description?: ReactNode;
   actions?: ReactNode;
   /** Heading level for the title; defaults to h2 so it nests under the PageHeader h1. */
-  headingLevel?: 2 | 3 | 4;
+  headingLevel?: 1 | 2 | 3 | 4;
   padded?: boolean;
 }
 
 export function Card({ title, description, actions, headingLevel = 2, padded = true, className, children, ...rest }: CardProps) {
   const headingId = useId();
-  const Heading = `h${headingLevel}` as "h2" | "h3" | "h4";
+  const Heading = `h${headingLevel}` as "h1" | "h2" | "h3" | "h4";
   return (
     <section
       aria-labelledby={title ? headingId : undefined}

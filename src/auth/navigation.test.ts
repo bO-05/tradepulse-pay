@@ -12,13 +12,13 @@ describe("role navigation", () => {
   });
   test("GC gets procurement, payments and the read-only overview; sub and owner never get procurement", () => {
     expect(NAV_BY_ROLE.gc.map((i) => i.area)).toEqual([
+      "inbox",
+      "payments",
       "procurement",
       "gc-projects",
       "billing",
       "change-orders",
-      "payments",
       "compliance",
-      "inbox",
       "owner-portal",
       "people",
       "vendors",
@@ -28,7 +28,7 @@ describe("role navigation", () => {
     ]);
     expect(NAV_BY_ROLE.sub.map((i) => i.area)).toEqual(["sub-portal", "pay-apps", "change-orders", "compliance", "bid-invitations", "my-projects", "payments"]);
     expect(NAV_BY_ROLE.owner.map((i) => i.area)).toEqual(["owner-portal", "my-projects", "owner-pay-apps", "change-orders", "dashboard"]);
-    expect(NAV_BY_ROLE.owner.map((i) => i.label)).toEqual(["Home", "Projects", "Owner pay apps", "Change orders", "Reports"]);
+    expect(NAV_BY_ROLE.owner.map((i) => i.label)).toEqual(["Home", "Projects", "Applications to owner", "Change orders", "Reports"]);
   });
 
   test("Compliance is for GC and sub company members; owners and billing agents get Not found", () => {
@@ -70,7 +70,7 @@ describe("role navigation", () => {
 
   test("an empty hash is the role's home", () => {
     for (const hash of ["", "#", "#/"]) {
-      expect(resolveRoute("gc", hash)).toEqual({ area: "procurement" });
+      expect(resolveRoute("gc", hash)).toEqual({ area: "inbox" });
       expect(resolveRoute("sub", hash)).toEqual({ area: "sub-portal" });
       expect(resolveRoute("owner", hash)).toEqual({ area: "owner-portal" });
     }

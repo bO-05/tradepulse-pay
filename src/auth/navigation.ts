@@ -39,6 +39,7 @@ export type Route = {
   vendorId?: string;
   tradePackageId?: string;
   payAppId?: string;
+  changeOrderId?: string;
   demoRunId?: string;
   /** Compliance record opened from a notification. */
   complianceItemId?: string;
@@ -112,18 +113,18 @@ export function vendorHash(vendorId: string): string {
  */
 export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
   gc: [
+    { area: "inbox", label: "Approval inbox", hash: AREA_HASH.inbox },
+    { area: "payments", label: "Payments", hash: AREA_HASH.payments },
     { area: "procurement", label: "Procurement", hash: AREA_HASH.procurement },
     { area: "gc-projects", label: "Projects", hash: AREA_HASH["gc-projects"] },
     { area: "billing", label: "Billing", hash: AREA_HASH.billing },
     { area: "change-orders", label: "Change orders", hash: AREA_HASH["change-orders"] },
-    { area: "payments", label: "Payments", hash: AREA_HASH.payments },
     { area: "compliance", label: "Compliance & waivers", hash: AREA_HASH.compliance },
-    { area: "inbox", label: "Approval inbox", hash: AREA_HASH.inbox },
-    { area: "owner-portal", label: "Projects overview", hash: AREA_HASH["owner-portal"] },
+    { area: "owner-portal", label: "Project summaries", hash: AREA_HASH["owner-portal"] },
     { area: "people", label: "People", hash: AREA_HASH.people },
     { area: "vendors", label: "Vendors", hash: AREA_HASH.vendors },
     { area: "billing-agents", label: "Billing agents", hash: AREA_HASH["billing-agents"] },
-    { area: "dashboard", label: "Dashboard", hash: AREA_HASH.dashboard },
+    { area: "dashboard", label: "Payment reports", hash: AREA_HASH.dashboard },
     { area: "judge-demo", label: "Guided demo", hash: AREA_HASH["judge-demo"] },
   ],
   sub: [
@@ -138,7 +139,7 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
   owner: [
     { area: "owner-portal", label: "Home", hash: AREA_HASH["owner-portal"] },
     { area: "my-projects", label: "Projects", hash: AREA_HASH["my-projects"] },
-    { area: "owner-pay-apps", label: "Owner pay apps", hash: AREA_HASH["owner-pay-apps"] },
+    { area: "owner-pay-apps", label: "Applications to owner", hash: AREA_HASH["owner-pay-apps"] },
     { area: "change-orders", label: "Change orders", hash: AREA_HASH["change-orders"] },
     { area: "dashboard", label: "Reports", hash: AREA_HASH.dashboard },
   ],
@@ -181,6 +182,14 @@ export function gcProjectSettingsHash(projectId: string): string {
 }
 
 export function parseHash(hash: string): Route | null {
+  try {
+    return parseHashRoute(hash);
+  } catch {
+    return null;
+  }
+}
+
+function parseHashRoute(hash: string): Route | null {
   const path = hash.replace(/^#/, "");
   const demoRun = path.match(/^\/judge-demo\/([^/?#]+)$/);
   if (demoRun) return { area: "judge-demo", demoRunId: decodeURIComponent(demoRun[1]) };
@@ -210,6 +219,8 @@ export function parseHash(hash: string): Route | null {
   }
   const payAppMatch = path.match(/^\/pay-apps\/([^/?#]+)$/);
   if (payAppMatch) return { area: "pay-app", payAppId: decodeURIComponent(payAppMatch[1]) };
+  const changeOrderMatch = path.match(/^\/change-orders\/([^/?#]+)$/);
+  if (changeOrderMatch) return { area: "change-orders", changeOrderId: decodeURIComponent(changeOrderMatch[1]) };
   const complianceMatch = path.match(/^\/compliance\/([^/?#]+)$/);
   if (complianceMatch) return { area: "compliance", complianceItemId: decodeURIComponent(complianceMatch[1]) };
   const ledgerMatch = path.match(/^\/payments\/([^/?#]+)$/);
@@ -246,6 +257,7 @@ export function resolveRoute(role: Role, hash: string, isDemo = false, search = 
   if (isHome) {
     const ownsProcurementQuery = nav.some((item) => item.area === "procurement");
     if (!ownsProcurementQuery && hasProcurementQuery(search)) return { area: "not-found" };
+    if (ownsProcurementQuery && hasProcurementQuery(search)) return { area: "procurement" };
     return { area: nav[0].area };
   }
   const parsed = parseHash(hash);

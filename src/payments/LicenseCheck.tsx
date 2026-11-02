@@ -42,7 +42,7 @@ function formatDateTime(ms: number): string {
  * GC panel for a contractor's California license: latest CSLB result, a
  * "Check license" control, and the KERNEL live view while a lookup runs.
  */
-export function LicenseCheckPanel({ contractorId }: { contractorId: string }) {
+export function LicenseCheckPanel({ contractorId, readOnly = false }: { contractorId: string; readOnly?: boolean }) {
   const data = useQuery(api.kernel.licenseChecks.getContractorLicense, { contractorId });
   const request = useMutation(api.kernel.licenseChecks.requestLicenseCheck);
   const [busy, setBusy] = useState(false);
@@ -92,7 +92,7 @@ export function LicenseCheckPanel({ contractorId }: { contractorId: string }) {
             ) : null}
           </div>
         </div>
-        <button
+        {!readOnly && <button
           type="button"
           onClick={() => void check()}
           disabled={busy || running}
@@ -100,7 +100,7 @@ export function LicenseCheckPanel({ contractorId }: { contractorId: string }) {
           data-testid="license-check-button"
         >
           {running ? "Checking…" : "Check license"}
-        </button>
+        </button>}
       </div>
 
       {running ? (

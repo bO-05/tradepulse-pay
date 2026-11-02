@@ -14,16 +14,16 @@ export function PaymentsWorkspace() {
   return (
     <div className="space-y-6 max-w-5xl">
       <section aria-labelledby="payments-agreements" className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-        <h2 id="payments-agreements" className="text-base font-semibold mb-1">
+        <h1 id="payments-agreements" className="text-base font-semibold mb-1">
           Payments — agreement ledgers
-        </h2>
+        </h1>
         <p className="text-xs text-slate-400 mb-4">
           Executing an agreement creates its schedule of values and milestones. Open a ledger to see them.
         </p>
         {agreements.length === 0 ? (
           <p className="text-sm text-slate-400">No agreements yet.</p>
         ) : (
-          <table className="w-full text-sm" data-testid="payments-agreements">
+          <div className="table-scroll" role="region" aria-label="Agreement payment ledgers" tabIndex={0}><table className="w-full text-sm" data-testid="payments-agreements">
             <thead className="text-xs text-slate-400 text-left">
               <tr>
                 <th className="py-2 pr-3 font-medium">Agreement</th>
@@ -52,7 +52,7 @@ export function PaymentsWorkspace() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </section>
     </div>

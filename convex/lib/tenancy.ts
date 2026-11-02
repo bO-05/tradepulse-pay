@@ -4,6 +4,7 @@ import type { QueryCtx } from "../_generated/server";
 import { findActiveAgentLink } from "./agentAccess";
 import { forbiddenMessage, getViewer, UNAUTHENTICATED_MESSAGE, type Role, type Viewer } from "./roles";
 import { getLiveAuthUserId } from "./session";
+import { assertReferenceWritable } from "./demoReference";
 
 /**
  * Tenancy helpers (architecture §12). The caller's company is always derived from the session;
@@ -164,6 +165,7 @@ export async function requireProjectAccess(
   if (opts.write && project.archived === true) {
     throw new ConvexError({ code: "ARCHIVED", message: "This project is archived; restore it before making changes." });
   }
+  if (opts.write) assertReferenceWritable(project);
   return { viewer: { ...viewer, role: partyRole }, user, project, company, partyRole, contractorIds };
 }
 

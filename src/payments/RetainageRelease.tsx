@@ -7,6 +7,7 @@ import { readableError } from "./FundMilestone";
 import { formatCents, formatDate } from "./format";
 import { BADGE, type MilestoneRelease } from "./ReleaseMilestone";
 import { ConfirmDialog } from "../ui";
+import { ReceiptId } from "./ReceiptId";
 
 /** Closeout retainage releases recorded on the agreement; GC can refresh a pending one. */
 export function RetainageReleaseList({ releases, canRefresh }: { releases: MilestoneRelease[]; canRefresh: boolean }) {
@@ -38,15 +39,16 @@ export function RetainageReleaseList({ releases, canRefresh }: { releases: Miles
                 {badge.label}
               </span>
               <span className="tabular-nums">Retainage release {formatCents(r.netCents)}</span>
-              <span className="text-slate-500">{formatDate(r.createdAt)}</span>
+              <span className="text-slate-400">{formatDate(r.createdAt)}</span>
             </div>
             {(r.paypalPayoutBatchId || r.receiverEmail) && (
-              <div className="text-slate-500">
+              <div className="text-slate-400 [overflow-wrap:anywhere]">
                 {r.receiverEmail ? `To ${r.receiverEmail}` : ""}
                 {r.paypalPayoutBatchId ? ` · batch ${r.paypalPayoutBatchId}` : ""}
                 {r.paypalItemStatus ? ` · PayPal item ${r.paypalItemStatus}` : ""}
               </div>
             )}
+            <ReceiptId label="PayPal retainage payout item" value={r.paypalPayoutItemId} />
             {r.error && <p className={r.status === "success" ? "text-slate-400" : "text-rose-300"}>{r.error}</p>}
             {canRefresh && (r.status === "pending" || r.status === "unclaimed") && (
               <button

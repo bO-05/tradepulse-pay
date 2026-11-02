@@ -30,7 +30,10 @@ const CODE = /\b\d{6,}\b/g;
 
 /** Strips anything that looks like an email address, token or numeric code, then trims to `max`. */
 export function sanitizeNotificationText(raw: string, max: number): string {
-  const clean = raw.replace(EMAIL, "[email hidden]").replace(OPAQUE, "[hidden]").replace(CODE, "[hidden]").replace(/\s+/g, " ").trim();
+  // Preserve only our generated, dated agreement references. Arbitrary tokens and auth codes
+  // remain redacted, including when they happen to be adjacent to a valid business reference.
+  const parts = raw.replace(EMAIL, "[email hidden]").split(/(\bA401-DEMO-PAY-20\d{6}-\d{2}\b|\b20\d{6}-\d{2}\b)/g);
+  const clean = parts.map((part, i) => i % 2 ? part : part.replace(OPAQUE, "[hidden]").replace(CODE, "[hidden]")).join("").replace(/\s+/g, " ").trim();
   return clean.length > max ? `${clean.slice(0, max - 1).trimEnd()}…` : clean;
 }
 

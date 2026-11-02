@@ -43,6 +43,8 @@ import {
   type G702Summary,
 } from "./g703Math";
 import { loadSovRows } from "../lib/sovLines";
+import { isReadOnlyReference, READ_ONLY_REFERENCE_MESSAGE } from "../lib/demoReference";
+import { g703ViewValidator, subPayAppAgreementsValidator } from "./g703ViewValidators";
 
 /**
  * G702/G703 pay applications (architecture §16). A sub opens one application per billing period as a
@@ -498,6 +500,7 @@ async function payAppView(ctx: QueryCtx, scope: ProjectAccess & { doc: Doc<"payA
   if (agreement === null) throw notFound();
   const sheet = await buildSheet(ctx, agreement, payApp);
   const isSub = scope.partyRole === "sub";
+  const writable = !isReadOnlyReference(scope.project);
   const proposals = await ctx.db
     .query("agentProposals")
     .withIndex("by_payAppId", (q) => q.eq("payAppId", payApp._id))
@@ -604,14 +607,28 @@ async function payAppView(ctx: QueryCtx, scope: ProjectAccess & { doc: Doc<"payA
     lines: sheet.lines,
     summary: sheet.summary,
     requestedSummary: sheet.requestedSummary,
+    approvalHistory: {
+      submittedAt: payApp.status === "draft" ? null : (payApp.submittedAt ?? payApp.createdAt),
+      reviewedAt: payApp.review?.reviewedAt ?? null,
+      approvedAt: payApp.gcDecision?.decidedAt ?? sheet.finalApproval?.approvedAt ?? null,
+      approvedBy: await (async () => {
+        const id = payApp.gcDecision?.decidedBy ?? sheet.finalApproval?.approvedBy;
+        const user = id ? await ctx.db.get(id) : null;
+        return user?.name ?? (id ? "General contractor" : null);
+      })(),
+      requestedGrossCents: payApp.requestedTotalCents,
+      approvedGrossCents: sheet.finalApproval?.totalCents ?? null,
+      reason: payApp.gcDecision?.reason ?? payApp.gcDecision?.lines.find((l) => l.reason)?.reason ?? null,
+    },
     lineErrors,
-    editable: isSub && payApp.status === "draft",
-    canSubmit: isSub && payApp.status === "draft" && lineErrors.length === 0 && claimedCents > 0,
-    canWithdraw: isSub && WITHDRAWABLE_PAY_APP_STATUSES.has(payApp.status) && !decided && payApp.gcDecision === undefined,
-    canRevise: isSub && payApp.status === "revision_requested" && payApp.g703 !== undefined,
-    canApprove: !isSub && payApp.status === "reviewed" && payApp.review !== undefined,
-    canRequestRevision: !isSub && DECIDABLE.has(payApp.status) && payApp.g703 !== undefined,
-    canReject: !isSub && DECIDABLE.has(payApp.status),
+    editable: writable && isSub && payApp.status === "draft",
+    canSubmit: writable && isSub && payApp.status === "draft" && lineErrors.length === 0 && claimedCents > 0,
+    canWithdraw: writable && isSub && WITHDRAWABLE_PAY_APP_STATUSES.has(payApp.status) && !decided && payApp.gcDecision === undefined,
+    canRevise: writable && isSub && payApp.status === "revision_requested" && payApp.g703 !== undefined,
+    canApprove: writable && !isSub && payApp.status === "reviewed" && payApp.review !== undefined,
+    canRequestRevision: writable && !isSub && DECIDABLE.has(payApp.status) && payApp.g703 !== undefined,
+    canReject: writable && !isSub && DECIDABLE.has(payApp.status),
+    canDiscard: writable && isSub && discardableDraft(payApp),
     version: currentVersion,
     versions: versionRows,
     decision,
@@ -634,6 +651,7 @@ function hideDraftFromGc<S extends { doc: Doc<"payApplications">; partyRole: str
  */
 export const getPayApp = query({
   args: { payAppId: v.string() },
+  returns: g703ViewValidator,
   handler: async (ctx, args) => {
     const scope = hideDraftFromGc(await requireDocScope(ctx, "payApplications", args.payAppId, { roles: ["gc", "sub"] }));
     return await payAppView(ctx, scope);
@@ -671,6 +689,7 @@ function listRow(p: Doc<"payApplications">) {
 /** The sub's executed agreements with the open or next application of each and their recent pay apps. */
 export const mySubPayAppAgreements = query({
   args: {},
+  returns: subPayAppAgreementsValidator,
   handler: async (ctx) => {
     await requireRole(ctx, ["sub"]);
     const { rows } = await scopedAgreements(ctx, { parties: ["sub"], limit: 100 });
@@ -683,7 +702,7 @@ export const mySubPayAppAgreements = query({
         .order("desc")
         .take(25);
       const open = payApps.find((p) => p.g703 !== undefined && OPEN_G703_STATUSES.has(p.status)) ?? null;
-      let blockedReason = blockedReasonOf(agreement);
+      let blockedReason = isReadOnlyReference(access.project) ? READ_ONLY_REFERENCE_MESSAGE : blockedReasonOf(agreement);
       let next: (BillingPeriod & { applicationNo: number }) | null = null;
       if (blockedReason === null && open === null) {
         try {
@@ -717,6 +736,7 @@ export const mySubPayAppAgreements = query({
  */
 export const startPayApp = mutation({
   args: { agreementId: v.string() },
+  returns: v.object({ payAppId: v.id("payApplications"), created: v.boolean() }),
   handler: async (ctx, args) => {
     const scope = await requireDocScope(ctx, "agreements", args.agreementId, { roles: ["sub"], write: true });
     const agreement = scope.doc;
@@ -769,6 +789,34 @@ export const startPayApp = mutation({
       ...viewerAgentAuditFields(scope.viewer),
     });
     return { payAppId, created: true };
+  },
+});
+
+function discardableDraft(payApp: Doc<"payApplications">): boolean {
+  return payApp.status === "draft" && payApp.g703 !== undefined && payApp.submittedAt === undefined &&
+    (payApp.version ?? 1) === 1 && !payApp.versions?.length && payApp.gcDecision === undefined && payApp.finalApproval === undefined &&
+    payApp.review === undefined && payApp.requestedTotalCents === 0;
+}
+
+/** Only a never-submitted initial draft can be discarded. Historical/revision records stay intact. */
+export const discardDraft = mutation({
+  args: { payAppId: v.string() },
+  returns: v.null(),
+  handler: async (ctx, { payAppId }) => {
+    const scope = await requireDocScope(ctx, "payApplications", payAppId, { roles: ["sub"], write: true });
+    const row = scope.doc;
+    const payments = await ctx.db.query("payments").withIndex("by_payAppId", (q) => q.eq("payAppId", row._id)).take(1);
+    const proposals = await ctx.db.query("agentProposals").withIndex("by_payAppId", (q) => q.eq("payAppId", row._id)).take(1);
+    if (!discardableDraft(row) || payments.length || proposals.length) {
+      throw new ConvexError({ code: "INVALID_STATE", message: "Only a never-submitted initial draft without review or payment history can be discarded." });
+    }
+    await ctx.db.delete(row._id);
+    await ctx.db.insert("auditLogs", {
+      projectId: scope.project._id, agreementId: row.agreementId, eventType: "pay_app_draft_discarded",
+      title: "Unsubmitted draft discarded", description: `Application No. ${row.applicationNo ?? 1}; no submitted or payment history was removed.`,
+      ...auditActor(scope), timestamp: Date.now(),
+    });
+    return null;
   },
 });
 

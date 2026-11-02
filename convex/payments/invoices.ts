@@ -142,7 +142,7 @@ export const refreshChangeOrderStatus = action({
   args: { changeOrderId: v.id("changeOrders") },
   returns: refreshResult,
   handler: async (ctx, { changeOrderId }): Promise<RefreshResult> => {
-    const scope = await requireProjectScopeInAction(ctx, { docs: [{ table: "changeOrders", id: changeOrderId }] }, { roles: ["gc", "owner"] });
+    const scope = await requireProjectScopeInAction(ctx, { docs: [{ table: "changeOrders", id: changeOrderId }] }, { roles: ["gc", "owner"], write: true });
     return await refreshChangeOrder(ctx, changeOrderId, scope.actor);
   },
 });

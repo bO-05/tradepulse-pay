@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { AgreementLedgerView } from "../payments/AgreementLedgerView";
 import { AgreementSummaryView } from "../payments/AgreementSummaryView";
 import { SovPage } from "../billing/SovEditor";
@@ -7,6 +7,7 @@ import { OwnerPayAppsPage } from "../billing/OwnerBilling";
 import { PayAppPage } from "../billing/PayAppPage";
 import { PayAppsPage } from "../billing/PayAppsPage";
 import { ChangeOrdersPage } from "../payments/ChangeOrders";
+import { ChangeOrderDetail } from "../payments/ChangeOrderDetail";
 import { ApprovalInbox } from "../payments/inbox/ApprovalInbox";
 import { PaymentsWorkspace } from "../payments/PaymentsWorkspace";
 import { OwnerPortal } from "../payments/OwnerPortal";
@@ -51,12 +52,25 @@ export type ShellIdentity = {
 
 export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procurementApp: ReactNode }) {
   const signOutAndReset = useSignOutAndReset();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuButton = useRef<HTMLButtonElement>(null);
   const hash = useHash();
   const isDemo = me.isDemo === true;
   const route = resolveRoute(me.role, hash, isDemo, window.location.search, me.actorType);
   const nav = navFor(me.role, isDemo, me.actorType);
   const homeHash = nav[0].hash;
   const leftProcurement = route.area !== "procurement" && hash !== "" && hash !== "#" && hash !== "#/";
+  useEffect(() => setMenuOpen(false), [hash]);
+  useEffect(() => {
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && menuOpen) {
+        setMenuOpen(false);
+        menuButton.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [menuOpen]);
 
   // `?project=&tab=` belong to the procurement workspace. Once the user moves to another area they would
   // otherwise linger and reopen a stale (for example archived) project the next time Procurement opens.
@@ -81,7 +95,7 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
   else if (route.area === "billing") content = <BillingWorklist tab={route.tab} />;
   else if (route.area === "owner-pay-apps") content = <OwnerPayAppsPage />;
   else if (route.area === "pay-apps") content = <PayAppsPage />;
-  else if (route.area === "change-orders") content = <ChangeOrdersPage />;
+  else if (route.area === "change-orders") content = route.changeOrderId ? <ChangeOrderDetail changeOrderId={route.changeOrderId} /> : <ChangeOrdersPage />;
   else if (route.area === "compliance") content = <CompliancePage role={me.role} focusItemId={route.complianceItemId} />;
   else if (route.area === "pay-app") {
     const back = me.role === "gc" ? { hash: "#/billing", label: "Billing" } : { hash: "#/pay-apps", label: "Pay apps" };
@@ -119,27 +133,44 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
   return (
     <ActiveCompanyContext.Provider value={{ name: me.companyName ?? null, isDemo }}>
     <NotFoundHomeContext.Provider value={{ href: homeHash, label: nav[0].label }}>
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans">
+    <div className="workspace-shell min-h-screen min-w-0 bg-slate-950 text-slate-100 font-sans">
+      <a
+        href="#workspace-main"
+        className="skip-link"
+        onClick={(event) => {
+          event.preventDefault();
+          document.getElementById("workspace-main")?.focus();
+        }}
+      >Skip to main content</a>
       <ConnectionBanner />
+      <header className="border-b border-slate-800 bg-slate-900 px-4 py-3">
+        <div className="flex min-w-0 items-center justify-between gap-3">
+          <a href={homeHash} className="font-bold tracking-tight text-lg">TradePulse Pay</a>
+          <div className="flex items-center gap-2">
+            {isDemo && <span className="rounded-full border border-amber-700 bg-amber-950 px-2 py-1 text-[10px] font-bold uppercase text-amber-200">Demo</span>}
+            {me.actorType === "human" ? <NotificationBell /> : null}
+            <button
+              ref={menuButton}
+              type="button"
+              aria-expanded={menuOpen}
+              aria-controls="workspace-navigation"
+              onClick={() => setMenuOpen((open) => !open)}
+              className="min-h-11 rounded-lg border border-slate-600 px-3 text-sm xl:hidden"
+            >{menuOpen ? "Close menu" : "Menu"}</button>
+          </div>
+        </div>
+        <p className="mt-1 text-xs text-slate-300 xl:hidden">{ROLE_LABEL[me.role]}{me.companyName ? ` · ${me.companyName}` : ""}</p>
       <nav
+        id="workspace-navigation"
         aria-label="Workspace"
-        className="w-full bg-slate-900 border-b border-slate-800 px-4 py-2 flex flex-wrap items-center gap-3 text-sm"
+        className={`${menuOpen ? "block" : "hidden"} mt-3 min-w-0 text-sm xl:block`}
       >
-        <span className="font-bold tracking-tight mr-2">TradePulse Pay</span>
         {me.companyName ? (
-          <span className="mr-2 text-sm font-semibold text-slate-200" data-testid="active-company-name">
+          <span className="mb-2 block text-sm font-semibold text-slate-200" data-testid="active-company-name">
             {me.companyName}
           </span>
         ) : null}
-        {isDemo ? (
-          <span
-            className="mr-2 rounded-full border border-amber-600 bg-amber-950/60 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-200"
-            data-testid="demo-badge"
-          >
-            Demo
-          </span>
-        ) : null}
-        <ul className="flex flex-wrap items-center gap-1">
+        <ul className="grid gap-1 sm:grid-cols-2 xl:flex xl:flex-wrap">
           {nav.map((item) => {
             const active =
               route.area === item.area ||
@@ -150,13 +181,13 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
                 <a
                   href={item.hash}
                   aria-current={active ? "page" : undefined}
-                  className={`rounded-lg px-3 py-1.5 ${
+                  className={`flex min-h-11 items-center gap-2 rounded-lg px-3 py-2 ${
                     active ? "bg-emerald-700/40 text-emerald-200" : "text-slate-300 hover:bg-slate-800"
                   }`}
                 >
                   {item.label}
                   {DEMO_ONLY_AREAS.has(item.area) ? (
-                    <span className="ml-1.5 rounded border border-amber-600 px-1 text-[9px] font-bold uppercase text-amber-200">
+                    <span aria-hidden="true" className="rounded border border-amber-600 px-1 text-[9px] font-bold uppercase text-amber-200">
                       Demo
                     </span>
                   ) : null}
@@ -165,8 +196,8 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
             );
           })}
         </ul>
-        <div className="ml-auto flex min-w-0 flex-wrap items-center gap-3">
-          <span className="min-w-0 break-all text-xs text-slate-300" data-testid="signed-in-identity">
+        <div className="mt-3 flex min-w-0 flex-wrap items-center gap-3 border-t border-slate-800 pt-3">
+          <span className="min-w-0 [overflow-wrap:anywhere] text-xs text-slate-300" data-testid="signed-in-identity">
             <span className="font-semibold">{me.displayName}</span>
             {me.email ? <span className="text-slate-400"> · {me.email}</span> : null}
             <span className="ml-2 rounded-full border border-slate-700 px-2 py-0.5 text-[10px] uppercase tracking-wide">
@@ -181,7 +212,6 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
               </span>
             ) : null}
           </span>
-          {me.actorType === "human" ? <NotificationBell /> : null}
           {me.actorType === "human" ? (
             <a
               href={COMPANY_HASH}
@@ -200,10 +230,17 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
           </button>
         </div>
       </nav>
+      </header>
+      {isDemo && (
+        <aside className="border-b border-amber-900/50 bg-amber-950/20 px-4 py-2 text-xs text-amber-100" data-testid="demo-badge">
+          <strong>PayPal sandbox · no real money.</strong> Shared demo accounts: use synthetic data only.{" "}
+          <a href="#/demo" className="underline underline-offset-2">Demo guide</a>
+        </aside>
+      )}
       {isLegacyFullPage ? (
-        content
+        <div id="workspace-main" tabIndex={-1} className="workspace-content min-w-0 outline-none">{content}</div>
       ) : (
-        <main className="p-4 sm:p-6">
+        <main id="workspace-main" tabIndex={-1} className="workspace-content min-w-0 p-4 outline-none sm:p-6">
           <QueryBoundary
             resetKey={hash}
             fallback={(message) => (isNotFoundMessage(message) ? <NotFoundState /> : <QueryErrorAlert message={message} />)}
@@ -219,13 +256,15 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
 }
 
 function isNotFoundMessage(message: string): boolean {
-  return /(^|\s)not found\.?$/i.test(message.trim());
+  return /(^|\s)not found\.?$/i.test(message.trim()) || /ArgumentValidationError|Invalid (?:document )?ID/i.test(message);
 }
 
 function QueryErrorAlert({ message }: { message: string }) {
   return (
     <div role="alert" className="max-w-xl rounded-2xl border border-rose-800 bg-rose-950/40 p-6 text-sm text-rose-100">
-      {message}
+      <p>The page could not load. Your saved records have not been changed.</p>
+      <button type="button" className="mt-3 rounded-lg border border-rose-700 px-3 py-2" onClick={() => window.location.reload()}>Reload page</button>
+      {/network|connection|offline/i.test(message) && <p className="mt-2">Check your connection and try again.</p>}
     </div>
   );
 }

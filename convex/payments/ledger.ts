@@ -15,6 +15,8 @@ import { agreementContractSum } from "../billing/changeOrderView";
 import type { ContractSumBreakdown } from "./changeOrderMath";
 import { loadSovRows } from "../lib/sovLines";
 import { loadTranches } from "../lib/trancheRows";
+import { isReadOnlyReference } from "../lib/demoReference";
+import { agreementLedgerValidator, ledgerAgreementValidator } from "./ledgerValidators";
 
 /** contractSumCents is the contract sum to date (original plus approved change orders). */
 function ledgerAgreementSummary(a: Doc<"agreements">, sum: ContractSumBreakdown) {
@@ -55,13 +57,14 @@ function fundingSummary(p: Doc<"payments"> | undefined) {
   };
 }
 
-function releaseSummary(p: Doc<"payments">, showReceiver: boolean, retry?: { captured: boolean; canRetryPayout: boolean }) {
+function releaseSummary(p: Doc<"payments">, showReceiver: boolean, retry?: { captured: boolean; canRetryPayout: boolean }, captureId?: string) {
   return {
     paymentId: p._id,
     status: p.status,
     grossCents: p.grossCents,
     retainageCents: p.retainageCents,
     netCents: p.netCents,
+    paypalCaptureId: p.paypalCaptureId ?? captureId ?? null,
     paypalPayoutBatchId: p.paypalPayoutBatchId ?? null,
     paypalPayoutItemId: p.paypalPayoutItemId ?? null,
     paypalItemStatus: p.paypalItemStatus ?? null,
@@ -78,6 +81,7 @@ function releaseSummary(p: Doc<"payments">, showReceiver: boolean, retry?: { cap
 /** Payments workspace list: the GC sees its projects' live agreements, a sub only its own vendor's. */
 export const listLedgerAgreements = query({
   args: {},
+  returns: v.array(ledgerAgreementValidator),
   handler: async (ctx) => {
     await requireRole(ctx, ["gc", "sub"]);
     const { rows } = await scopedAgreements(ctx, { parties: ["gc", "sub"], limit: 200 });
@@ -93,6 +97,7 @@ export const listLedgerAgreements = query({
  */
 export const getAgreementLedger = query({
   args: { agreementId: v.string() },
+  returns: agreementLedgerValidator,
   handler: async (ctx, args) => {
     const scope = await findSubcontractDocScope(ctx, "agreements", args.agreementId, { roles: ["gc", "sub"] });
     if (scope === null) return null;
@@ -116,6 +121,9 @@ export const getAgreementLedger = query({
       releasesByMilestone.set(p.milestoneId, [...(releasesByMilestone.get(p.milestoneId) ?? []), p]);
     }
     const isGc = viewer.role === "gc";
+    const readOnlyReference = isReadOnlyReference(scope.project);
+    const canWrite = isGc && !readOnlyReference;
+    const bid = await ctx.db.get(agreement.bidId);
     const retainageReleases = payments.filter((p) => p.kind === "retainage_release");
     const totals = computeLedgerTotals({
       contractSumCents: summary.contractSumCents,
@@ -126,8 +134,12 @@ export const getAgreementLedger = query({
       changeOrders: isGc ? changeOrders : [],
     });
     const capturedReleaseIds = new Set<string>();
+    const captureByRelease = new Map<string, string>();
     for (const p of payments) {
-      for (const c of p.captures ?? []) if (c.releasePaymentId && isCaptureCollected(c.status)) capturedReleaseIds.add(c.releasePaymentId);
+      for (const c of p.captures ?? []) if (c.releasePaymentId) {
+        captureByRelease.set(c.releasePaymentId, c.captureId);
+        if (isCaptureCollected(c.status)) capturedReleaseIds.add(c.releasePaymentId);
+      }
     }
     const payouts = payments.filter((p) => p.kind === "payout");
     const paymentById = new Map<string, Doc<"payments">>(payments.map((p) => [p._id, p]));
@@ -137,13 +149,18 @@ export const getAgreementLedger = query({
       const attempts = attemptsFor(payouts, rootId);
       // Only the latest attempt of a release offers "Retry payout".
       const latest = attempts[attempts.length - 1];
-      return { captured, canRetryPayout: isGc && latest?._id === p._id && checkRetry(attempts, rootId, captured).ok };
+      return { captured, canRetryPayout: canWrite && latest?._id === p._id && checkRetry(attempts, rootId, captured).ok };
     };
     return {
       agreement: summary,
-      canFund: isGc,
-      canRelease: isGc,
-      canReleaseRetainage: isGc,
+      readOnlyReference,
+      canViewReviews: isGc,
+      canFund: canWrite,
+      canRelease: canWrite,
+      canReleaseRetainage: canWrite,
+      excludedScopeEstimates: (bid?.identifiedExclusions ?? []).map((e) => ({
+        description: e.description, amountCents: e.costImpactCents ?? null,
+      })),
       retainageReleasedCents: totals.retainageReleasedCents,
       retainageReleasableCents: releasableRetainageCents(payments, retainage),
       balanceFormula: BALANCE_FORMULA,
@@ -179,7 +196,7 @@ export const getAgreementLedger = query({
         amountCents: m.amountCents,
         status: m.status,
         funding: fundingSummary(latestFunding.get(m._id)),
-        releases: (releasesByMilestone.get(m._id) ?? []).map((p) => releaseSummary(p, isGc || viewer.role === "sub", retryInfo(p))),
+        releases: (releasesByMilestone.get(m._id) ?? []).map((p) => releaseSummary(p, isGc || viewer.role === "sub", retryInfo(p), captureByRelease.get(p.retryOfPaymentId ?? p._id))),
       })),
       totals,
     };

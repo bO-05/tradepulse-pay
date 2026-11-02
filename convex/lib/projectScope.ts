@@ -4,6 +4,7 @@ import type { QueryCtx } from "../_generated/server";
 import { changeOrderScopeOf } from "../payments/changeOrderMath";
 import { findActiveAgentLink } from "./agentAccess";
 import { getViewer, requireRole, type Role } from "./roles";
+import { assertReferenceWritable } from "./demoReference";
 import {
   accessibleProjectIds,
   findActiveMembership,
@@ -36,6 +37,7 @@ function finish(access: ProjectAccess, opts: ScopeOptions): ProjectAccess {
     if (access.project.archived === true) {
       throw new ConvexError({ code: "ARCHIVED", message: "This project is archived; restore it before making changes." });
     }
+    assertReferenceWritable(access.project);
   }
   return access;
 }

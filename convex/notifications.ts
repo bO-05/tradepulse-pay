@@ -1,9 +1,10 @@
-import { paginationOptsValidator } from "convex/server";
+import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, mutation, query, type MutationCtx } from "./_generated/server";
 import { notFound, requireCompanyMember } from "./lib/tenancy";
+import { notificationKindValidator } from "./schema";
 
 /**
  * The signed-in user's in-app notifications (architecture §18). Rows are per user and per company;
@@ -12,13 +13,22 @@ import { notFound, requireCompanyMember } from "./lib/tenancy";
 
 export const BELL_LIMIT = 8;
 const UNREAD_COUNT_CAP = 99;
+const notificationRowValidator = v.object({
+  _id: v.id("notifications"), kind: notificationKindValidator, title: v.string(), body: v.string(),
+  link: v.string(), read: v.boolean(), readAt: v.union(v.number(), v.null()), createdAt: v.number(),
+});
+
+/** Old redactions are irreversible; explain them without guessing the original private text. */
+function readableNotification(text: string): string {
+  return text.replace(/\[email hidden\]/g, "(email omitted)").replace(/\[hidden\]/g, "(reference omitted)");
+}
 
 function publicRow(n: Doc<"notifications">) {
   return {
     _id: n._id,
     kind: n.kind,
-    title: n.title,
-    body: n.body,
+    title: readableNotification(n.title),
+    body: readableNotification(n.body),
     link: n.link,
     read: n.readAt !== undefined,
     readAt: n.readAt ?? null,
@@ -29,6 +39,7 @@ function publicRow(n: Doc<"notifications">) {
 /** Bell data: unread count (capped, `unreadCapped` when more) and the newest few notifications. */
 export const summary = query({
   args: {},
+  returns: v.object({ unreadCount: v.number(), unreadCapped: v.boolean(), latest: v.array(notificationRowValidator), hasMore: v.boolean() }),
   handler: async (ctx) => {
     // Billing agents and users without a company have no notifications; the bell then shows nothing.
     const member = await requireCompanyMember(ctx).catch(() => null);
@@ -55,6 +66,7 @@ export const summary = query({
 /** All of the caller's notifications, newest first, paginated ("See all" page). */
 export const list = query({
   args: { paginationOpts: paginationOptsValidator },
+  returns: paginationResultValidator(notificationRowValidator),
   handler: async (ctx, args) => {
     const { user, company } = await requireCompanyMember(ctx);
     const result = await ctx.db
