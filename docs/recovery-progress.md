@@ -15,6 +15,15 @@ The original development deployment contains newer waiver functions and a `lienW
 
 The managed cloud workspace is unavailable. GitHub is the recoverable source baseline; deployed schema metadata is not a substitute for the missing source. Do not redeploy over the original development environment without a deliberate recovery or migration plan.
 
+## Canonical frontend acceptance, 3 November 2026
+
+- The proxied CNAME `tradepulse-pay` → `tradepulse-pay.pages.dev` is live, the Cloudflare Pages certificate is active, and **https://tradepulse-pay.asynchronope.tech** serves the recovery build.
+- The three-origin read-only acceptance passed **53/53 checks** at commit `2ad24ff82c00a8eb62b324b1938f169e8865a71c` on the canonical domain, `tradepulse-pay.pages.dev` and `cheery-axolotl-689.convex.site`. Evidence: `evidence/dual-host-browser-2026-11-03T23-54-12-496Z/report.json`.
+- All three origins served the same commit. The demo guide and build stamp rendered; GC, subcontractor and owner sign-ins worked in fresh contexts; the pinned read-only run `A401-DEMO-PAY-20261101-02` loaded; reports and the $55,000 agreement ledger loaded; seeded archive files downloaded through the Convex site with `Access-Control-Allow-Origin: *`; no console or CORS errors were recorded.
+- Backend functions, webhooks, `/api/health`, the Convex Auth issuer and the AgentID callback remain on `cheery-axolotl-689.convex.site`. `CONVEX_SITE_URL` is unchanged; `SITE_URL` is the canonical domain.
+- Final regression after these changes: **1,982 tests across 149 files**, `tsc -b` clean, guard audit 258 public / 201 internal / 0 problems, and 65 relative documentation links resolve.
+- The acceptance performed no guided run, PayPal popup, financial write or reference-run mutation.
+
 ## Verified recovery baseline
 
 - Final judge-access regression: **1,957 tests passed across 144 files** (`evidence/recovery-judge-final-regression.json`), plus **eight Node safety/integration helper tests**. The earlier recovery checkpoint was 1,950 tests across 142 files.
