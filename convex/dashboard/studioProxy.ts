@@ -2,6 +2,7 @@ import { ConvexError } from "convex/values";
 import { internal } from "../_generated/api";
 import { httpAction } from "../_generated/server";
 import { DEFAULT_MISTRAL_MODEL, getAIConfiguration } from "../lib/aiProvider";
+import { browserOrigins } from "../lib/browserOrigins";
 import { withMistralTaskReasoning } from "../lib/mistralRequest";
 import {
   AnthropicStreamTranslator,
@@ -16,17 +17,10 @@ import { MistralStreamTranslator, toMistralRequest } from "./studioMistral";
 const ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
 const MISTRAL_COMPLETIONS_URL = "https://api.mistral.ai/v1/chat/completions";
 const MAX_BODY_BYTES = 2_000_000;
-const DEV_ORIGINS = ["http://localhost:3150"];
-
-function allowedOrigins(): string[] {
-  return [process.env.SITE_URL, process.env.CONVEX_SITE_URL, ...DEV_ORIGINS].filter(
-    (o): o is string => typeof o === "string" && o !== "",
-  );
-}
 
 export function studioCorsHeaders(req: Request): Record<string, string> {
   const origin = req.headers.get("Origin");
-  if (!origin || !allowedOrigins().includes(origin)) return {};
+  if (!origin || !browserOrigins().includes(origin)) return {};
   return {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Methods": "POST, OPTIONS",

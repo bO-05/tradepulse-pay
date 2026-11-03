@@ -3,7 +3,10 @@
 ## Environments and source
 
 - Recovery branch: `recovery/stabilize-2026-11-01`, based on GitHub `main` at `fb5e416`.
-- Isolated recovery dev: **https://cheery-axolotl-689.convex.site**.
+- Isolated recovery dev backend and mirror: **https://cheery-axolotl-689.convex.site**.
+- Canonical frontend: **https://tradepulse-pay.asynchronope.tech** (Cloudflare Pages project
+  `tradepulse-pay`, CNAME to `tradepulse-pay.pages.dev`, same build). `CONVEX_SITE_URL` and
+  the protected reference check are unchanged.
 - Original production: `earnest-mongoose-745`, unchanged.
 - Original development: `exuberant-boar-323`, preserved.
 - Frozen legacy deployment: `brainy-skunk-440`, never modify.

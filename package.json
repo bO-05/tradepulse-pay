@@ -13,6 +13,7 @@
     "convex:dev": "convex dev",
     "convex:deploy": "convex deploy",
     "deploy": "npx @convex-dev/static-hosting deploy",
+    "deploy:all": "node scripts/deploy-all.mjs",
     "deploy:site": "npx @convex-dev/static-hosting deploy",
     "webhook:setup": "node scripts/setup-agentmail-webhook.mjs",
     "benchmark": "node scripts/run-real-world-benchmark.mjs",

@@ -104,6 +104,17 @@ describe("sandbox platform top-up", () => {
     expect(await codeOf(gc.as.action(api.payments.sandboxTopUp.createTopUpOrder, { amountCents: 5_000 }))).toBe("SANDBOX_ONLY");
   });
 
+  test("sends PayPal back to the canonical SITE_URL after a top-up", async () => {
+    const canonical = "https://tradepulse-pay.asynchronope.tech";
+    vi.stubEnv("SITE_URL", canonical);
+    const t = convexTest(schema, modules);
+    const gc = await signInAs(t, "gc");
+    await gc.as.action(api.payments.sandboxTopUp.createTopUpOrder, { amountCents: 5_000 });
+    const [create] = fake.posts();
+    const body = create.body as { application_context: { return_url: string; cancel_url: string } };
+    expect(body.application_context).toEqual({ return_url: `${canonical}/`, cancel_url: `${canonical}/` });
+  });
+
   test("creates a CAPTURE order with a request id, then captures once approved", async () => {
     const t = convexTest(schema, modules);
     const gc = await signInAs(t, "gc");

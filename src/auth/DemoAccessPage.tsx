@@ -4,6 +4,7 @@ import { useState } from "react";
 import { describeAuthError } from "./authErrors";
 import { FormAlert } from "./AuthLayout";
 import { useSignOutAndReset } from "./signOutAndReset";
+import { BuildStamp } from "../ui/BuildStamp";
 
 export const DEMO_ACCESS_HASH = "#/demo";
 export const DEMO_PASSWORD = "TradePulseDemo!2026";
@@ -96,11 +97,20 @@ export function DemoAccessPage() {
             <p className="text-xs text-slate-400">Recovery-dev email signup needs an allowlisted test inbox. For immediate judge access, use the public roles above instead of your personal email.</p>
           </section>
         </div>
-        <section className="grid gap-6 border-t border-slate-700 py-7 md:grid-cols-3 text-sm">
+        <section className="grid gap-6 border-t border-slate-700 py-7 md:grid-cols-3 text-sm" aria-label="Demo ground rules">
           <div><h2 className="font-semibold text-amber-200">Sandbox checkout</h2><p className="mt-2 text-slate-300">Choose United States and pay as guest. Card <code>4032031427005060</code>, expiry <code>01/29</code>, CVV <code>480</code>. Use synthetic details: Sandbox Buyer, 123 Test Street, San Jose, CA 95131, 2025550100, and a unique <code>@example.com</code> email.</p></div>
           <div><h2 className="font-semibold text-amber-200">What to verify</h2><p className="mt-2 text-slate-300">Read the AI provider and verdicts in the approval inbox. Check PayPal captures are COMPLETED, payout items are SUCCESS, and the Owner invoice is PAID. Dashboard and agreement-ledger totals must agree. Pending, unclaimed or failed is not paid.</p></div>
           <div><h2 className="font-semibold text-amber-200">Honest limits</h2><p className="mt-2 text-slate-300">AgentID needs owner-approved OAuth setup on this recovery build. The ordinary dashboard works without AG Studio; its optional licensed editor needs a valid license. Model or browser-service failures are surfaced, not presented as successful live calls.</p></div>
         </section>
+        <footer className="border-t border-slate-800 py-6 text-xs leading-relaxed text-slate-400">
+          <p>
+            Canonical: <a href="https://tradepulse-pay.asynchronope.tech/#/demo" className="text-emerald-300 underline underline-offset-2">tradepulse-pay.asynchronope.tech/#/demo</a>
+            <span aria-hidden="true"> · </span>
+            Mirror: <a href="https://cheery-axolotl-689.convex.site/#/demo" className="text-emerald-300 underline underline-offset-2">cheery-axolotl-689.convex.site/#/demo</a>
+          </p>
+          <p className="mt-1">Both addresses serve the same build. Backend, health checks and webhooks stay on the .convex.site deployment.</p>
+          <BuildStamp className="mt-2" />
+        </footer>
       </div>
     </main>
   );

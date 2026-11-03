@@ -6,9 +6,10 @@ The [official rules](https://paypalaihackathon.devpost.com/rules) set the deadli
 
 ## Links to use
 
-- Running app and public judge credentials: https://cheery-axolotl-689.convex.site/#/demo
+- Running app and public judge credentials: https://tradepulse-pay.asynchronope.tech/#/demo
+- Mirror (same build): https://cheery-axolotl-689.convex.site/#/demo
 - Matching source: https://github.com/bO-05/tradepulse-pay/tree/recovery/stabilize-2026-11-01
-- Quick proof: https://cheery-axolotl-689.convex.site/#/judge-demo/nx74k1sdcnsmqzvkr97kf0ts598hch6p
+- Quick proof: https://tradepulse-pay.asynchronope.tech/#/judge-demo/nx74k1sdcnsmqzvkr97kf0ts598hch6p
 - [Judge field guide](./judge-guide.md), [setup](../README.md#setup-and-run) and [MIT license](../LICENSE).
 - Public YouTube URL: **not published**. Add the actual URL only after uploading and checking signed-out access.
 
@@ -106,14 +107,15 @@ AgentID and AG Studio integration code exists, but neither is enabled on the hos
 
 ## Testing instructions (paste into Devpost)
 
-1. Open the demo guide: **https://cheery-axolotl-689.convex.site/#/demo**. No signup is needed.
+1. Open the demo guide: **https://tradepulse-pay.asynchronope.tech/#/demo**. No signup is needed.
+   The same build is also at **https://cheery-axolotl-689.convex.site/#/demo**.
 2. Sign in as any role with the shared demo password:
    - GC: `gc@demo.tradepulse`
    - Subcontractor: `sub1@demo.tradepulse`
    - Owner: `owner@demo.tradepulse`
    - Password: `TradePulseDemo!2026`
 3. Shortest proof path: open the pinned reference run
-   **https://cheery-axolotl-689.convex.site/#/judge-demo/nx74k1sdcnsmqzvkr97kf0ts598hch6p**,
+   **https://tradepulse-pay.asynchronope.tech/#/judge-demo/nx74k1sdcnsmqzvkr97kf0ts598hch6p**,
    then the ledger, the AI review and the PayPal receipt IDs. It is read-only and already settled.
 4. To fund a live sandbox authorization yourself, use the public PayPal sandbox card
    `4032031427005060`, expiry `01/29`, CVV `480`. The app uses `api-m.sandbox.paypal.com`; no real money moves.

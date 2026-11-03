@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import { cx, focusRing } from "../ui";
+import { BuildStamp, cx, focusRing } from "../ui";
 
 /** Shared frame for the signed-out screens: brand, one h1 card, optional footer. */
 export function AuthLayout({ title, description, children, footer }: {
@@ -33,6 +33,7 @@ export function AuthLayout({ title, description, children, footer }: {
           <div className="mt-4">{children}</div>
         </main>
         {footer && <div className="mt-4 text-sm text-ink-subtle text-center">{footer}</div>}
+        <BuildStamp className="mt-4 text-center" />
       </div>
     </div>
   );

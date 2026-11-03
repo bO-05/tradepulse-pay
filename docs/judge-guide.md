@@ -2,7 +2,8 @@
 
 ## Start without setup
 
-Open **https://cheery-axolotl-689.convex.site/#/demo**.
+Open **https://tradepulse-pay.asynchronope.tech/#/demo**.
+The same build is also served at **https://cheery-axolotl-689.convex.site/#/demo**; either address works.
 This is the tested recovery-dev sandbox, not production. The guide signs into ordinary public demo accounts:
 
 | Role | Email | Where to begin |
@@ -23,7 +24,8 @@ not claims that the independent checks have already passed.
 ## Two-minute inspection, no new payment
 
 1. Enter as GC. In **Guided demo**, select `A401-DEMO-PAY-20261101-02` from the run history.
-   Direct bookmark: https://cheery-axolotl-689.convex.site/#/judge-demo/nx74k1sdcnsmqzvkr97kf0ts598hch6p.
+   Direct bookmark: https://tradepulse-pay.asynchronope.tech/#/judge-demo/nx74k1sdcnsmqzvkr97kf0ts598hch6p
+   (mirror: https://cheery-axolotl-689.convex.site/#/judge-demo/nx74k1sdcnsmqzvkr97kf0ts598hch6p).
 2. Read the steps. Open the agreement number to inspect the authoritative agreement ledger.
 3. In **Approval inbox**, open the two pay applications for that agreement. Compare the honest claim and the
    deliberately overbilled claim. Inspect model/provider attribution, verdicts, proposals, the GC decision and PayPal IDs.

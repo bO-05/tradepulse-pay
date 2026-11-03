@@ -108,6 +108,7 @@ describe("README", () => {
 
   test("leads with tested recovery judge access and distinguishes production and unresolved AgentID setup", () => {
     const intro = README.slice(0, README.indexOf("\n---\n"));
+    expect(intro).toContain("https://tradepulse-pay.asynchronope.tech/#/demo");
     expect(intro).toContain("https://cheery-axolotl-689.convex.site/#/demo");
     expect(intro).toContain("not production");
     expect(intro).toContain("owner-approved client registration");

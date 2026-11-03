@@ -19,6 +19,7 @@ import { JudgeDemoPage } from "../payments/judgeDemo/JudgeDemoPage";
 import { CompanySettingsPage } from "../company/CompanySettingsPage";
 import { CompliancePage } from "../compliance/CompliancePage";
 import { QueryBoundary } from "../lib/QueryBoundary";
+import { BuildStamp } from "../ui/BuildStamp";
 import { NotFoundHomeContext, NotFoundState } from "../ui/NotFoundState";
 import { PeoplePage } from "../people/PeoplePage";
 import { VendorsPage } from "../vendors/VendorsPage";
@@ -291,6 +292,9 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
           </QueryBoundary>
         </main>
       )}
+      <footer className="px-4 pb-4 text-center sm:px-6">
+        <BuildStamp />
+      </footer>
     </div>
     </NotFoundHomeContext.Provider>
     </ActiveCompanyContext.Provider>

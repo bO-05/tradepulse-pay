@@ -2,7 +2,7 @@
 
 **General contractors pay subcontractors only for verified progress.** A subcontractor files a pay application; AI checks each line against the awarded contract; code computes every dollar; the GC approves; PayPal holds, captures, pays out net of retainage, and invoices the Owner.
 
-[**Open the judge demo →**](https://cheery-axolotl-689.convex.site/#/demo) · [judge walkthrough](./docs/judge-guide.md) · [source on the recovery branch](https://github.com/bO-05/tradepulse-pay/tree/recovery/stabilize-2026-11-01) · MIT licensed.
+[**Open the judge demo →**](https://tradepulse-pay.asynchronope.tech/#/demo) · [.convex.site mirror](https://cheery-axolotl-689.convex.site/#/demo) · [judge walkthrough](./docs/judge-guide.md) · [source on the recovery branch](https://github.com/bO-05/tradepulse-pay/tree/recovery/stabilize-2026-11-01) · MIT licensed.
 
 > **Try it in two minutes:** sign in as `gc@demo.tradepulse`, `sub1@demo.tradepulse` or `owner@demo.tradepulse` with `TradePulseDemo!2026`. PayPal sandbox only; synthetic data; no real money.
 
@@ -339,6 +339,12 @@ Signed in as the GC, the **Procurement** area is the original TradePulse Pro app
 This is the tested, isolated recovery-dev build, not production. Production `earnest-mongoose-745` has **not** been replaced or re-certified, and the earlier TradePulse Pro submission on `brainy-skunk-440` is frozen and does not run this code. AgentID on recovery still requires owner-approved client registration; normal demo password sign-in works. The original dev deployment's newer cloud-only waiver implementation remains protected and is not recovered by this branch.
 
 **Verified recovery proof:** real Mistral review and proposal tools, two COMPLETED PayPal captures, two SUCCESS progress payouts, a PAID Owner invoice and a SUCCESS retainage release were independently checked on November 1, 2026. These are partial-progress demo payments, not completion of the entire contract. See [recovery status and evidence](./docs/recovery-progress.md) and the [sanitized audit-fix handoff](./docs/external-audit-fixes.md).
+
+### Two static addresses, one backend
+
+The frontend is served from **https://tradepulse-pay.asynchronope.tech** (Cloudflare Pages project `tradepulse-pay`) and the original **https://cheery-axolotl-689.convex.site** mirror. The DNS record is `tradepulse-pay` CNAME `tradepulse-pay.pages.dev`, proxied. Both hosts serve the same `dist`; the footer and `/version.json` show the commit. Backend functions, webhooks, `/api/health`, Convex Auth and AgentID callbacks stay on `cheery-axolotl-689.convex.site`. `CONVEX_SITE_URL` is unchanged because the protected reference run checks it.
+
+`npm run deploy:all` verifies the recovery target, pushes the backend with `convex dev --once`, builds once with the deployment URLs, uploads that build to both static hosts, and refuses to finish unless both `/version.json` files match the git commit. It deliberately does not use `npx convex deploy`, which would target the project's production deployment when `CONVEX_DEPLOYMENT` is set.
 
 ---
 

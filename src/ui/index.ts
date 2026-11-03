@@ -1,3 +1,4 @@
+export { BuildStamp } from "./BuildStamp";
 export { Button, type ButtonProps, type ButtonVariant } from "./Button";
 export { IconButton, type IconButtonProps } from "./IconButton";
 export { Card, type CardProps } from "./Card";
