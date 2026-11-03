@@ -344,7 +344,7 @@ This is the tested, isolated recovery-dev build, not production. Production `ear
 
 The frontend is served from **https://tradepulse-pay.asynchronope.tech** (Cloudflare Pages project `tradepulse-pay`) and the original **https://cheery-axolotl-689.convex.site** mirror. The DNS record is `tradepulse-pay` CNAME `tradepulse-pay.pages.dev`, proxied. Both hosts serve the same `dist`; the footer and `/version.json` show the commit. Backend functions, webhooks, `/api/health`, Convex Auth and AgentID callbacks stay on `cheery-axolotl-689.convex.site`. `CONVEX_SITE_URL` is unchanged because the protected reference run checks it.
 
-`npm run deploy:all` verifies the recovery target, pushes the backend with `convex dev --once`, builds once with the deployment URLs, uploads that build to both static hosts, and refuses to finish unless both `/version.json` files match the git commit. It deliberately does not use `npx convex deploy`, which would target the project's production deployment when `CONVEX_DEPLOYMENT` is set.
+`npm run deploy:all` verifies the recovery target, pushes the backend with `convex dev --once`, builds once with the deployment URLs, uploads that build to both static hosts, and refuses to finish unless both `/version.json` files match the git commit. It deliberately does not use `npx convex deploy`, which would target the project's production deployment when `CONVEX_DEPLOYMENT` is set. `deploy` and `deploy:site` are static-only uploads to the deployment in `.env.local`; the static-hosting package's own `deploy` subcommand is not used because it hardcodes `--prod`.
 
 ---
 

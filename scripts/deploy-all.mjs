@@ -128,6 +128,7 @@ const versionFile = JSON.parse(readFileSync(resolve(ROOT, "dist", "version.json"
 if (versionFile.commit !== commit) fail(`dist/version.json says ${versionFile.commit}, expected ${commit}.`);
 
 // 3. The existing .convex.site host must keep serving the same build.
+// Use `upload` (no --prod): the package's `deploy` subcommand hardcodes --prod.
 run("npm", ["run", "deploy:site"], buildEnv);
 
 // 4. Cloudflare Pages production deployment (direct upload, no Git integration).
