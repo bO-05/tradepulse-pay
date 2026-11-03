@@ -35,10 +35,16 @@ export async function fetchAuthenticatedFile(
  * URL when present, otherwise a served app document-router path. Never derives
  * content from the file name.
  */
-export function resolveStoredFileUrl(file: StoredFileLike): string | null {
+export function resolveStoredFileUrl(file: StoredFileLike, siteUrl = ""): string | null {
   if (file.url) return file.url;
   const storageId = file.storageId || "";
-  if (storageId.startsWith("http") || storageId.startsWith("/")) return storageId;
+  if (storageId.startsWith("http")) return storageId;
+  // Archive records use backend paths such as /specs/... . On a separate static host those must
+  // be fetched from the Convex site, not from the frontend origin.
+  if (storageId.startsWith("/")) {
+    const base = siteUrl.replace(/\/+$/, "");
+    return base ? `${base}${storageId}` : storageId;
+  }
   return null;
 }
 

@@ -27,6 +27,7 @@ import { ConfirmDialog } from "./ConfirmDialog.tsx";
 import { useDialogFocus } from "../lib/useDialogFocus.ts";
 import { formatDateOnly } from "../lib/datetime.ts";
 import {
+  convexSiteUrl,
   fetchAuthenticatedFile,
   isServedArchiveRecord,
   resolveStoredFileText,
@@ -307,7 +308,7 @@ export const ProjectFilesView: React.FC<ProjectFilesViewProps> = ({
 
     // 1. Serve the stored object verbatim: fetch the Convex storage URL / app document
     // router path as bytes and save it under the record's own filename.
-    const storedUrl = resolveStoredFileUrl(file);
+    const storedUrl = resolveStoredFileUrl(file, convexSiteUrl(CONVEX_ENV));
     if (storedUrl) {
       try {
         const response = await fetch(storedUrl);
@@ -717,7 +718,7 @@ export const ProjectFilesView: React.FC<ProjectFilesViewProps> = ({
                       }
                       return;
                     }
-                    const storedUrl = resolveStoredFileUrl(previewFile);
+                    const storedUrl = resolveStoredFileUrl(previewFile, convexSiteUrl(CONVEX_ENV));
                     if (storedUrl) {
                       window.open(storedUrl, "_blank");
                       return;
