@@ -146,6 +146,7 @@ A third private audit (first-use / skeptical judge) and a fourth (judging criter
 - `node scripts/qa/audit-v2-browser.mjs`: **83/83 checks, 0 console or page errors** on the preserved reference, roles, consent dialog and 320–1440 px layouts. Report: `evidence/audit-v2-browser-2026-11-03T13-57-30-847Z/report.json`.
 - `node scripts/qa/audit-v3-browser.mjs`: **21/21 checks, 0 console or page errors** for the new fixes at 360, 390 and 1440 px, including the hidden AgentID control, focus after sign-in, Reports chart, pay-app money trail, G702 note, UTC labels and forbidden change-order Not found page. Report: `evidence/audit-v3-browser-2026-11-03T13-59-31-102Z/report.json`.
 - Recovery-dev backend and static bundle deployed with typecheck. Served assets: `index-MudxKyV7.js` and `index-BVET7WmM.css`; static publication `ece3b632-2a61-48f5-bb1c-0967ac541a7f`. `AI_PROVIDER` was confirmed as `mistral` on `dev:cheery-axolotl-689`; no Anthropic key is required for judging. Production (`earnest-mongoose-745`) and `main` were not touched.
+- These changes are committed as `e35df17` on `recovery/stabilize-2026-11-01` and pushed there only. `main`, local and remote, remains `fb5e416`.
 
 ### Still open after V3/V4
 
