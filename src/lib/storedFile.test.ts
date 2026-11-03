@@ -10,6 +10,12 @@ describe("stored file URLs on a separate static host", () => {
     );
   });
 
+  test("prefixes a relative public url as well as storageId", () => {
+    expect(resolveStoredFileUrl({ url: "/insurance/Rosendin_Electric_ACORD25_COI.pdf" }, SITE)).toBe(
+      `${SITE}/insurance/Rosendin_Electric_ACORD25_COI.pdf`,
+    );
+  });
+
   test("leaves absolute and Convex storage URLs alone", () => {
     expect(resolveStoredFileUrl({ storageId: `${SITE}/specs/x.pdf` }, SITE)).toBe(`${SITE}/specs/x.pdf`);
     expect(resolveStoredFileUrl({ url: "https://example.convex.cloud/blob" }, SITE)).toBe(

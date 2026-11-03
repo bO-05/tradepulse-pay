@@ -28,6 +28,8 @@ if (urls.length === 0) {
 
 const DEMO_RUN = "nx74k1sdcnsmqzvkr97kf0ts598hch6p";
 const REFERENCE_AGREEMENT = "A401-DEMO-PAY-20261101-02";
+// Seeded file records live on the shared demo project, not on the latest draft fixture.
+const DEMO_FILE_PROJECT = "q976pstkawcf81w905kap39cn18hcygr";
 const CANONICAL = "https://tradepulse-pay.asynchronope.tech";
 const MIRROR = "https://cheery-axolotl-689.convex.site";
 const directory = path.join(root, "evidence", `dual-host-browser-${new Date().toISOString().replace(/[:.]/g, "-")}`);
@@ -173,9 +175,13 @@ try {
         });
       }
     });
-    await open(gc.page, site, "#/procurement");
+    await gc.page.goto(`${site}/?project=${DEMO_FILE_PROJECT}&tab=packages#/procurement`, {
+      waitUntil: "domcontentloaded",
+    });
     await gc.page.waitForFunction(() => document.body.innerText.includes("Convex File Storage"), { timeout: 45000 });
-    const archiveButtons = await gc.page.$$('button[title="Download document archive"]');
+    const archiveButtons = await gc.page.$$(
+      'button[title="Download document archive"], button[title="Download file from Convex Storage"]',
+    );
     check(`${hostLabel} lists seeded archive files`, archiveButtons.length > 0, { count: archiveButtons.length });
     for (const button of archiveButtons.slice(0, 3)) {
       await button.click();
