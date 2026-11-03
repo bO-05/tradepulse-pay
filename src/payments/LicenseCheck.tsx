@@ -2,6 +2,7 @@ import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
 import { api } from "../../convex/_generated/api";
 import { readableError } from "./FundMilestone";
+import { formatDateTime } from "../ui/format";
 
 export type LicenseBadgeStatus = "active" | "expired" | "suspended" | "inactive" | "not_found" | "unverified" | "none";
 
@@ -32,10 +33,6 @@ export function LicenseBadge({ status, running = false }: { status: LicenseBadge
       {b.label}
     </span>
   );
-}
-
-function formatDateTime(ms: number): string {
-  return new Date(ms).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
 /**
@@ -75,10 +72,11 @@ export function LicenseCheckPanel({ contractorId, readOnly = false }: { contract
   }
 
   return (
-    <section className="border border-slate-800 rounded-xl p-4 space-y-3" data-testid="license-check-panel" aria-label="Contractor license check">
+    <section className="border border-slate-800 rounded-xl p-4 space-y-3" data-testid="license-check-panel">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
           <h3 className="text-sm font-semibold">California contractor license (CSLB)</h3>
+          <p className="text-xs text-slate-300">California registry lookup only. On a Texas project this is supplementary contractor information, not verification of Texas licensing or permission to perform this project's work.</p>
           <p className="text-xs text-slate-400">
             {data.contractor.companyName} · CA license #<span data-testid="license-number">{data.contractor.licenseNumber}</span>
           </p>

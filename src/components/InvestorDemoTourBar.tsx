@@ -339,8 +339,8 @@ export const InvestorDemoTourBar: React.FC<InvestorDemoTourBarProps> = ({
             </span>
           </div>
 
-          {/* Right: Step Pills, Action Button & Controls */}
-          <div className="flex items-center gap-2 shrink-0">
+          {/* Right: Step Pills, Action Button & Controls. Wraps on a narrow phone instead of overflowing. */}
+          <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
             {/* Step Pills & Prev Control */}
             <div className="hidden sm:flex items-center gap-0.5 bg-slate-950/80 p-0.5 rounded-lg border border-slate-800">
               <button

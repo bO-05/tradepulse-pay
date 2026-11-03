@@ -164,7 +164,7 @@ export function deriveSteps(s: DemoState): DemoStep[] {
       label: "Execute the agreement; generate SOV and milestones",
       status: executed ? "done" : "todo",
       detail: executed
-        ? `${ledger!.sov.length} SOV lines (${ledger!.sov.filter((l) => l.excludedScope).length} excluded scope), ${ledger!.milestones.length} milestones`
+        ? `${ledger!.sov.length} contract SOV lines; excluded work stays outside the SOV, ${ledger!.milestones.length} milestones`
         : s.agreementStatus ?? "not started",
     },
     {
@@ -203,7 +203,7 @@ export function deriveSteps(s: DemoState): DemoStep[] {
       id: "license",
       label: "KERNEL CSLB license check",
       status: license ? (license.status === "active" ? "done" : "error") : s.agentFiled ? "running" : "todo",
-      detail: license ? `CSLB status ${license.status}, checked ${new Date(license.checkedAt).toLocaleTimeString()}` : "waiting",
+      detail: license ? `CSLB status ${license.status}, checked ${new Date(license.checkedAt).toISOString()} (UTC)` : "waiting",
     },
     {
       id: "proposals",

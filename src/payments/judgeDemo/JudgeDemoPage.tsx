@@ -12,6 +12,7 @@ import { deriveSteps, JUDGE_DEMO_AUTOSTART_KEY, type DemoInboxItem, type StepSta
 import { useJudgeDemoDriver } from "./useJudgeDemoDriver";
 import { NotFoundState } from "../../ui/NotFoundState";
 import { ReferenceNotice } from "../ReferenceNotice";
+import { ConfirmDialog, formatDateTime } from "../../ui";
 
 const STATUS_STYLE: Record<StepStatus, { label: string; style: string }> = {
   todo: { label: "Waiting", style: "border-slate-700 bg-slate-800 text-slate-300" },
@@ -47,6 +48,7 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
   const [closeoutBusy, setCloseoutBusy] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [refreshBusy, setRefreshBusy] = useState(false);
+  const [confirmStart, setConfirmStart] = useState(false);
 
   const pinRun = (id: Id<"judgeDemoRuns">) => {
     setRunId(id);
@@ -85,7 +87,7 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
     if (sessionStorage.getItem(JUDGE_DEMO_AUTOSTART_KEY) === "1") {
       autostarted.current = true;
       sessionStorage.removeItem(JUDGE_DEMO_AUTOSTART_KEY);
-      void driver.drive(true);
+      setConfirmStart(true);
     }
   }, [run, driver]);
 
@@ -113,7 +115,7 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
           </span>
         </h1>
         <p className="text-sm text-slate-300">
-          One click runs the full pay-application flow against the real PayPal sandbox, the configured AI provider and KERNEL: execute a fresh demo
+          After confirmation, the guided flow uses the real PayPal sandbox, the configured AI provider and KERNEL: execute a fresh demo
           agreement (${DEMO_CONTRACT_SUM.toLocaleString("en-US")}, seismic bracing excluded) for sub1's contractor, fund Mobilization, file an
           honest pay app for sub1 and an overbilled one for a labeled billing-agent stand-in, run the AI review and the
           CSLB license check, approve (editing the agent's amount down), capture and pay with 10% retainage, and invoice a change
@@ -121,7 +123,7 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
         </p>
         {run?.readOnlyReference && <ReferenceNotice />}
         <p className="text-xs text-amber-200">
-          The two pay apps are filed by this demo as stand-ins and are labeled "Guided demo (Demo)" wherever they appear. PayPal approval
+          The two pay apps explicitly identify the guided demo driver and demo stand-ins. PayPal approval
           and the Owner's invoice payment are real browser steps and are never faked. The driver stops after invoice submission;
           pay the invoice separately to complete the Owner-payment step. By starting, you authorize this demo driver to approve the displayed fixture proposals as the GC.
           {" "}Compliance records are marked demo fixtures without uploaded documents, not proof of real insurance, tax or licensing compliance.
@@ -143,7 +145,7 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
             type="button"
             data-testid="judge-demo-start"
             disabled={driver.running}
-            onClick={() => void driver.drive(true)}
+            onClick={() => setConfirmStart(true)}
             className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold hover:bg-emerald-500 disabled:opacity-50"
           >
             Run TradePulse Pay demo
@@ -172,6 +174,22 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
           </p>
         )}
       </header>
+      <ConfirmDialog
+        open={confirmStart}
+        title="Start a new sandbox demo run?"
+        amountCents={5500000}
+        amountLabel="New synthetic subcontract"
+        details={[
+          { label: "Funding", value: "$5,500 PayPal sandbox authorization, requiring your checkout approval" },
+          { label: "Recipients", value: "Existing demo subcontractor's configured sandbox payee; $1,850 invoice to the demo Owner" },
+          { label: "Provider calls", value: "Mistral review, KERNEL CSLB lookup and PayPal sandbox; these use provider credits" },
+          { label: "Shared account limit", value: "Up to 3 new guided runs per hour" },
+        ]}
+        effect="Creates a new project, $55,000 agreement and labeled stand-in pay applications. After funding, the driver approves the displayed demo proposals as the GC and sends sandbox payouts with 10% retainage. The Owner pays the invoice separately. The new run remains in history; the preserved fixtures are unchanged. Cancel creates nothing."
+        confirmLabel="Create sandbox run"
+        onCancel={() => setConfirmStart(false)}
+        onConfirm={async () => { setConfirmStart(false); await driver.drive(true); }}
+      />
 
       {run === undefined ? (
         <p className="text-sm text-slate-400">Loading…</p>
@@ -186,12 +204,13 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
                 {run.agreementNumber}
               </a>
             </span>
-            <span>Started {new Date(run.createdAt).toLocaleTimeString()}</span>
+            <span>Started {formatDateTime(run.createdAt, { timeZone: "UTC" })} UTC</span>
             <span data-testid="judge-demo-elapsed">
               {invoicedAt ? `Finished in ${elapsed(invoicedAt - run.createdAt)} (start to change-order invoice)` : `Elapsed ${elapsed(now - run.createdAt)}`}
             </span>
           </section>
 
+          <h2 className="font-semibold">Guided run steps</h2>
           <ol className="space-y-2" data-testid="judge-demo-steps">
             {steps.map((step, i) => (
               <li key={step.id} className="rounded-xl border border-slate-800 p-3 space-y-2" data-testid={`judge-demo-step-${step.id}`} data-status={step.status}>

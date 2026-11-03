@@ -49,6 +49,7 @@ export function RetainageReleaseList({ releases, canRefresh }: { releases: Miles
               </div>
             )}
             <ReceiptId label="PayPal retainage payout item" value={r.paypalPayoutItemId} />
+            <ReceiptId label="PayPal retainage payout batch" value={r.paypalPayoutBatchId} />
             {r.error && <p className={r.status === "success" ? "text-slate-400" : "text-rose-300"}>{r.error}</p>}
             {canRefresh && (r.status === "pending" || r.status === "unclaimed") && (
               <button

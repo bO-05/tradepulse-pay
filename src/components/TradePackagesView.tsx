@@ -24,6 +24,7 @@ import { api } from "../../convex/_generated/api.js";
 import { TradePackage, Project } from "../types.ts";
 import { ConfirmDialog } from "./ConfirmDialog.tsx";
 import { useDialogFocus, useEscapeToClose } from "../lib/useDialogFocus.ts";
+import { demoEmail } from "../lib/demoPrivacy";
 
 /** A14-01: the date input minimum must be the user's LOCAL calendar day. */
 function localDateInputValue(): string {
@@ -418,7 +419,7 @@ Furnish and install domestic cold, hot, and recirculated water piping, sanitary 
                         AgentMail Inbox:
                       </span>
                       <span className="text-blue-300 font-mono text-[11px] truncate max-w-[180px]">
-                        {pkg.agentMailbox}
+                        {demoEmail(pkg.agentMailbox, currentProject?.isDemoProject === true)}
                       </span>
                     </div>
                     {pkg.agentMailboxShared && (

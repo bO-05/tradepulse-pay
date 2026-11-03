@@ -39,9 +39,13 @@ describe("formatDate / formatDateTime", () => {
     expect(formatDate("2026-10-08", { timeZone: "America/Los_Angeles" })).toBe("Oct 8, 2026");
   });
 
-  test("timestamps add the time without seconds or a zone", () => {
+  test("explicit zones format without an extra label", () => {
     expect(formatDateTime(oct8, { timeZone: "UTC" })).toBe("Oct 8, 2026, 9:39 PM");
     expect(formatDateTime(oct8, { timeZone: "America/Los_Angeles" })).toBe("Oct 8, 2026, 2:39 PM");
+  });
+
+  test("a timestamp without a zone defaults to labeled UTC, never the viewer's local time", () => {
+    expect(formatDateTime(oct8)).toBe("Oct 8, 2026, 9:39 PM UTC");
   });
 
   test("missing or invalid values", () => {

@@ -32,5 +32,7 @@ test("missing Studio license shows live basic dashboard without loading Studio",
   expect(html).not.toContain("Loading AG Studio");
   expect(html).toContain("Owner change orders paid");
   expect(html).toContain("$1,850.00");
-  expect(html).toContain("subcontract payouts $0.00");
+  // An Owner never sees subcontract measures: the header omits them rather than printing a false $0.
+  expect(html).not.toContain("subcontract payouts");
+  expect(html).toContain("Subcontract measures are not shared with the Owner.");
 });

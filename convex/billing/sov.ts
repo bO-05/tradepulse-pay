@@ -1,7 +1,8 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "../_generated/server";
-import { auditActor, requireDocScope } from "../lib/projectScope";
+import { auditActor, findDocScope, requireDocScope } from "../lib/projectScope";
+import { isReadOnlyReference } from "../lib/demoReference";
 import type { ProjectAccess } from "../lib/tenancy";
 import { formatCents } from "../lib/money";
 import {
@@ -45,7 +46,8 @@ function lineView(l: Doc<"scheduleOfValues">) {
 export const getSov = query({
   args: { agreementId: v.string() },
   handler: async (ctx, args) => {
-    const scope = await requireDocScope(ctx, "agreements", args.agreementId, { roles: ["gc", "sub"] });
+    const scope = await findDocScope(ctx, "agreements", args.agreementId, { roles: ["gc", "sub"] });
+    if (scope === null) return null;
     const agreement = scope.doc;
     const isGc = scope.partyRole === "gc";
     const approved = sovIsApproved(agreement);
@@ -71,7 +73,7 @@ export const getSov = query({
       contractSumToDateCents: contractSumCents + netChangeCents,
       differenceCents: totalCents - netChangeCents - contractSumCents,
       excludedScopeNotes: agreement.excludedScopeNotes ?? [],
-      canEdit: isGc && !approved && agreement.status !== "superseded",
+      canEdit: isGc && !approved && agreement.status !== "superseded" && !isReadOnlyReference(scope.project),
       approvalProblem: isGc && !approved ? sovApprovalProblem(contractSumCents, lines) : null,
       lines: lines.map(lineView),
     };

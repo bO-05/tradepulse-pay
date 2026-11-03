@@ -1,6 +1,6 @@
 /**
  * The one money format and the one date format used by every screen.
- * Money: `$1,234.56`, negatives `-$1,250.00`. Dates: `Oct 8, 2026`; timestamps `Oct 8, 2026, 2:39 PM`.
+ * Money: `$1,234.56`, negatives `-$1,250.00`. Timestamps default to explicitly labeled UTC.
  */
 
 const GROUPED = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0, useGrouping: true });
@@ -48,7 +48,10 @@ export function formatDate(value: number | string | null | undefined, options: {
 export function formatDateTime(ts: number | null | undefined, options: { timeZone?: string } = {}): string {
   if (ts === null || ts === undefined || !Number.isFinite(ts)) return "—";
   // Some ICU versions emit a narrow no-break space before AM/PM; normalize to a plain space.
-  return new Intl.DateTimeFormat("en-US", { ...DATE_TIME_FORMAT, timeZone: options.timeZone })
+  return new Intl.DateTimeFormat("en-US", {
+    ...DATE_TIME_FORMAT, timeZone: options.timeZone ?? "UTC",
+    ...(!options.timeZone ? { timeZoneName: "short" as const } : {}),
+  })
     .format(ts)
     .replace(/\u202f/g, " ");
 }

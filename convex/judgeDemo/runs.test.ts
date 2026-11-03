@@ -1,4 +1,4 @@
-/// <reference types="vite/client" />
+﻿/// <reference types="vite/client" />
 import { convexTest } from "convex-test";
 import { ConvexError } from "convex/values";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
@@ -82,7 +82,7 @@ describe("judge demo runs", () => {
       sub1.as.mutation(api.payApps.g703.startPayApp, { agreementId: run.agreementId }),
       gc.as.action(api.payments.invoices.refreshChangeOrderStatus, { changeOrderId }),
     ]) expect((await errorOf(call)).code).toBe("READ_ONLY_REFERENCE");
-    expect((await gc.as.query(api.payApps.g703.getPayApp, { payAppId })).canReject).toBe(false);
+    expect((await gc.as.query(api.payApps.g703.getPayApp, { payAppId }))!.canReject).toBe(false);
     const fresh = await gc.as.mutation(api.judgeDemo.runs.startRun, {});
     await gc.as.mutation(api.agreements.executeAgreement, { agreementId: fresh.agreementId });
     expect((await gc.as.query(api.payments.ledger.getAgreementLedger, { agreementId: fresh.agreementId }))?.canFund).toBe(true);

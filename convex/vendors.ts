@@ -186,7 +186,7 @@ export const createVendor = mutation({
   args: vendorFieldsValidator,
   handler: async (ctx, args) => {
     await requireVerifiedUser(ctx);
-    const { company } = gcDirectoryMember(await requireCompanyMember(ctx));
+    const { company } = gcDirectoryMember(await requireCompanyMember(ctx, { write: true }));
     const vendor = await insertDirectoryVendor(ctx, company._id, args);
     return { vendorId: vendor._id };
   },
@@ -196,7 +196,7 @@ export const updateVendor = mutation({
   args: { vendorId: v.string(), ...vendorFieldsValidator },
   handler: async (ctx, args) => {
     await requireVerifiedUser(ctx);
-    const { company } = gcDirectoryMember(await requireCompanyMember(ctx));
+    const { company } = gcDirectoryMember(await requireCompanyMember(ctx, { write: true }));
     const { vendorId, ...fields } = args;
     const vendor = await ownVendor(ctx, company._id, vendorId);
     const input = validatedVendor(fields);
@@ -227,7 +227,7 @@ export const setVendorStatus = mutation({
   args: { vendorId: v.string(), status: v.union(v.literal("active"), v.literal("inactive")) },
   handler: async (ctx, args) => {
     await requireVerifiedUser(ctx);
-    const { company } = gcDirectoryMember(await requireCompanyMember(ctx));
+    const { company } = gcDirectoryMember(await requireCompanyMember(ctx, { write: true }));
     const vendor = await ownVendor(ctx, company._id, args.vendorId);
     if (vendor.status !== args.status) await ctx.db.patch(vendor._id, { status: args.status });
     return { vendorId: vendor._id, status: args.status };
@@ -255,7 +255,7 @@ export const importVendors = mutation({
   },
   handler: async (ctx, args) => {
     await requireVerifiedUser(ctx);
-    const { company } = gcDirectoryMember(await requireCompanyMember(ctx));
+    const { company } = gcDirectoryMember(await requireCompanyMember(ctx, { write: true }));
     if (args.rows.length === 0) throw invalidVendor("The file has no vendor rows to import.", "vendor");
     if (args.rows.length > VENDOR_IMPORT_MAX_ROWS) {
       throw invalidVendor(`A CSV import can hold at most ${VENDOR_IMPORT_MAX_ROWS} rows.`, "vendor");

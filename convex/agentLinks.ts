@@ -34,7 +34,7 @@ export const listAgentLinks = query({
         if (contractor === null && link.status === "revoked") return null;
         return {
           _id: link._id,
-          agentEmail: link.agentEmail,
+          agentEmail: company.demoReadOnly && !link.agentEmail.endsWith("@demo.tradepulse") ? `[demo inbox]@${link.agentEmail.split("@").pop()}` : link.agentEmail,
           contractorId: link.contractorId,
           contractorName: contractor?.companyName ?? link.contractorName ?? "Removed contractor",
           status: link.status,
@@ -69,7 +69,9 @@ export const listLinkableContractors = query({
 export const addAgentLink = mutation({
   args: { agentEmail: v.string(), contractorId: v.id("contractors") },
   handler: async (ctx, args) => {
+    // Scope first: a caller outside the GC company gets the same "Not found." as a missing contractor.
     const scope = await requireDocScope(ctx, "contractors", args.contractorId, { roles: ["gc"], write: true });
+    await requireCompanyMember(ctx, { write: true });
     const contractor = scope.doc;
     const gcCompanyId = scope.company?._id;
     if (gcCompanyId === undefined) throw notFound();
@@ -117,7 +119,7 @@ export const revokeAgentLink = mutation({
   handler: async (ctx, args) => {
     await requireRole(ctx, ["gc"]);
     const user = await requireVerifiedUser(ctx);
-    const { company } = await requireCompanyMember(ctx);
+    const { company } = await requireCompanyMember(ctx, { write: true });
     const link = await ctx.db.get(args.linkId);
     if (company.kind !== "gc" || link === null) throw notFound();
     // Links from before the tenancy migration carry no company; fall back to the contractor's project.

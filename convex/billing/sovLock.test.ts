@@ -48,7 +48,7 @@ describe("SOV approval lock on agreement regeneration", () => {
     const after = await lines(s.t, s.agreementId);
     expect(after.map((l) => l._id)).toEqual(s.approved.map((l) => l._id));
     expect(after.map((l) => [l.description, l.scheduledValueCents])).toEqual(CUSTOM.map((l) => [l.description, l.scheduledValueCents]));
-    const sov = await s.gc.query(api.billing.sov.getSov, { agreementId: s.agreementId });
+    const sov = (await s.gc.query(api.billing.sov.getSov, { agreementId: s.agreementId }))!;
     expect(sov.status).toBe("approved");
     expect(sov.canEdit).toBe(false);
   });
@@ -61,7 +61,7 @@ describe("SOV approval lock on agreement regeneration", () => {
     await s.gc.mutation(api.agreements.generateAgreement, { bidId: s.bidId, tradePackageId: s.tradePackageId, acceptedAlternateIndexes: [0] });
     const after = await lines(s.t, s.agreementId);
     expect(after.map((l) => l._id)).toEqual(s.approved.map((l) => l._id));
-    const sov = await s.gc.query(api.billing.sov.getSov, { agreementId: s.agreementId });
+    const sov = (await s.gc.query(api.billing.sov.getSov, { agreementId: s.agreementId }))!;
     // Back in draft for the GC to reconcile the new sum, never silently replaced.
     expect(sov.status).toBe("draft");
     expect(sov.contractSumCents).toBe(4_250_000);

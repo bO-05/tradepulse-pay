@@ -664,7 +664,9 @@ function ProjectChangeOrders({ projectId }: { projectId: string }) {
 export function ChangeOrdersPage() {
   const projects = useQuery(api.billing.changeOrders.myChangeOrderProjects, {});
   const [projectId, setProjectId] = useState<string | null>(null);
-  const selected = projectId ?? projects?.[0]?._id ?? null;
+  // Prefer a project that already has change orders: a newly added, still-empty project must not
+  // hide the active list on first open.
+  const selected = projectId ?? projects?.find((p) => p.hasPrimeChangeOrders)?._id ?? projects?.[0]?._id ?? null;
   if (projects === undefined) {
     return (
       <p className="text-sm text-ink-subtle" role="status">
@@ -689,6 +691,7 @@ export function ChangeOrdersPage() {
                   {projects.map((p) => (
                     <option key={p._id} value={p._id}>
                       {p.title}
+                      {p.hasPrimeChangeOrders ? "" : " · no prime change orders yet"}
                     </option>
                   ))}
                 </select>

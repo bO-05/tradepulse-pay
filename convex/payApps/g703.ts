@@ -3,7 +3,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import { internal } from "../_generated/api";
 import { mutation, query, type MutationCtx, type QueryCtx } from "../_generated/server";
 import { requireRole, type Viewer } from "../lib/roles";
-import { auditActor, requireDocScope } from "../lib/projectScope";
+import { auditActor, findDocScope, requireDocScope } from "../lib/projectScope";
 import { scopedAgreements } from "../lib/agreementScope";
 import { formatCents } from "../lib/money";
 import { notify } from "../lib/notify";
@@ -244,7 +244,7 @@ export async function notifyPayAppSubmitted(
     { companyId: project.gcCompanyId },
     {
       kind: "pay_app_submitted",
-      title: `${subName} submitted pay app ${which} – ${formatCents(amountDueCents)}`,
+      title: `${subName} submitted pay app ${which} – ${formatCents(amountDueCents)} net requested (after retainage)`,
       body: `${project.title} · ${agreement.agreementNumber}${period}. Open it to review.`,
       link: payAppHash(payApp._id),
       projectId: project._id,
@@ -651,9 +651,10 @@ function hideDraftFromGc<S extends { doc: Doc<"payApplications">; partyRole: str
  */
 export const getPayApp = query({
   args: { payAppId: v.string() },
-  returns: g703ViewValidator,
+  returns: v.union(v.null(), g703ViewValidator),
   handler: async (ctx, args) => {
-    const scope = hideDraftFromGc(await requireDocScope(ctx, "payApplications", args.payAppId, { roles: ["gc", "sub"] }));
+    const scope = await findDocScope(ctx, "payApplications", args.payAppId, { roles: ["gc", "sub"] });
+    if (scope === null || (scope.doc.status === "draft" && scope.partyRole !== "sub")) return null;
     return await payAppView(ctx, scope);
   },
 });

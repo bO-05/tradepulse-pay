@@ -186,7 +186,7 @@ describe("GC per-line decisions", () => {
     await storeReview(s, payAppId);
     await s.f.gcA.admin.as.mutation(api.payApps.decisions.decidePayApp, { payAppId, decision: "approve", lines: overrideLine3(s, OVERRIDE_REASON) });
 
-    const view = await s.f.sub.admin.as.query(api.payApps.g703.getPayApp, { payAppId });
+    const view = (await s.f.sub.admin.as.query(api.payApps.g703.getPayApp, { payAppId }))!;
     expect(view.status).toBe("approved_as_noted");
     expect(view.lines[2]).toMatchObject({ workThisPeriodCents: 1_261_250, requestedWorkCents: 1_400_000 });
     expect(view.summary).toMatchObject({ completedAndStoredCents: 4_341_260, retainageCents: 217_064, currentPaymentDueCents: 4_124_196 });
@@ -196,7 +196,7 @@ describe("GC per-line decisions", () => {
     expect(view.excludedScopeNotes).toEqual([]);
     expect(JSON.stringify(view)).not.toContain("milestones support");
 
-    const gcView = await s.f.gcA.admin.as.query(api.payApps.g703.getPayApp, { payAppId });
+    const gcView = (await s.f.gcA.admin.as.query(api.payApps.g703.getPayApp, { payAppId }))!;
     expect(gcView.review!.lines.find((l) => l.lineNo === 3)).toMatchObject({ verdict: "overbilled", recommendedPctToDate: 0.4, approvedCents: 1_260_000 });
     expect(gcView.excludedScopeNotes).toEqual(["Seismic bracing of conduit and equipment"]);
 
@@ -217,7 +217,7 @@ describe("GC per-line decisions", () => {
     expect(row.g703!.approved!.completedAndStoredCents).toBe(4_340_010);
 
     const { payAppId: app2 } = await s.f.sub.admin.as.mutation(api.payApps.g703.startPayApp, { agreementId: s.agreementId });
-    const next = await s.f.sub.admin.as.query(api.payApps.g703.getPayApp, { payAppId: app2 });
+    const next = (await s.f.sub.admin.as.query(api.payApps.g703.getPayApp, { payAppId: app2 }))!;
     expect(next.applicationNo).toBe(2);
     expect(next.lines.map((l) => l.previousWorkCents)).toEqual([800_000, 480_010, 1_260_000, 0, 0, 0, 0, 0]);
     expect(next.lines[4]).toMatchObject({ previousStoredCents: 1_800_000 });
@@ -245,7 +245,7 @@ describe("GC per-line decisions", () => {
     expect(v1Row.g703!.approved!.completedAndStoredCents).toBe(0);
     expect((await s.t.run(async (ctx) => ctx.db.query("agentProposals").collect())).every((p) => p.status === "rejected")).toBe(true);
 
-    const sent = await kim.query(api.payApps.g703.getPayApp, { payAppId });
+    const sent = (await kim.query(api.payApps.g703.getPayApp, { payAppId }))!;
     expect(sent).toMatchObject({ status: "revision_requested", canRevise: true, editable: false });
     expect(sent.revisionRequest!.lines.find((l) => l.lineNo === 6)).toMatchObject({ action: "revise", reason: fixtures });
     const subNote = (await s.t.run(async (ctx) => ctx.db.query("notifications").collect())).find((n) => n.companyId === s.f.sub.companyId);
@@ -256,7 +256,7 @@ describe("GC per-line decisions", () => {
 
     expect(await kim.mutation(api.payApps.decisions.revisePayApp, { payAppId })).toEqual({ payAppId, version: 2 });
     await expect(kim.mutation(api.payApps.decisions.revisePayApp, { payAppId })).rejects.toThrow(/Only a pay app the GC sent back/);
-    const draft = await kim.query(api.payApps.g703.getPayApp, { payAppId });
+    const draft = (await kim.query(api.payApps.g703.getPayApp, { payAppId }))!;
     expect(draft).toMatchObject({ status: "draft", editable: true, version: 2 });
     expect(draft.revisionRequest!.lines.find((l) => l.lineNo === 6)!.reason).toBe(fixtures);
     await kim.mutation(api.payApps.g703.submitPayApp, { payAppId, lines: [entry(s.sov[5], 0, 950_000, "Fixtures stored in the tenant space")] });
@@ -269,7 +269,7 @@ describe("GC per-line decisions", () => {
     expect(row.versions![0].decision!.outcome).toBe("revision_requested");
 
     await storeReview(s, payAppId);
-    const gcView = await dana.query(api.payApps.g703.getPayApp, { payAppId });
+    const gcView = (await dana.query(api.payApps.g703.getPayApp, { payAppId }))!;
     expect(gcView.version).toBe(2);
     expect(gcView.versions.map((v) => [v.version, v.current, v.outcome])).toEqual([
       [1, false, "revision_requested"],
@@ -285,7 +285,7 @@ describe("GC per-line decisions", () => {
     expect(await dana.mutation(api.payApps.decisions.decidePayApp, { payAppId, decision: "approve" })).toMatchObject({ status: "approved" });
     // Only the one pay app counts toward D: the next application starts from version 2's approved amounts.
     const { payAppId: app2 } = await kim.mutation(api.payApps.g703.startPayApp, { agreementId: s.agreementId });
-    const next = await kim.query(api.payApps.g703.getPayApp, { payAppId: app2 });
+    const next = (await kim.query(api.payApps.g703.getPayApp, { payAppId: app2 }))!;
     expect(next.applicationNo).toBe(2);
     expect(next.lines[5]).toMatchObject({ previousWorkCents: 0, previousStoredCents: 950_000 });
   });
@@ -301,12 +301,12 @@ describe("GC per-line decisions", () => {
     const row = (await s.t.run(async (ctx) => ctx.db.get(payAppId)))!;
     expect(row).toMatchObject({ status: "rejected", rejectionReason: "Billing period already covered by app #1" });
     expect(row.g703!.approved!.currentPaymentDueCents).toBe(0);
-    const subView = await s.f.sub.admin.as.query(api.payApps.g703.getPayApp, { payAppId });
+    const subView = (await s.f.sub.admin.as.query(api.payApps.g703.getPayApp, { payAppId }))!;
     expect(subView).toMatchObject({ status: "rejected", rejectionReason: "Billing period already covered by app #1", canRevise: false });
     await expect(dana.mutation(api.payApps.decisions.decidePayApp, { payAppId, decision: "approve" })).rejects.toThrow(/only reviewed/);
 
     const { payAppId: again } = await s.f.sub.admin.as.mutation(api.payApps.g703.startPayApp, { agreementId: s.agreementId });
-    const next = await s.f.sub.admin.as.query(api.payApps.g703.getPayApp, { payAppId: again });
+    const next = (await s.f.sub.admin.as.query(api.payApps.g703.getPayApp, { payAppId: again }))!;
     expect(next.applicationNo).toBe(1);
     expect(next.lines.every((l) => l.previousWorkCents === 0 && l.previousStoredCents === 0)).toBe(true);
     const note = (await s.t.run(async (ctx) => ctx.db.query("notifications").collect())).find((n) => n.companyId === s.f.sub.companyId);

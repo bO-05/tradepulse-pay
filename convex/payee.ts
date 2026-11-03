@@ -46,7 +46,7 @@ export const setPayoutEmail = mutation({
   returns: v.object({ changed: v.boolean(), relationships: v.number() }),
   handler: async (ctx, args) => {
     await requireVerifiedUser(ctx);
-    const { user, company } = await requireCompanyMember(ctx, { admin: true });
+    const { user, company } = await requireCompanyMember(ctx, { admin: true, write: true });
     if (company.kind !== "sub") {
       throw new ConvexError({ code: "FORBIDDEN", message: "Forbidden: only subcontractor companies have a payout PayPal email." });
     }
@@ -92,7 +92,7 @@ export const setBillingEmail = mutation({
   returns: v.object({ changed: v.boolean() }),
   handler: async (ctx, args) => {
     await requireVerifiedUser(ctx);
-    const { user, company } = await requireCompanyMember(ctx, { admin: true });
+    const { user, company } = await requireCompanyMember(ctx, { admin: true, write: true });
     if (company.kind !== "owner") {
       throw new ConvexError({ code: "FORBIDDEN", message: "Forbidden: only owner companies have a billing email." });
     }
@@ -155,7 +155,7 @@ export const confirmPayee = mutation({
   returns: v.object({ email: v.string(), confirmedAt: v.number() }),
   handler: async (ctx, args) => {
     const caller = await requireVerifiedUser(ctx);
-    const { user, company } = await requireCompanyMember(ctx);
+    const { user, company } = await requireCompanyMember(ctx, { write: true });
     const vendor = await liveVendorByRawId(ctx, args.vendorId);
     if (vendor === null || vendor.companyId !== company._id || company.kind !== "gc" || caller.actorType === "agent") throw notFound();
     const sub = vendor.linkedCompanyId ? await ctx.db.get(vendor.linkedCompanyId) : null;

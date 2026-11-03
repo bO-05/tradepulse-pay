@@ -39,7 +39,7 @@ export const myCompany = query({
       });
     }
     members.sort((a, b) => a.name.localeCompare(b.name));
-    const isAdmin = membership.role === "admin";
+    const isAdmin = membership.role === "admin" && !company.demoReadOnly;
     const teammateInvites = [];
     if (isAdmin) {
       for (const i of await listTeammateInvites(ctx, company._id)) {
@@ -103,7 +103,7 @@ export const updateProfile = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const { user, company } = await requireCompanyMember(ctx, { admin: true });
+    const { user, company } = await requireCompanyMember(ctx, { admin: true, write: true });
     if (user.emailVerificationTime === undefined) {
       throw new ConvexError({ code: "EMAIL_UNVERIFIED", message: "Verify your email first." });
     }
@@ -146,7 +146,7 @@ export const updateDefaults = mutation({
   args: { defaultRetainageBps: v.number() },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const { user, company } = await requireCompanyMember(ctx, { admin: true });
+    const { user, company } = await requireCompanyMember(ctx, { admin: true, write: true });
     if (user.emailVerificationTime === undefined) {
       throw new ConvexError({ code: "EMAIL_UNVERIFIED", message: "Verify your email first." });
     }
@@ -179,7 +179,7 @@ export const setMemberRole = mutation({
   args: { membershipId: v.string(), role: v.union(v.literal("admin"), v.literal("member")) },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const { company } = await requireCompanyMember(ctx, { admin: true });
+    const { company } = await requireCompanyMember(ctx, { admin: true, write: true });
     const row = await targetMembership(ctx, company._id, args.membershipId);
     if (row.role === args.role) return null;
     if (row.role === "admin" && (await activeAdminCount(ctx, company._id)) <= 1) {
@@ -195,7 +195,7 @@ export const removeMember = mutation({
   args: { membershipId: v.string() },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const { company } = await requireCompanyMember(ctx, { admin: true });
+    const { company } = await requireCompanyMember(ctx, { admin: true, write: true });
     const row = await targetMembership(ctx, company._id, args.membershipId);
     if (row.role === "admin" && (await activeAdminCount(ctx, company._id)) <= 1) {
       throw new ConvexError({ code: "LAST_ADMIN", message: LAST_ADMIN_MESSAGE });

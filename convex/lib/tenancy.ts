@@ -4,7 +4,7 @@ import type { QueryCtx } from "../_generated/server";
 import { findActiveAgentLink } from "./agentAccess";
 import { forbiddenMessage, getViewer, UNAUTHENTICATED_MESSAGE, type Role, type Viewer } from "./roles";
 import { getLiveAuthUserId } from "./session";
-import { assertReferenceWritable } from "./demoReference";
+import { assertDemoSettingsWritable, assertReferenceWritable } from "./demoReference";
 
 /**
  * Tenancy helpers (architecture §12). The caller's company is always derived from the session;
@@ -53,7 +53,7 @@ export type CompanyMember = {
   company: Doc<"companies">;
 };
 
-export async function requireCompanyMember(ctx: QueryCtx, opts: { admin?: boolean } = {}): Promise<CompanyMember> {
+export async function requireCompanyMember(ctx: QueryCtx, opts: { admin?: boolean; write?: boolean } = {}): Promise<CompanyMember> {
   const user = await requireUser(ctx);
   const membership = await findActiveMembership(ctx, user._id);
   const company = membership === null ? null : await ctx.db.get(membership.companyId);
@@ -63,6 +63,7 @@ export async function requireCompanyMember(ctx: QueryCtx, opts: { admin?: boolea
   if (opts.admin && membership.role !== "admin") {
     throw new ConvexError({ code: "FORBIDDEN", message: "Forbidden: company admin required." });
   }
+  if (opts.write) assertDemoSettingsWritable(company);
   return { user, membership, company };
 }
 

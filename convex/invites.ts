@@ -3,6 +3,7 @@ import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { action, internalMutation, mutation, query, type ActionCtx, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { rateLimiter } from "./authLimits";
+import { assertDemoSettingsWritable } from "./lib/demoReference";
 import {
   hashInviteToken,
   INVALID_EMAIL_MESSAGE,
@@ -126,7 +127,7 @@ export const prepareCreate = internalMutation({
       if (args.projectId === undefined) throw notFound();
       ({ project } = await requireProjectScope(ctx, args.projectId, { roles: ["gc"], write: true }));
     }
-    const { user, membership, company } = await requireCompanyMember(ctx);
+    const { user, membership, company } = await requireCompanyMember(ctx, { write: true });
     // Any company's admins invite their own teammates; project (sub/owner) invites are GC-only.
     if (company.kind !== "gc" && args.kind !== "teammate") {
       throw new ConvexError({ code: "FORBIDDEN", message: "Forbidden: only general contractor companies can send invites." });
@@ -281,7 +282,7 @@ async function requireManageableInvite(
 export const prepareRotate = internalMutation({
   args: { inviteId: v.string(), tokenHash: v.string() },
   handler: async (ctx, args): Promise<PreparedInvite> => {
-    const { user, company, invite, project } = await requireManageableInvite(ctx, await requireCompanyMember(ctx), args.inviteId);
+    const { user, company, invite, project } = await requireManageableInvite(ctx, await requireCompanyMember(ctx, { write: true }), args.inviteId);
     if (invite.status !== "pending") throw invalid(NO_LONGER_VALID);
     if (invite.expiresAt <= Date.now()) throw invalid("This invite has expired. Revoke it and create a new invite.");
     await consumeInviteQuota(ctx, company._id);
@@ -444,7 +445,7 @@ export const revoke = mutation({
   args: { inviteId: v.string() },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const { user, company, invite } = await requireManageableInvite(ctx, await requireCompanyMember(ctx), args.inviteId);
+    const { user, company, invite } = await requireManageableInvite(ctx, await requireCompanyMember(ctx, { write: true }), args.inviteId);
     if (invite.status === "accepted") throw invalid("This invite was already accepted. Remove the member instead.");
     if (invite.status !== "pending") return null;
     await ctx.db.patch(invite._id, { status: "revoked", revokedAt: Date.now() });
@@ -647,6 +648,8 @@ async function acceptInvite(ctx: MutationCtx, user: Doc<"users">, invite: Doc<"i
   if (invite === null || invite.status !== "pending") throw new ConvexError({ code: "INVITE_INVALID", message: NO_LONGER_VALID });
   const inviter = await ctx.db.get(invite.inviterCompanyId);
   if (inviter === null) throw new ConvexError({ code: "INVITE_INVALID", message: NO_LONGER_VALID });
+  // The shared demo company keeps its seeded people, recipients and directory rows unchanged.
+  assertDemoSettingsWritable(inviter);
   if (invite.expiresAt <= Date.now()) {
     throw new ConvexError({ code: "INVITE_EXPIRED", message: `This invite has expired — ask ${inviter.name} to resend it.` });
   }

@@ -6,6 +6,7 @@ import type { Id } from "../../convex/_generated/dataModel";
 import { getErrorMessage } from "../lib/errors";
 import { Button, Card, ConfirmDialog, StatusPill, formatCents, formatDateTime } from "../ui";
 import { GcComplianceHold, SubComplianceHold } from "./ComplianceHold";
+import { ReceiptId } from "../payments/ReceiptId";
 
 type Panel = NonNullable<FunctionReturnType<typeof api.billing.canPay.paymentPanel>>;
 type Payment = NonNullable<Panel["payment"]>;
@@ -72,7 +73,11 @@ function PaymentDetail({ payment }: { payment: Payment }) {
       <p className="text-xs text-ink-subtle">
         {payment.receiverEmail ? `To ${payment.receiverEmail}` : null}
         {payment.trancheName ? ` · from ${payment.trancheName}` : null}
-        {payment.paypalPayoutBatchId ? ` · PayPal batch ${payment.paypalPayoutBatchId}` : null}
+      </p>
+      <ReceiptId label="PayPal payout batch" value={payment.paypalPayoutBatchId} />
+      <p className="text-xs text-ink-subtle" data-testid="payment-provenance">
+        Status as recorded {formatDateTime(payment.updatedAt)} from PayPal API responses and webhooks. It is not a live PayPal balance;
+        refreshing asks PayPal again and records the answer.
       </p>
       {payment.error && payment.status !== "success" ? (
         <p className="text-sm text-rose-300" role="alert" data-testid="payment-error">
@@ -309,6 +314,10 @@ function SubPaymentPanel({ panel }: { panel: Panel }) {
             <dd className="font-semibold tabular-nums">{formatCents(panel.totalRetainageHeldCents)}</dd>
           </div>
         </dl>
+        <p className="text-xs text-ink-subtle">
+          Retainage held is withheld from approved work. A retainage release is a separate recorded payout; releasing it in this demo does
+          not certify project closeout.
+        </p>
       </div>
     </Card>
   );

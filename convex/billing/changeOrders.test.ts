@@ -142,7 +142,7 @@ describe("subcontract change orders", () => {
 
     await s.kim.mutation(api.billing.changeOrders.submitChangeOrder, { changeOrderId: id });
     expect(await notificationTitles(s.t, s.f.gcA.companyId)).toContain("Change order CO #1 submitted – $8,750.00");
-    const view = await s.dana.query(api.billing.changeOrders.getChangeOrder, { changeOrderId: id });
+    const view = (await s.dana.query(api.billing.changeOrders.getChangeOrder, { changeOrderId: id }))!;
     expect(view.canApprove).toBe(true);
     expect(view.approvalPreview!.message).toBe("Adds SOV line 9 for $8,750.00; contract sum to date becomes $181,150.00");
 
@@ -150,7 +150,7 @@ describe("subcontract change orders", () => {
     expect(result).toMatchObject({ status: "approved", lineNo: 9, contractSumToDateCents: 18_115_000 });
     expect(await notificationTitles(s.t, s.f.sub.companyId)).toContain("Change order CO #1 approved");
 
-    const sov = await s.kim.query(api.billing.sov.getSov, { agreementId: s.agreementId });
+    const sov = (await s.kim.query(api.billing.sov.getSov, { agreementId: s.agreementId }))!;
     expect(sov).toMatchObject({ originalContractSumCents: 17_240_000, netChangeOrdersCents: 875_000, contractSumToDateCents: 18_115_000 });
     list = await s.kim.query(api.billing.changeOrders.listForAgreement, { agreementId: s.agreementId });
     expect(list!.contractSum).toMatchObject({ originalCents: 17_240_000, toDateCents: 18_115_000 });
@@ -173,7 +173,7 @@ describe("subcontract change orders", () => {
     const s = await setup();
     await approvedSubCo(s, "Add 6 duplex receptacles", 875_000);
     const { payAppId } = await s.kim.mutation(api.payApps.g703.startPayApp, { agreementId: s.agreementId });
-    const view = await s.kim.query(api.payApps.g703.getPayApp, { payAppId });
+    const view = (await s.kim.query(api.payApps.g703.getPayApp, { payAppId }))!;
     const line = view.lines.find((l) => l.lineNo === 9)!;
     expect(line).toMatchObject({ description: "CO #1 – Add 6 duplex receptacles", scheduledValueCents: 875_000 });
     expect(view.summary).toMatchObject({ originalContractSumCents: 17_240_000, netChangeOrdersCents: 875_000, contractSumToDateCents: 18_115_000 });
@@ -189,7 +189,7 @@ describe("subcontract change orders", () => {
 
     const id = await subCo(s, "Remove switchboard scope", -9_000_000);
     await s.kim.mutation(api.billing.changeOrders.submitChangeOrder, { changeOrderId: id });
-    const preview = (await s.dana.query(api.billing.changeOrders.getChangeOrder, { changeOrderId: id })).approvalPreview!;
+    const preview = (await s.dana.query(api.billing.changeOrders.getChangeOrder, { changeOrderId: id }))!.approvalPreview!;
     expect(preview.floorProblem).toContain("$89,950.00");
     expect(preview.floorProblem).toContain("$90,437.50");
     const before = await coRows(s.t);
@@ -205,7 +205,7 @@ describe("subcontract change orders", () => {
     await s.dana.mutation(api.billing.changeOrders.rejectChangeOrder, { changeOrderId: id, reason: "Covered by base scope" });
     const row = (await s.kim.query(api.billing.changeOrders.listForAgreement, { agreementId: s.agreementId }))!.changeOrders[0];
     expect(row).toMatchObject({ status: "rejected", rejectionReason: "Covered by base scope", canEdit: false });
-    const sov = await s.kim.query(api.billing.sov.getSov, { agreementId: s.agreementId });
+    const sov = (await s.kim.query(api.billing.sov.getSov, { agreementId: s.agreementId }))!;
     expect(sov.contractSumToDateCents).toBe(17_240_000);
   });
 
@@ -267,7 +267,7 @@ describe("prime change orders", () => {
     expect(gc.prime!.changeOrders[0]).toMatchObject({ status: "approved", canEdit: false });
     expect(await notificationTitles(s.t, s.f.gcA.companyId)).toContain("Change order PCO #1 approved");
     // Prime COs never add a line to a subcontract SOV.
-    expect((await s.dana.query(api.billing.sov.getSov, { agreementId: s.agreementId })).contractSumToDateCents).toBe(17_240_000);
+    expect((await s.dana.query(api.billing.sov.getSov, { agreementId: s.agreementId }))!.contractSumToDateCents).toBe(17_240_000);
   });
 
   test("the owner rejects with a reason", async () => {
@@ -302,8 +302,6 @@ describe("VAL-ISO-008: change orders are company-scoped and owner-limited", () =
 
     const priyaCalls = [
       s.priya.query(api.billing.changeOrders.listForProject, { projectId: s.projectId }),
-      s.priya.query(api.billing.changeOrders.getChangeOrder, { changeOrderId: sub }),
-      s.priya.query(api.billing.changeOrders.getChangeOrder, { changeOrderId: prime }),
       s.priya.mutation(api.billing.changeOrders.createChangeOrder, { scope: "prime", projectId: s.projectId, title: "Forged", amountCents: 1 }),
       s.priya.mutation(api.billing.changeOrders.createChangeOrder, { scope: "subcontract", agreementId: s.agreementId, title: "Forged", amountCents: 1 }),
       s.priya.mutation(api.billing.changeOrders.approveChangeOrder, { changeOrderId: sub }),
@@ -311,20 +309,27 @@ describe("VAL-ISO-008: change orders are company-scoped and owner-limited", () =
       s.priya.action(api.payments.invoices.sendChangeOrderInvoice, { changeOrderId: prime }),
     ];
     for (const call of priyaCalls) await expect(call).rejects.toThrow(NOT_FOUND);
+    // Detail reads answer blank: another company's id reads exactly like a missing one.
+    expect(await s.priya.query(api.billing.changeOrders.getChangeOrder, { changeOrderId: sub })).toBeNull();
+    expect(await s.priya.query(api.billing.changeOrders.getChangeOrder, { changeOrderId: prime })).toBeNull();
     expect(await s.priya.query(api.billing.changeOrders.listForAgreement, { agreementId: s.agreementId })).toBeNull();
 
     for (const call of [
-      s.ray.query(api.billing.changeOrders.getChangeOrder, { changeOrderId: sub }),
       s.ray.mutation(api.billing.changeOrders.approveChangeOrder, { changeOrderId: sub }),
-      s.ray.query(api.billing.changeOrders.getChangeOrder, { changeOrderId: prime }),
-      s.kim.query(api.billing.changeOrders.getChangeOrder, { changeOrderId: prime }),
-      s.mendez.query(api.billing.changeOrders.getChangeOrder, { changeOrderId: sub }),
       s.mendez.mutation(api.billing.changeOrders.approveChangeOrder, { changeOrderId: sub }),
       s.mendez.mutation(api.billing.changeOrders.rejectChangeOrder, { changeOrderId: sub, reason: "No" }),
       s.mendez.mutation(api.billing.changeOrders.createChangeOrder, { scope: "prime", projectId: s.projectId, title: "Forged", amountCents: 1 }),
       s.kim.mutation(api.billing.changeOrders.createChangeOrder, { scope: "prime", projectId: s.projectId, title: "Forged", amountCents: 1 }),
     ]) {
       await expect(call).rejects.toThrow(NOT_FOUND);
+    }
+    for (const probe of [
+      s.ray.query(api.billing.changeOrders.getChangeOrder, { changeOrderId: sub }),
+      s.ray.query(api.billing.changeOrders.getChangeOrder, { changeOrderId: prime }),
+      s.kim.query(api.billing.changeOrders.getChangeOrder, { changeOrderId: prime }),
+      s.mendez.query(api.billing.changeOrders.getChangeOrder, { changeOrderId: sub }),
+    ]) {
+      expect(await probe).toBeNull();
     }
     expect(await s.ray.query(api.billing.changeOrders.listForAgreement, { agreementId: s.agreementId })).toBeNull();
     expect((await s.ray.query(api.billing.changeOrders.listForProject, { projectId: s.projectId })).agreements).toEqual([]);

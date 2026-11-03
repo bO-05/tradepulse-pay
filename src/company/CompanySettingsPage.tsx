@@ -24,6 +24,7 @@ export function CompanySettingsPage() {
         title="Company settings"
         description={`${data.company.name} · ${COMPANY_KIND_LABEL[data.company.kind]}`}
       />
+      {data.company.isDemo && <p className="text-sm text-amber-200">Shared demo company identity, recipients and membership settings are read-only.</p>}
       <ProfileCard
         key={`${data.company._id}-${data.company.name}-${data.company.phone}-${data.company.website}-${JSON.stringify(data.company.address ?? null)}`}
         data={data}

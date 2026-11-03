@@ -133,11 +133,11 @@ describe("G703 drafts", () => {
     for (const caller of [s.t, s.f.gcA.admin.as, s.lakeshore]) {
       await expect(caller.mutation(api.payApps.g703.discardDraft, { payAppId })).rejects.toThrow();
     }
-    expect((await sub.query(api.payApps.g703.getPayApp, { payAppId })).canDiscard).toBe(true);
+    expect((await sub.query(api.payApps.g703.getPayApp, { payAppId }))!.canDiscard).toBe(true);
     await sub.mutation(api.payApps.g703.discardDraft, { payAppId });
     expect(await s.t.run((ctx) => ctx.db.get(payAppId))).toBeNull();
     const next = await sub.mutation(api.payApps.g703.startPayApp, { agreementId: s.agreementId });
-    expect((await sub.query(api.payApps.g703.getPayApp, { payAppId: next.payAppId })).applicationNo).toBe(1);
+    expect((await sub.query(api.payApps.g703.getPayApp, { payAppId: next.payAppId }))!.applicationNo).toBe(1);
     await s.t.run((ctx) => ctx.db.patch(next.payAppId, { version: 2 }));
     await expect(sub.mutation(api.payApps.g703.discardDraft, { payAppId: next.payAppId })).rejects.toThrow(/never-submitted/);
     await s.t.run((ctx) => ctx.db.patch(next.payAppId, { version: 1, status: "submitted", submittedAt: Date.now() }));
@@ -153,7 +153,7 @@ describe("G703 drafts", () => {
     expect(await kim.mutation(api.payApps.g703.startPayApp, { agreementId: s.agreementId })).toEqual({ payAppId, created: false });
 
     await kim.mutation(api.payApps.g703.saveDraft, { payAppId, lines: [entry(s.sov[0], 800_000), entry(s.sov[1], 480_010)] });
-    const view = await kim.query(api.payApps.g703.getPayApp, { payAppId });
+    const view = (await kim.query(api.payApps.g703.getPayApp, { payAppId }))!;
     expect(view).toMatchObject({
       status: "draft",
       applicationNo: 1,
@@ -166,7 +166,7 @@ describe("G703 drafts", () => {
     expect(view.lines.every((l) => l.previousWorkCents === 0)).toBe(true);
 
     // The draft is the sub's: the GC neither opens it nor sees it in the billing worklist.
-    await expect(s.f.gcA.admin.as.query(api.payApps.g703.getPayApp, { payAppId })).rejects.toThrow(/Not found/);
+    expect(await s.f.gcA.admin.as.query(api.payApps.g703.getPayApp, { payAppId })).toBeNull();
     const worklist = await s.f.gcA.admin.as.query(api.payApps.g703.gcBillingWorklist, {});
     expect(worklist.rows).toHaveLength(0);
     expect(await s.t.run(async (ctx) => (await ctx.db.query("notifications").collect()).length)).toBe(0);
@@ -177,7 +177,7 @@ describe("G703 drafts", () => {
     const kim = s.f.sub.admin.as;
     const { payAppId } = await kim.mutation(api.payApps.g703.startPayApp, { agreementId: s.agreementId });
     await kim.mutation(api.payApps.g703.saveDraft, { payAppId, lines: v1Entries(s.sov) });
-    const view = await kim.query(api.payApps.g703.getPayApp, { payAppId });
+    const view = (await kim.query(api.payApps.g703.getPayApp, { payAppId }))!;
     expect(view.lines[4].note).toBe("Switchboard delivered, stored in locked conex on site");
     expect(view.summary).toMatchObject({
       contractSumToDateCents: 17_240_000,
@@ -211,7 +211,7 @@ describe("G703 submit", () => {
     await expect(
       s.f.sub.admin.as.mutation(api.payApps.g703.saveDraft, { payAppId, lines: [entry(s.sov[0], 1)] }),
     ).rejects.toThrow(/locked/);
-    const subView = await s.f.sub.admin.as.query(api.payApps.g703.getPayApp, { payAppId });
+    const subView = (await s.f.sub.admin.as.query(api.payApps.g703.getPayApp, { payAppId }))!;
     expect(subView).toMatchObject({ editable: false, canSubmit: false, canWithdraw: true });
 
     const notes = await s.t.run(async (ctx) => ctx.db.query("notifications").collect());
@@ -220,14 +220,14 @@ describe("G703 submit", () => {
       expect(n).toMatchObject({
         kind: "pay_app_submitted",
         companyId: s.f.gcA.companyId,
-        title: "Eastbay Electric submitted pay app #1 – $42,560.09",
+        title: "Eastbay Electric submitted pay app #1 – $42,560.09 net requested (after retainage)",
         link: `#/pay-apps/${payAppId}`,
       });
     }
     // The bell's unread count reads the new rows.
     const bell = await s.f.gcA.admin.as.query(api.notifications.summary, {});
     expect(bell.unreadCount).toBe(1);
-    expect(bell.latest[0]).toMatchObject({ title: "Eastbay Electric submitted pay app #1 – $42,560.09", link: `#/pay-apps/${payAppId}` });
+    expect(bell.latest[0]).toMatchObject({ title: "Eastbay Electric submitted pay app #1 – $42,560.09 net requested (after retainage)", link: `#/pay-apps/${payAppId}` });
     for (const who of [s.f.sub.admin.as, s.f.owner.admin.as, s.f.gcB.admin.as, s.lakeshore]) {
       expect((await who.query(api.notifications.summary, {})).unreadCount).toBe(0);
     }
@@ -259,14 +259,14 @@ describe("G703 submit", () => {
 
     // Draft keeps over-100% values with inline errors so the sub can fix them.
     await kim.mutation(api.payApps.g703.saveDraft, { payAppId: app2, lines: [entry(s.sov[1], 160_000)] });
-    const bad = await kim.query(api.payApps.g703.getPayApp, { payAppId: app2 });
+    const bad = (await kim.query(api.payApps.g703.getPayApp, { payAppId: app2 }))!;
     expect(bad.canSubmit).toBe(false);
     expect(bad.lineErrors.map((e) => e.message)).toEqual([
       "Line 2: at most $1,599.90 remains; this is $0.10 over 100% of the scheduled value.",
     ]);
 
     await kim.mutation(api.payApps.g703.saveDraft, { payAppId: app2, lines: [entry(s.sov[1], 159_990)] });
-    const ok = await kim.query(api.payApps.g703.getPayApp, { payAppId: app2 });
+    const ok = (await kim.query(api.payApps.g703.getPayApp, { payAppId: app2 }))!;
     expect(ok.lineErrors).toEqual([]);
     const line2 = ok.lines[1];
     expect(line2.previousWorkCents + line2.workThisPeriodCents + line2.storedCents).toBe(640_000);
@@ -280,7 +280,7 @@ describe("G703 approval, carry-forward and periods", () => {
     const payAppId = await submitPayApp1(s);
     await approvePayApp1(s.t, payAppId, s.sov, s.f.gcA.admin.userId);
     for (const who of [s.f.gcA.admin.as, s.f.sub.admin.as]) {
-      const view = await who.query(api.payApps.g703.getPayApp, { payAppId });
+      const view = (await who.query(api.payApps.g703.getPayApp, { payAppId }))!;
       expect(view.basis).toBe("approved");
       expect(view.summary).toMatchObject({
         originalContractSumCents: 17_240_000,
@@ -298,7 +298,7 @@ describe("G703 approval, carry-forward and periods", () => {
       expect(view.lines[2]).toMatchObject({ workThisPeriodCents: 1_261_250, requestedWorkCents: 1_400_000 });
     }
     // Withdraw is gone after the GC decision and refused by the server.
-    const subView = await s.f.sub.admin.as.query(api.payApps.g703.getPayApp, { payAppId });
+    const subView = (await s.f.sub.admin.as.query(api.payApps.g703.getPayApp, { payAppId }))!;
     expect(subView.canWithdraw).toBe(false);
     await expect(s.f.sub.admin.as.mutation(api.payApps.submit.withdrawPayApplication, { payAppId })).rejects.toThrow(
       /awaiting a GC decision/,
@@ -324,7 +324,7 @@ describe("G703 approval, carry-forward and periods", () => {
     );
     const { payAppId: app2, created } = await kim.mutation(api.payApps.g703.startPayApp, { agreementId: s.agreementId });
     expect(created).toBe(true);
-    const fresh = await kim.query(api.payApps.g703.getPayApp, { payAppId: app2 });
+    const fresh = (await kim.query(api.payApps.g703.getPayApp, { payAppId: app2 }))!;
     expect(fresh).toMatchObject({ applicationNo: 2, periodStart: "2026-10-26", periodEnd: "2026-11-25", dueDate: "2026-11-25" });
     expect(fresh.lines.map((l) => l.previousWorkCents)).toEqual([800_000, 480_010, 1_261_250, 0, 0, 0, 0, 0, 0]);
     expect(fresh.lines[4]).toMatchObject({ previousStoredCents: 1_800_000, storedCents: 1_800_000 });
@@ -342,7 +342,7 @@ describe("G703 approval, carry-forward and periods", () => {
         entry(line9, 437_500),
       ],
     });
-    const v2 = await kim.query(api.payApps.g703.getPayApp, { payAppId: app2 });
+    const v2 = (await kim.query(api.payApps.g703.getPayApp, { payAppId: app2 }))!;
     expect(v2.lineErrors).toEqual([]);
     expect(v2.summary).toMatchObject({
       contractSumToDateCents: 18_115_000,
@@ -388,7 +388,7 @@ describe("G703 approval, carry-forward and periods", () => {
     expect(proposals).toHaveLength(0);
     const { payAppId: again, created } = await s.f.sub.admin.as.mutation(api.payApps.g703.startPayApp, { agreementId: s.agreementId });
     expect(created).toBe(true);
-    const view = await s.f.sub.admin.as.query(api.payApps.g703.getPayApp, { payAppId: again });
+    const view = (await s.f.sub.admin.as.query(api.payApps.g703.getPayApp, { payAppId: again }))!;
     expect(view).toMatchObject({ applicationNo: 1, periodStart: "2026-10-01", periodEnd: "2026-10-25" });
   });
 });
@@ -404,7 +404,7 @@ describe("G703 isolation", () => {
     const s = await submitted();
     const outsiders: FixtureUser["as"][] = [s.lakeshore, s.f.gcB.admin.as, s.f.owner.admin.as, s.f.demo.gc.as, s.f.noCompany.as];
     for (const who of outsiders) {
-      await expect(who.query(api.payApps.g703.getPayApp, { payAppId: s.payAppId })).rejects.toThrow(/Not found/);
+      expect(await who.query(api.payApps.g703.getPayApp, { payAppId: s.payAppId })).toBeNull();
       await expect(who.query(api.payApps.g703.payAppLines, { payAppId: s.payAppId })).rejects.toThrow(/Not found/);
       const reviewList = await who
         .query(api.payApps.review.listAgreementPayApps, { agreementId: s.agreementId })

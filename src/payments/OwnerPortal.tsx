@@ -119,9 +119,9 @@ const OWNER_TRANCHE_STATUS: Record<string, string> = {
   planned: "Not funded",
   funding: "Checkout started",
   funded: "Funded",
-  in_progress: "Partly paid out",
+  in_progress: "Funded · authorization partly used",
   complete: "Closed",
-  paid: "Paid out",
+  paid: "Funding used",
   funding_expired: "Funding expired",
 };
 

@@ -10,6 +10,7 @@ import { PayAppReviewCard } from "../PayAppReviews";
 import { submissionAttribution } from "../SubmissionAttribution";
 import { payAppHash, ledgerHash } from "../../auth/navigation";
 import { TextInput } from "../../ui";
+import { ReceiptId } from "../ReceiptId";
 import { isAIReviewProvider } from "../../lib/aiProvenance";
 
 type InboxItem = FunctionReturnType<typeof api.payApps.proposals.listInbox>[number];
@@ -437,6 +438,12 @@ function InboxEntry({ item }: { item: InboxItem }) {
             {formatCents(item.payment.netCents)} net to {item.payment.receiverEmail ?? "the sub"}
             {item.payment.batchId ? ` · batch ${item.payment.batchId}` : ""}
             {item.payment.error ? ` · ${item.payment.error}` : ""}
+          </p>
+        ) : null}
+        {item.payment?.batchId ? <ReceiptId label="PayPal payout batch" value={item.payment.batchId} /> : null}
+        {item.payment ? (
+          <p className="text-xs text-slate-400">
+            Payout status is as recorded from PayPal API responses and webhooks, not a live PayPal query.
           </p>
         ) : null}
         <button type="button" onClick={() => setShowTrace((s) => !s)} className="text-xs text-sky-300 underline" data-testid="toggle-agent-trace">

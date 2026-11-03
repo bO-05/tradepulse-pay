@@ -82,7 +82,7 @@ describe("deductive change-order credits on a G703 pay app", () => {
         { sovLineId: s.credit, workThisPeriodCents: -120_000, storedCents: 0, note: "CO #2 credit: 2 exterior fixtures deleted" },
       ],
     });
-    const draft = await s.sub.query(api.payApps.g703.getPayApp, { payAppId });
+    const draft = (await s.sub.query(api.payApps.g703.getPayApp, { payAppId }))!;
     expect(draft.lineErrors).toEqual([]);
     expect(draft.canSubmit).toBe(true);
 
@@ -123,20 +123,20 @@ describe("deductive change-order credits on a G703 pay app", () => {
     expect(p.finalApproval!.lines.find((l) => l.sovLineId === s.credit)!.approvedCents).toBe(-120_000);
     expect(p.g703!.approved).toMatchObject({ completedAndStoredCents: 80_000, retainageCents: 4_000, currentPaymentDueCents: 76_000 });
 
-    const view = await s.gc.query(api.payApps.g703.getPayApp, { payAppId });
+    const view = (await s.gc.query(api.payApps.g703.getPayApp, { payAppId }))!;
     expect(view.basis).toBe("approved");
     expect(view.lines.find((l) => l.sovLineId === s.credit)).toMatchObject({ workThisPeriodCents: -120_000, requestedWorkCents: null });
     expect(view.summary.currentPaymentDueCents).toBe(76_000);
 
     // Next period: D carries the credit, previous certificates are the 76,000 certified, and the credit line is fully deducted.
     const { payAppId: nextId } = await s.sub.mutation(api.payApps.g703.startPayApp, { agreementId: s.agreementId });
-    const next = await s.sub.query(api.payApps.g703.getPayApp, { payAppId: nextId });
+    const next = (await s.sub.query(api.payApps.g703.getPayApp, { payAppId: nextId }))!;
     expect(next.lines.find((l) => l.sovLineId === s.credit)).toMatchObject({ previousWorkCents: -120_000, previousStoredCents: 0 });
     expect(next.lines.find((l) => l.sovLineId === s.sov[0])).toMatchObject({ previousWorkCents: 200_000 });
     expect(next.summary.previousCertificatesCents).toBe(76_000);
     expect(next.summary.previousWorkCents).toBe(80_000);
     await s.sub.mutation(api.payApps.g703.saveDraft, { payAppId: nextId, lines: [{ sovLineId: s.credit, workThisPeriodCents: -1, storedCents: 0 }] });
-    expect((await s.sub.query(api.payApps.g703.getPayApp, { payAppId: nextId })).lineErrors[0].message).toMatch(/Line 10: at most \$0\.00 remains to deduct/);
+    expect((await s.sub.query(api.payApps.g703.getPayApp, { payAppId: nextId }))!.lineErrors[0].message).toMatch(/Line 10: at most \$0\.00 remains to deduct/);
   });
 
   test("a credit larger than the work billed with it is refused at submit", async () => {

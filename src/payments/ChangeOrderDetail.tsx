@@ -8,6 +8,7 @@ import { formatDateTime } from "../ui/format";
 export function ChangeOrderDetail({ changeOrderId }: { changeOrderId: string }) {
   const co = useQuery(api.billing.changeOrders.getChangeOrder, { changeOrderId });
   if (co === undefined) return <p role="status">Loading change order…</p>;
+  if (co === null) return <p role="status">Change order not found or not available to this account. <a href="#/change-orders" className="underline">Back to change orders</a></p>;
   return (
     <article className="mx-auto max-w-3xl space-y-4">
       <a href="#/change-orders" className="text-sm text-emerald-300 underline">Back to change orders</a>

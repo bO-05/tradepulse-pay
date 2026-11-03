@@ -18,7 +18,7 @@ import { Button, Card, ConfirmDialog, MoneyInput, PageHeader, StatusPill, TextIn
 import { DecisionCard, GcReviewPanel, VersionHistory } from "./PayAppDecision";
 import { PaymentPanel } from "./PaymentPanel";
 
-type PayAppView = FunctionReturnType<typeof api.payApps.g703.getPayApp>;
+type PayAppView = NonNullable<FunctionReturnType<typeof api.payApps.g703.getPayApp>>;
 type SheetLine = PayAppView["lines"][number];
 type Entry = { workThisPeriodCents: number; storedCents: number; note: string };
 
@@ -45,6 +45,7 @@ export function PayAppPage({ payAppId, backHash, backLabel }: { payAppId: string
       </p>
     );
   }
+  if (view === null) return <p role="status">Pay application not found or not available to this account. <a href="#/home" className="underline">Back to home</a></p>;
   return <PayAppScreen key={view._id} view={view} backHash={backHash} backLabel={backLabel} />;
 }
 

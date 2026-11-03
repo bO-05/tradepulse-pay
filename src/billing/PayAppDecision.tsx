@@ -7,7 +7,7 @@ import { getErrorMessage } from "../lib/errors";
 import { isAIReviewProvider } from "../lib/aiProvenance";
 import { Button, Card, ConfirmDialog, MoneyInput, StatusPill, TextInput, formatCents, formatDateTime } from "../ui";
 
-type PayAppView = FunctionReturnType<typeof api.payApps.g703.getPayApp>;
+type PayAppView = NonNullable<FunctionReturnType<typeof api.payApps.g703.getPayApp>>;
 type Review = NonNullable<PayAppView["review"]>;
 type Decision = NonNullable<PayAppView["decision"]>;
 

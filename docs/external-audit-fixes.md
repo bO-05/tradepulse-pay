@@ -2,6 +2,7 @@
 
 This is a sanitized remediation record, not a reproduction of the private audit.
 The raw reviewer files remain local, unchanged and ignored by Git.
+The November 3 retest that answers the second private audit is recorded at the end of this document.
 
 ## Target and safety boundary
 
@@ -64,3 +65,45 @@ The preserved reference remains partial progress: $55,000 contract, $2,288 captu
 - Obtain legitimate AG Studio access covering the December 1–15 judging period, or remove unsupported licensed-view claims. The recorded trial end is November 20.
 - Obtain approved AgentID OAuth client registration for recovery if that independent sign-in is part of the submitted claim. Demo stand-ins do not prove it.
 - Maintain free, working judge access through December 15. Keep provider credits and demo email restrictions clear. Do not claim submission readiness, license approval or full settlement from the passing tests alone.
+
+## November 3 second-audit retest (V2)
+
+A second private audit (November 2) was reviewed and answered on the same recovery branch. Its report, screenshots and scripts remain local, unmodified and ignored by Git. No new funding, payout, invoice payment, draft, email, provider refresh or AgentID sign-in was performed; the only remote writes were demo sign-ins and running the fixture-protection operator step described below.
+
+### Shared-demo protection and guided consent
+
+- New optional flags only: `companies.demoReadOnly`, `projects.readOnlyDemoFixture` and `projects.demoSandbox`. The schema push changed no existing field.
+- An internal, recovery-dev-only operator mutation marked **5 seeded demo companies and 5 existing demo projects** read-only after the deploy. It is idempotent, never resets records and skips explicitly created `demoSandbox` projects. The preserved reference keeps its original read-only flag and its financial records were not rewritten.
+- Company profile/defaults/member/invite, vendor, payee, billing-agent-link and guide-demo writes now require a writable company; reference and fixture projects keep their existing write guards. A stale invite into the shared demo company is refused rather than changing its people.
+- The guided run opens a detailed consent dialog before any write: new $55,000 synthetic subcontract, $5,500 PayPal sandbox authorization with checkout approval, $1,850 invoice to the demo Owner, Mistral/KERNEL/PayPal credit use, up to 3 new runs per account per hour, and "Cancel creates nothing". The limit is enforced server-side per account.
+- The shared demo UI hides add/revoke/invite/edit/import/remove controls for the seeded fixtures, masks non-demo inbox addresses and explains that a fresh guided run is the writable path.
+
+### Reporting, privacy and quiet reads
+
+- Mobile: the billing-agent table is a keyboard-focusable scroll region, the demo tour bar wraps instead of overflowing at 320 px, and data-table links carry an underline as a non-color cue.
+- Owner reports omit subcontract measures instead of printing false zeros, and Owner change orders open on a project that has prime change orders rather than the newest empty project. Prime labels stay PCO.
+- Drafts distinguish "created" from "submitted" in the Sub portal; a paid Owner CO is labeled as project Owner prime income, never as a subcontract payout.
+- Notifications state the net amount requested after retainage. A historical orphan reference suffix is tidied at display time; no stored financial figure is altered.
+- Payment and ledger screens state that statuses are recorded from PayPal API responses and webhooks at the time shown, not read live. Payout batch IDs are copyable, retainage wording distinguishes held from released, and a demo release explicitly does not certify project closeout.
+- `formatDateTime` defaults to explicitly labeled UTC, so a local time is never presented as UTC.
+- Missing or forbidden detail reads return a blank answer instead of logging Convex errors (`getPayApp`, `getChangeOrder`, `getSov`, ledger, agreement summary) while keeping the same authorization and company scope.
+- The license panel explains that a California registry result is advisory context on a Texas demo project, not proof of Texas permission.
+- Owner funding rows use a coarse funding state instead of exposing a payout stage.
+- Accessibility: darker emerald action color for white text, table link underlines, a top-level procurement heading, and focus return to main content after the mobile menu closes.
+
+### Validation
+
+- `npx vitest run`: **1,970 passed, 0 failed, 146 files**. This includes a new regression file covering fixture protection, demo settings and invite denial, the per-account guided limit, inbox masking and historical notification cleanup.
+- `npm run build`: passes, with the same existing large-bundle warnings as V1.
+- `npm run verify:guards`: **258 public, 201 internal functions; 0 problems**.
+- `npm run verify:docs`: 65 relative links and 28 ordered log entries pass.
+- `node scripts/qa/audit-v2-browser.mjs`: **83 checks passed, 0 unexpected console or page errors**, at 320, 360, 390, 768 and 1440 CSS pixels on billing agents, vendors, company settings, people, procurement, the guided demo, inbox, the reference ledger, Owner reports/change orders and the Sub portal. The consent dialog was opened and cancelled; no run was created and the reference totals were re-checked unchanged. Report: `evidence/audit-v2-browser-2026-11-03T09-45-35-158Z/report.json`.
+- Recovery-dev backend deployed with typecheck; the served static bundle is `index-BPO2JXhv.js` at https://cheery-axolotl-689.convex.site/. Production (`earnest-mongoose-745`) and `main` (`fb5e4168c984de4e7e6e5d9fe39a14261182f890`, local and remote) were not touched.
+
+### Limits of this retest
+
+- The per-account hour limit is enforced for the protected shared demo company; it is not a claim about every future sandbox company.
+- Fixture protection is an operator step after each deploy to a shared demo, not a nightly reset. It preserves existing records.
+- Copy buttons and receipt IDs are convenience and business identifiers, not credentials.
+- No fresh financial round, real-device or screen-reader pass, WCAG certification, provider certification or independent AgentID success is claimed.
+- The Owner-only blockers above (public video, Devpost submission, AG Studio license for judging, AgentID OAuth approval) remain open.

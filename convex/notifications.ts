@@ -20,7 +20,12 @@ const notificationRowValidator = v.object({
 
 /** Old redactions are irreversible; explain them without guessing the original private text. */
 function readableNotification(text: string): string {
-  return text.replace(/\[email hidden\]/g, "(email omitted)").replace(/\[hidden\]/g, "(reference omitted)");
+  return text
+    .replace(/\[email hidden\]/g, "(email omitted)")
+    .replace(/\[hidden\]/g, "(reference omitted)")
+    // Older sanitizer runs redacted part of a generated reference and left its trailing segment.
+    // Drop that orphan so a historical row never reads as a mangled project or agreement name.
+    .replace(/\(reference omitted\)-\d{2}\b/g, "(reference omitted)");
 }
 
 function publicRow(n: Doc<"notifications">) {

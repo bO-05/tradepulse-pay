@@ -7,6 +7,7 @@ import { Button, Card, ConfirmDialog, EmptyState, NotFoundState, PageHeader, use
 import { inputClass } from "../ui/Field";
 import { InviteDialog, type InviteDialogMode } from "./InviteDialog";
 import { InviteList } from "./InviteList";
+import { useActiveCompany } from "../auth/companyContext";
 
 /** GC People screen: pick a project, then see its companies, members and invites. */
 export function PeoplePage({ projectId }: { projectId?: string }) {
@@ -40,6 +41,7 @@ export function PeoplePage({ projectId }: { projectId?: string }) {
 }
 
 function ProjectPeople({ projectId, projects }: { projectId: string; projects: { _id: string; title: string }[] }) {
+  const { isDemo } = useActiveCompany();
   const data = useQuery(api.people.listForProject, { projectId });
   const removeMember = useMutation(api.people.removeProjectMember);
   const toast = useToast();
@@ -75,7 +77,7 @@ function ProjectPeople({ projectId, projects }: { projectId: string; projects: {
             </select>
           </label>
         }
-        actions={
+        actions={!isDemo &&
           <>
             <Button onClick={() => setDialog({ type: "create", kind: "sub", projectId, projectTitle: data.project.title })}>
               Invite subcontractor
@@ -98,7 +100,7 @@ function ProjectPeople({ projectId, projects }: { projectId: string; projects: {
           title={c.name}
           description={kindLabel(c)}
           actions={
-            c.partyRole !== "gc" ? (
+            c.partyRole !== "gc" && !isDemo ? (
               <Button size="sm" variant="ghost" onClick={() => setRemoving({ companyId: c.companyId, name: c.name })}>
                 Remove from project
               </Button>

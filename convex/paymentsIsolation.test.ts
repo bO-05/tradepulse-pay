@@ -342,7 +342,6 @@ const GC_ONLY: Case[] = [
     title: "Forged change order",
     amountCents: 100,
   })),
-  q("billing/changeOrders:getChangeOrder (owner allowed)", api.billing.changeOrders.getChangeOrder, (i) => ({ changeOrderId: i.changeOrderId })),
   m("billing/changeOrders:approveChangeOrder (owner allowed)", api.billing.changeOrders.approveChangeOrder, (i) => ({ changeOrderId: i.changeOrderId })),
   m("billing/changeOrders:rejectChangeOrder (owner allowed)", api.billing.changeOrders.rejectChangeOrder, (i) => ({
     changeOrderId: i.changeOrderId,
@@ -373,6 +372,7 @@ const GC_ONLY: Case[] = [
 const BLANK_READS: Case[] = [
   q("payments/ledger:getAgreementLedger", api.payments.ledger.getAgreementLedger, (i) => ({ agreementId: i.agreementId })),
   q("billing/changeOrders:listForAgreement", api.billing.changeOrders.listForAgreement, (i) => ({ agreementId: i.agreementId })),
+  q("billing/changeOrders:getChangeOrder", api.billing.changeOrders.getChangeOrder, (i) => ({ changeOrderId: i.changeOrderId })),
   q("payApps/review:listAgreementPayApps", api.payApps.review.listAgreementPayApps, (i) => ({ agreementId: i.agreementId })),
   q("payApps/proposals:getAgentTrace", api.payApps.proposals.getAgentTrace, (i) => ({ payAppId: i.payAppId })),
   q("payApps/submit:payAppFormContext", api.payApps.submit.payAppFormContext, (i) => ({ agreementId: i.agreementId })),

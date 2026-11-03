@@ -26,3 +26,27 @@ export const protectReference = internalMutation({
     return { projectId: project._id, alreadyProtected };
   },
 });
+
+/** Protect existing shared fixtures/settings, never new explicitly created sandbox workspaces. */
+export const protectSharedFixtures = internalMutation({
+  args: {},
+  returns: v.object({ companies: v.number(), projects: v.number() }),
+  handler: async (ctx) => {
+    if (env.CONVEX_SITE_URL !== "https://cheery-axolotl-689.convex.site") {
+      throw new ConvexError({ code: "WRONG_DEPLOYMENT", message: "Recovery dev only." });
+    }
+    const companies = await ctx.db.query("companies").withIndex("by_isDemo", (q) => q.eq("isDemo", true)).take(100);
+    let projects = 0;
+    for (const company of companies) {
+      await ctx.db.patch(company._id, { demoReadOnly: true });
+      if (company.kind !== "gc") continue;
+      const rows = await ctx.db.query("projects").withIndex("by_gcCompanyId", (q) => q.eq("gcCompanyId", company._id)).take(1000);
+      for (const row of rows) {
+        if (row.demoSandbox) continue;
+        await ctx.db.patch(row._id, { readOnlyDemoFixture: true });
+        projects++;
+      }
+    }
+    return { companies: companies.length, projects };
+  },
+});

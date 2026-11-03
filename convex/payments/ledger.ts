@@ -3,7 +3,7 @@ import type { Doc } from "../_generated/dataModel";
 import { query } from "../_generated/server";
 import { requireRole } from "../lib/roles";
 import { scopedAgreements } from "../lib/agreementScope";
-import { findSubcontractDocScope } from "../lib/projectScope";
+import { findDocScope } from "../lib/projectScope";
 import { loadBillingHistory, unresolvedApprovalMessage } from "../payApps/billingHistory";
 import { isCaptureCollected } from "./captureSettlement";
 import { HISTORY_TRUNCATED_MESSAGE, loadAgreementHistory } from "./agreementHistory";
@@ -99,7 +99,7 @@ export const getAgreementLedger = query({
   args: { agreementId: v.string() },
   returns: agreementLedgerValidator,
   handler: async (ctx, args) => {
-    const scope = await findSubcontractDocScope(ctx, "agreements", args.agreementId, { roles: ["gc", "sub"] });
+    const scope = await findDocScope(ctx, "agreements", args.agreementId, { roles: ["gc", "sub"] });
     if (scope === null) return null;
     const agreement = scope.doc;
     const id = agreement._id;

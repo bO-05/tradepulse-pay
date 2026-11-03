@@ -20,7 +20,7 @@ export function DashboardFallback({ raw, reason }: { raw: Pick<DashboardRaw, "ag
               <p className="text-xs text-slate-400">
                 Captured {formatCents(agreement.totals.capturedCents)} · paid {formatCents(agreement.totals.paidCents)} ·
                 retainage held {formatCents(agreement.totals.retainageHeldCents)} ·
-                change orders paid {formatCents(agreement.totals.changeOrdersPaidCents)}
+                Owner prime CO income on this project (not part of this subcontract) {formatCents(agreement.totals.changeOrdersPaidCents)}
               </p>
             </li>
           ))}
@@ -31,7 +31,7 @@ export function DashboardFallback({ raw, reason }: { raw: Pick<DashboardRaw, "ag
           <h2 className="font-semibold">Change order payment history</h2>
           {raw.changeOrders.map((co) => (
             <article key={co.changeOrderId} className="rounded-lg border border-slate-800 p-3 text-sm">
-              <a href={`#/change-orders/${encodeURIComponent(co.changeOrderId)}`} className="text-emerald-300 underline">CO #{co.number} · {co.description}</a>
+              <a href={`#/change-orders/${encodeURIComponent(co.changeOrderId)}`} className="text-emerald-300 underline">PCO #{co.number} · {co.description}</a>
               <p className="text-slate-300">{formatCents(co.amountCents)} · {co.status}</p>
             </article>
           ))}

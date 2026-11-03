@@ -32,6 +32,10 @@
 .table-scroll { position: relative; width: 100%; min-width: 0; max-width: 100%; overflow-x: auto; }
 .table-scroll table { min-width: 34rem; }
 .receipt-id { overflow-wrap: anywhere; }
+.workspace-shell .bg-emerald-600 { background-color: #047857; }
+.workspace-shell .hover\:bg-emerald-500:hover { background-color: #065f46; }
+.workspace-content p a { text-decoration: underline; text-underline-offset: 2px; }
+.workspace-content table a { text-decoration: underline; text-underline-offset: 2px; }
 @media (max-width: 639px) {
   .workspace-content :is(button, select, input:not([type="checkbox"]):not([type="radio"])) { min-height: 44px; }
 }

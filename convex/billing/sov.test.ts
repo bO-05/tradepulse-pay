@@ -58,7 +58,7 @@ async function lines(t: T, agreementId: Id<"agreements">) {
 describe("SOV editor", () => {
   test("the GC sees the draft prefilled from the award, with excluded scope as notes", async () => {
     const { fx, agreementId } = await setup();
-    const sov = await fx.gcA.admin.as.query(api.billing.sov.getSov, { agreementId });
+    const sov = (await fx.gcA.admin.as.query(api.billing.sov.getSov, { agreementId }))!;
     expect(sov.status).toBe("draft");
     expect(sov.canEdit).toBe(true);
     expect(sov.totalCents).toBe(CONTRACT_CENTS);
@@ -76,17 +76,17 @@ describe("SOV editor", () => {
     for (const l of EXAMPLE) {
       await gc.mutation(api.billing.sov.addSovLine, { agreementId, ...(l.description === "Lighting fixtures" ? { ...l, scheduledValueCents: 3_800_000 } : l) });
     }
-    let sov = await gc.query(api.billing.sov.getSov, { agreementId });
+    let sov = (await gc.query(api.billing.sov.getSov, { agreementId }))!;
     expect(sov.differenceCents).toBe(-20_000);
     expect(sov.approvalProblem).toContain("−$200.00");
     const line4 = sov.lines[3];
     await gc.mutation(api.billing.sov.updateSovLine, { lineId: line4._id, description: line4.description, csiCode: line4.csiCode, scheduledValueCents: 3_820_000 });
     const spare = await gc.mutation(api.billing.sov.addSovLine, { agreementId, description: "Spare", scheduledValueCents: 100 });
-    expect((await gc.query(api.billing.sov.getSov, { agreementId })).differenceCents).toBe(100);
+    expect((await gc.query(api.billing.sov.getSov, { agreementId }))!.differenceCents).toBe(100);
     await gc.mutation(api.billing.sov.moveSovLine, { lineId: spare, direction: "up" });
     expect((await lines(t, agreementId)).map((l) => l.description)[7]).toBe("Spare");
     await gc.mutation(api.billing.sov.deleteSovLine, { lineId: spare });
-    sov = await gc.query(api.billing.sov.getSov, { agreementId });
+    sov = (await gc.query(api.billing.sov.getSov, { agreementId }))!;
     expect(sov.differenceCents).toBe(0);
     const rows = await lines(t, agreementId);
     expect(rows.map((l) => l.lineNo)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
@@ -105,13 +105,13 @@ describe("SOV editor", () => {
     ] as const) {
       await gc.mutation(api.billing.sov.updateSovLine, { lineId: line8._id, description: line8.description, scheduledValueCents: cents });
       await expect(gc.mutation(api.billing.sov.approveSov, { agreementId })).rejects.toThrow(/SOV_SUM_MISMATCH/);
-      const sov = await gc.query(api.billing.sov.getSov, { agreementId });
+      const sov = (await gc.query(api.billing.sov.getSov, { agreementId }))!;
       expect(sov.status).toBe("draft");
       expect(sov.approvalProblem).toContain("$172,400.00");
       expect(sov.approvalProblem).toContain(text);
     }
     await gc.mutation(api.billing.sov.updateSovLine, { lineId: line8._id, description: line8.description, scheduledValueCents: 2_350_000 });
-    expect((await gc.query(api.billing.sov.getSov, { agreementId })).approvalProblem).toBeNull();
+    expect((await gc.query(api.billing.sov.getSov, { agreementId }))!.approvalProblem).toBeNull();
   });
 
   test("import replaces the draft; the server re-checks limits and every row", async () => {
@@ -148,7 +148,7 @@ describe("SOV editor", () => {
     const gc = fx.gcA.admin.as;
     await gc.mutation(api.billing.sov.importSovLines, { agreementId, rows: EXAMPLE });
     await gc.mutation(api.billing.sov.approveSov, { agreementId });
-    const sov = await gc.query(api.billing.sov.getSov, { agreementId });
+    const sov = (await gc.query(api.billing.sov.getSov, { agreementId }))!;
     expect(sov.status).toBe("approved");
     expect(sov.canEdit).toBe(false);
     expect(sov.approvedByName).toBeTruthy();
@@ -181,12 +181,12 @@ describe("SOV access", () => {
   test("the sub reads only the approved SOV and cannot edit it", async () => {
     const { t, fx, agreementId } = await setup();
     const sub = fx.sub.admin.as;
-    const draft = await sub.query(api.billing.sov.getSov, { agreementId });
+    const draft = (await sub.query(api.billing.sov.getSov, { agreementId }))!;
     expect(draft.status).toBe("draft");
     expect(draft.lines).toEqual([]);
     await fx.gcA.admin.as.mutation(api.billing.sov.importSovLines, { agreementId, rows: EXAMPLE });
     await fx.gcA.admin.as.mutation(api.billing.sov.approveSov, { agreementId });
-    const approved = await sub.query(api.billing.sov.getSov, { agreementId });
+    const approved = (await sub.query(api.billing.sov.getSov, { agreementId }))!;
     expect(approved.lines).toHaveLength(8);
     expect(approved.totalCents).toBe(CONTRACT_CENTS);
     expect(approved.canEdit).toBe(false);
@@ -210,7 +210,7 @@ describe("SOV access", () => {
     const lakeshore = t.withIdentity({ subject: `${otherSub.userId}|${otherSub.sessionId}`, email: "pat@lakeshore.test" });
     const line = (await lines(t, agreementId))[0];
     for (const caller of [fx.gcB.admin.as, fx.owner.admin.as, lakeshore, fx.demo.gc.as, fx.noCompany.as]) {
-      await expect(caller.query(api.billing.sov.getSov, { agreementId })).rejects.toThrow(/Not found/);
+      expect(await caller.query(api.billing.sov.getSov, { agreementId })).toBeNull();
       await expect(caller.mutation(api.billing.sov.updateSovLine, { lineId: line._id, description: "x", scheduledValueCents: 1 })).rejects.toThrow(
         /Not found|Forbidden/,
       );

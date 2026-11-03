@@ -66,7 +66,7 @@ async function setup(lines: number) {
 describe("SOV capacity: 1,000 base lines plus 200 change-order lines, never truncated", () => {
   test("billing, funding and the SOV CSV read every line of a 1,050-line SOV", async () => {
     const s = await setup(1_050);
-    const sov = await s.gc.query(api.billing.sov.getSov, { agreementId: s.agreementId });
+    const sov = (await s.gc.query(api.billing.sov.getSov, { agreementId: s.agreementId }))!;
     expect(sov.lines).toHaveLength(1_050);
     const tranches = await s.gc.query(api.billing.tranches.listTranches, { agreementId: s.agreementId });
     expect(tranches?.contractSumToDateCents).toBe(105_000);

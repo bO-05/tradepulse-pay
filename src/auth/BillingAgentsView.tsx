@@ -4,6 +4,8 @@ import { FormEvent, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { formatDate } from "../payments/format";
+import { useActiveCompany } from "./companyContext";
+import { demoEmail } from "../lib/demoPrivacy";
 
 function errorText(err: unknown): string {
   if (err instanceof ConvexError) {
@@ -15,6 +17,7 @@ function errorText(err: unknown): string {
 
 /** GC-only: authorize AgentID billing agents to act for a subcontractor, or revoke them. */
 export function BillingAgentsView() {
+  const { isDemo } = useActiveCompany();
   const links = useQuery(api.agentLinks.listAgentLinks, {});
   const contractors = useQuery(api.agentLinks.listLinkableContractors, {});
   const addLink = useMutation(api.agentLinks.addAgentLink);
@@ -59,7 +62,7 @@ export function BillingAgentsView() {
           submit pay applications only while its email is linked here. It can never approve, fund or pay. Revoking a
           link removes access on the agent's next request.
         </p>
-        <form onSubmit={onAdd} className="flex flex-wrap items-end gap-3" aria-label="Add billing agent">
+        {isDemo ? <p className="text-sm text-amber-200">Shared demo billing-agent links are read-only. Fresh guided runs reuse the configured demo link.</p> : <form onSubmit={onAdd} className="flex flex-wrap items-end gap-3" aria-label="Add billing agent">
           <div className="w-full max-w-72 space-y-1">
             <label htmlFor="agent-email" className="block text-xs font-medium text-slate-300">
               Agent email
@@ -100,7 +103,7 @@ export function BillingAgentsView() {
           >
             {busy ? "Adding…" : "Add agent"}
           </button>
-        </form>
+        </form>}
         {error && (
           <p role="alert" className="mt-3 text-sm text-rose-300 bg-rose-950/60 border border-rose-800/70 rounded-lg px-3 py-2">
             {error}
@@ -109,9 +112,9 @@ export function BillingAgentsView() {
       </section>
 
       <section aria-labelledby="billing-agents-list" className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-        <h3 id="billing-agents-list" className="text-sm font-semibold mb-3">
+        <h2 id="billing-agents-list" className="text-sm font-semibold mb-3">
           Links
-        </h3>
+        </h2>
         {links === undefined ? (
           <p className="text-sm text-slate-400" role="status">
             Loading links…
@@ -119,7 +122,7 @@ export function BillingAgentsView() {
         ) : links.length === 0 ? (
           <p className="text-sm text-slate-400">No billing agents authorized yet.</p>
         ) : (
-          <table className="w-full text-sm" data-testid="agent-links">
+          <div className="table-scroll" role="region" aria-label="Authorized billing-agent links" tabIndex={0}><table className="w-full text-sm" data-testid="agent-links">
             <thead className="text-xs text-slate-400 text-left">
               <tr>
                 <th className="py-2 pr-3 font-medium">Agent email</th>
@@ -132,11 +135,13 @@ export function BillingAgentsView() {
             <tbody>
               {links.map((link) => (
                 <tr key={link._id} className="border-t border-slate-800">
-                  <td className="py-2 pr-3 font-mono text-xs">{link.agentEmail}</td>
+                  <td className="py-2 pr-3 font-mono text-xs">{demoEmail(link.agentEmail, isDemo)}</td>
                   <td className="py-2 pr-3">{link.contractorName}</td>
                   <td className="py-2 pr-3">
                     {link.status === "active" ? (
-                      <span className="rounded-full bg-emerald-900/60 text-emerald-200 px-2 py-0.5 text-xs">Active</span>
+                      <span className="rounded-full bg-emerald-900/60 text-emerald-200 px-2 py-0.5 text-xs">
+                        {isDemo ? "Active · read-only" : "Active"}
+                      </span>
                     ) : (
                       <span className="rounded-full bg-slate-800 text-slate-300 px-2 py-0.5 text-xs">
                         Revoked{link.revokedAt ? ` ${formatDate(link.revokedAt)}` : ""}
@@ -145,7 +150,7 @@ export function BillingAgentsView() {
                   </td>
                   <td className="py-2 pr-3 text-slate-400">{formatDate(link.createdAt)}</td>
                   <td className="py-2 pr-3 text-right">
-                    {link.status === "active" ? (
+                    {link.status === "active" && !isDemo ? (
                       <button
                         type="button"
                         onClick={() => void onRevoke(link._id)}
@@ -159,7 +164,7 @@ export function BillingAgentsView() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </section>
     </div>

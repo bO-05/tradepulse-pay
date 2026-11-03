@@ -2,6 +2,8 @@ import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "../_generated/server";
 import { isReadOnlyReference, REFERENCE_RUN_ID } from "../lib/demoReference";
+import { rateLimiter } from "../authLimits";
+import { requireCompanyMember } from "../lib/tenancy";
 import { normalizeAgentEmail, syncAgentProfilesForEmail } from "../lib/agentAccess";
 import { requireRole } from "../lib/roles";
 import { requireDemoCompany, requireProjectScope } from "../lib/projectScope";
@@ -103,6 +105,8 @@ export const startRun = mutation({
   handler: async (ctx) => {
     await requireDemoCompany(ctx, ["gc"]);
     const viewer = await requireRole(ctx, ["gc"]);
+    const { company } = await requireCompanyMember(ctx);
+    if (company.demoReadOnly) await rateLimiter.limit(ctx, "guidedDemoPerAccount", { key: viewer.userId, throws: true });
     const gcEmail = viewer.user.email ?? `user:${viewer.userId}`;
     const sub1 = await sub1Account(ctx);
     const contractor = await ctx.db.get(sub1.contractorId);
@@ -123,6 +127,7 @@ export const startRun = mutation({
       targetCompletionWeeks: 40,
       specDocumentText: "Demo project. Div 26 electrical; seismic bracing excluded from the electrical subcontract.",
       isDemoProject: false,
+      demoSandbox: true,
       generalContractorName: GC_NAME,
       createdAt: now,
     });

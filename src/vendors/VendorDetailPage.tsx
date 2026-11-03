@@ -2,6 +2,7 @@ import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
 import { api } from "../../convex/_generated/api";
 import { Button, Card, ConfirmDialog, DateText, PageHeader, StatusPill, useToast } from "../ui";
+import { useActiveCompany } from "../auth/companyContext";
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -15,6 +16,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 /** A GC's vendor: directory details, the linked sub company's own profile, and payee confirmation. */
 export function VendorDetailPage({ vendorId }: { vendorId: string }) {
   const vendor = useQuery(api.partyProfiles.getVendor, { vendorId });
+  const { isDemo } = useActiveCompany();
   const confirmPayee = useMutation(api.payee.confirmPayee);
   const toast = useToast();
   const [confirming, setConfirming] = useState(false);
@@ -64,11 +66,13 @@ export function VendorDetailPage({ vendorId }: { vendorId: string }) {
             )}
           </dl>
         )}
-        {payee.status === "pending" && (
+        {payee.status === "pending" && (isDemo ? (
+          <p className="mt-3 text-xs text-amber-200">Shared demo · read-only. Payee confirmation belongs to the vendor's own company and is disabled here.</p>
+        ) : (
           <div className="mt-3">
             <Button onClick={() => setConfirming(true)}>Confirm payee</Button>
           </div>
-        )}
+        ))}
       </Card>
 
       <Card title="Company profile" description={linkedCompany ? `Maintained by ${linkedCompany.name}. Only its admins can change it.` : undefined}>

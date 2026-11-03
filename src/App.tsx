@@ -1207,6 +1207,8 @@ export const App: React.FC = () => {
         )}
         {!projectNotFound && projects.length > 0 && (
         <>
+        {/* The procurement workspace is its own page: give it one top-level heading for assistive tech. */}
+        <h1 className="sr-only">Procurement</h1>
         {/* Executive Financial Procurement KPI Bar */}
         <ExecutiveKpiBar
           metrics={procurementMetrics}

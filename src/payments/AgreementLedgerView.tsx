@@ -34,14 +34,14 @@ const RECONCILIATION: {
   { key: "capturedCents", label: "Captured" },
   { key: "capturedNotPaidCents", label: "Captured, not paid out" },
   { key: "retainageReleasedCents", label: "Retainage released" },
-  { key: "changeOrdersInvoicedCents", label: "Change orders invoiced" },
-  { key: "changeOrdersPaidCents", label: "Change orders paid" },
+  { key: "changeOrdersInvoicedCents", label: "Owner prime CO invoices unpaid (project income)" },
+  { key: "changeOrdersPaidCents", label: "Owner prime CO income paid (not this subcontract)" },
 ];
 const MONEY_DEFINITIONS: Record<string, string> = {
   fundedCents: "Money still authorized at PayPal, after completed captures. This is not a new deposit or a payment to the sub.",
   capturedCents: "Confirmed completed PayPal captures. Pending captures are excluded; a capture is not a successful payout.",
   capturedNotPaidCents: "Captured money whose associated subcontractor payout has not succeeded.",
-  retainageReleasedCents: "Previously held retainage released at closeout, net of reversals.",
+  retainageReleasedCents: "Previously withheld retainage released, net of reversals. A demo release does not certify project closeout.",
   changeOrdersInvoicedCents: "Separate Owner change-order invoices still awaiting payment.",
   changeOrdersPaidCents: "Separate paid Owner change-order invoices, not subcontractor payouts.",
 };
@@ -122,7 +122,11 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
             </div>
           ))}
         </dl>
+        <p className="text-xs text-slate-400" data-testid="ledger-definitions">
+          Retainage released is previously withheld retainage released, net of reversals. A demo release does not certify project closeout.
+        </p>
         <p className="text-xs text-slate-300">Remaining authorization is the PayPal-authorized amount less completed captures, not cash paid to the sub. Captured is confirmed money collected; captured, not paid out is awaiting a successful subcontractor payout.</p>
+        <p className="text-xs text-slate-300">Statuses are recorded from PayPal webhooks/API responses at the time shown; this page does not re-query PayPal. Owner prime change-order income belongs to the project, not this subcontract's scope or balance.</p>
       </section>
 
       <section aria-labelledby="ledger-sov" className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
@@ -179,7 +183,7 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
         )}
         {agreement.excludedScopeNotes.length > 0 && (
           <div className="mt-4" data-testid="ledger-excluded-scope">
-            <h4 className="text-sm font-semibold">Excluded scope (not in contract)</h4>
+            <h3 className="text-sm font-semibold">Excluded scope (not in contract)</h3>
             <p className="text-xs text-slate-400">Excluded in the bid; not billable and not part of the schedule of values.</p>
             <ul className="mt-1 list-disc pl-5 text-sm text-slate-300">
               {agreement.excludedScopeNotes.map((note) => (

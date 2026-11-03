@@ -324,6 +324,7 @@ export default defineSchema({
     name: v.string(),
     kind: companyKindValidator,
     isDemo: v.boolean(),
+    demoReadOnly: v.optional(v.boolean()),
     // Stable key of a seeded Demo company ("gc", "sub:rosendin", ...); lets seeds find it by id, never by name.
     demoKey: v.optional(v.string()),
     legalName: v.optional(v.string()),
@@ -1036,6 +1037,8 @@ export default defineSchema({
     isDemoProject: v.boolean(), // Allows public read access for judges
     // The settled recovery demo is readable but cannot accept user-initiated workflow or money writes.
     readOnlyReference: v.optional(v.boolean()),
+    readOnlyDemoFixture: v.optional(v.boolean()),
+    demoSandbox: v.optional(v.boolean()),
     generalContractorName: v.optional(v.string()),
     // Owning GC company. Optional only until every writer sets it; the tenancy migration backfills it.
     gcCompanyId: v.optional(v.id("companies")),

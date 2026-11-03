@@ -27,13 +27,15 @@ export default function PaymentsDashboard() {
     <section className="space-y-3" aria-label="Payments dashboard">
       <header className="flex flex-wrap items-center gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Payments dashboard</h1>
+          <h1 className="text-xl font-semibold">{raw.role === "owner" ? "Reports" : "Payment reports"}</h1>
           <p className="text-xs text-slate-400" data-testid="dashboard-convex-totals">
+            {raw.role === "owner" ? <>Live from Convex · {raw.changeOrders.length} Owner change orders. Subcontract measures are not shared with the Owner.</> : <>
             Live from Convex · subcontract payouts {formatCents(totals.paidCents)} · retainage held{" "}
             {formatCents(totals.retainageHeldCents)} · released {formatCents(totals.retainageReleasedCents)} · pending
             pay apps {formatCents(totals.pendingPayAppCents)} ·{" "}
             {raw.payments.length} payments, {raw.payApps.length} pay apps, {raw.retainage.length} retainage entries,{" "}
             {raw.changeOrders.length} change orders
+            </>}
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">

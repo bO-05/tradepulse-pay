@@ -8,6 +8,7 @@ import { vendorHash } from "../auth/navigation";
 import { ImportVendorsDialog } from "./ImportVendorsDialog";
 import { downloadCsv, vendorsToCsv } from "./vendorCsv";
 import { VendorFormDialog, type EditableVendor } from "./VendorFormDialog";
+import { useActiveCompany } from "../auth/companyContext";
 
 type Vendor = FunctionReturnType<typeof api.vendors.listVendorsPage>["page"][number];
 type Filter = "active" | "inactive" | "all";
@@ -17,6 +18,7 @@ const EXPORT_PAGE_SIZE = 500;
 
 /** GC company vendor directory: list, filter, add, edit, deactivate, CSV import and export. */
 export function VendorsPage() {
+  const { isDemo } = useActiveCompany();
   const convex = useConvex();
   const summary = useQuery(api.vendors.directorySummary, {});
   const setStatus = useMutation(api.vendors.setVendorStatus);
@@ -71,8 +73,8 @@ export function VendorsPage() {
     }
   };
 
-  const addButton = <Button onClick={() => setAdding(true)}>Add vendor</Button>;
-  const importButton = (
+  const addButton = isDemo ? null : <Button onClick={() => setAdding(true)}>Add vendor</Button>;
+  const importButton = isDemo ? null : (
     <Button variant="secondary" onClick={() => setImporting(true)}>
       Import CSV
     </Button>
@@ -119,7 +121,7 @@ export function VendorsPage() {
       header: <span className="sr-only">Actions</span>,
       cardLabel: "Actions",
       align: "right",
-      render: (v) => (
+      render: (v) => isDemo ? <span className="text-xs text-ink-subtle">Shared demo · read-only</span> : (
         <span className="flex flex-wrap justify-end gap-2">
           <Button size="sm" variant="secondary" onClick={() => setEditing(v)} aria-label={`Edit ${v.name}`}>
             Edit

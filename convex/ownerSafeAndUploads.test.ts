@@ -142,7 +142,7 @@ describe("owners get owner-safe projections only", () => {
     expect(await owner.query(api.rfq.listConversations, { tradePackageId: a.tradePackageId }).catch((e) => e.data)).toEqual(notFound);
   });
 
-  test("owner subcontract detail reads answer Not found for project and missing ids alike", async () => {
+  test("owner subcontract detail reads answer blank for project and missing ids alike", async () => {
     const { t, fx, a } = await ownerFixture();
     const owner = fx.owner.admin.as;
     const notFound = { code: "NOT_FOUND", message: "Not found." };
@@ -168,8 +168,9 @@ describe("owners get owner-safe projections only", () => {
       return id;
     });
     for (const agreementId of [a.agreementId as string, missingAgreement as string, "not-an-id"]) {
-      expect(await errorData(owner.query(api.payments.ledger.getAgreementLedger, { agreementId })), agreementId).toEqual(notFound);
-      expect(await errorData(owner.query(api.portal.getAgreementSummary, { agreementId })), agreementId).toEqual(notFound);
+      // Detail reads answer blank, so a missing id and a subcontract the owner cannot see look identical.
+      expect(await owner.query(api.payments.ledger.getAgreementLedger, { agreementId }), agreementId).toBeNull();
+      expect(await owner.query(api.portal.getAgreementSummary, { agreementId }), agreementId).toBeNull();
       expect(await errorData(owner.query(api.payApps.submit.payAppFormContext, { agreementId })), agreementId).toEqual(notFound);
       expect(await errorData(owner.query(api.payApps.review.listAgreementPayApps, { agreementId })), agreementId).toEqual(notFound);
     }

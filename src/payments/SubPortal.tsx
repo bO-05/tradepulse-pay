@@ -166,9 +166,9 @@ export function SubPortal() {
                   <td className="py-2 pr-3 text-xs" data-testid="sub-payapp-outcome">
                     <PayAppOutcome status={p.status} outcome={p.outcome} rejectionReason={p.rejectionReason} />
                   </td>
-                  <td className="py-2 pr-3">{formatDate(p.createdAt)}</td>
+                  <td className="py-2 pr-3">{p.status === "draft" ? `Created ${formatDate(p.createdAt)} · not submitted` : formatDate(p.submittedAt ?? p.createdAt)}</td>
                   <td className="py-2 pr-3 text-xs">
-                    {submissionAttribution(p.submittedBy, p.judgeDemoFiledBy)}
+                    {p.status === "draft" ? "Unsubmitted draft · created by the subcontractor" : submissionAttribution(p.submittedBy, p.judgeDemoFiledBy)}
                   </td>
                   <td className="py-2 pr-3 text-right">
                     {p.canWithdraw ? <WithdrawPayAppButton payAppId={p._id} periodLabel={p.periodLabel} /> : null}

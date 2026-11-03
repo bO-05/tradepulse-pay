@@ -216,7 +216,16 @@ export const myChangeOrderProjects = query({
   handler: async (ctx) => {
     await requireRole(ctx, ALL_PARTIES);
     const projects = await callerProjects(ctx);
-    return projects.slice(0, 100).map((p) => ({ _id: p._id, title: p.title }));
+    const rows = [];
+    for (const p of projects.slice(0, 100)) {
+      // Lets the page open a project that already has change orders instead of the newest empty one.
+      const prime = await ctx.db
+        .query("changeOrders")
+        .withIndex("by_projectId_and_scope_and_number", (q) => q.eq("projectId", p._id).eq("scope", "prime"))
+        .first();
+      rows.push({ _id: p._id, title: p.title, hasPrimeChangeOrders: prime !== null });
+    }
+    return rows;
   },
 });
 
@@ -248,9 +257,12 @@ export const listForAgreement = query({
  */
 export const getChangeOrder = query({
   args: { changeOrderId: v.string() },
-  returns: changeOrderDetailValidator,
+  returns: v.union(v.null(), changeOrderDetailValidator),
   handler: async (ctx, args) => {
-    const scope = partyScope(await requireDocScope(ctx, "changeOrders", args.changeOrderId, { roles: ALL_PARTIES }));
+    const found = await findDocScope(ctx, "changeOrders", args.changeOrderId, { roles: ALL_PARTIES });
+    if (found === null) return null;
+    if ((found.doc.scope ?? (found.doc.agreementId ? "subcontract" : "prime")) === "prime" && found.partyRole === "sub") return null;
+    const scope = partyScope(found);
     const co = scope.doc;
     const recipient = await recipientFor(ctx, scope.project._id, scope.party);
     const [view] = await rowViews(ctx, [co], { party: scope.party, recipient });

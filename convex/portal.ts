@@ -1,9 +1,10 @@
 import { paginationOptsValidator } from "convex/server";
+import { isReadOnlyReference } from "./lib/demoReference";
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { query, type QueryCtx } from "./_generated/server";
 import { requireRole } from "./lib/roles";
-import { callerProjects, findSubcontractDocScope, requireDocScope, subContractorScope } from "./lib/projectScope";
+import { callerProjects, findDocScope, requireDocScope, subContractorScope } from "./lib/projectScope";
 import { primeChangeOrders, primeContractSum, recipientFor, rowViews } from "./billing/changeOrderView";
 import { primeRetainageHeld, projectOwnerPayApps } from "./billing/ownerRollup";
 import { loadMilestoneFunding } from "./payments/milestoneFundingState";
@@ -175,11 +176,12 @@ export const mySubPayApps = query({
         },
         judgeDemoFiledBy: p.judgeDemo?.filedBy ?? null,
         outcome: await payAppOutcome(ctx, payments),
-        canWithdraw: WITHDRAWABLE_PAY_APP_STATUSES.has(p.status),
+        canWithdraw: WITHDRAWABLE_PAY_APP_STATUSES.has(p.status) && !isReadOnlyReference(await ctx.db.get(agreement.projectId)),
         withdrawnAt: p.withdrawnAt ?? null,
         rejectedAt: p.rejectedAt ?? null,
         rejectionReason: p.status === "rejected" ? (p.rejectionReason ?? null) : null,
         createdAt: p.createdAt,
+        submittedAt: p.status === "draft" ? null : p.submittedAt ?? p.createdAt,
       });
     }
     return { ...result, page };
@@ -193,7 +195,7 @@ export const mySubPayApps = query({
 export const getAgreementSummary = query({
   args: { agreementId: v.string() },
   handler: async (ctx, args) => {
-    const scope = await findSubcontractDocScope(ctx, "agreements", args.agreementId);
+    const scope = await findDocScope(ctx, "agreements", args.agreementId);
     if (scope === null) return null;
     const agreement = scope.doc;
     return {

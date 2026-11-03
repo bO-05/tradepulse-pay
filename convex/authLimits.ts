@@ -10,6 +10,7 @@ import { RESEND_COOLDOWN_SECONDS } from "./lib/authErrors";
  * they are limited here. Values are deliberately loose; ops tunes them.
  */
 export const rateLimiter = new RateLimiter(components.rateLimiter, {
+  guidedDemoPerAccount: { kind: "fixed window", rate: 3, period: HOUR },
   // One code per address per cooldown; the UI shows the same countdown.
   authEmailCooldown: { kind: "token bucket", rate: 1, period: RESEND_COOLDOWN_SECONDS * 1000, capacity: 1 },
   authEmailPerAddress: { kind: "token bucket", rate: 6, period: HOUR, capacity: 4 },

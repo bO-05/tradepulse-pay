@@ -60,7 +60,10 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
   const nav = navFor(me.role, isDemo, me.actorType);
   const homeHash = nav[0].hash;
   const leftProcurement = route.area !== "procurement" && hash !== "" && hash !== "#" && hash !== "#/";
-  useEffect(() => setMenuOpen(false), [hash]);
+  useEffect(() => {
+    if (menuOpen) document.getElementById("workspace-main")?.focus();
+    setMenuOpen(false);
+  }, [hash]);
   useEffect(() => {
     const close = (event: KeyboardEvent) => {
       if (event.key === "Escape" && menuOpen) {
