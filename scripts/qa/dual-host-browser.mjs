@@ -179,10 +179,24 @@ try {
       waitUntil: "domcontentloaded",
     });
     await gc.page.waitForFunction(() => document.body.innerText.includes("Convex File Storage"), { timeout: 45000 });
+    await gc.page.waitForFunction(
+      () => /Project Documents in Convex Storage \([1-9]/.test(document.body.innerText),
+      { timeout: 45000 },
+    );
     const archiveButtons = await gc.page.$$(
       'button[title="Download document archive"], button[title="Download file from Convex Storage"]',
     );
-    check(`${hostLabel} lists seeded archive files`, archiveButtons.length > 0, { count: archiveButtons.length });
+    const fileDebug = await gc.page.evaluate(() => ({
+      countLine: [...document.querySelectorAll("span")].map((el) => el.textContent || "").find((text) =>
+        text.includes("Project Documents in Convex Storage"),
+      ) || null,
+      titles: [...document.querySelectorAll("button[title]")].map((el) => el.getAttribute("title")).slice(0, 30),
+      body: document.body.innerText.slice(0, 400),
+    }));
+    check(`${hostLabel} lists seeded archive files`, archiveButtons.length > 0, {
+      count: archiveButtons.length,
+      fileDebug,
+    });
     for (const button of archiveButtons.slice(0, 3)) {
       await button.click();
       await delay(1200);
@@ -199,8 +213,13 @@ try {
     check(`${hostLabel} reports load without a Studio license`, (await bodyText(gc.page)).includes("No AG Studio license is needed"));
 
     await open(gc.page, site, "#/payments/jn78x0j5xeh7q9gb55p26r7pdh8hdmjx");
-    await gc.page.waitForFunction(() => /Agreement|Ledger|Contract/i.test(document.body.innerText), { timeout: 45000 });
-    check(`${hostLabel} agreement ledger loads`, (await bodyText(gc.page)).includes("$55,000"));
+    await gc.page
+      .waitForFunction(() => document.body.innerText.includes("$55,000"), { timeout: 30000 })
+      .catch(() => {});
+    const ledgerText = await bodyText(gc.page);
+    check(`${hostLabel} agreement ledger loads`, ledgerText.includes("$55,000"), {
+      body: ledgerText.slice(0, 700),
+    });
     check(`${hostLabel} GC pages have no console or CORS errors`, gc.diagnostics.errors.length === 0, {
       errors: gc.diagnostics.errors,
     });
