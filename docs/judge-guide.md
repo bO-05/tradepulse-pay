@@ -98,10 +98,11 @@ Do not use the demo fixture flags as proof of insurance, tax compliance, license
   That is not a new registry lookup for every run or legal advice.
 - **AgentMail:** actual verification-email delivery, code redemption, the signed inbound webhook and the delivery-status
   webhook were verified with an already-owned test inbox. The unmatched auth message acquired no tenant scope.
-- **AgentID:** recovery needs owner-approved OAuth client registration. The disabled button explains this.
-  A labeled billing-agent stand-in is not evidence of successful AgentID login.
+- **AgentID:** recovery needs owner-approved OAuth client registration, so the hosted demo hides the button
+  instead of showing a disabled control. A labeled billing-agent stand-in is not evidence of successful AgentID login.
 - **AG Studio:** optional licensed editor/chat. Its existing trial ends November 20, before December judging;
-  a legitimate license extension is needed to promise its availability then. The core live React dashboard remains usable without it.
+  a legitimate license extension is needed to promise its availability then. The core live React dashboard remains
+  usable without it and no license warning is shown.
 - **Firecrawl:** web-derived records remain unverified until a human checks them. Do not infer licensing or email consent from discovery.
   Recovery's live scrape and bounded search both returned genuine source content after the title-parsing fix.
 

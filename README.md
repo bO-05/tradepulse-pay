@@ -1,23 +1,34 @@
 # TradePulse Pay
 
-> Milestone payments, pay-application review and retainage for commercial construction subcontracts, on the PayPal sandbox. Built on the TradePulse Pro procurement app.
+**General contractors pay subcontractors only for verified progress.** A subcontractor files a pay application; AI checks each line against the awarded contract; code computes every dollar; the GC approves; PayPal holds, captures, pays out net of retainage, and invoices the Owner.
 
-TradePulse Pay is MIT licensed (see [`LICENSE`](./LICENSE)).
+[**Open the judge demo →**](https://cheery-axolotl-689.convex.site/#/demo) · [judge walkthrough](./docs/judge-guide.md) · [source on the recovery branch](https://github.com/bO-05/tradepulse-pay/tree/recovery/stabilize-2026-11-01) · MIT licensed.
 
-**Start here: [working judge demo and access guide](https://cheery-axolotl-689.convex.site/#/demo).**
-This is the tested, isolated recovery-dev build, not production. No signup is needed for its three public demo roles.
-All PayPal calls use the sandbox (`api-m.sandbox.paypal.com`); no real money moves.
-Read the [judge walkthrough](./docs/judge-guide.md) for the short inspection path, hands-on checkout and real-user onboarding.
-The [submission draft and video handoff](./docs/submission-draft.md) separate verified evidence from the remaining owner publishing steps.
-The [November 2 audit retest handoff](./docs/external-audit-fixes.md) records the fixes, test scope and remaining owner actions without publishing the private audit.
-**Source matching this demo:** [recovery branch](https://github.com/bO-05/tradepulse-pay/tree/recovery/stabilize-2026-11-01).
-The default `main` branch is the preserved baseline, not the recovered build.
+> **Try it in two minutes:** sign in as `gc@demo.tradepulse`, `sub1@demo.tradepulse` or `owner@demo.tradepulse` with `TradePulseDemo!2026`. PayPal sandbox only; synthetic data; no real money.
 
-> The earlier TradePulse Pro submission for the Convex hackathon lives on a separate, frozen deployment (`brainy-skunk-440`). It is not TradePulse Pay and does not run this code.
+| Reports: money position | Pay app: claim to settlement |
+| --- | --- |
+| ![Money position by agreement](./docs/screenshots/reports-money-chart.png) | ![Pay app money trail](./docs/screenshots/pay-app-money-trail.png) |
 
-**Verified recovery proof:** real Mistral review and proposal tools, two COMPLETED PayPal captures, two SUCCESS progress payouts, a PAID Owner invoice and a SUCCESS retainage release were independently checked on November 1, 2026. These are partial-progress demo payments, not completion of the entire contract. See [recovery status and evidence](./docs/recovery-progress.md).
+### PayPal APIs used
 
-Production `earnest-mongoose-745` has **not** been replaced or re-certified by this recovery. AgentID on recovery still requires owner-approved client registration; normal demo password sign-in works. The original dev deployment's newer cloud-only waiver implementation remains protected and is not recovered by this branch.
+- **Orders v2:** AUTHORIZE, partial capture, void, reauthorize, and an hourly honor-period reauthorization.
+- **Payouts:** progress payments net of retainage and the closeout retainage release.
+- **Invoicing v2:** Owner change-order invoices and their payment status.
+- **Webhooks:** signature verification and replay-safe event ids.
+- **PayPal JS SDK:** funding and checkout buttons.
+- **Agent Toolkit:** read-only tools used by the pay agent.
+
+### AI used
+
+- **Mistral Large** structured per-line review (ok, overbilled, excluded scope, front-loaded, out of sequence) and tool proposals through the Vercel AI SDK.
+- **Code, not the model, computes every amount** from the schedule of values.
+- **Deterministic offline rules engine** when no provider is available; the UI labels it as not AI.
+- **KERNEL** hosted-browser CSLB license check with a visible live view and a 24-hour cache.
+
+**How it differs from Procore Pay / GCPay / Textura:** review is contract-scope-aware, so it flags excluded scope and out-of-sequence billing, not only arithmetic. A mid-size GC can pay an approved subcontractor through PayPal Payouts instead of a 30–60 day check run.
+
+**Known limits:** this is the tested recovery-dev build, **not production**; `earnest-mongoose-745` is untouched. AgentID sign-in needs **owner-approved client registration**, so it is hidden on this hosted demo, and the licensed AG Studio editor is not enabled. The default `main` branch is the preserved baseline; the demo runs the recovery branch. Sandbox and synthetic data only. See [recovery status](#recovery-status), [what changed since Oct 1](#what-changed-since-oct-1), and the [documentation index](./docs/README.md).
 
 ---
 
@@ -170,7 +181,7 @@ TradePulse Pay requires sign-in for workspaces. Signed-out visitors can read `#/
 
 | Account | Role | What it sees |
 |---|---|---|
-| `gc@demo.tradepulse` | General contractor | Everything: procurement (award, execute, reset, 1-click demo), payments, approval inbox, billing agents, dashboard, judge demo |
+| `gc@demo.tradepulse` | General contractor | Procurement (award, execute), payments, approval inbox, billing agents, reports and the guided demo. The shared reference run is read-only |
 | `sub1@demo.tradepulse` | Subcontractor | Only Rosendin Electric's agreements and pay applications |
 | `sub2@demo.tradepulse` | Subcontractor | Only TDIndustries' agreements and pay applications |
 | `sub3@demo.tradepulse` | Subcontractor | Only Clarke Kent Plumbing's agreements and pay applications |
@@ -190,6 +201,8 @@ The PayPal sandbox sends no real emails and moves no real money.
 
 ## Billing-agent sign-in (AgentID)
 
+**The hosted recovery demo does not enable AgentID sign-in yet:** it needs owner-approved client registration, so the button is hidden. This section describes a deployment where AgentID is configured.
+
 A subcontractor can let an AI billing agent file pay applications for it. The agent signs in with [AgentID](https://agentid.com), using its AgentMail inbox as its identity.
 
 1. **The GC links the agent.** Signed in as `gc@demo.tradepulse`, open **Billing agents**, enter the agent's inbox email (the demo agent is `boldlevel182@agentmail.to`) and pick the subcontractor (sub1's contractor, Rosendin Electric). The GC can revoke the link at any time; the agent loses access on its next request.
@@ -205,13 +218,13 @@ The AgentID client is registered per deployment with the redirect URI `https://<
 
 ## TradePulse Pay judge demo (two-minute inspection; 5–10-minute hands-on run)
 
-Sign in as `gc@demo.tradepulse`, open the **Demo simulator** and click **Run TradePulse Pay demo** (or use the **Guided demo** item in the navigation). The simulator, guided tour, guided demo and model checks exist only for the Demo company and are labeled "Demo"; real companies never see them. Each run creates a fresh, labeled demo award for sub1's contractor (Rosendin Electric, $55,000). The $4,500 seismic-bracing exclusion is a comparison-only plug and an agreement note, never part of the payable contract or SOV. Fresh runs include marked, fileless demo compliance fixtures, not proof of real insurance, tax or licensing compliance. The demo then uses the app's regular functions:
+Sign in as `gc@demo.tradepulse`, open **Guided demo** and click **Run TradePulse Pay demo**. The guided tour, guided demo and model checks exist only for the Demo company and are labeled "Demo"; real companies never see them. The preserved reference run is read-only, so the shared financial fixtures cannot be edited or reset. Each new guided run creates a fresh, labeled demo award for sub1's contractor (Rosendin Electric, $55,000). The $4,500 seismic-bracing exclusion is a comparison-only plug and an agreement note, never part of the payable contract or SOV. Fresh runs include marked, fileless demo compliance fixtures, not proof of real insurance, tax or licensing compliance. The demo then uses the app's regular functions:
 
 1. Execute the agreement; the schedule of values and four milestones are generated.
 2. **You** fund Mobilization ($5,500.00) in the PayPal popup with the guest card above. The demo waits for the real authorization.
 3. The demo files two pay applications as stand-ins: an honest one for sub1 and an overbilled one (billing early closeout work and the excluded scope, no lien waiver) for the billing agent `boldlevel182@agentmail.to`. Both are labeled **"Judge demo · filed by <GC>"** on every screen.
 4. AI review (the configured Anthropic or Mistral provider; code computes every dollar), the KERNEL CSLB license check, and the pay agent's capture and payout proposals.
-5. The GC approves the honest pay app as proposed and edits the agent's proposal down to 90% before approving. PayPal captures from the authorization and pays sub1 90% net; 10% goes to the retainage ledger.
+5. The GC approves the honest pay app as proposed and edits the agent's proposal down to 90% before approving; the pay-app screen shows the AI recommendation, the approved amount and the difference side by side. PayPal captures from the authorization and pays sub1 90% net; 10% goes to the retainage ledger.
 6. A $1,850.00 change order is invoiced to the Owner through PayPal Invoicing. The dashboard step turns green once its totals match the ledger.
 7. **The Owner** pays the invoice in their own browser (sign in as `owner@demo.tradepulse`, **Projects & change orders**, **Open PayPal invoice**, pay with the guest card and a guest email), then clicks **Refresh status**.
 
@@ -318,6 +331,14 @@ These predate TradePulse Pay. They are kept for history, are not part of the che
 ## TradePulse Pro procurement (the base app)
 
 Signed in as the GC, the **Procurement** area is the original TradePulse Pro app: CSI MasterFormat scoping into trade packages, Firecrawl subcontractor discovery with provenance, AgentMail RFQ inboxes and pre-bid RFIs, forensic bid leveling (base bid + exclusions + lead-time and COI penalties − accepted VE alternates, computed in code), cross-trade scope clash detection, and A401-style subcontract drafts (not an official AIA form). Awarding and executing a contract there is what starts the TradePulse Pay flow. The September audits of that app are archived in [`docs/audits/`](./docs/audits/README.md).
+
+---
+
+## Recovery status
+
+This is the tested, isolated recovery-dev build, not production. Production `earnest-mongoose-745` has **not** been replaced or re-certified, and the earlier TradePulse Pro submission on `brainy-skunk-440` is frozen and does not run this code. AgentID on recovery still requires owner-approved client registration; normal demo password sign-in works. The original dev deployment's newer cloud-only waiver implementation remains protected and is not recovered by this branch.
+
+**Verified recovery proof:** real Mistral review and proposal tools, two COMPLETED PayPal captures, two SUCCESS progress payouts, a PAID Owner invoice and a SUCCESS retainage release were independently checked on November 1, 2026. These are partial-progress demo payments, not completion of the entire contract. See [recovery status and evidence](./docs/recovery-progress.md) and the [sanitized audit-fix handoff](./docs/external-audit-fixes.md).
 
 ---
 

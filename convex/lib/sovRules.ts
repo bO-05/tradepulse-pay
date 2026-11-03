@@ -24,7 +24,7 @@ export const SOV_MAX_LINE_CENTS = 100_000_000_000;
 export const SOV_FILE_TOO_LARGE = "SOV files must be 2 MB or smaller.";
 export const SOV_TOO_MANY_ROWS = `SOV imports are limited to ${SOV_MAX_ROWS.toLocaleString("en-US")} rows.`;
 export const SOV_LOCKED_MESSAGE = "SOV is locked. Changes only through change orders.";
-export const SOV_NOT_APPROVED_MESSAGE = "Waiting for the GC to approve the schedule of values.";
+export const SOV_NOT_APPROVED_MESSAGE = "Pay apps open after your GC approves the schedule of values.";
 
 export type SovLineInput = { description: string; csiCode?: string; scheduledValueCents: number };
 

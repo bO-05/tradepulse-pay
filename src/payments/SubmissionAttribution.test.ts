@@ -10,6 +10,12 @@ test("guided stand-ins take precedence over real-account and agent claims", () =
   }
 });
 
+test("a shared demo account is named as a demo, not presented as the real subcontractor", () => {
+  const text = submissionAttribution({ actorType: "human", userEmail: "sub1@demo.tradepulse" });
+  expect(text).toContain("shared demo account");
+  expect(text).toContain("not the real subcontractor");
+});
+
 test("verified AgentID owner is distinguished from the construction Owner", () => {
   expect(submissionAttribution({ actorType: "agent", onBehalfOf: "Verified person" })).toContain("not necessarily");
   expect(submissionAttribution({ actorType: "agent" })).toContain("no verified AgentID account owner recorded");

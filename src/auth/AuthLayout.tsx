@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { cx, focusRing } from "../ui";
 
 /** Shared frame for the signed-out screens: brand, one h1 card, optional footer. */
@@ -8,6 +8,11 @@ export function AuthLayout({ title, description, children, footer }: {
   children: ReactNode;
   footer?: ReactNode;
 }) {
+  const heading = useRef<HTMLHeadingElement>(null);
+  // The signed-in shell disappears on sign-out; land focus on the new screen's heading instead of <body>.
+  useEffect(() => {
+    heading.current?.focus({ preventScroll: true });
+  }, []);
   return (
     <div className="min-h-screen bg-surface-sunken text-ink flex items-center justify-center px-4 py-10 font-sans">
       <div className="w-full max-w-sm">
@@ -23,7 +28,7 @@ export function AuthLayout({ title, description, children, footer }: {
           <a href="#/demo" className="underline underline-offset-2">Open demo guide</a>
         </p>
         <main className="bg-surface border border-line rounded-2xl p-6 shadow-xl">
-          <h1 className="text-base font-semibold">{title}</h1>
+          <h1 ref={heading} tabIndex={-1} className="text-base font-semibold outline-none">{title}</h1>
           {description && <div className="mt-1 text-sm text-ink-subtle">{description}</div>}
           <div className="mt-4">{children}</div>
         </main>

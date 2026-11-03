@@ -107,3 +107,50 @@ A second private audit (November 2) was reviewed and answered on the same recove
 - Copy buttons and receipt IDs are convenience and business identifiers, not credentials.
 - No fresh financial round, real-device or screen-reader pass, WCAG certification, provider certification or independent AgentID success is claimed.
 - The Owner-only blockers above (public video, Devpost submission, AG Studio license for judging, AgentID OAuth approval) remain open.
+
+## November 3 third- and fourth-audit retest (V3/V4)
+
+A third private audit (first-use / skeptical judge) and a fourth (judging criteria and submission eligibility) were reviewed together. Their reports, screenshots, scripts and data remain local, unmodified and ignored by Git. The only remote writes in this retest were ordinary demo sign-ins; no funding, capture, payout, invoice payment, draft, provider refresh or guided run was started.
+
+### Findings that were already fixed or were not reproducible
+
+- **Guided run without confirmation.** The fourth audit inferred this from minified JavaScript (`onClick:()=>de(!0)`) without clicking the button. The consent dialog was already shipped in V2. The live retest opened it and cancelled it; the run list was unchanged and the reference totals were rechecked. No duplicate dialog was added.
+- **Server-side read-only rejection untested.** Already covered by `convex/v2AuditFixes.test.ts` (company profile/defaults/invite writes rejected with `DEMO_READ_ONLY`; reference writes with `READ_ONLY_REFERENCE`). No production behavior changed.
+- **Disabled "New pay app" reason not linked.** The button already carried `aria-describedby` bound to the reason element. The wording was still GC-oriented, so it now reads "Pay apps open after your GC approves the schedule of values."
+
+### Judge-facing fixes
+
+- **Unconfigured providers no longer apologize on the first screen.** The AgentID button and its "not configured" line are hidden unless AgentID is actually configured; the divider moved with the button. The Reports basic view no longer prints an AG Studio license warning; it says the report uses live Convex data and needs no Studio license.
+- **One date convention.** Both date formatters default to UTC, so a timestamp's calendar day can no longer differ from the labeled UTC time beside it. The Jakarta Nov 1 / Nov 2 mismatch is covered by a regression test.
+- **Reports.** The global figure is labeled "pending pay apps across all agreements"; raw "Live from Convex" record counts are gone; agreements with no payment activity are hidden with a count; and a real per-agreement money chart shows paid, retainage held and captured-not-paid against the contract sum.
+- **Pay app money trail.** Every submitted pay app now shows claimed → AI recommends → GC approves → retainage this app → net this app. When the GC changes the recommendation, the screen states the difference and points at the per-line reasons. The approval history also shows AI recommended gross versus GC-approved gross.
+- **G702 retainage snapshot.** Line 5a now explains that a later retainage release is recorded in the agreement ledger and does not rewrite the historical G702, with a direct ledger link.
+- **Focus and Not found.** Sign-in moves focus to the workspace main region; sign-out lands on the sign-in heading. A forbidden prime change-order bookmark now renders the shared Not found page with an `h1`, not a bare paragraph.
+- **Demo and privacy labels.** A shared `@demo.tradepulse` submitter is labeled a demo account, not the real subcontractor. Sandbox `example.com` invoice recipients are masked in the change-order UI.
+- **Navigation.** For the demo GC, the six payment-path items stay in the main bar ("Billing" is labeled "Pay apps") and the procurement back office moves under a keyboard-accessible "More" disclosure. All routes still resolve; only the display is trimmed.
+- **Copy cleanup.** Removed the stray spacing in the captured-milestone label and the remaining debug-style separators in the Reports header.
+
+### Repository and submission materials
+
+- README now leads with the problem, audience, demo link, two masked screenshots, the exact PayPal APIs and AI models used, the competitive wedge, one sourced impact sentence, and a short known-limits line. Recovery and production caveats moved to a "Recovery status" section at the end.
+- Added `docs/README.md` as the document index, added the two screenshots under `docs/screenshots/`, and aligned AgentID/Studio wording in the judge guide and README.
+- Updated `docs/submission-draft.md` per the fourth audit: problem-first opening, PayPal API and AI lists, "How it differs", a sourced impact paragraph (Built 2026 ledger; Billd 2026 survey; Corpay 2026 retainage explainer), shortened challenges, trimmed Built With, and a paste-ready testing-instructions section with the demo guide, three logins, guest card and pinned-run bookmark.
+- The raw audit folders remain private and ignored. No Devpost entry, public video, default-branch merge, repository About change, custom domain or production deployment was performed.
+
+### Validation
+
+- `npx vitest run --maxWorkers=1`: **1,973 passed, 0 failed, 146 files**. The three new tests cover the UTC calendar-day convention, the shared-demo attribution and the dashboard's hidden zero-activity rows. A prior `--maxWorkers=2` run hit one unrelated 30-second role-guard timeout under 146 parallel workers; the same file passed alone and in the final single-worker run.
+- `tsc -b` and `vite build`: pass; the same existing large-bundle warnings remain (main 1.22 MB, Studio 5.67 MB, `sovFile` mixed import).
+- `node scripts/tools/guard-audit.mjs`: **258 public, 201 internal, 0 problems**.
+- `node scripts/tools/check-docs-links.mjs docs README.md`: **79 relative links**, all resolve; the hackathon log still has 28 ordered entries.
+- `node scripts/qa/audit-v2-browser.mjs`: **83/83 checks, 0 console or page errors** on the preserved reference, roles, consent dialog and 320–1440 px layouts. Report: `evidence/audit-v2-browser-2026-11-03T13-57-30-847Z/report.json`.
+- `node scripts/qa/audit-v3-browser.mjs`: **21/21 checks, 0 console or page errors** for the new fixes at 360, 390 and 1440 px, including the hidden AgentID control, focus after sign-in, Reports chart, pay-app money trail, G702 note, UTC labels and forbidden change-order Not found page. Report: `evidence/audit-v3-browser-2026-11-03T13-59-31-102Z/report.json`.
+- Recovery-dev backend and static bundle deployed with typecheck. Served assets: `index-MudxKyV7.js` and `index-BVET7WmM.css`; static publication `ece3b632-2a61-48f5-bb1c-0967ac541a7f`. `AI_PROVIDER` was confirmed as `mistral` on `dev:cheery-axolotl-689`; no Anthropic key is required for judging. Production (`earnest-mongoose-745`) and `main` were not touched.
+
+### Still open after V3/V4
+
+- **Owner decisions:** public YouTube video and Devpost submission (Stage One hard fail until done), default branch/README on `main`, AG Studio/AgentID availability, the accidental $0 draft on `A401-DEMO-PAY-20261101-03`, and a custom domain.
+- **Pay-app review evidence:** the four labelled review fixtures are real and visible in sponsor diagnostics, but this is not the 20–30-case precision/recall evaluation the fourth audit recommended. That larger eval was not built or claimed here.
+- **Design:** the demo still uses the dark navy theme rather than the light "paper" direction suggested in the design critique. This pass removes the highest-noise elements (provider apologies, debug metadata, 13-item nav, text-only reports) but is not a full visual redesign.
+- **Lien waivers:** no new waiver gate was added; the existing compliance surface is unchanged and the missing cloud-only implementation is still not claimed as recovered.
+- **Live limits:** no new financial settlement, provider call, real-device, Safari/Firefox, screen-reader, 200% zoom or WCAG pass was performed. The $320→$288 demo edit remains a guided-demo stand-in; the screen now explains the difference and points at line reasons, but the preserved reference has no free-text GC explanation.

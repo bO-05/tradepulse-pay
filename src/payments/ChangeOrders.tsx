@@ -7,6 +7,7 @@ import type { ChangeOrderRowView } from "../../convex/billing/changeOrderView";
 import type { ContractSumBreakdown } from "../../convex/payments/changeOrderMath";
 import { changeOrderFieldErrors, type ChangeOrderFieldErrors } from "../../convex/payments/changeOrderMath";
 import { getErrorMessage } from "../lib/errors";
+import { maskSharedEmail } from "../lib/demoPrivacy";
 import { Button, ConfirmDialog, Dialog, EmptyState, MoneyInput, PageHeader, StatusPill, Tabs, TextInput, formatCents, formatDate, useToast } from "../ui";
 import { Field, focusFirstInvalid, inputClass } from "../ui/Field";
 
@@ -352,7 +353,7 @@ function ChangeOrderRow({ co, showAgreement, recipientEmail }: { co: ChangeOrder
           {co.recipientEmail || co.paypalInvoiceId ? (
             <p className="text-xs text-ink-subtle">
               {[
-                co.recipientEmail ? `Invoice to ${co.recipientEmail}` : null,
+                co.recipientEmail ? `Invoice to ${maskSharedEmail(co.recipientEmail)}` : null,
                 co.paypalInvoiceId ? `PayPal invoice ${co.paypalInvoiceId}${co.paypalInvoiceStatus ? ` (${co.paypalInvoiceStatus})` : ""}` : null,
               ]
                 .filter(Boolean)
@@ -620,7 +621,7 @@ function PrimeSection({ data }: { data: ProjectList }) {
       ) : null}
       {data.invoicing?.recipientEmail ? (
         <p className="text-xs text-ink-subtle" data-testid="change-order-recipient">
-          "Invoice now" sends approved prime change orders to the owner at {data.invoicing.recipientEmail}.
+          "Invoice now" sends approved prime change orders to the owner at {maskSharedEmail(data.invoicing.recipientEmail)}.
         </p>
       ) : null}
       <ChangeOrderRows rows={prime.changeOrders} emptyText="No prime change orders yet." recipientEmail={data.invoicing?.recipientEmail ?? null} />

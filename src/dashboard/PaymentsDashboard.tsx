@@ -29,12 +29,10 @@ export default function PaymentsDashboard() {
         <div>
           <h1 className="text-xl font-semibold">{raw.role === "owner" ? "Reports" : "Payment reports"}</h1>
           <p className="text-xs text-slate-400" data-testid="dashboard-convex-totals">
-            {raw.role === "owner" ? <>Live from Convex · {raw.changeOrders.length} Owner change orders. Subcontract measures are not shared with the Owner.</> : <>
-            Live from Convex · subcontract payouts {formatCents(totals.paidCents)} · retainage held{" "}
+            {raw.role === "owner" ? <>{raw.changeOrders.length} Owner change orders. Subcontract measures are not shared with the Owner.</> : <>
+            Subcontract payouts {formatCents(totals.paidCents)} · retainage held{" "}
             {formatCents(totals.retainageHeldCents)} · released {formatCents(totals.retainageReleasedCents)} · pending
-            pay apps {formatCents(totals.pendingPayAppCents)} ·{" "}
-            {raw.payments.length} payments, {raw.payApps.length} pay apps, {raw.retainage.length} retainage entries,{" "}
-            {raw.changeOrders.length} change orders
+            pay apps across all agreements {formatCents(totals.pendingPayAppCents)}
             </>}
           </p>
         </div>
@@ -79,7 +77,7 @@ export default function PaymentsDashboard() {
         </p>
       ) : null}
       {!hasStudioKey || basicView ? (
-        <DashboardFallback raw={raw} reason={!hasStudioKey ? "AG Studio license is not configured." : "Basic view selected."} />
+        <DashboardFallback raw={raw} reason={!hasStudioKey ? undefined : "Basic view selected."} />
       ) : (
         <StudioErrorBoundary fallback={fallback}>
           <Suspense fallback={<p className="text-sm text-slate-400">Loading AG Studio…</p>}>

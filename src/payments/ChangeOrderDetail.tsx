@@ -8,7 +8,15 @@ import { formatDateTime } from "../ui/format";
 export function ChangeOrderDetail({ changeOrderId }: { changeOrderId: string }) {
   const co = useQuery(api.billing.changeOrders.getChangeOrder, { changeOrderId });
   if (co === undefined) return <p role="status">Loading change order…</p>;
-  if (co === null) return <p role="status">Change order not found or not available to this account. <a href="#/change-orders" className="underline">Back to change orders</a></p>;
+  if (co === null) {
+    return (
+      <div role="alert" data-testid="not-found" className="max-w-xl rounded-2xl border border-slate-700 bg-slate-900/60 p-6">
+        <h1 className="text-lg font-semibold text-slate-100">Not found</h1>
+        <p className="mt-2 text-sm text-slate-300">This change order does not exist or you don't have access to it.</p>
+        <a href="#/change-orders" className="mt-3 inline-block text-sm text-emerald-300 underline">Back to change orders</a>
+      </div>
+    );
+  }
   return (
     <article className="mx-auto max-w-3xl space-y-4">
       <a href="#/change-orders" className="text-sm text-emerald-300 underline">Back to change orders</a>

@@ -43,7 +43,10 @@ export function MilestoneFundingTable({ milestones, label }: { milestones: Miles
                 {milestoneFundingLabel(m.state)}
               </span>
               {m.state === "captured" && m.capturedCents > 0 ? (
-                <span className="ml-2 inline-block text-xs text-slate-400 tabular-nums"> · {formatCents(m.capturedCents)} captured</span>
+                <span className="ml-2 inline-block text-xs text-slate-400 tabular-nums">
+                  {" · "}
+                  {formatCents(m.capturedCents)} captured
+                </span>
               ) : null}
             </td>
           </tr>

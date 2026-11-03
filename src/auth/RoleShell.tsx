@@ -38,6 +38,9 @@ import { useHash } from "./useHash";
 
 const PaymentsDashboard = lazy(() => import("../dashboard/PaymentsDashboard"));
 
+/** Demo GCs get the payment path first; the procurement back office moves under "More". */
+const DEMO_PRIMARY_AREAS = new Set(["inbox", "payments", "billing", "change-orders", "dashboard", "judge-demo"]);
+
 const ROLE_LABEL: Record<Role, string> = { gc: "General contractor", sub: "Subcontractor", owner: "Owner" };
 
 export type ShellIdentity = {
@@ -58,12 +61,19 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
   const isDemo = me.isDemo === true;
   const route = resolveRoute(me.role, hash, isDemo, window.location.search, me.actorType);
   const nav = navFor(me.role, isDemo, me.actorType);
+  const demoTrim = isDemo && me.role === "gc";
+  const primaryNav = demoTrim ? nav.filter((item) => DEMO_PRIMARY_AREAS.has(item.area)) : nav;
+  const moreNav = demoTrim ? nav.filter((item) => !DEMO_PRIMARY_AREAS.has(item.area)) : [];
   const homeHash = nav[0].hash;
   const leftProcurement = route.area !== "procurement" && hash !== "" && hash !== "#" && hash !== "#/";
   useEffect(() => {
     if (menuOpen) document.getElementById("workspace-main")?.focus();
     setMenuOpen(false);
   }, [hash]);
+  // Sign-in replaces the auth screen with this shell. Move focus into the workspace instead of <body>.
+  useEffect(() => {
+    document.getElementById("workspace-main")?.focus({ preventScroll: true });
+  }, []);
   useEffect(() => {
     const close = (event: KeyboardEvent) => {
       if (event.key === "Escape" && menuOpen) {
@@ -174,11 +184,12 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
           </span>
         ) : null}
         <ul className="grid gap-1 sm:grid-cols-2 xl:flex xl:flex-wrap">
-          {nav.map((item) => {
+          {primaryNav.map((item) => {
             const active =
               route.area === item.area ||
               (route.area === "ledger" && item.area === "payments") ||
               (route.area === "pay-app" && (item.area === "billing" || item.area === "pay-apps"));
+            const label = demoTrim && item.area === "billing" ? "Pay apps" : item.label;
             return (
               <li key={item.area}>
                 <a
@@ -188,7 +199,7 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
                     active ? "bg-emerald-700/40 text-emerald-200" : "text-slate-300 hover:bg-slate-800"
                   }`}
                 >
-                  {item.label}
+                  {label}
                   {DEMO_ONLY_AREAS.has(item.area) ? (
                     <span aria-hidden="true" className="rounded border border-amber-600 px-1 text-[9px] font-bold uppercase text-amber-200">
                       Demo
@@ -198,6 +209,34 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
               </li>
             );
           })}
+          {moreNav.length > 0 ? (
+            <li className="relative">
+              <details className="group">
+                <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-lg px-3 py-2 text-slate-300 hover:bg-slate-800 [&::-webkit-details-marker]:hidden">
+                  More
+                  <span aria-hidden="true" className="text-[10px] text-slate-400 group-open:rotate-180">▼</span>
+                </summary>
+                <ul className="mt-1 grid gap-1 rounded-lg border border-slate-700 bg-slate-900 p-1 xl:absolute xl:right-0 xl:z-20 xl:mt-1 xl:w-60 xl:shadow-2xl">
+                  {moreNav.map((item) => {
+                    const active = route.area === item.area;
+                    return (
+                      <li key={item.area}>
+                        <a
+                          href={item.hash}
+                          aria-current={active ? "page" : undefined}
+                          className={`flex min-h-11 items-center rounded-lg px-3 py-2 ${
+                            active ? "bg-emerald-700/40 text-emerald-200" : "text-slate-300 hover:bg-slate-800"
+                          }`}
+                        >
+                          {item.label}
+                        </a>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </details>
+            </li>
+          ) : null}
         </ul>
         <div className="mt-3 flex min-w-0 flex-wrap items-center gap-3 border-t border-slate-800 pt-3">
           <span className="min-w-0 [overflow-wrap:anywhere] text-xs text-slate-300" data-testid="signed-in-identity">

@@ -10,6 +10,9 @@ export function submissionAttribution(submittedBy: Attribution, filedBy?: string
   if (filedBy) {
     return `Filed by the guided demo driver, acting as ${submittedBy.actorType === "agent" ? "the subcontractor's billing agent" : "the subcontractor"} (demo stand-in). No independent ${submittedBy.actorType === "agent" ? "AgentID sign-in" : "subcontractor sign-in"} is implied.`;
   }
+  if (submittedBy.userEmail && /@demo\.tradepulse$/i.test(submittedBy.userEmail)) {
+    return `Submitted by ${submittedBy.userEmail} (shared demo account, human; not the real subcontractor).`;
+  }
   if (submittedBy.actorType === "agent") {
     return `Submitted by billing agent${submittedBy.agentEmail ? ` ${submittedBy.agentEmail}` : ""}${submittedBy.onBehalfOf ? ` · verified AgentID account owner: ${submittedBy.onBehalfOf}` : " · no verified AgentID account owner recorded"}. The AgentID account owner is not necessarily the project's construction Owner.`;
   }

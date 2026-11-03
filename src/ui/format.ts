@@ -29,8 +29,9 @@ const DATE_TIME_FORMAT: Intl.DateTimeFormatOptions = {
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 /**
- * Accepts epoch milliseconds or a calendar date string `YYYY-MM-DD`. Calendar dates are formatted in
- * UTC so that a stored `2026-10-08` never shifts to Oct 7 in a western time zone.
+ * Accepts epoch milliseconds or a calendar date string `YYYY-MM-DD`. Both are formatted in UTC by
+ * default, so a stored `2026-10-08` never shifts to Oct 7 in a western time zone and a timestamp
+ * never shows a different calendar day from the UTC date-time beside it.
  */
 export function formatDate(value: number | string | null | undefined, options: { timeZone?: string } = {}): string {
   if (value === null || value === undefined || value === "") return "—";
@@ -42,7 +43,7 @@ export function formatDate(value: number | string | null | undefined, options: {
     return new Intl.DateTimeFormat("en-US", { ...DATE_FORMAT, timeZone: "UTC" }).format(ts);
   }
   if (!Number.isFinite(value)) return "—";
-  return new Intl.DateTimeFormat("en-US", { ...DATE_FORMAT, timeZone: options.timeZone }).format(value);
+  return new Intl.DateTimeFormat("en-US", { ...DATE_FORMAT, timeZone: options.timeZone ?? "UTC" }).format(value);
 }
 
 export function formatDateTime(ts: number | null | undefined, options: { timeZone?: string } = {}): string {

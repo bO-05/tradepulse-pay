@@ -162,7 +162,7 @@ export function nextApplicationFor(
 
 function blockedReasonOf(agreement: Doc<"agreements">): string | null {
   if (!sovIsApproved(agreement)) return SOV_NOT_APPROVED_MESSAGE;
-  if (agreement.status !== "executed") return "Pay applications open once the GC records execution of this agreement.";
+  if (agreement.status !== "executed") return "Pay apps open after your GC records this agreement as executed.";
   return null;
 }
 

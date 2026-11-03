@@ -23,7 +23,7 @@ export function AgentIdButton() {
   }, []);
 
   const onClick = async () => {
-    if (pending || availability !== "configured") return;
+    if (pending) return;
     setError(null);
     setPending(true);
     try {
@@ -35,30 +35,34 @@ export function AgentIdButton() {
     }
   };
 
+  // An unconfigured provider is an internal setup detail. Hiding it beats a disabled button and an
+  // apology on the first screen a judge sees; email sign-in stays the visible path.
+  if (availability !== "configured") return null;
+
   return (
-    <div className="space-y-2">
-      <button
-        type="button"
-        onClick={() => void onClick()}
-        disabled={pending || availability !== "configured"}
-        className="w-full rounded-lg bg-black hover:bg-slate-800 disabled:opacity-60 border border-slate-700 text-white text-sm font-semibold py-2.5 px-3 flex items-center justify-center gap-3"
-      >
-        {/* py-2.5 and gap-3 keep clear space of at least half the 20px mark height (brand rule). */}
-        <img src={AGENTID_MARK_SRC} alt="" width={20} height={20} className="h-5 w-5" />
-        <span>Continue with AgentID</span>
-      </button>
-      {availability !== "configured" && (
-        <p className="text-xs text-slate-400" role="status" data-testid="agentid-availability">
-          {availability === "loading" ? "Checking AgentID setup…" : availability === "missing"
-            ? "AgentID is not configured for this deployment. Use email sign-in."
-            : "AgentID availability could not be checked. Reload to retry, or use email sign-in."}
-        </p>
-      )}
-      {error && (
-        <p role="alert" className="text-sm text-rose-300 bg-rose-950/60 border border-rose-800/70 rounded-lg px-3 py-2">
-          {error}
-        </p>
-      )}
-    </div>
+    <>
+      <div className="flex items-center gap-3 text-[11px] text-ink-subtle" aria-hidden="true">
+        <span className="h-px flex-1 bg-line" />
+        or, for subcontractor billing agents
+        <span className="h-px flex-1 bg-line" />
+      </div>
+      <div className="space-y-2">
+        <button
+          type="button"
+          onClick={() => void onClick()}
+          disabled={pending}
+          className="w-full rounded-lg bg-black hover:bg-slate-800 disabled:opacity-60 border border-slate-700 text-white text-sm font-semibold py-2.5 px-3 flex items-center justify-center gap-3"
+        >
+          {/* py-2.5 and gap-3 keep clear space of at least half the 20px mark height (brand rule). */}
+          <img src={AGENTID_MARK_SRC} alt="" width={20} height={20} className="h-5 w-5" />
+          <span>Continue with AgentID</span>
+        </button>
+        {error && (
+          <p role="alert" className="text-sm text-rose-300 bg-rose-950/60 border border-rose-800/70 rounded-lg px-3 py-2">
+            {error}
+          </p>
+        )}
+      </div>
+    </>
   );
 }

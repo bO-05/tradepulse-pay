@@ -12,6 +12,7 @@ import {
   percentHundredths,
   type G702Summary,
 } from "../../convex/payApps/g703Math";
+import { ledgerHash } from "../auth/navigation";
 import { getErrorMessage } from "../lib/errors";
 import { DocumentDownloadButton } from "../documents/DocumentDownload";
 import { Button, Card, ConfirmDialog, MoneyInput, PageHeader, StatusPill, TextInput, formatCents, formatDate, formatDateTime } from "../ui";
@@ -255,11 +256,21 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
         ) : null}
       </Card>
 
+      {view.status !== "draft" ? <MoneyTrail view={view} /> : null}
+
       {view.approvalHistory && view.status !== "draft" && (
         <Card title="Submission and GC approval history" padded>
           <ol className="space-y-2 text-sm">
             <li>Submitted: {formatDateTime(view.approvalHistory.submittedAt, { timeZone: "UTC" })} UTC · requested gross {formatCents(view.approvalHistory.requestedGrossCents)}</li>
             {view.approvalHistory.reviewedAt !== null && <li>Review completed: {formatDateTime(view.approvalHistory.reviewedAt, { timeZone: "UTC" })} UTC. A review is a recommendation, not a payment approval.</li>}
+            {view.review && view.approvalHistory.approvedGrossCents !== null ? (
+              <li data-testid="payapp-ai-vs-approved">
+                AI recommended gross {formatCents(view.review.approvedTotalCents)} · GC approved {formatCents(view.approvalHistory.approvedGrossCents)} ·{" "}
+                {view.approvalHistory.approvedGrossCents === view.review.approvedTotalCents
+                  ? "no change to the recommendation."
+                  : `${formatCents(Math.abs(view.approvalHistory.approvedGrossCents - view.review.approvedTotalCents))} ${view.approvalHistory.approvedGrossCents < view.review.approvedTotalCents ? "below" : "above"} the recommendation.`}
+              </li>
+            ) : null}
             {view.approvalHistory.approvedGrossCents !== null && <li>
               GC approved gross {formatCents(view.approvalHistory.approvedGrossCents)} · reduction from request {formatCents(view.approvalHistory.requestedGrossCents - view.approvalHistory.approvedGrossCents)}.
               {view.approvalHistory.approvedAt !== null && <> Approved by {view.approvalHistory.approvedBy ?? "the GC"} · {formatDateTime(view.approvalHistory.approvedAt, { timeZone: "UTC" })} UTC.</>}
@@ -287,7 +298,7 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
         summary={summary}
         gcReasons={gcReasons(view)}
       />
-      <G702Card summary={summary} retainageBps={view.retainageBps} />
+      <G702Card summary={summary} retainageBps={view.retainageBps} agreementId={view.agreement._id} />
       {view.changeOrders.length > 0 ? (
         <Card title="Change orders on this application" padded>
           <ul className="divide-y divide-line text-sm" data-testid="pay-app-change-orders">
@@ -523,7 +534,48 @@ function Requested({ value, requested }: { value: number; requested: number | nu
   );
 }
 
-function G702Card({ summary, retainageBps }: { summary: G702Summary; retainageBps: number }) {
+function MoneyTrail({ view }: { view: PayAppView }) {
+  const claimed = view.approvalHistory.requestedGrossCents;
+  const ai = view.review?.approvedTotalCents ?? null;
+  const approved = view.approvalHistory.approvedGrossCents;
+  const retainage = view.summary.retainageCents;
+  const net = view.summary.currentPaymentDueCents;
+  const steps: { label: string; value: number | null; tone?: string }[] = [
+    { label: "Claimed", value: claimed },
+    ...(ai !== null ? [{ label: "AI recommends", value: ai }] : []),
+    { label: "GC approves", value: approved },
+    { label: "Retainage this app", value: retainage, tone: retainage > 0 ? "text-amber-200" : undefined },
+    { label: "Net this app", value: net },
+  ];
+  return (
+    <Card
+      title="Money trail"
+      description="Every figure is computed from the schedule of values. PayPal settles only after the GC approves."
+      padded
+      data-testid="payapp-money-trail"
+    >
+      <ol className="flex flex-wrap items-stretch gap-2" aria-label="Money trail for this pay application">
+        {steps.map((step, i) => (
+          <li key={step.label} className="flex min-w-[8rem] flex-1 items-center gap-2">
+            {i > 0 ? <span aria-hidden="true" className="text-ink-subtle">→</span> : null}
+            <div className="min-w-0 flex-1 rounded-lg border border-line bg-surface-raised px-3 py-2">
+              <p className="text-[11px] uppercase tracking-wide text-ink-subtle">{step.label}</p>
+              <p className={`text-sm font-semibold tabular-nums ${step.tone ?? ""}`}>{step.value === null ? "—" : formatCents(step.value)}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+      {ai !== null && approved !== null && ai !== approved ? (
+        <p className="mt-3 text-xs text-ink-subtle" data-testid="payapp-money-trail-edit">
+          The GC approved {formatCents(Math.abs(approved - ai))} {approved < ai ? "below" : "above"} the AI recommendation.
+          Per-line reasons, when entered, are under the GC decision below.
+        </p>
+      ) : null}
+    </Card>
+  );
+}
+
+function G702Card({ summary, retainageBps, agreementId }: { summary: G702Summary; retainageBps: number; agreementId: string }) {
   const rows: [string, string, string?][] = [
     ["1", "Original contract sum", formatCents(summary.originalContractSumCents)],
     ["2", "Net change by change orders", formatCents(summary.netChangeOrdersCents, { showPlus: true })],
@@ -550,6 +602,10 @@ function G702Card({ summary, retainageBps }: { summary: G702Summary; retainageBp
           </div>
         ))}
       </dl>
+      <p className="mt-3 text-xs text-ink-subtle" data-testid="g702-retainage-note">
+        Line 5a is this application's retainage snapshot. Retainage released later is recorded in the{" "}
+        <a href={ledgerHash(agreementId)} className="underline">agreement ledger</a>; a later release does not rewrite this historical G702.
+      </p>
     </Card>
   );
 }

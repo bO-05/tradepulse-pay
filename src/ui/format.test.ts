@@ -48,6 +48,11 @@ describe("formatDate / formatDateTime", () => {
     expect(formatDateTime(oct8)).toBe("Oct 8, 2026, 9:39 PM UTC");
   });
 
+  test("a date-only timestamp uses the same UTC calendar day as the UTC time beside it", () => {
+    // 17:03 UTC on Nov 1 is already Nov 2 in Jakarta; the inbox date must still read Nov 1.
+    expect(formatDate(Date.UTC(2026, 10, 1, 17, 3))).toBe("Nov 1, 2026");
+  });
+
   test("missing or invalid values", () => {
     expect(formatDate(null)).toBe("—");
     expect(formatDate("not a date")).toBe("—");

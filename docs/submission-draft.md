@@ -20,9 +20,10 @@ separately approves merging it. Production and the original development deployme
 
 ### Inspiration
 
-Construction payments are not simply “send money.” A general contractor must compare each progress claim
-against the subcontract, detect excluded or premature work, hold retainage, check licensing and keep an
-auditable record. Those decisions often live in disconnected spreadsheets, email and payment tools.
+General contractors paying subcontractors on commercial jobs must check every progress claim against the
+subcontract, catch excluded or premature work, hold retainage, check licensing, and keep an auditable record
+before money moves. TradePulse Pay does that with AI review, code-computed amounts, explicit GC approval, and
+PayPal Orders, Payouts and Invoicing.
 
 ### What it does
 
@@ -31,9 +32,41 @@ net payouts, retainage and Owner change-order invoices. AI reviews the work clai
 but deterministic code computes the amounts and the GC retains approval authority.
 
 In the verified example, an intentionally overbilled $13,500 claim received a real Mistral recommendation of
-$320. The guided-demo GC explicitly edited that to $288. PayPal confirmed the capture and the $259.20 net
-payout. A separate honest claim, a $1,850 Owner invoice and a $228.80 retainage release also settled.
-These are real sandbox receipts for partial progress, not full payment of the $55,000 subcontract.
+$320. The guided-demo GC explicitly edited that to $288; the change is shown against the recommendation, with
+the GC's per-line reasons when entered. PayPal confirmed the capture and the $259.20 net payout. A separate
+honest claim, a $1,850 Owner invoice and a $228.80 retainage release also settled. These are real sandbox
+receipts for partial progress, not full payment of the $55,000 subcontract.
+
+### PayPal APIs used
+
+- **Orders v2:** AUTHORIZE, partial capture, void, reauthorize, and an hourly honor-period reauthorization.
+- **Payouts:** progress payments net of retainage and the closeout retainage release.
+- **Invoicing v2:** Owner change-order invoices and payment status.
+- **Webhooks:** signature verification and replay-safe event ids.
+- **PayPal JS SDK:** funding and checkout buttons.
+- **Agent Toolkit:** read-only tools in the pay agent (`get_order`, `list_transactions`, `get_invoice`,
+  `list_disputes` and the other read-only tools in `@paypal/agent-toolkit`).
+
+### AI used
+
+- **Mistral Large** (`mistral-large-latest`) structured per-line review and tool proposals through the Vercel AI SDK.
+- **Code, not the model, computes every amount** from the schedule of values.
+- **Deterministic offline rules engine** when no provider is available; the UI labels it as not AI.
+- **KERNEL** hosted-browser CSLB license check with a visible live view and a 24-hour cache.
+
+### How it differs
+
+Procore Pay, GCPay, Oracle Textura and Siteline automate the pay-app workflow. TradePulse Pay's review is
+contract-scope-aware: it flags **excluded scope** and **out-of-sequence** billing against the awarded SOV,
+not only arithmetic. A mid-size GC without a Textura/GCPay contract can pay an approved subcontractor through
+PayPal Payouts instead of waiting for a 30–60 day check run.
+
+### Potential impact
+
+On US commercial jobs, the typical trade partner waits about **50 days** from pay-app submission to payment
+(Built's 2026 transaction ledger; Billd's 2026 survey reports 51 days), and **5–10% of each progress payment**
+is held as retainage until closeout (Corpay, 2026). TradePulse Pay attacks the review step and keeps the
+retainage ledger attached to the same payment record, so the GC, sub and Owner read one history.
 
 ### How we built it
 
@@ -42,20 +75,15 @@ and audit records. PayPal's Server SDK handles Orders and Payments; REST handles
 webhook verification. Request IDs and webhook deduplication protect retries.
 
 Mistral provides structured review and bounded proposal tools. Provider provenance and offline fallback are
-visible. KERNEL performs California license lookups with a labeled cache. AgentMail supports actual email
-verification and procurement mail; Firecrawl discovers source-linked contractor records, not verified licenses.
-The core dashboard is an ordinary reactive React view. An optional AG Studio editor/chat requires valid licensing.
+visible. KERNEL performs California license lookups with a labeled cache. AgentMail supports email verification
+and procurement mail; Firecrawl discovers source-linked contractor records, not verified licenses. The core
+dashboard is an ordinary reactive React view; the optional AG Studio editor/chat requires valid licensing.
 
 ### Challenges and accomplishments
 
-Recovery began from the public GitHub baseline after a managed workspace became unavailable.
-We isolated development rather than overwriting a newer deployed schema whose waiver source was missing.
-We repaired model reasoning-budget exhaustion, distinguished completed captures from pending/refunded states,
-and independently reconciled PayPal receipts against the agreement ledger.
-
-We also tested actual account creation, emailed-code redemption, signed email webhooks, onboarding, project
-and package creation, three-role access, and two judges using independent run bookmarks.
-The public guide removes setup friction without bypassing authentication or real payment approvals.
+Recovery began from the public GitHub baseline after a managed workspace became unavailable. We isolated
+development instead of overwriting a newer deployed schema, repaired model reasoning-budget exhaustion, and
+reconciled PayPal receipts against the agreement ledger. The evidence names both successes and limits.
 
 ### What we learned
 
@@ -71,10 +99,25 @@ Studio license extension if demonstrating its editor, and expand real-company va
 
 ### Built with
 
-TypeScript, React, Vite, Convex, PayPal Server SDK, PayPal React SDK, PayPal Agent Toolkit,
-Mistral, Vercel AI SDK, KERNEL, AgentMail, Firecrawl, AG Studio, Postman.
+PayPal Orders, Payouts, Invoicing, Webhooks and Agent Toolkit; Mistral; Convex; React; TypeScript; Vite;
+Vercel AI SDK; KERNEL; AgentMail; Firecrawl; Postman.
 APIMatic's development-time SDK lookups are documented in [the lookup log](./apimatic-log.md).
-AgentID integration code exists, but recovery OAuth registration is **not certified**.
+AgentID and AG Studio integration code exists, but neither is enabled on the hosted demo.
+
+## Testing instructions (paste into Devpost)
+
+1. Open the demo guide: **https://cheery-axolotl-689.convex.site/#/demo**. No signup is needed.
+2. Sign in as any role with the shared demo password:
+   - GC: `gc@demo.tradepulse`
+   - Subcontractor: `sub1@demo.tradepulse`
+   - Owner: `owner@demo.tradepulse`
+   - Password: `TradePulseDemo!2026`
+3. Shortest proof path: open the pinned reference run
+   **https://cheery-axolotl-689.convex.site/#/judge-demo/nx74k1sdcnsmqzvkr97kf0ts598hch6p**,
+   then the ledger, the AI review and the PayPal receipt IDs. It is read-only and already settled.
+4. To fund a live sandbox authorization yourself, use the public PayPal sandbox card
+   `4032031427005060`, expiry `01/29`, CVV `480`. The app uses `api-m.sandbox.paypal.com`; no real money moves.
+5. The app is a hash-routed SPA. Deep links work after sign-in and the Back button returns to the previous screen.
 
 ## Existing-project disclosure
 

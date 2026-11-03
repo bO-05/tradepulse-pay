@@ -44,7 +44,7 @@ function newPayAppButton(html: string): string {
 describe("New pay app button", () => {
   test("is shown disabled and described by the reason while the SOV is not approved", () => {
     const html = render({ blockedReason: SOV_NOT_APPROVED_MESSAGE });
-    expect(SOV_NOT_APPROVED_MESSAGE).toBe("Waiting for the GC to approve the schedule of values.");
+    expect(SOV_NOT_APPROVED_MESSAGE).toBe("Pay apps open after your GC approves the schedule of values.");
     const button = newPayAppButton(html);
     expect(button).toMatch(/\sdisabled=""/);
     const describedBy = button.match(/aria-describedby="([^"]+)"/)?.[1];
