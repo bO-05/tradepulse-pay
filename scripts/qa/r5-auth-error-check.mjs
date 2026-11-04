@@ -73,11 +73,11 @@ try {
   await page.click('form[aria-label="Create account"] button[type="submit"]');
 
   await page.waitForFunction(
-    () => document.body.innerText.includes("Not sent: this test deployment only emails test addresses"),
+    () => document.body.innerText.includes("Not sent: this test deployment only emails approved test addresses"),
     { timeout: 45000 },
   );
   report.body = await page.evaluate(() => document.body.innerText);
-  check("blocked recipient shows the test-address message", report.body.includes("only emails test addresses"));
+  check("blocked recipient shows the test-address message", report.body.includes("only emails approved test addresses"));
   check("blocked recipient does not show an invented failure", !/couldn't create the account|something went wrong|server error/i.test(report.body));
   check("verify screen is reachable for a retry", await page.$("#verify-code") !== null);
   report.screenshot = path.join(directory, "blocked-signup.png");

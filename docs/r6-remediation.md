@@ -3,6 +3,8 @@
 Date: 2026-11-04
 Audit: private R6 retest (kept in the ignored `docs/external-audit/` folder, not reproduced here)
 Branch: `recovery/stabilize-2026-11-01`
+Code commit: `a0833541140bdbb78d7457168f457c36ac89ed32`
+App build deployed to canonical, mirror and Pages: `a0833541140bdbb78d7457168f457c36ac89ed32` (`a083354`)
 Scope of this round: R6 Block 0 correctness only. The usefulness work in R6 Blocks 1-6 is not claimed here.
 
 This file maps every R6 correctness finding to code and tests. It does not turn the R6 verdict into a pass. The product is still a tested sandbox build, not a real-money production service, and the ICP gaps the audit ranked remain open.
@@ -60,10 +62,12 @@ Status meanings: **Fixed** = code and regression tests in this branch. **Partial
 | Type check | `npx tsc -b` clean after the final code change | local run |
 | Guard audit | 258 public functions, 201 internal, 0 problems | `node scripts/tools/guard-audit.mjs` |
 | Docs links | 83 relative links checked, all resolve | `npm run verify:docs` |
-| Three-origin browser acceptance | Pending final build | `scripts/qa/dual-host-browser.mjs` after deploy |
-| GC/sub/Owner role smoke | Pending final build | `scripts/qa/recovery-smoke.mjs` after deploy |
-| Blocked sign-up browser check | Pending final build | `scripts/qa/r5-auth-error-check.mjs` after deploy |
+| Three-origin browser acceptance | 53/53 passed; all three hosts served `a083354` | `evidence/dual-host-browser-2026-11-04T13-29-16-412Z/report.json` |
+| GC/sub/Owner role smoke on canonical | 6/6 checks passed; GC nav shows `Approvals`; mirror `/api/health` returns `ok` | `evidence/recovery-tradepulse-pay.asynchronope.tech-2026-11-04T13-30-47-467Z/report.json` |
+| Blocked sign-up browser check | 5/5 checks passed; no email was sent; the Verify screen showed the generic test-address reason | `evidence/r5-auth-error-check-2026-11-04T13-33-14-482Z/report.json` |
 | R6-A live Owner invoice | **Not run** | Needs explicit approval for a fresh guided run and Owner-invoice payment |
+
+The blocked-sign-up report contains one console error with code `EMAIL_BLOCKED`. That is the refusal being tested, not an unexpected page failure. The screenshot is in the same evidence directory.
 
 The full suite passed after the final code change. A passing unit suite is not live PayPal proof.
 
