@@ -263,6 +263,21 @@ describe("owner billing email", () => {
     expect(await errorOf(fx.owner.admin.as.query(api.partyProfiles.getProjectOwner, { projectId: fx.gcA.project.projectId }))).toBe("Not found.");
   });
 
+  test("demo projects bill the seeded Owner at a reserved guest-checkout address", async () => {
+    const { t, fx } = await setup();
+    const projectId = fx.gcA.project.projectId;
+    await t.run(async (ctx) => {
+      await ctx.db.patch(projectId, { ownerCompanyId: fx.owner.companyId, isDemoProject: true });
+      await ctx.db.patch(fx.owner.companyId, { billingEmail: "owner@demo.tradepulse" });
+    });
+    expect(await t.run((ctx) => invoiceRecipientForProject(ctx, projectId))).toEqual({
+      ok: true,
+      email: `owner-${projectId}@example.com`,
+      ownerCompanyId: fx.owner.companyId,
+      ownerCompanyName: "Harbor Point Dental LLC",
+    });
+  });
+
   test("a project without an owner company has invoicing disabled with the reason", async () => {
     const { fx } = await setup();
     const owner = await fx.gcB.admin.as.query(api.partyProfiles.getProjectOwner, { projectId: fx.gcB.project.projectId });

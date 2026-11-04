@@ -1,6 +1,6 @@
 # TradePulse Pay
 
-**General contractors pay subcontractors only for verified progress.** A subcontractor files a pay application; AI checks each line against the awarded contract; code computes every dollar; the GC approves; PayPal holds, captures, pays out net of retainage, and invoices the Owner.
+**General contractors pay subcontractors only for verified progress.** A subcontractor files a pay application; the rules engine checks each line against the awarded contract, and the configured model explains the evidence; code computes every dollar; the GC approves; PayPal holds, captures, pays out net of retainage, and invoices the Owner.
 
 [**Open the judge demo →**](https://tradepulse-pay.asynchronope.tech/#/demo) · [.convex.site mirror](https://cheery-axolotl-689.convex.site/#/demo) · [judge walkthrough](./docs/judge-guide.md) · [source on the recovery branch](https://github.com/bO-05/tradepulse-pay/tree/recovery/stabilize-2026-11-01) · MIT licensed.
 
@@ -21,14 +21,14 @@
 
 ### AI used
 
-- **Mistral Large** structured per-line review (ok, overbilled, excluded scope, front-loaded, out of sequence) and tool proposals through the Vercel AI SDK.
-- **Code, not the model, computes every amount** from the schedule of values.
+- **Mistral Large** writes per-line explanations and review notes from structured pay-app evidence, and proposes agent tools through the Vercel AI SDK. The rules engine, not the model, sets each verdict and amount.
+- **Code, not the model, computes every dollar** from the schedule of values; model commentary is labelled separately from the GC decision.
 - **Deterministic offline rules engine** when no provider is available; the UI labels it as not AI.
 - **KERNEL** hosted-browser CSLB license check with a visible live view and a 24-hour cache.
 
 **How it differs from Procore Pay / GCPay / Textura:** review is contract-scope-aware, so it flags excluded scope and out-of-sequence billing, not only arithmetic. A mid-size GC can pay an approved subcontractor through PayPal Payouts instead of a 30–60 day check run.
 
-**Known limits:** this is the tested recovery-dev build, **not production**; `earnest-mongoose-745` is untouched. AgentID sign-in needs **owner-approved client registration**, so it is hidden on this hosted demo, and the licensed AG Studio editor is not enabled. The default `main` branch is the preserved baseline; the demo runs the recovery branch. Sandbox and synthetic data only. See [recovery status](#recovery-status), [what changed since Oct 1](#what-changed-since-oct-1), and the [documentation index](./docs/README.md).
+**Known limits:** this is the tested recovery-dev build, **not production**; `earnest-mongoose-745` is untouched. PayPal is sandbox-only: one platform account is the merchant for GC, sub and Owner money, and fees are not yet modelled. A production launch needs PayPal multiparty with the GC as seller, a fee ledger, dispute handling and legal review. Email verification is allowlisted to test inboxes on this deployment. AgentID sign-in needs **owner-approved client registration**, so it is hidden on this hosted demo, and the licensed AG Studio editor is not enabled. The default `main` branch is the preserved baseline; the demo runs the recovery branch. See the [R5 remediation record](./docs/r5-remediation.md) for what is fixed and what remains a real-money blocker. Sandbox and synthetic data only. See [recovery status](#recovery-status), [what changed since Oct 1](#what-changed-since-oct-1), and the [documentation index](./docs/README.md).
 
 ---
 
@@ -43,7 +43,7 @@ TradePulse Pay takes the contract the GC just awarded in TradePulse Pro and runs
 1. **Execute the agreement.** Code generates the schedule of values (SOV) from the awarded bid and four funding milestones. Excluded scope stays in the comparison/notes, not the awarded contract sum or ordinary SOV.
 2. **Fund a milestone.** The GC approves a PayPal `AUTHORIZE` order. The money is held, not captured.
 3. **Sub files a pay application**, either a person or the sub's **billing agent** signed in with AgentID.
-4. **AI review.** The configured Mistral or Anthropic model returns per-line verdicts (ok, overbilled, excluded scope, front-loaded, out of sequence). **Code computes every dollar** from the SOV; the model never authors an amount. KERNEL checks the sub's California license (CSLB) in a hosted browser.
+4. **Rules review with model explanations.** The rules engine returns per-line verdicts (ok, overbilled, excluded scope, front-loaded, out of sequence) and **code computes every dollar** from the SOV; the configured Mistral or Anthropic model explains the evidence and cannot author or change an amount. KERNEL checks the sub's California license (CSLB) in a hosted browser.
 5. **Pay agent proposes**, the GC approves. The agent can only insert proposals (capture, payout, hold, reschedule). Money moves only after the GC approves: PayPal captures from the authorization, pays the sub net of retainage through Payouts, and credits the retainage ledger.
 6. **Change orders** are invoiced to the Owner with PayPal Invoicing. **Retainage** is released at closeout as one payout of the ledger balance.
 7. **Dashboard.** A live ledger dashboard shows payments, pay apps, retainage and change orders. A licensed AG Studio view adds layout editing and model-backed chat; the basic React view works without a Studio license.
@@ -56,7 +56,7 @@ The original TradePulse Pay work is the commit range **`2ad5543..paypal-hackatho
 
 - **Sign-in and roles (AUTH).** Convex Auth email + password with roles gc, sub and owner; AgentID sign-in for billing agents with GC-managed links; every public Convex function, old and new, is role-guarded (`docs/guard-audit.md`).
 - **Payments (PAY).** Payments schema and integer-cents money helpers; PayPal client with token cache, `PayPal-Request-Id` idempotency, backoff and audit logs; SOV and milestones on execution; AUTHORIZE funding; partial capture, void and reauthorize; payouts net of retainage; retainage ledger and closeout release; change-order invoices; signature-verified `/paypal/webhook`; hourly honor-period watcher; payout retry and ledger reconciliation; a read-only milestone funding summary for subs.
-- **Pay apps and agent (AGENT).** Sub pay-application submit and withdraw with agent attribution; previous % to date taken from approved billing only, with amounts still pending review shown separately; AI review with structured verdicts and an "Offline rules engine" fallback; KERNEL CSLB license checks with live view and 24 h cache; pay-agent proposals with a GC approval inbox.
+- **Pay apps and agent (AGENT).** Sub pay-application submit and withdraw with agent attribution; previous % to date taken from approved billing only, with amounts still pending review shown separately; rules review with model explanations and an "Offline rules engine" fallback; KERNEL CSLB license checks with live view and 24 h cache; pay-agent proposals with a GC approval inbox.
 - **Dashboard (DASH).** Lazy-loaded licensed AG Studio dashboard for the GC and a read-only owner view, with the TradePulse pay agent wired through the auth-gated `/ai/studio` configured-provider proxy. The basic live dashboard does not need a Studio license.
 - **Submission (DOCS, PAY).** Postman collection and APIMatic log, the one-click judge demo, this README, `.env.example`, the secret sweep and the guard audit.
 
@@ -71,7 +71,7 @@ Browser (Vite dev server, http://localhost:3150)
   ├─ Convex Auth sign-in: password (gc, sub, owner) or "Continue with AgentID" (billing agents)
   ├─ Procurement (TradePulse Pro views, GC only)
   ├─ Payments workspace (src/payments/): ledger, fund milestone (PayPal JS SDK buttons),
-  │    sub portal, GC approval inbox (AI review, KERNEL live view, approve/edit/reject),
+  │    sub portal, GC approval inbox (rules review with model explanations, KERNEL live view, approve/edit/reject),
   │    owner portal (change-order invoices), judge demo
   └─ AG Studio dashboard (src/dashboard/, lazy route) → POST /ai/studio with the Convex Auth token
 
@@ -80,7 +80,7 @@ Convex (convex/)
   lib/roles.ts                requireRole / requireRoleInAction
   lib/money.ts                integer cents; the only place amounts become PayPal strings
   payments/                   SOV, orders, captures, payouts, retainage, invoices, webhook, crons
-  payApps/                    submit, withdraw, AI review, proposals, approval
+  payApps/                    submit, withdraw, rules review with model explanations, proposals, approval
   agent/                      pay agent (AI SDK v7 + Mistral/Anthropic + read-only PayPal agent-toolkit tools)
   kernel/                     CSLB license check in KERNEL browsers
   dashboard/                  dashboard queries and the /ai/studio model proxy
@@ -223,8 +223,8 @@ Sign in as `gc@demo.tradepulse`, open **Guided demo** and click **Run TradePulse
 1. Execute the agreement; the schedule of values and four milestones are generated.
 2. **You** fund Mobilization ($5,500.00) in the PayPal popup with the guest card above. The demo waits for the real authorization.
 3. The demo files two pay applications as stand-ins: an honest one for sub1 and an overbilled one (billing early closeout work and the excluded scope, no lien waiver) for the billing agent `boldlevel182@agentmail.to`. Both are labeled **"Judge demo · filed by <GC>"** on every screen.
-4. AI review (the configured Anthropic or Mistral provider; code computes every dollar), the KERNEL CSLB license check, and the pay agent's capture and payout proposals.
-5. The GC approves the honest pay app as proposed and edits the agent's proposal down to 90% before approving; the pay-app screen shows the AI recommendation, the approved amount and the difference side by side. PayPal captures from the authorization and pays sub1 90% net; 10% goes to the retainage ledger.
+4. Rules review with the configured Anthropic or Mistral model's explanations (code computes every dollar), the KERNEL CSLB license check, and the pay agent's capture and payout proposals.
+5. The GC approves the honest pay app as proposed and edits the agent's proposal down to 90% before approving; the pay-app screen shows the rules recommendation, the approved amount and the difference side by side. PayPal captures from the authorization and pays sub1 90% net; 10% goes to the retainage ledger.
 6. A $1,850.00 change order is invoiced to the Owner through PayPal Invoicing. The dashboard step turns green once its totals match the ledger.
 7. **The Owner** pays the invoice in their own browser (sign in as `owner@demo.tradepulse`, **Projects & change orders**, **Open PayPal invoice**, pay with the guest card and a guest email), then clicks **Refresh status**.
 

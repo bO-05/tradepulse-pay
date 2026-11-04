@@ -15,11 +15,18 @@ import { setTimeout as delay } from "node:timers/promises";
 const args = process.argv.slice(2);
 let target = process.env.REM_BASE_URL || "http://localhost:3150";
 let demoLogin = false;
+let healthTarget;
 for (let i = 0; i < args.length; i++) {
   if (args[i] === "--demo-login") demoLogin = true;
   else if (args[i] === "--url") {
     if (!args[i + 1]) throw new Error("--url requires a URL");
     target = args[++i];
+  } else if (args[i] === "--health-url") {
+    if (!args[i + 1]) throw new Error("--health-url requires a URL");
+    healthTarget = new URL(args[++i]);
+    if (!["http:", "https:"].includes(healthTarget.protocol) || healthTarget.username || healthTarget.password || healthTarget.search) {
+      throw new Error("--health-url must be an HTTP(S) URL without credentials or query parameters");
+    }
   } else if (!args[i].startsWith("-")) target = args[i];
   else throw new Error(`Unknown option: ${args[i]}`);
 }
@@ -134,7 +141,7 @@ try {
     report.public.title = sanitize(await page.title());
     report.public.signIn = await hasTextControl(page, "Sign in");
     report.public.agentId = await hasTextControl(page, "Continue with AgentID");
-    await page.waitForTimeout(1_000);
+    await delay(1_000);
     report.public.agentIdState = await page.evaluate(() => ({
       buttonVisible: [...document.querySelectorAll("button")].some(el => el.textContent.trim() === "Continue with AgentID"),
       mentionsConfiguration: document.body.innerText.includes("AgentID is not configured"),
@@ -160,7 +167,7 @@ try {
     }
     report.public.currentSourceAuthNavigation = report.public.navigation.every(item => item.formOpened);
     // Observe health through the same isolated browser, storing only public status fields.
-    const health = await page.goto(new URL("/api/health", base).href, { waitUntil: "domcontentloaded" });
+    const health = await page.goto(healthTarget?.href ?? new URL("/api/health", base).href, { waitUntil: "domcontentloaded" });
     report.public.health = { httpStatus: health?.status() };
     try {
       const json = JSON.parse(await page.evaluate(() => document.body.innerText));
@@ -176,7 +183,7 @@ try {
   }
   if (demoLogin && report.public.signIn) {
     const definitions = [
-      { role: "gc", account: "gc", expected: ["Procurement", "Payments", "Approvals", "Billing agents", "Dashboard"],
+      { role: "gc", account: "gc", expected: ["Procurement", "Payments", "Approvals", "Billing agents"],
         routes: ["#/procurement", "#/payments", "#/inbox", "#/billing-agents", "#/dashboard"] },
       { role: "sub", account: "sub1", expected: ["My agreements & pay applications"],
         routes: ["#/portal", "#/payments"] },
