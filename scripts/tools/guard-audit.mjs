@@ -34,7 +34,7 @@ const TENANCY_GUARDS = [
 ];
 const TENANCY = new RegExp(`\\b(${TENANCY_GUARDS.join("|")})\\(`);
 const GUARD = new RegExp(
-  `\\b(requireRole|requireRoleInAction|requireAgreementAccess|getViewer|requireVerifiedUser|${TENANCY_GUARDS.join("|")})\\(|\\b(ctx\\.runQuery\\(internal\\.profiles\\.requireRoleForAction)\\b`,
+  `\\b(requireRole|requireRoleInAction|getViewer|requireVerifiedUser|${TENANCY_GUARDS.join("|")})\\(|\\b(ctx\\.runQuery\\(internal\\.profiles\\.requireRoleForAction)\\b`,
 );
 // Public functions that read no project or company data, so a role check is the whole guard.
 const NO_PROJECT_DATA = new Map([

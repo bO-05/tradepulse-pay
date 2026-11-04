@@ -24,7 +24,9 @@ export const DEFAULT_RECIPIENT_ALLOWLIST = [
 export const BLOCKED_RECIPIENT_MESSAGE =
   "Not sent: this test deployment only emails test addresses (mail.tm, agentmail.to, .test, .example, example.com). Change the email to a test address.";
 
-export function isProductionDeployment(cloudUrl: string | undefined): boolean {
+export function isProductionDeployment(cloudUrl: string | undefined, appEnv: string | undefined = process.env.APP_ENV): boolean {
+  // Deployments set APP_ENV=production explicitly; the name list keeps existing deployments working.
+  if (appEnv?.trim().toLowerCase() === "production") return true;
   if (!cloudUrl) return false;
   let host: string;
   try {
@@ -43,10 +45,10 @@ function parseList(raw: string): string[] {
 }
 
 /** The allowlist in force, or null when every recipient is allowed (production without an explicit list). */
-export function recipientAllowlist(env: { allowlist?: string; cloudUrl?: string }): string[] | null {
+export function recipientAllowlist(env: { allowlist?: string; cloudUrl?: string; appEnv?: string }): string[] | null {
   const raw = env.allowlist?.trim();
   if (raw) return parseList(raw);
-  return isProductionDeployment(env.cloudUrl) ? null : DEFAULT_RECIPIENT_ALLOWLIST;
+  return isProductionDeployment(env.cloudUrl, env.appEnv) ? null : DEFAULT_RECIPIENT_ALLOWLIST;
 }
 
 export function recipientMatches(address: string, list: string[]): boolean {
@@ -64,9 +66,10 @@ export function recipientMatches(address: string, list: string[]): boolean {
 /** True when this deployment may email the address. */
 export function recipientAllowed(
   address: string,
-  env: { allowlist?: string; cloudUrl?: string } = {
+  env: { allowlist?: string; cloudUrl?: string; appEnv?: string } = {
     allowlist: process.env.EMAIL_RECIPIENT_ALLOWLIST,
     cloudUrl: process.env.CONVEX_CLOUD_URL,
+    appEnv: process.env.APP_ENV,
   },
 ): boolean {
   const list = recipientAllowlist(env);

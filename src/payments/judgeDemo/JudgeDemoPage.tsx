@@ -49,6 +49,7 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [refreshBusy, setRefreshBusy] = useState(false);
   const [confirmStart, setConfirmStart] = useState(false);
+  const [confirmCloseout, setConfirmCloseout] = useState(false);
 
   const pinRun = (id: Id<"judgeDemoRuns">) => {
     setRunId(id);
@@ -115,10 +116,10 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
           </span>
         </h1>
         <p className="text-sm text-slate-300">
-          After confirmation, the guided flow uses the real PayPal sandbox, the configured AI provider and KERNEL: execute a fresh demo
+          After confirmation, the guided flow uses the real PayPal sandbox, the configured model provider and KERNEL: execute a fresh demo
           agreement (${DEMO_CONTRACT_SUM.toLocaleString("en-US")}, seismic bracing excluded) for sub1's contractor, fund Mobilization, file an
-          honest pay app for sub1 and an overbilled one for a labeled billing-agent stand-in, run the AI review and the
-          CSLB license check, approve (editing the agent's amount down), capture and pay with 10% retainage, and invoice a change
+          honest pay app for sub1 and an overbilled one for a labeled billing-agent stand-in, run the rules review with the model's
+          explanations and the CSLB license check, approve (editing the agent's amount down), capture and pay with 10% retainage, and invoice a change
           order to the Owner.
         </p>
         {run?.readOnlyReference && <ReferenceNotice />}
@@ -287,7 +288,22 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
               disabled={closeoutBusy || (ledger?.retainageReleasableCents ?? 0) <= 0}
               data-testid="judge-demo-release-retainage"
               className="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-semibold hover:bg-emerald-600 disabled:opacity-50"
-              onClick={async () => {
+              onClick={() => setConfirmCloseout(true)}
+            >
+              Release retainage {formatCents(ledger?.retainageReleasableCents ?? 0)}
+            </button>
+            <ConfirmDialog
+              open={confirmCloseout}
+              title="Release retainage now?"
+              amountCents={ledger?.retainageReleasableCents ?? 0}
+              amountLabel="Retainage payout"
+              payee="The sub's confirmed PayPal payee"
+              payeeLabel="Payee (confirmed PayPal email)"
+              effect={`Pays the sub ${formatCents(ledger?.retainageReleasableCents ?? 0)} immediately as a PayPal sandbox payout. This is the optional closeout release and can't be undone.`}
+              confirmLabel={`Release ${formatCents(ledger?.retainageReleasableCents ?? 0)} payout`}
+              onCancel={() => setConfirmCloseout(false)}
+              onConfirm={async () => {
+                setConfirmCloseout(false);
                 setCloseoutBusy(true);
                 setCloseoutError(null);
                 try {
@@ -299,9 +315,7 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
                   setCloseoutBusy(false);
                 }
               }}
-            >
-              Release retainage {formatCents(ledger?.retainageReleasableCents ?? 0)}
-            </button>
+            />
             {closeoutNote && <p className="text-xs text-emerald-300" role="status">{closeoutNote}</p>}
             {closeoutError && <p className="text-xs text-rose-300" role="alert">{closeoutError}</p>}
           </section>}

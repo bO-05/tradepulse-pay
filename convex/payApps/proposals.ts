@@ -69,6 +69,8 @@ function enteredReason(given: string | undefined): string {
 }
 
 export const FINALIZING_REASON_REQUIRED = `${REJECTION_REASON_REQUIRED}. This decision leaves nothing to pay on the pay application, so it rejects it; enter the reason the sub will see.`;
+export const EDIT_REASON_REQUIRED =
+  "Enter the reason for changing this proposal; the subcontractor sees it on the pay application and in the audit log.";
 
 function reasonRequired(message: string): ConvexError<{ code: string; message: string }> {
   return new ConvexError({ code: "INVALID_DECISION", message });
@@ -201,6 +203,7 @@ export const listInbox = query({
               source: pr.source ?? "agent",
               amountCents: pr.amountCents ?? null,
               editedAmountCents: pr.editedAmountCents ?? null,
+              editedReason: pr.editedReason ?? null,
               split:
                 amount !== undefined && MONEY_KINDS.has(pr.kind) ? computePayoutSplit(amount, retainagePercentFor(agreement)) : null,
               rationale: pr.rationale,
@@ -315,12 +318,23 @@ export const approveProposal = mutation({
     }
     const amountCents = decided ? payApp.finalApproval!.totalCents : (effectiveAmount(payout) ?? 0);
     if (amountCents <= 0) throw new ConvexError({ code: "INVALID_AMOUNT", message: "The proposal has no amount to pay." });
+    // The reason recorded with an edit travels with the approval so the sub sees why the money changed.
+    const decisionReason = enteredReason(payout.editedReason ?? args.reason);
+    if (!decided && payout.editedAmountCents !== undefined && decisionReason === "") {
+      throw reasonRequired(EDIT_REASON_REQUIRED);
+    }
     if (!decided) {
       const finalLines = await finalAllocation(ctx, payApp, amountCents);
       const approvedFigures = await approvedG702Figures(ctx, payApp, finalLines);
       await ctx.db.patch(payApp._id, {
         status: "approved",
-        finalApproval: { totalCents: amountCents, lines: finalLines, approvedBy: viewer.userId, approvedAt: now },
+        finalApproval: {
+          totalCents: amountCents,
+          lines: finalLines,
+          ...(decisionReason !== "" ? { reason: decisionReason } : {}),
+          approvedBy: viewer.userId,
+          approvedAt: now,
+        },
         ...(payApp.g703 && approvedFigures ? { g703: { ...payApp.g703, approved: approvedFigures } } : {}),
       });
     }
@@ -346,7 +360,7 @@ export const approveProposal = mutation({
       "Proposal approved",
       `${payApp.periodLabel}: GC approved capture + payout of ${formatCents(amountCents)} from ${milestone.name}${
         payout.editedAmountCents !== undefined ? ` (edited from ${formatCents(payout.amountCents ?? 0)})` : ""
-      }${args.overrideLicenseHold ? "; license hold overridden by the GC" : ""}.`,
+      }${decisionReason !== "" ? `; reason: ${decisionReason}` : ""}${args.overrideLicenseHold ? "; license hold overridden by the GC" : ""}.`,
       actor,
     );
     await ctx.scheduler.runAfter(0, internal.payApps.proposals.executeApproved, {
@@ -361,12 +375,14 @@ export const approveProposal = mutation({
 
 /** Changes the amount of a pending capture/payout pair before approval. The original stays for audit. */
 export const editProposal = mutation({
-  args: { proposalId: v.string(), amountCents: v.number() },
+  args: { proposalId: v.string(), amountCents: v.number(), reason: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const scope = await requireDocScope(ctx, "agentProposals", args.proposalId, { roles: ["gc"], write: true });
     const p = scope.doc;
     if (p.status !== "pending") throw notPending(p);
     if (!MONEY_KINDS.has(p.kind)) throw new ConvexError({ code: "INVALID_STATE", message: "Only capture and payout amounts can be edited." });
+    const reason = enteredReason(args.reason);
+    if (reason === "") throw reasonRequired(EDIT_REASON_REQUIRED);
     const payApp = p.payAppId ? await ctx.db.get(p.payAppId) : null;
     if (payApp === null) throw new ConvexError({ code: "NOT_FOUND", message: "Pay application not found." });
     if (payApp.status !== "reviewed") {
@@ -380,14 +396,14 @@ export const editProposal = mutation({
     await finalAllocation(ctx, payApp, check.amountCents);
     const { capture, payout } = await moneyPair(ctx, p);
     for (const row of [capture, payout]) {
-      if (row) await ctx.db.patch(row._id, { editedAmountCents: check.amountCents });
+      if (row) await ctx.db.patch(row._id, { editedAmountCents: check.amountCents, editedReason: reason });
     }
     await audit(
       ctx,
       p.agreementId,
       "proposal_edited",
       "Proposal amount edited",
-      `${payApp.periodLabel}: GC changed the capture/payout amount from ${formatCents(p.amountCents ?? 0)} to ${formatCents(check.amountCents)}.`,
+      `${payApp.periodLabel}: GC changed the capture/payout amount from ${formatCents(p.amountCents ?? 0)} to ${formatCents(check.amountCents)}. Reason: ${reason}`,
       auditActor(scope).actor,
     );
     return { editedAmountCents: check.amountCents };

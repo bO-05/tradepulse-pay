@@ -76,7 +76,7 @@ export const DASHBOARD_INITIAL_STATE: AgReportState<DashboardRegistry> = {
             recommended: [{ id: "payApps.aiRecommended", aggregation: "sum" }],
             finalApproved: [{ id: "payApps.finalApproved", aggregation: "sum" }],
           },
-          format: title("Pay-app review", "Requested vs AI recommended, with review flags"),
+          format: title("Pay-app review", "Requested vs rules recommended, with review flags"),
         },
       },
       widgetLayout: {

@@ -211,7 +211,7 @@ export function buildDashboardData(raw: DashboardRaw) {
       {
         id: "payApps",
         name: "Pay applications",
-        description: "Subcontractor pay applications with the AI review recommendation and the GC's final approval.",
+        description: "Subcontractor pay applications with the rules-computed recommendation, the model's explanation and the GC's final approval.",
         data: payApps,
         fields: [
           text("payAppId", "Pay app ID"),
@@ -220,7 +220,7 @@ export function buildDashboardData(raw: DashboardRaw) {
           text("status", "Status"),
           date("date", "Submitted"),
           money("requested", "Requested"),
-          money("aiRecommended", "AI recommended", "Code-computed approved total from the review verdicts."),
+          money("aiRecommended", "Rules recommended", "Code-computed approved total from the review verdicts."),
           money("finalApproved", "GC final approved"),
           money("pending", "Pending amount", "Requested amount of pay apps still awaiting a GC decision."),
           text("reviewEngine", "Review engine"),

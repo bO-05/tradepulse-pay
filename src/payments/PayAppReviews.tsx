@@ -148,7 +148,12 @@ export function PayAppReviewCard({ payApp, canRerun, showAttribution = true }: {
               </span>
             ) : null}
           </div>
-          {review.flags.notes ? <p className="text-xs text-slate-300">{review.flags.notes}</p> : null}
+          {review.flags.notes ? (
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Review notes (model commentary, not a GC decision)</p>
+              <p className="text-xs text-slate-300">{review.flags.notes}</p>
+            </div>
+          ) : null}
         </>
       ) : (
         <p className="text-xs text-slate-400" role="status">

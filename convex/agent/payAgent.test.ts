@@ -389,7 +389,7 @@ describe("GC approval inbox", () => {
     for (const caller of [s.sub1.as, agent, s.owner.as]) {
       for (const call of [
         caller.mutation(api.payApps.proposals.approveProposal, { proposalId: payout._id }),
-        caller.mutation(api.payApps.proposals.editProposal, { proposalId: payout._id, amountCents: 100 }),
+        caller.mutation(api.payApps.proposals.editProposal, { proposalId: payout._id, amountCents: 100, reason: "GC adjusted the amount." }),
         caller.mutation(api.payApps.proposals.rejectProposal, { proposalId: payout._id }),
         caller.mutation(api.payApps.proposals.rejectPayApp, { payAppId }),
         caller.query(api.payApps.proposals.listInbox, {}),
@@ -418,11 +418,11 @@ describe("GC approval inbox", () => {
     const payout = st.byKind("payout")!;
     const original = payout.amountCents!;
 
-    expect(await errorText(s.gc.as.mutation(api.payApps.proposals.editProposal, { proposalId: payout._id, amountCents: -500 }))).toMatch(/negative/);
+    expect(await errorText(s.gc.as.mutation(api.payApps.proposals.editProposal, { proposalId: payout._id, amountCents: -500, reason: "GC adjusted the amount." }))).toMatch(/negative/);
     expect(
-      await errorText(s.gc.as.mutation(api.payApps.proposals.editProposal, { proposalId: payout._id, amountCents: st.payApp.requestedTotalCents + 1 })),
+      await errorText(s.gc.as.mutation(api.payApps.proposals.editProposal, { proposalId: payout._id, amountCents: st.payApp.requestedTotalCents + 1, reason: "GC adjusted the amount." })),
     ).toMatch(/cannot exceed/);
-    await s.gc.as.mutation(api.payApps.proposals.editProposal, { proposalId: payout._id, amountCents: 123_456 });
+    await s.gc.as.mutation(api.payApps.proposals.editProposal, { proposalId: payout._id, amountCents: 123_456, reason: "GC adjusted the amount." });
 
     await s.gc.as.mutation(api.payApps.proposals.approveProposal, { proposalId: payout._id });
     const mid = await state(s, payAppId);
@@ -520,7 +520,7 @@ describe("final approved allocation", () => {
     const recommended = st.payApp.review!.lines.map((l) => ({ sovLineId: l.sovLineId, approvedCents: l.approvedCents }));
     const recommendedB = recommended.find((l) => l.sovLineId === s.sov[1]._id)!.approvedCents;
     const edited = Math.floor(st.payApp.review!.approvedTotalCents / 2) + 1;
-    await s.gc.as.mutation(api.payApps.proposals.editProposal, { proposalId: st.byKind("payout")!._id, amountCents: edited });
+    await s.gc.as.mutation(api.payApps.proposals.editProposal, { proposalId: st.byKind("payout")!._id, amountCents: edited, reason: "GC adjusted the amount." });
     await s.gc.as.mutation(api.payApps.proposals.approveProposal, { proposalId: st.byKind("payout")!._id });
     await s.t.finishAllScheduledFunctions(vi.runAllTimers);
 
@@ -564,7 +564,7 @@ describe("final approved allocation", () => {
     const requestedB = st.payApp.lines.find((l) => l.sovLineId === s.sov[1]._id)!.requestedCents;
     const recommendedB = st.payApp.review!.lines.find((l) => l.sovLineId === s.sov[1]._id)!.approvedCents;
     expect(recommendedB).toBeLessThan(requestedB);
-    await s.gc.as.mutation(api.payApps.proposals.editProposal, { proposalId: st.byKind("payout")!._id, amountCents: st.payApp.requestedTotalCents });
+    await s.gc.as.mutation(api.payApps.proposals.editProposal, { proposalId: st.byKind("payout")!._id, amountCents: st.payApp.requestedTotalCents, reason: "GC adjusted the amount." });
     await s.gc.as.mutation(api.payApps.proposals.approveProposal, { proposalId: st.byKind("payout")!._id });
 
     const after = await state(s, payAppId);
@@ -603,9 +603,9 @@ describe("final approved allocation", () => {
     });
     const requestedA = st.payApp.lines.find((l) => l.sovLineId === s.sov[0]._id)!.requestedCents;
     expect(
-      await errorText(s.gc.as.mutation(api.payApps.proposals.editProposal, { proposalId: st.byKind("payout")!._id, amountCents: requestedA + 101 })),
+      await errorText(s.gc.as.mutation(api.payApps.proposals.editProposal, { proposalId: st.byKind("payout")!._id, amountCents: requestedA + 101, reason: "GC adjusted the amount." })),
     ).toMatch(/can still bill/);
-    await s.gc.as.mutation(api.payApps.proposals.editProposal, { proposalId: st.byKind("payout")!._id, amountCents: requestedA + 100 });
+    await s.gc.as.mutation(api.payApps.proposals.editProposal, { proposalId: st.byKind("payout")!._id, amountCents: requestedA + 100, reason: "GC adjusted the amount." });
   });
 });
 

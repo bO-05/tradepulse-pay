@@ -19,7 +19,7 @@ export type AuthScreen =
   | { kind: "forgot"; email?: string };
 
 /** Code-send failures can also be raised by preflight, before a sign-up creates its account. */
-const CODE_SEND_ERRORS = new Set(["EMAIL_LIMIT", "EMAIL_FAILED"]);
+const CODE_SEND_ERRORS = new Set(["EMAIL_LIMIT", "EMAIL_FAILED", "EMAIL_BLOCKED"]);
 
 export function isCodeSendError(info: { code: string; limitName?: string }): boolean {
   if (CODE_SEND_ERRORS.has(info.code)) return true;

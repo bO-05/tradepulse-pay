@@ -42,9 +42,10 @@ describe("recovery money writes are confirmed and tranche rows carry no pay cont
     expect(dialog).toContain("effect={");
   });
 
-  test("Resume release for retainage runs only from a ConfirmDialog", () => {
+  test("both the retainage release and its resume run only from a ConfirmDialog", () => {
     const retainage = src("../payments/RetainageRelease.tsx");
     expect(callsOnlyInsideOnConfirm(retainage, "resumeRelease")).toBe(true);
+    expect(callsOnlyInsideOnConfirm(retainage, "releaseRetainage")).toBe(true);
   });
 
   test("funding-tranche release rows can refresh status but cannot pay, retry a payout or resume a release", () => {

@@ -77,7 +77,7 @@ Browser (Vite dev server, http://localhost:3150)
 
 Convex (convex/)
   auth.ts, auth.config.ts     Convex Auth: Password + AgentID OIDC provider
-  lib/roles.ts                requireRole / requireRoleInAction / requireAgreementAccess
+  lib/roles.ts                requireRole / requireRoleInAction
   lib/money.ts                integer cents; the only place amounts become PayPal strings
   payments/                   SOV, orders, captures, payouts, retainage, invoices, webhook, crons
   payApps/                    submit, withdraw, AI review, proposals, approval

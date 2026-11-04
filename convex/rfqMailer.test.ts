@@ -95,7 +95,9 @@ describe("recipient allowlist (non-production deployments)", () => {
     expect(isProductionDeployment("https://earnest-mongoose-745.convex.cloud")).toBe(true);
     expect(isProductionDeployment("https://exuberant-boar-323.convex.cloud")).toBe(false);
     expect(isProductionDeployment(undefined)).toBe(false);
+    expect(isProductionDeployment("https://cheery-axolotl-689.convex.cloud", "production")).toBe(true);
     expect(recipientAllowlist({ cloudUrl: "https://exuberant-boar-323.convex.cloud" })).toEqual(DEFAULT_RECIPIENT_ALLOWLIST);
+    expect(recipientAllowlist({ cloudUrl: "https://cheery-axolotl-689.convex.cloud", appEnv: "production" })).toBeNull();
     expect(recipientAllowlist({ cloudUrl: "https://earnest-mongoose-745.convex.cloud" })).toBeNull();
     expect(recipientAllowlist({ allowlist: "a.com, *.b.org", cloudUrl: "https://earnest-mongoose-745.convex.cloud" })).toEqual(["a.com", "*.b.org"]);
   });

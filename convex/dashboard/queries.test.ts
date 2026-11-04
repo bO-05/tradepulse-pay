@@ -216,28 +216,24 @@ describe("dashboard data", () => {
     });
   });
 
-  test("voiding a paid agreement with held retainage keeps its money in the totals, labeled superseded", async () => {
-    const { gc, owner, agreement } = await setup();
+  test("voiding a paid agreement with held retainage is refused, so its money stays in the totals", async () => {
+    const { gc, agreement } = await setup();
     const before = await gc.as.query(api.dashboard.queries.getDashboardData, {});
-    await gc.as.mutation(api.agreements.voidExecutedAgreement, {
-      agreementId: agreement._id,
-      reason: "Executed against the wrong bid by mistake",
-    });
+    await expect(
+      gc.as.mutation(api.agreements.voidExecutedAgreement, {
+        agreementId: agreement._id,
+        reason: "Executed against the wrong bid by mistake",
+      }),
+    ).rejects.toThrow(/financial trail/);
     const after = await gc.as.query(api.dashboard.queries.getDashboardData, {});
     const row = after.agreements.find((a) => a.agreementId === agreement._id)!;
-    expect(row.status).toBe("superseded");
+    expect(row.status).toBe("executed");
     expect(row.totals.paidCents).toBe(90_000);
     expect(row.totals.retainageHeldCents).toBe(10_000);
     expect(after.totals.paidCents).toBe(before.totals.paidCents);
     expect(after.totals.retainageHeldCents).toBe(before.totals.retainageHeldCents);
     expect(after.payments.filter((p) => p.agreementId === agreement._id)).toHaveLength(2);
     expect(after.retainage.filter((r) => r.agreementId === agreement._id)).toHaveLength(1);
-    const asOwner = await owner.as.query(api.dashboard.queries.getDashboardData, {});
-    expect(asOwner.readOnly).toBe(true);
-    expect(asOwner.totals.paidCents).toBe(0);
-    expect(asOwner.totals.changeOrdersInvoicedCents).toBe(after.totals.changeOrdersInvoicedCents);
-    const summary = await gc.as.query(api.dashboard.payAgent.getPaySummary, {});
-    expect(summary.agreements.find((a) => a.agreementId === agreement._id)).toMatchObject({ status: "superseded" });
   });
 
   test("retainage held/released match the ledger after a payout reversal and a failed release restoration", async () => {

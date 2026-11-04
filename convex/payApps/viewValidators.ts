@@ -47,7 +47,7 @@ export const inboxItemValidator = v.object({
   license: v.union(v.object({ status: licenseStatusValidator, checkedAt: v.number(), checkId: v.id("licenseChecks") }), v.null()),
   proposals: v.array(v.object({
     _id: v.id("agentProposals"), kind: proposalKindValidator, status: proposalStatusValidator, source: v.string(),
-    amountCents: nullableNumber, editedAmountCents: nullableNumber,
+    amountCents: nullableNumber, editedAmountCents: nullableNumber, editedReason: nullableString,
     split: v.union(v.object({ grossCents: v.number(), retainageCents: v.number(), netCents: v.number() }), v.null()),
     rationale: v.string(), flags: v.array(v.string()), licenseStatus: nullableString, milestoneName: nullableString,
     decidedAt: nullableNumber, executedAt: nullableNumber, paypalCaptureId: nullableString, error: nullableString,

@@ -122,7 +122,7 @@ function PayAppReviewCard(params: AgWidgetParams<PayAppReviewWidget>) {
                 Requested <strong>{money(req)}</strong>
               </span>
               <span>
-                AI recommended <strong>{rec === null || rec === undefined ? "not reviewed" : money(rec)}</strong>
+                Rules recommended <strong>{rec === null || rec === undefined ? "not reviewed" : money(rec)}</strong>
               </span>
               {finalApproved ? (
                 <span>
@@ -263,7 +263,7 @@ export const PAY_APP_REVIEW_DEFINITION: PayAppReviewDefinition = {
       supportedRoles: ["numeric"],
       requires: { per: "dataMapping.details", cardinality: "one" },
       required: true,
-      aiDescription: "AI review recommended approved total, computed by code (payApps.aiRecommended, sum).",
+      aiDescription: "Rules-recommended approved total, computed by code from the review verdicts (payApps.aiRecommended, sum). The model explains the evidence; it never authors the dollars.",
     },
     finalApproved: {
       type: "field",
@@ -292,7 +292,7 @@ export const PAY_APP_REVIEW_DEFINITION: PayAppReviewDefinition = {
       dataMappingItems: [
         { key: "details", label: "Pay app details" },
         { key: "requested", label: "Requested" },
-        { key: "recommended", label: "AI recommended" },
+        { key: "recommended", label: "Rules recommended" },
         { key: "finalApproved", label: "GC approved" },
       ],
     }),
@@ -301,8 +301,8 @@ export const PAY_APP_REVIEW_DEFINITION: PayAppReviewDefinition = {
   ai: {
     label: "Pay-app review card",
     description:
-      "A list of pay application cards. Each card shows requested vs AI-recommended (and GC-approved) dollars and the review verdict flags such as overbilled, excluded_scope, lien_waiver_missing.",
-    usage: "Use to review pay applications and their AI review flags. Not for time series.",
+      "A list of pay application cards. Each card shows requested vs rules-recommended (and GC-approved) dollars and the review verdict flags such as overbilled, excluded_scope, lien_waiver_missing.",
+    usage: "Use to review pay applications and their rules-review flags. Not for time series.",
     configuration:
       "Map details to agreements.subcontractor, payApps.period, payApps.status, payApps.flags and payApps.payAppId; requested to payApps.requested (sum); recommended to payApps.aiRecommended (sum); finalApproved to payApps.finalApproved (sum).",
   },

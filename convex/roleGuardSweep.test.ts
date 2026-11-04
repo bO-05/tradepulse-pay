@@ -305,7 +305,7 @@ const GC_ONLY: Case[] = [
     proposalId: i.proposalId,
     overrideLicenseHold: true,
   })),
-  m("payApps/proposals:editProposal", api.payApps.proposals.editProposal, (i) => ({ proposalId: i.proposalId, amountCents: 5_000 })),
+  m("payApps/proposals:editProposal", api.payApps.proposals.editProposal, (i) => ({ proposalId: i.proposalId, amountCents: 5_000, reason: "GC adjusted the amount." })),
   m("payApps/proposals:rejectProposal", api.payApps.proposals.rejectProposal, (i) => ({ proposalId: i.proposalId })),
   m("payApps/proposals:rejectPayApp", api.payApps.proposals.rejectPayApp, (i) => ({ payAppId: i.payAppId })),
   a("payApps/review:rerunPayAppReview", api.payApps.review.rerunPayAppReview, (i) => ({ payAppId: i.payAppId })),
@@ -388,7 +388,7 @@ describe("GC-only money and admin functions reject every other caller", () => {
 
   test("the fixture arguments are valid: a GC passes the guard on the same calls", async () => {
     const { t, gc, ids } = await setup();
-    await gc.mutation(api.payApps.proposals.editProposal, { proposalId: ids.proposalId, amountCents: 5_000 });
+    await gc.mutation(api.payApps.proposals.editProposal, { proposalId: ids.proposalId, amountCents: 5_000, reason: "GC adjusted the amount." });
     expect((await t.run((ctx) => ctx.db.get(ids.proposalId)))!.editedAmountCents).toBe(5_000);
     await gc.mutation(api.agentLinks.revokeAgentLink, { linkId: ids.linkId });
     expect((await t.run((ctx) => ctx.db.get(ids.linkId)))!.status).toBe("revoked");
@@ -526,7 +526,7 @@ describe("static guard sweep over convex/**", () => {
     "accessibleProjectIds",
   ];
   const TENANCY = new RegExp(`\\b(${TENANCY_GUARDS.join("|")})\\(`);
-  const GUARD = new RegExp(`\\b(requireRole|requireRoleInAction|requireAgreementAccess|getViewer|requireVerifiedUser|${TENANCY_GUARDS.join("|")})\\(`);
+  const GUARD = new RegExp(`\\b(requireRole|requireRoleInAction|getViewer|requireVerifiedUser|${TENANCY_GUARDS.join("|")})\\(`);
   // Same lists as scripts/tools/guard-audit.mjs.
   const NO_PROJECT_DATA = new Set([
     "crons:getCronStatus",

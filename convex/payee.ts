@@ -155,7 +155,9 @@ export const confirmPayee = mutation({
   returns: v.object({ email: v.string(), confirmedAt: v.number() }),
   handler: async (ctx, args) => {
     const caller = await requireVerifiedUser(ctx);
-    const { user, company } = await requireCompanyMember(ctx, { write: true });
+    // A changed payout address is a business-email-compromise target. Only a GC company admin may
+    // confirm it, and the GC should still verify the new address out of band with the sub.
+    const { user, company } = await requireCompanyMember(ctx, { admin: true, write: true });
     const vendor = await liveVendorByRawId(ctx, args.vendorId);
     if (vendor === null || vendor.companyId !== company._id || company.kind !== "gc" || caller.actorType === "agent") throw notFound();
     const sub = vendor.linkedCompanyId ? await ctx.db.get(vendor.linkedCompanyId) : null;

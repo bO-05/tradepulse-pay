@@ -8,6 +8,7 @@ import {
   isMilestoneFullyPaid,
   payoutStatusFromPayPal,
   remainingAuthorizedCents,
+  retainageBpsAtProgress,
   retainagePercentFor,
 } from "./payoutMath";
 import { canTransitionPayment } from "./stateMachine";
@@ -53,6 +54,27 @@ describe("retainage split", () => {
   test("rejects non-integer or non-positive gross", () => {
     expect(() => computePayoutSplit(10.5, 10)).toThrow();
     expect(() => computePayoutSplit(0, 10)).toThrow();
+  });
+});
+
+describe("retainage reduction at 50% complete", () => {
+  const agreement = { terms: { retainageBps: 1_000, retainageReductionBpsAt50: 500 } };
+
+  test("uses the full rate before half of the contract is approved", () => {
+    expect(retainageBpsAtProgress(agreement, 0, 1_000_000)).toBe(1_000);
+    expect(retainageBpsAtProgress(agreement, 499_999, 1_000_000)).toBe(1_000);
+  });
+
+  test("uses the stored reduced rate at or above half complete", () => {
+    expect(retainageBpsAtProgress(agreement, 500_000, 1_000_000)).toBe(500);
+    expect(retainageBpsAtProgress(agreement, 900_000, 1_000_000)).toBe(500);
+  });
+
+  test("keeps the base rate when no reduction is stored, or the inputs are unusable", () => {
+    expect(retainageBpsAtProgress({ terms: { retainageBps: 1_000 } }, 900_000, 1_000_000)).toBe(1_000);
+    expect(retainageBpsAtProgress(agreement, 900_000, 0)).toBe(1_000);
+    expect(retainageBpsAtProgress(agreement, Number.NaN, 1_000_000)).toBe(1_000);
+    expect(retainageBpsAtProgress({ terms: { retainageBps: 1_000, retainageReductionBpsAt50: 10_001 } }, 900_000, 1_000_000)).toBe(1_000);
   });
 });
 

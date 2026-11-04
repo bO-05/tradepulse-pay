@@ -102,7 +102,7 @@ export function useJudgeDemoDriver(snapshot: DriverSnapshot, onRunCreated: (runI
       await fileDemoPayApp({ runId: id, kind: "honest" });
       await fileDemoPayApp({ runId: id, kind: "agent" });
 
-      setPhase("AI review, KERNEL license check and pay-agent proposals are running…");
+      setPhase("Rules review, KERNEL license check and pay-agent proposals are running…");
       const honest = await waitFor("the honest pay app's proposals", (s) => {
         const item = checkedItem(s.honest);
         return proposalsReady(item) ? item : null;
@@ -124,7 +124,12 @@ export function useJudgeDemoDriver(snapshot: DriverSnapshot, onRunCreated: (runI
         const edited = agentPayout.editedAmountCents ?? demoEditedApprovalCents(agentPayout.amountCents ?? 0);
         if (edited !== null && agentPayout.editedAmountCents === null) {
           setPhase("GC edits the agent's proposal down…");
-          await editProposal({ proposalId: agentPayout._id, amountCents: edited });
+          await editProposal({
+            proposalId: agentPayout._id,
+            amountCents: edited,
+            reason:
+              "GC accepted 90% of the recommended amount. The remaining 10% is held pending closeout evidence and a signed lien waiver; the sub can revise and resubmit.",
+          });
         }
         setPhase("GC approves the edited amount…");
         await approveProposal({ proposalId: agentPayout._id });

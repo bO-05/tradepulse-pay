@@ -1,6 +1,7 @@
 import { Email } from "@convex-dev/auth/providers/Email";
 import type { EmailConfig } from "@convex-dev/auth/server";
 import { ConvexError } from "convex/values";
+import { BLOCKED_RECIPIENT_MESSAGE } from "./recipientAllowlist";
 import { internal } from "../_generated/api";
 import { isUndeliverableEmail } from "./authErrors";
 import { sendEmail, SYSTEM_SENDER_NAME, type MailerCtx, type SendEmailResult } from "./mailer";
@@ -67,6 +68,9 @@ export function emailLimitError() {
 export function assertAuthCodeSent(result: SendEmailResult): void {
   if (result.status === "sent") return;
   if (result.status === "skipped_budget") throw emailLimitError();
+  if (result.blockedRecipient) {
+    throw new ConvexError({ code: "EMAIL_BLOCKED", message: BLOCKED_RECIPIENT_MESSAGE });
+  }
   throw new ConvexError({
     code: "EMAIL_FAILED",
     message: "We couldn't send the code email. Try again in a few minutes.",

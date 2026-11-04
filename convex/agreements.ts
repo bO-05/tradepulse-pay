@@ -22,6 +22,7 @@ import {
   removeSovAndMilestonesIfUnbilled,
   sovIsApproved,
 } from "./payments/sov";
+import { agreementHasPaymentsOrRetainage, moneyHistoryRefusal } from "./payments/cascade";
 import { contractorCanBidOnPackage } from "./lib/packageContractors";
 import { loadSovRows } from "./lib/sovLines";
 import { agreementContractSum } from "./billing/changeOrderView";
@@ -230,6 +231,12 @@ export const voidExecutedAgreement = mutation({
     const reason = validateProjectText(args.reason, "Void reason");
     if (reason.length < 10) {
       throw new ConvexError("Enter a void reason of at least 10 characters for the audit record.");
+    }
+    if (await agreementHasPaymentsOrRetainage(ctx, args.agreementId)) {
+      throw moneyHistoryRefusal(
+        "void",
+        `${agreement.agreementNumber} has a PayPal payment or retainage ledger entry.`,
+      );
     }
 
     await ctx.db.patch(args.agreementId, { status: "superseded" });

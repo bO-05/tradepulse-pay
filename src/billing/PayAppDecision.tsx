@@ -35,7 +35,7 @@ function engineLabel(r: Review): string {
   return isAIReviewProvider(r.provider) ? `${r.provider} · ${r.model}` : "Offline rules engine";
 }
 
-/** GC: the AI review per line and the per-line decision (accept, override with reason, or revise), then approve, send back or reject. */
+/** GC: the rules review per line and the per-line decision (accept, override with reason, or revise), then approve, send back or reject. */
 export function GcReviewPanel({ view }: { view: PayAppView }) {
   const review = view.review;
   const decide = useMutation(api.payApps.decisions.decidePayApp);
@@ -115,7 +115,7 @@ export function GcReviewPanel({ view }: { view: PayAppView }) {
   const asNoted = savedOverrides.length > 0;
   return (
     <Card
-      title="AI review and GC decision"
+      title="Review and GC decision"
       description={
         review ? (
           <span data-testid="review-engine">
@@ -123,9 +123,9 @@ export function GcReviewPanel({ view }: { view: PayAppView }) {
             {review.fallbackReason ? ` · ${review.fallbackReason}` : ""}. The AI recommends a percent complete to date per line; the dollars are computed by code.
           </span>
         ) : view.status === "under_review" ? (
-          "The AI review is running…"
+          "The review is running…"
         ) : (
-          "No AI review yet."
+          "No review yet."
         )
       }
       actions={
@@ -149,7 +149,7 @@ export function GcReviewPanel({ view }: { view: PayAppView }) {
             }}
             data-testid="review-rerun"
           >
-            {review ? "Re-run AI review" : "Run AI review"}
+            {review ? "Re-run review" : "Run review"}
           </Button>
         ) : null
       }

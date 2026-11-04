@@ -2,7 +2,8 @@ import { v, type Infer } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx } from "../_generated/server";
 import { formatCents } from "../lib/money";
-import { REAUTHORIZE_RETRY_MS, decideHonorPeriodAction, reauthorizeRequestId } from "./honorPeriodMath";
+import { notify } from "../lib/notify";
+import { HOUR_MS, REAUTHORIZE_RETRY_MS, decideHonorPeriodAction, reauthorizeRequestId } from "./honorPeriodMath";
 import { moveMilestone } from "./releaseDb";
 import { assertPaymentTransition } from "./stateMachine";
 
@@ -33,6 +34,25 @@ async function auditWatcher(
     paypalResourceId: entry.paypalResourceId,
     httpStatus: entry.httpStatus,
   });
+}
+
+const EXPIRY_WARNING_WINDOW_MS = 24 * HOUR_MS;
+
+/** In-app warning to the GC company, which owns funding. Notifications are never emailed. */
+async function notifyFundingParties(
+  ctx: MutationCtx,
+  p: Doc<"payments">,
+  kind: "funding_expiring" | "funding_expired",
+  title: string,
+  body: string,
+) {
+  const agreement = await ctx.db.get(p.agreementId);
+  if (agreement === null) return;
+  const project = await ctx.db.get(agreement.projectId);
+  if (project === null) return;
+  if (project.gcCompanyId) {
+    await notify(ctx, { companyId: project.gcCompanyId }, { kind, title, body, link: "#/payments", projectId: agreement.projectId });
+  }
 }
 
 /** Funding rows the watcher looks at: one row when `paymentId` is given, else every open authorization. */
@@ -78,6 +98,27 @@ export const beginWatch = internalMutation({
     const p = await ctx.db.get(paymentId);
     if (p === null) return { state: "skip", reason: "payment not found", status: "missing" };
     const decision = decideHonorPeriodAction(p, now);
+
+    // Warn once before an uncaptured authorization expires. The expiry itself has its own notification.
+    if (
+      decision.action !== "expire" &&
+      (p.status === "authorized" || p.status === "partially_captured") &&
+      p.expiryWarnedAt === undefined &&
+      p.authorizationExpiresAt !== undefined &&
+      p.authorizationExpiresAt > now &&
+      p.authorizationExpiresAt - now <= EXPIRY_WARNING_WINDOW_MS
+    ) {
+      const remaining = formatCents(p.grossCents - (p.capturedCents ?? 0));
+      await notifyFundingParties(
+        ctx,
+        p,
+        "funding_expiring",
+        `Funding authorization expires soon (${remaining})`,
+        `The PayPal authorization for ${remaining} expires ${new Date(p.authorizationExpiresAt).toISOString()}. Capture the approved work before then, or fund the milestone again.`,
+      );
+      await ctx.db.patch(p._id, { expiryWarnedAt: now, updatedAt: now });
+    }
+
     if (decision.action === "skip") return { state: "skip", reason: decision.reason, status: p.status };
 
     if (decision.action === "expire") {
@@ -94,6 +135,13 @@ export const beginWatch = internalMutation({
         operation: "honor_period.expire",
         paypalResourceId: p.paypalAuthorizationId,
       });
+      await notifyFundingParties(
+        ctx,
+        p,
+        "funding_expired",
+        `Funding expired (${formatCents(p.grossCents - (p.capturedCents ?? 0))} uncaptured)`,
+        message,
+      );
       const milestone = p.milestoneId ? await ctx.db.get(p.milestoneId) : null;
       return { state: "expired", status: "expired", milestoneStatus: milestone?.status };
     }

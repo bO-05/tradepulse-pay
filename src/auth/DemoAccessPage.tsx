@@ -9,7 +9,7 @@ import { BuildStamp } from "../ui/BuildStamp";
 export const DEMO_ACCESS_HASH = "#/demo";
 export const DEMO_PASSWORD = "TradePulseDemo!2026";
 const ROLES = [
-  { email: "gc@demo.tradepulse", title: "General contractor", detail: "Review the evidence, run a scenario, approve payments.", hash: "#/judge-demo" },
+  { email: "gc@demo.tradepulse", title: "General contractor", detail: "Review the evidence, run a scenario, approve payments.", hash: "#/inbox" },
   { email: "sub1@demo.tradepulse", title: "Subcontractor", detail: "Inspect agreements, pay applications and payment status.", hash: "#/portal" },
   { email: "owner@demo.tradepulse", title: "Project owner", detail: "Review change orders and open the PayPal invoice.", hash: "#/projects" },
 ] as const;
@@ -49,8 +49,9 @@ export function DemoAccessPage() {
             <p className="font-mono text-xs uppercase tracking-[0.2em] text-emerald-300">From awarded scope to auditable payment</p>
             <h1 className="max-w-xl font-serif text-5xl leading-[1.05] sm:text-6xl">Trust the receipt.<br /><span className="text-emerald-300">Not the promise.</span></h1>
             <p className="max-w-lg text-lg leading-relaxed text-slate-300">
-              AI checks the pay application. Code computes the dollars. The GC decides.
-              PayPal moves the sandbox funds, and the ledger shows what actually settled.
+              Rules compute every dollar from the schedule of values, exclusions and funding. The model reads
+              the contract and explains each line. The GC decides, PayPal moves the sandbox funds, and the
+              ledger shows what actually settled.
             </p>
             <button type="button" className="rounded-lg border border-emerald-500 px-4 py-3 text-sm font-semibold text-emerald-200 lg:hidden"
               onClick={() => {
@@ -92,14 +93,14 @@ export function DemoAccessPage() {
                 <span className="mt-3 block break-all font-mono text-xs text-emerald-300">{pending === role.email ? "Signing in…" : role.email}</span>
               </button>
             ))}
-            <p className="break-words text-xs text-slate-400">Manual sign-in password: <code className="text-slate-200">{DEMO_PASSWORD}</code>. Use a separate browser context per role. Bookmark your run-specific URL to return to the same run.</p>
+            <p className="break-words text-xs text-slate-400">Demo-only manual sign-in password: <code className="text-slate-200">{DEMO_PASSWORD}</code>. Use a separate browser context per role. Bookmark your run-specific URL to return to the same run.</p>
             <a href="#" className="inline-block text-sm text-emerald-300 underline">Normal sign-in / create a GC account</a>
             <p className="text-xs text-slate-400">Recovery-dev email signup needs an allowlisted test inbox. For immediate judge access, use the public roles above instead of your personal email.</p>
           </section>
         </div>
         <section className="grid gap-6 border-t border-slate-700 py-7 md:grid-cols-3 text-sm" aria-label="Demo ground rules">
-          <div><h2 className="font-semibold text-amber-200">Sandbox checkout</h2><p className="mt-2 text-slate-300">Choose United States and pay as guest. Card <code>4032031427005060</code>, expiry <code>01/29</code>, CVV <code>480</code>. Use synthetic details: Sandbox Buyer, 123 Test Street, San Jose, CA 95131, 2025550100, and a unique <code>@example.com</code> email.</p></div>
-          <div><h2 className="font-semibold text-amber-200">What to verify</h2><p className="mt-2 text-slate-300">Read the AI provider and verdicts in the approval inbox. Check PayPal captures are COMPLETED, payout items are SUCCESS, and the Owner invoice is PAID. Dashboard and agreement-ledger totals must agree. Pending, unclaimed or failed is not paid.</p></div>
+          <div><h2 className="font-semibold text-amber-200">Demo-only sandbox checkout</h2><p className="mt-2 text-slate-300">Choose United States and pay as guest. Card <code>4032031427005060</code>, expiry <code>01/29</code>, CVV <code>480</code>. Use synthetic details: Sandbox Buyer, 123 Test Street, San Jose, CA 95131, 2025550100, and a unique <code>@example.com</code> email.</p></div>
+          <div><h2 className="font-semibold text-amber-200">What to verify</h2><p className="mt-2 text-slate-300">Read the rules-computed amounts and the model’s explanations in the approval inbox. Check PayPal captures are COMPLETED, payout items are SUCCESS, and the Owner invoice is PAID. Dashboard and agreement-ledger totals must agree. Pending, unclaimed or failed is not paid.</p></div>
           <div><h2 className="font-semibold text-amber-200">Honest limits</h2><p className="mt-2 text-slate-300">AgentID needs owner-approved OAuth setup on this recovery build. The ordinary dashboard works without AG Studio; its optional licensed editor needs a valid license. Model or browser-service failures are surfaced, not presented as successful live calls.</p></div>
         </section>
         <footer className="border-t border-slate-800 py-6 text-xs leading-relaxed text-slate-400">

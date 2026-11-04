@@ -126,16 +126,18 @@ describe("payout PayPal email (sub company admins only)", () => {
 });
 
 describe("confirming the payee (GC of the relationship only)", () => {
-  test("a GC member confirms: vendor row, audit log and the sub's notification are written", async () => {
+  test("a GC admin confirms and a GC member is refused: vendor row, audit log and the sub's notification are written", async () => {
     const { t, fx, bayviewVendor } = await setup();
     await fx.sub.admin.as.mutation(api.payee.setPayoutEmail, { email: "kim.payouts@example.com" });
-    await fx.gcA.member.as.mutation(api.payee.confirmPayee, { vendorId: bayviewVendor, email: "kim.payouts@example.com" });
+    expect(await errorOf(fx.gcA.member.as.mutation(api.payee.confirmPayee, { vendorId: bayviewVendor, email: "kim.payouts@example.com" }))).toMatch(/admin required/);
+    expect(await t.run((ctx) => ctx.db.get(bayviewVendor))).not.toHaveProperty("payoutEmailConfirmed");
+    await fx.gcA.admin.as.mutation(api.payee.confirmPayee, { vendorId: bayviewVendor, email: "kim.payouts@example.com" });
     const vendor = await t.run((ctx) => ctx.db.get(bayviewVendor));
-    expect(vendor?.payoutEmailConfirmed).toMatchObject({ email: "kim.payouts@example.com", confirmedByUserId: fx.gcA.member.userId });
+    expect(vendor?.payoutEmailConfirmed).toMatchObject({ email: "kim.payouts@example.com", confirmedByUserId: fx.gcA.admin.userId });
     const detail = await fx.gcA.admin.as.query(api.partyProfiles.getVendor, { vendorId: bayviewVendor });
-    expect(detail.payee).toMatchObject({ status: "confirmed", confirmedEmail: "kim.payouts@example.com", confirmedByName: "luis@bayview.test" });
+    expect(detail.payee).toMatchObject({ status: "confirmed", confirmedEmail: "kim.payouts@example.com", confirmedByName: "dana@bayview.test" });
     const audit = await t.run(async (ctx) => (await ctx.db.query("auditLogs").collect()).filter((a) => a.eventType === "payee_confirmed"));
-    expect(audit).toEqual([expect.objectContaining({ actorUserId: fx.gcA.member.userId, actorCompanyId: fx.gcA.companyId })]);
+    expect(audit).toEqual([expect.objectContaining({ actorUserId: fx.gcA.admin.userId, actorCompanyId: fx.gcA.companyId })]);
     expect(audit[0].description).toContain(`confirmed kim.payouts@example.com`);
     expect(audit[0].description).toContain(String(bayviewVendor));
     const sub = await notificationsOf(t, fx.sub.companyId);

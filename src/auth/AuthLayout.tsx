@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import { BuildStamp, cx, focusRing } from "../ui";
+import { cx, focusRing } from "../ui";
 
 /** Shared frame for the signed-out screens: brand, one h1 card, optional footer. */
 export function AuthLayout({ title, description, children, footer }: {
@@ -20,12 +20,11 @@ export function AuthLayout({ title, description, children, footer }: {
           <div aria-hidden="true" className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 border border-emerald-400/30" />
           <div>
             <p className="text-lg font-bold tracking-tight">TradePulse Pay</p>
-            <p className="text-xs text-ink-subtle">AI reviews the claim. You decide. PayPal settles.</p>
+            <p className="text-xs text-ink-subtle">Rules compute every dollar. You decide. PayPal settles.</p>
           </div>
         </div>
         <p className="mb-4 rounded-xl border border-amber-800 bg-amber-950/40 px-3 py-2 text-xs text-amber-100" data-testid="auth-sandbox-notice">
-          <strong>PayPal sandbox · no real money.</strong> Try the contractor, subcontractor and Owner demo roles with synthetic data.{" "}
-          <a href="#/demo" className="underline underline-offset-2">Open demo guide</a>
+          <strong>PayPal sandbox · no real money.</strong> This recovery build uses synthetic data and sandbox payments only.
         </p>
         <main className="bg-surface border border-line rounded-2xl p-6 shadow-xl">
           <h1 ref={heading} tabIndex={-1} className="text-base font-semibold outline-none">{title}</h1>
@@ -33,7 +32,6 @@ export function AuthLayout({ title, description, children, footer }: {
           <div className="mt-4">{children}</div>
         </main>
         {footer && <div className="mt-4 text-sm text-ink-subtle text-center">{footer}</div>}
-        <BuildStamp className="mt-4 text-center" />
       </div>
     </div>
   );

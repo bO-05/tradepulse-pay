@@ -16,15 +16,38 @@ import type { PayoutStatus } from "./stateMachine";
 
 export const RETAINAGE_REVERSING_STATUSES: readonly PayoutStatus[] = ["failed", "returned"];
 
+const BPS_PER_PERCENT = 100;
+
 /** The agreement's retainage percent: its stored terms first, then the legacy percent field. */
 export function retainagePercentFor(agreement: {
   retainagePercent?: number | null;
-  terms?: { retainageBps: number } | null;
+  terms?: { retainageBps: number; retainageReductionBpsAt50?: number } | null;
 }): number {
   const bps = agreement.terms?.retainageBps;
   if (typeof bps === "number" && Number.isSafeInteger(bps) && bps >= 0 && bps <= 10_000) return bps / 100;
   const pct = agreement.retainagePercent;
   return typeof pct === "number" && Number.isFinite(pct) && pct >= 0 && pct <= 100 ? pct : RETAINAGE_PERCENT;
+}
+
+/**
+ * The retainage rate for the next pay application. When the agreement stores a reduced rate at 50%
+ * complete, it applies once approved billing reaches half of the contract sum. The reduction affects
+ * future billing only; retainage already withheld is not retroactively released.
+ */
+export function retainageBpsAtProgress(
+  agreement: {
+    retainagePercent?: number | null;
+    terms?: { retainageBps: number; retainageReductionBpsAt50?: number } | null;
+  },
+  priorApprovedCents: number,
+  contractSumCents: number,
+): number {
+  const base = Math.round(retainagePercentFor(agreement) * BPS_PER_PERCENT);
+  const reduced = agreement.terms?.retainageReductionBpsAt50;
+  if (typeof reduced !== "number" || !Number.isSafeInteger(reduced) || reduced < 0 || reduced > 10_000) return base;
+  if (!Number.isSafeInteger(priorApprovedCents) || !Number.isSafeInteger(contractSumCents)) return base;
+  if (priorApprovedCents <= 0 || contractSumCents <= 0) return base;
+  return priorApprovedCents * 2 >= contractSumCents ? reduced : base;
 }
 
 /** gross → retainage = round(gross × pct), net = gross − retainage, all integer cents. */

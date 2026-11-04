@@ -84,24 +84,3 @@ export type ActionViewer = {
 export async function requireRoleInAction(ctx: ActionCtx, roles: readonly Role[]): Promise<ActionViewer> {
   return await ctx.runQuery(internal.profiles.requireRoleForAction, { roles: [...roles] });
 }
-
-/** A sub (human or linked billing agent) may only see agreements of its own contractor; owners never see subcontracts. */
-export function canViewAgreement(viewer: Viewer, agreement: Doc<"agreements">): boolean {
-  if (viewer.role === "gc") return true;
-  if (viewer.role === "owner") return false;
-  return viewer.profile.contractorId !== undefined && agreement.contractorId === viewer.profile.contractorId;
-}
-
-export async function requireAgreementAccess(
-  ctx: QueryCtx,
-  agreementId: Id<"agreements">,
-  roles: readonly Role[] = ["gc", "sub", "owner"],
-): Promise<{ viewer: Viewer; agreement: Doc<"agreements"> }> {
-  const viewer = await requireRole(ctx, roles);
-  const agreement = await ctx.db.get(agreementId);
-  // Same error for "missing" and "not yours" so a sub cannot probe other agreements.
-  if (agreement === null || !canViewAgreement(viewer, agreement)) {
-    throw new ConvexError({ code: "NOT_FOUND", message: "Agreement not found." });
-  }
-  return { viewer, agreement };
-}

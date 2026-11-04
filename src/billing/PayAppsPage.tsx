@@ -116,7 +116,8 @@ function AgreementPayApps({ row }: { row: AgreementRow }) {
                 <th className="py-2 pr-3 font-medium" scope="col">Pay app</th>
                 <th className="py-2 pr-3 font-medium" scope="col">Due</th>
                 <th className="py-2 pr-3 font-medium" scope="col">Status</th>
-                <th className="py-2 pr-3 text-right font-medium" scope="col">Current payment due</th>
+                <th className="py-2 pr-3 text-right font-medium" scope="col">Requested</th>
+                <th className="py-2 pr-3 text-right font-medium" scope="col">Current due</th>
                 <th className="py-2 pr-3 font-medium" scope="col">Submitted</th>
               </tr>
             </thead>
@@ -132,8 +133,9 @@ function AgreementPayApps({ row }: { row: AgreementRow }) {
                   <td className="py-2 pr-3">
                     <StatusPill status={p.status} />
                   </td>
+                  <td className="py-2 pr-3 text-right tabular-nums">{formatCents(p.requestedTotalCents)}</td>
                   <td className="py-2 pr-3 text-right tabular-nums">
-                    {p.currentPaymentDueCents !== null ? formatCents(p.currentPaymentDueCents) : formatCents(p.requestedTotalCents)}
+                    {p.currentPaymentDueCents !== null ? formatCents(p.currentPaymentDueCents) : "—"}
                   </td>
                   <td className="py-2 pr-3">{p.submittedAt ? formatDate(p.submittedAt) : "Not submitted"}</td>
                 </tr>

@@ -71,5 +71,6 @@ describe("auth error messages", () => {
     expect(signUp.message).toMatch(/Too many new accounts/);
     expect(isCodeSendError(signUp)).toBe(false);
     expect(isCodeSendError({ code: "EMAIL_LIMIT" })).toBe(true);
+    expect(isCodeSendError({ code: "EMAIL_BLOCKED" })).toBe(true);
   });
 });

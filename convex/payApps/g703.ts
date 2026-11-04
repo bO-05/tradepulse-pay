@@ -12,7 +12,7 @@ import { viewerAgentAuditFields } from "../lib/agentAudit";
 import { SOV_NOT_APPROVED_MESSAGE } from "../lib/sovRules";
 import type { g702FiguresValidator } from "../schema";
 import { agreementContractSumCents, sovIsApproved } from "../payments/sov";
-import { retainagePercentFor } from "../payments/payoutMath";
+import { retainageBpsAtProgress, retainagePercentFor } from "../payments/payoutMath";
 import {
   BILLING_HISTORY_TOO_LARGE,
   billingPayAppHistory,
@@ -114,7 +114,8 @@ export async function g703Context(
   const latestG703 = [...approved].reverse().find((p) => p.g703 !== undefined);
   const storedPrev = new Map<string, number>();
   for (const l of latestG703?.g703?.lines ?? []) storedPrev.set(l.sovLineId, approvedLineSplit(latestG703!, l).storedCents);
-  const bps = agreementRetainageBps(agreement);
+  const approvedToDateCents = approved.reduce((sum, p) => sum + (p.finalApproval?.totalCents ?? 0), 0);
+  const bps = retainageBpsAtProgress(agreement, approvedToDateCents, agreementContractSumCents(agreement));
   const lines: G703ContextLine[] = sov.map((s) => {
     const p = prior.get(s._id);
     const totalPrev = p?.approvedCents ?? 0;
@@ -618,7 +619,11 @@ async function payAppView(ctx: QueryCtx, scope: ProjectAccess & { doc: Doc<"payA
       })(),
       requestedGrossCents: payApp.requestedTotalCents,
       approvedGrossCents: sheet.finalApproval?.totalCents ?? null,
-      reason: payApp.gcDecision?.reason ?? payApp.gcDecision?.lines.find((l) => l.reason)?.reason ?? null,
+      reason:
+        payApp.gcDecision?.reason ??
+        payApp.gcDecision?.lines.find((l) => l.reason)?.reason ??
+        sheet.finalApproval?.reason ??
+        null,
     },
     lineErrors,
     editable: writable && isSub && payApp.status === "draft",

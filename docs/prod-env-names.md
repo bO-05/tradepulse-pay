@@ -29,6 +29,7 @@ No required name was missing on production, so nothing was set, redeployed or re
 | `AGENTMAIL_WEBHOOK_SECRET` | optional | set (Oct 8, dev AgentMail webhook) |
 | `EMAIL_DAILY_BUDGET` | optional | set (60; prod default 30) |
 | `EMAIL_RECIPIENT_ALLOWLIST` | optional | unset (built-in test-domain allowlist applies; leave unset on prod: no allowlist) |
+| `APP_ENV` | optional | unset (explicit "production" disables the non-prod email allowlist) |
 | `ANTHROPIC_API_KEY` | set on prod | set |
 | `ANTHROPIC_MODEL` | set on prod | set |
 | `AUTH_AGENTID_ID` | set on prod | set |

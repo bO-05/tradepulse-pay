@@ -171,7 +171,7 @@ describe("GC per-line decisions", () => {
       ["pending", 4_341_260],
       ["pending", 4_341_260],
     ]);
-    await expect(dana.mutation(api.payApps.proposals.editProposal, { proposalId: proposals[1]._id, amountCents: 100 })).rejects.toThrow(
+    await expect(dana.mutation(api.payApps.proposals.editProposal, { proposalId: proposals[1]._id, amountCents: 100, reason: "GC adjusted the amount." })).rejects.toThrow(
       /only be edited before the GC decides/,
     );
     await expect(dana.mutation(api.payApps.decisions.decidePayApp, { payAppId, decision: "approve" })).rejects.toThrow(/only reviewed/);

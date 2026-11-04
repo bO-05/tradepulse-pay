@@ -103,6 +103,7 @@ export function RetainageReleaseControl({
   const releaseRetainage = useAction(api.payments.retainage.releaseRetainage);
   const resumeRelease = useAction(api.payments.retainage.resumeRetainageRelease);
   const [busy, setBusy] = useState(false);
+  const [confirmRelease, setConfirmRelease] = useState(false);
   const [confirmResume, setConfirmResume] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -145,7 +146,7 @@ export function RetainageReleaseControl({
           type="button"
           data-testid="release-retainage-button"
           disabled={disabled}
-          onClick={() => void (disabled ? undefined : run(() => releaseRetainage({ agreementId })))}
+          onClick={() => setConfirmRelease(true)}
           className="rounded-lg px-3 py-1.5 text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {busy && !interrupted ? "Releasing…" : "Release retainage"}
@@ -175,6 +176,21 @@ export function RetainageReleaseControl({
           {error}
         </p>
       )}
+      <ConfirmDialog
+        open={confirmRelease}
+        title="Release retainage now?"
+        amountCents={releasableCents}
+        amountLabel="Retainage payout"
+        payee="The sub's confirmed PayPal payee"
+        payeeLabel="Payee (confirmed PayPal email)"
+        effect={`Pays the sub ${formatCents(releasableCents)} immediately as a PayPal payout. This is the closeout release and can't be undone. If the platform balance is short, PayPal may refuse the payout; no money moves in that case.`}
+        confirmLabel={`Release ${formatCents(releasableCents)} payout`}
+        onCancel={() => setConfirmRelease(false)}
+        onConfirm={async () => {
+          setConfirmRelease(false);
+          await run(() => releaseRetainage({ agreementId }));
+        }}
+      />
       {interrupted && (
         <ConfirmDialog
           open={confirmResume}

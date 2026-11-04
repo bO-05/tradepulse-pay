@@ -11,7 +11,7 @@ import { remapAgentLinks, snapshotActiveAgentLinks } from "./lib/agentLinkRemap"
 import { v, ConvexError } from "convex/values";
 import { classifyUnflaggedDrafts, refreshAgreementDocument } from "./lib/agreementDocument";
 import { getRealDocumentPdfBytes } from "./realDocuments";
-import { deleteAgreementCascade, deleteContractorCascade } from "./payments/cascade";
+import { agreementHasFinancialHistory, deleteAgreementCascade, deleteContractorCascade, moneyHistoryRefusal } from "./payments/cascade";
 
 /**
  * Seed metadata must equal the bytes actually served by the document endpoints,
@@ -1067,6 +1067,11 @@ export const deleteProject = mutation({
       throw new ConvexError(
         `This project has an executed subcontract (${executedAgreement.agreementNumber}) and cannot be deleted. Void or amend the executed agreement first.`
       );
+    }
+    for (const agreement of executedAgreements) {
+      if (await agreementHasFinancialHistory(ctx, agreement._id)) {
+        throw moneyHistoryRefusal("delete", `Project ${project.title} has agreement ${agreement.agreementNumber} with billing history.`);
+      }
     }
 
     const packages = await ctx.db

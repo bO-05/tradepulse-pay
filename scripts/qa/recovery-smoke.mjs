@@ -176,7 +176,7 @@ try {
   }
   if (demoLogin && report.public.signIn) {
     const definitions = [
-      { role: "gc", account: "gc", expected: ["Procurement", "Payments", "Approval inbox", "Billing agents", "Dashboard"],
+      { role: "gc", account: "gc", expected: ["Procurement", "Payments", "Approvals", "Billing agents", "Dashboard"],
         routes: ["#/procurement", "#/payments", "#/inbox", "#/billing-agents", "#/dashboard"] },
       { role: "sub", account: "sub1", expected: ["My agreements & pay applications"],
         routes: ["#/portal", "#/payments"] },

@@ -100,6 +100,7 @@ function MoneyProposalActions({ proposal, retainagePercent }: { proposal: Propos
   const [amount, setAmount] = useState(() => toDollarString(proposal.editedAmountCents ?? proposal.amountCents ?? 0));
   const [override, setOverride] = useState(false);
   const [reason, setReason] = useState("");
+  const [editReason, setEditReason] = useState(proposal.editedReason ?? "");
   const held = proposal.flags.includes("license_hold");
 
   async function saveEdit() {
@@ -112,7 +113,13 @@ function MoneyProposalActions({ proposal, retainagePercent }: { proposal: Propos
       });
       return;
     }
-    if (await run(() => edit({ proposalId: proposal._id, amountCents: cents }))) setEditing(false);
+    if (editReason.trim() === "") {
+      await run(async () => {
+        throw new Error("Enter the reason for the change. The subcontractor sees it.");
+      });
+      return;
+    }
+    if (await run(() => edit({ proposalId: proposal._id, amountCents: cents, reason: editReason.trim() }))) setEditing(false);
   }
 
   return (
@@ -166,6 +173,16 @@ function MoneyProposalActions({ proposal, retainagePercent }: { proposal: Propos
               aria-label="New gross amount in dollars"
             />
           </label>
+          <div className="min-w-64 flex-1">
+            <TextInput
+              label="Reason for the change"
+              hint="Required. The subcontractor sees this explanation on the pay application and in the audit log."
+              value={editReason}
+              maxLength={500}
+              onChange={setEditReason}
+              data-testid="edit-proposal-reason"
+            />
+          </div>
           <button
             type="button"
             disabled={busy}
@@ -229,6 +246,7 @@ function ProposalCard({ proposal, retainagePercent, showActions }: { proposal: P
   const held = proposal.flags.includes("license_hold");
   return (
     <li
+      id={`proposal-${proposal._id}`}
       className={`rounded-xl border p-3 space-y-2 ${held ? "border-rose-800" : "border-slate-800"}`}
       data-testid="proposal-card"
       data-kind={proposal.kind}
@@ -257,7 +275,7 @@ function ProposalCard({ proposal, retainagePercent, showActions }: { proposal: P
       {isMoney && proposal.amountCents !== null ? (
         <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-4">
           <div>
-            <dt className="text-slate-400">Proposed (code-computed)</dt>
+            <dt className="text-slate-400">Proposed by code rules</dt>
             <dd className="tabular-nums" data-testid="proposal-amount">{formatCents(proposal.amountCents)}</dd>
           </div>
           {proposal.editedAmountCents !== null ? (
@@ -287,6 +305,11 @@ function ProposalCard({ proposal, retainagePercent, showActions }: { proposal: P
         </dl>
       ) : null}
       <p className="text-xs text-slate-200" data-testid="proposal-rationale">{proposal.rationale}</p>
+      {proposal.editedReason ? (
+        <p className="rounded-lg border border-amber-800/60 bg-amber-950/30 px-2 py-1 text-xs text-amber-100" data-testid="proposal-edited-reason">
+          <span className="font-semibold">GC reason for the change:</span> {proposal.editedReason}
+        </p>
+      ) : null}
       {proposal.flags.length > 0 ? (
         <ul className="flex flex-wrap gap-1" aria-label="Flags">
           {proposal.flags.map((f) => (
@@ -411,6 +434,19 @@ function InboxEntry({ item }: { item: InboxItem }) {
           <div className="flex flex-wrap gap-3 text-xs text-emerald-300">
             <a href={payAppHash(item.payApp._id)} className="underline">Open pay application</a>
             <a href={ledgerHash(item.agreement._id)} className="underline">Agreement ledger</a>
+            {decidable && (() => {
+              const payout = item.proposals.find((p) => p.kind === "payout" && p.status === "pending");
+              return payout ? (
+                <button
+                  type="button"
+                  className="rounded font-semibold text-emerald-200 underline"
+                  data-testid="jump-to-approve"
+                  onClick={() => document.getElementById(`proposal-${payout._id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}
+                >
+                  Ready for your decision · review and approve the payout
+                </button>
+              ) : null;
+            })()}
           </div>
           {item.readOnlyReference && <p className="text-xs text-amber-200">Settled reference · read-only</p>}
         </div>
@@ -467,10 +503,10 @@ export function ApprovalInbox() {
   return (
     <div className="min-w-0 max-w-6xl mx-auto space-y-4">
       <header className="space-y-1">
-        <h1 className="text-xl font-semibold">Approval inbox</h1>
+        <h1 className="text-xl font-semibold">Approvals</h1>
         <p className="text-sm text-slate-400">
-          The pay agent reviews each pay application, checks the contractor's CSLB license and proposes a capture and payout. Amounts are
-          computed by code. Nothing is captured or paid until you approve.
+          The pay agent applies the code rules, checks the contractor's CSLB license and proposes a capture and payout. Code computes
+          every dollar; the model explains the evidence. Nothing is captured or paid until you approve.
         </p>
       </header>
       <div className="grid gap-3 sm:grid-cols-2">

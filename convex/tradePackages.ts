@@ -2,7 +2,7 @@ import { query, mutation, internalMutation, internalQuery, action } from "./_gen
 import { auditActor, requireDocScope, requireProjectScope } from "./lib/projectScope";
 import { requireProjectScopeInAction } from "./lib/tenancyAction";
 import { v, ConvexError } from "convex/values";
-import { deleteAgreementCascade, deleteContractorCascade } from "./payments/cascade";
+import { agreementHasFinancialHistory, deleteAgreementCascade, deleteContractorCascade, moneyHistoryRefusal } from "./payments/cascade";
 import { api, internal } from "./_generated/api";
 import { RFQ_INBOX } from "./lib/mailer";
 import {
@@ -463,6 +463,11 @@ export const deleteTradePackage = mutation({
       throw new ConvexError(
         `This package has an executed subcontract (${executedAgreement.agreementNumber}) and cannot be deleted. Void or amend the executed agreement first.`
       );
+    }
+    for (const agreement of executed) {
+      if (await agreementHasFinancialHistory(ctx, agreement._id)) {
+        throw moneyHistoryRefusal("delete", `Package ${pkg.csiDivision} has agreement ${agreement.agreementNumber} with billing history.`);
+      }
     }
 
     // 1. Delete all bids and their agreements

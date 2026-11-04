@@ -113,7 +113,7 @@ export function vendorHash(vendorId: string): string {
  */
 export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
   gc: [
-    { area: "inbox", label: "Approval inbox", hash: AREA_HASH.inbox },
+    { area: "inbox", label: "Approvals", hash: AREA_HASH.inbox },
     { area: "payments", label: "Payments", hash: AREA_HASH.payments },
     { area: "procurement", label: "Procurement", hash: AREA_HASH.procurement },
     { area: "gc-projects", label: "Projects", hash: AREA_HASH["gc-projects"] },

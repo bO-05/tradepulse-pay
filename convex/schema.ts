@@ -43,6 +43,8 @@ export const notificationKindValidator = v.union(
   v.literal("pay_app_rejected"),
   v.literal("payout_sent"),
   v.literal("payout_failed"),
+  v.literal("funding_expiring"),
+  v.literal("funding_expired"),
   v.literal("waiver_requested"),
   v.literal("waiver_signed"),
   v.literal("compliance_expiring"),
@@ -637,6 +639,8 @@ export default defineSchema({
       v.object({
         totalCents: v.number(),
         lines: v.array(v.object({ sovLineId: v.id("scheduleOfValues"), approvedCents: v.number() })),
+        // The GC's explanation when the approved dollars differ from what was requested or proposed.
+        reason: v.optional(v.string()),
         approvedBy: v.id("users"),
         approvedAt: v.number(),
       }),
@@ -717,6 +721,8 @@ export default defineSchema({
     decidedBy: v.optional(v.id("users")),
     decidedAt: v.optional(v.number()),
     editedAmountCents: v.optional(v.number()),
+    // The GC's required explanation for an edit; the subcontractor sees it on the pay application.
+    editedReason: v.optional(v.string()),
     paymentId: v.optional(v.id("payments")),
     error: v.optional(v.string()),
     // Who wrote the proposal: the pay agent's model, the code policy filling a required proposal the
@@ -787,6 +793,8 @@ export default defineSchema({
     previousAuthorizationIds: v.optional(v.array(v.string())),
     reauthorizeError: v.optional(v.string()),
     reauthorizeRetryAfter: v.optional(v.number()),
+    // Set once when the watcher warns the GC that the authorization expires within a day.
+    expiryWarnedAt: v.optional(v.number()),
     expiredAt: v.optional(v.number()),
     // Funding rows: set before the remainder void is sent; new releases are refused while it is set.
     closingAt: v.optional(v.number()),

@@ -265,7 +265,7 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
             {view.approvalHistory.reviewedAt !== null && <li>Review completed: {formatDateTime(view.approvalHistory.reviewedAt, { timeZone: "UTC" })} UTC. A review is a recommendation, not a payment approval.</li>}
             {view.review && view.approvalHistory.approvedGrossCents !== null ? (
               <li data-testid="payapp-ai-vs-approved">
-                AI recommended gross {formatCents(view.review.approvedTotalCents)} · GC approved {formatCents(view.approvalHistory.approvedGrossCents)} ·{" "}
+                Rules recommended gross {formatCents(view.review.approvedTotalCents)} · GC approved {formatCents(view.approvalHistory.approvedGrossCents)} ·{" "}
                 {view.approvalHistory.approvedGrossCents === view.review.approvedTotalCents
                   ? "no change to the recommendation."
                   : `${formatCents(Math.abs(view.approvalHistory.approvedGrossCents - view.review.approvedTotalCents))} ${view.approvalHistory.approvedGrossCents < view.review.approvedTotalCents ? "below" : "above"} the recommendation.`}

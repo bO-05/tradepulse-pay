@@ -195,10 +195,21 @@ describe("agreement cascade delete", () => {
     await expect(gc.as.query(api.auditLogs.listRecentLogs, { projectId: project._id })).rejects.toThrow(/Not found/);
   });
 
-  test("deleting a trade package removes its agreements' payment rows", async () => {
+  test("deleting a trade package is refused while billing history exists, then removes a money-free package", async () => {
     const { t, gc, agreement } = await seededWithMoney();
     // Executed agreements block deletion, so void the status for this check.
     await t.run(async (ctx) => await ctx.db.patch(agreement._id, { status: "generated" }));
+    await expect(gc.as.mutation(api.tradePackages.deleteTradePackage, { tradePackageId: agreement.tradePackageId })).rejects.toThrow(
+      /financial trail/,
+    );
+    expect(await t.run((ctx) => ctx.db.get(agreement._id))).not.toBeNull();
+
+    // Remove the billing rows a GC would retain, then the same delete cascades the money-free agreement.
+    await t.run(async (ctx) => {
+      for (const table of ["retainageLedger", "payments", "agentProposals", "payApplications", "changeOrders"] as const) {
+        for (const row of await ctx.db.query(table).collect()) await ctx.db.delete(row._id);
+      }
+    });
     await gc.as.mutation(api.tradePackages.deleteTradePackage, { tradePackageId: agreement.tradePackageId });
     expect(Object.values(await orphanCounts(t)).every((n) => n === 0)).toBe(true);
   });
