@@ -87,6 +87,7 @@ describe("payout PayPal email (sub company admins only)", () => {
     const list = await fx.gcA.admin.as.query(api.vendors.listVendors, {});
     expect(list[0]).toMatchObject({ payeeStatus: "pending", payeeEmail: "kim.payouts@example.com" });
     const detail = await fx.gcA.member.as.query(api.partyProfiles.getVendor, { vendorId: bayviewVendor });
+    expect(detail.viewerIsAdmin).toBe(false);
     expect(detail.payee).toMatchObject({ status: "pending", currentEmail: "kim.payouts@example.com", confirmedEmail: null });
 
     const bay = await notificationsOf(t, fx.gcA.companyId);
@@ -135,6 +136,7 @@ describe("confirming the payee (GC of the relationship only)", () => {
     const vendor = await t.run((ctx) => ctx.db.get(bayviewVendor));
     expect(vendor?.payoutEmailConfirmed).toMatchObject({ email: "kim.payouts@example.com", confirmedByUserId: fx.gcA.admin.userId });
     const detail = await fx.gcA.admin.as.query(api.partyProfiles.getVendor, { vendorId: bayviewVendor });
+    expect(detail.viewerIsAdmin).toBe(true);
     expect(detail.payee).toMatchObject({ status: "confirmed", confirmedEmail: "kim.payouts@example.com", confirmedByName: "dana@bayview.test" });
     const audit = await t.run(async (ctx) => (await ctx.db.query("auditLogs").collect()).filter((a) => a.eventType === "payee_confirmed"));
     expect(audit).toEqual([expect.objectContaining({ actorUserId: fx.gcA.admin.userId, actorCompanyId: fx.gcA.companyId })]);
@@ -278,6 +280,26 @@ describe("owner billing email", () => {
     });
   });
 
+  test("guided demo projects (demoSandbox, isDemoProject false) also use the guest-checkout address", async () => {
+    const { t, fx } = await setup();
+    const projectId = fx.gcA.project.projectId;
+    await t.run(async (ctx) => {
+      await ctx.db.patch(projectId, { ownerCompanyId: fx.owner.companyId, isDemoProject: false, demoSandbox: true });
+      await ctx.db.patch(fx.owner.companyId, { billingEmail: "owner-sandbox@business.example.com" });
+    });
+    vi.stubEnv("PAYPAL_SANDBOX_OWNER_EMAIL", "Owner-Sandbox@Business.Example.com");
+    try {
+      expect(await t.run((ctx) => invoiceRecipientForProject(ctx, projectId))).toEqual({
+        ok: true,
+        email: `owner-${projectId}@example.com`,
+        ownerCompanyId: fx.owner.companyId,
+        ownerCompanyName: "Harbor Point Dental LLC",
+      });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   test("a project without an owner company has invoicing disabled with the reason", async () => {
     const { fx } = await setup();
     const owner = await fx.gcB.admin.as.query(api.partyProfiles.getProjectOwner, { projectId: fx.gcB.project.projectId });
@@ -320,7 +342,7 @@ describe("demo seed", () => {
       expect(state.tdi?.payoutPaypalEmail).toBeUndefined();
       expect(state.receiver).toMatchObject({ ok: true, email: "sub1-sandbox@personal.example.com" });
       const recipient = await t.run((ctx) => invoiceRecipientForProject(ctx, state.demoProject));
-      expect(recipient).toMatchObject({ ok: true, email: "owner-sandbox@business.example.com" });
+      expect(recipient).toMatchObject({ ok: true, email: `owner-${state.demoProject}@example.com` });
 
       // Each confirmation the seed makes is audited once (the unchanged rerun adds none), without the email.
       const confirmed = async () =>

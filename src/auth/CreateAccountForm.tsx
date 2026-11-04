@@ -5,7 +5,7 @@ import { Button, focusFirstInvalid, TextInput } from "../ui";
 import { AuthLayout, FormAlert, TextLink } from "./AuthLayout";
 import { describeAuthError, emailInputProblem, normalizeEmailInput } from "./authErrors";
 import { PasswordHints } from "./PasswordHints";
-import { isCodeSendError, type VerifyScreen } from "./authScreens";
+import { isCodeSendError, rememberedBlockedEmail, rememberBlockedEmail, type VerifyScreen } from "./authScreens";
 
 type FieldErrors = { name?: string; email?: string; password?: string };
 
@@ -50,13 +50,23 @@ export function CreateAccountForm({
     try {
       const result = await signIn("password", { flow: "signUp", email: normalized, password, name: name.trim() });
       if (!result.signingIn) {
-        onVerify({ kind: "verify", email: normalized, password, signUpName: name.trim(), codeSent: true });
+        const blocked = rememberedBlockedEmail(normalized);
+        onVerify({
+          kind: "verify",
+          email: normalized,
+          password,
+          signUpName: name.trim(),
+          codeSent: blocked === null,
+          error: blocked ?? undefined,
+          notice: blocked === null ? undefined : "This test deployment cannot email that address.",
+        });
         return;
       }
     } catch (err) {
       const info = describeAuthError(err, "signUp");
       setSubmitting(false);
       if (isCodeSendError(info)) {
+        if (info.code === "EMAIL_BLOCKED") rememberBlockedEmail(normalized, info.message);
         onVerify({ kind: "verify", email: normalized, password, signUpName: name.trim(), codeSent: false, error: info.message, retryAfterMs: info.retryAfterMs });
         return;
       }

@@ -28,7 +28,7 @@ function profileOf(company: Doc<"companies">) {
 export const getVendor = query({
   args: { vendorId: v.string() },
   handler: async (ctx, args) => {
-    const { user, company } = await requireCompanyMember(ctx);
+    const { user, membership, company } = await requireCompanyMember(ctx);
     const vendor = await liveVendorByRawId(ctx, args.vendorId);
     if (vendor === null || vendor.companyId !== company._id || company.kind !== "gc" || user.actorType === "agent") throw notFound();
     const linked = vendor.linkedCompanyId ? await ctx.db.get(vendor.linkedCompanyId) : null;
@@ -44,6 +44,7 @@ export const getVendor = query({
       licenseNumber: vendor.licenseNumber ?? null,
       licenseState: vendor.licenseState ?? null,
       status: vendor.status,
+      viewerIsAdmin: membership.role === "admin",
       linkedCompany: linked === null ? null : profileOf(linked),
       payee: {
         status: payee.status,

@@ -68,13 +68,17 @@ export function VendorDetailPage({ vendorId }: { vendorId: string }) {
         )}
         {payee.status === "pending" && (isDemo ? (
           <p className="mt-3 text-xs text-amber-200">Shared demo · read-only. Payee confirmation belongs to the vendor's own company and is disabled here.</p>
-        ) : (
+        ) : vendor.viewerIsAdmin ? (
           <div className="mt-3 space-y-2">
             <Button onClick={() => setConfirming(true)}>Confirm payee</Button>
             <p className="text-xs text-amber-200">
-              Only a company admin can confirm a payout address. Verify the new email out of band, by phone or a known contact, before confirming.
+              Verify the new email out of band, by phone or a known contact, before confirming.
             </p>
           </div>
+        ) : (
+          <p className="mt-3 text-xs text-amber-200" data-testid="payee-admin-only">
+            Only a company admin can confirm this payout address. Ask a company admin to verify the new email out of band and confirm it.
+          </p>
         ))}
       </Card>
 

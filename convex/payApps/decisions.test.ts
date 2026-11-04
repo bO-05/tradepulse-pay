@@ -180,6 +180,27 @@ describe("GC per-line decisions", () => {
     expect(audit.some((a) => a.eventType === "pay_app_approved_as_noted" && a.actor.includes("dana@bayview.test"))).toBe(true);
   });
 
+  test("approving clears a proposal's old edit reason when it rewrites the amount", async () => {
+    const s = await setup();
+    const payAppId = await submit(s);
+    await storeReview(s, payAppId);
+    const proposals = await s.t.run(async (ctx) => ctx.db.query("agentProposals").collect());
+    const payout = proposals.find((p) => p.kind === "payout")!;
+    const dana = s.f.gcA.admin.as;
+
+    await dana.mutation(api.payApps.proposals.editProposal, {
+      proposalId: payout._id,
+      amountCents: 4_000_000,
+      reason: "The GC's earlier estimate.",
+    });
+    expect((await s.t.run((ctx) => ctx.db.get(payout._id)))!.editedReason).toBe("The GC's earlier estimate.");
+
+    await dana.mutation(api.payApps.decisions.decidePayApp, { payAppId, decision: "approve", lines: overrideLine3(s, OVERRIDE_REASON) });
+    const after = (await s.t.run((ctx) => ctx.db.get(payout._id)))!;
+    expect(after.editedAmountCents).toBe(4_341_260);
+    expect(after.editedReason).toBeUndefined();
+  });
+
   test("the sub sees the approved-as-noted result, the reason and a notification, with no AI internals", async () => {
     const s = await setup();
     const payAppId = await submit(s);

@@ -12,10 +12,11 @@ import { chooseFundingSource } from "../billing/pay";
 import { cannotPay, payGateForMutation } from "../billing/payGateDb";
 import { startRelease } from "../payments/release";
 import { isDemoBillingProject } from "../payments/sov";
-import { computePayoutSplit, retainagePercentFor } from "../payments/payoutMath";
+import { computePayoutSplit, payAppRetainagePercent, retainagePercentFor } from "../payments/payoutMath";
 import { finishProposal, syncProposalForPayment } from "./proposalSync";
 import { allocateFinalApproval } from "./billingHistory";
-import { approvedG702Figures } from "./g703";
+import { approvedG702Figures, buildSheet } from "./g703";
+import { approvedWorkAndStored, g702Summary } from "./g703Math";
 import { REJECTION_REASON_REQUIRED } from "./decisions";
 import { payAppView, sovMapFor } from "./review";
 import { inboxItemValidator } from "./viewValidators";
@@ -31,6 +32,37 @@ import { isReadOnlyReference } from "../lib/demoReference";
 const MONEY_KINDS = new Set(["capture", "payout"]);
 const DECIDED_STATUSES = new Set(["approved", "approved_as_noted"]);
 const INBOX_STATUSES = ["submitted", "under_review", "reviewed", "approved", "approved_as_noted", "revision_requested", "paid", "rejected"] as const;
+
+/**
+ * The net payment the G702 sheet will produce for the reviewed increments. The inbox must show the
+ * same split the payout will use, especially after a mid-project retainage-rate reduction where the
+ * reduction applies only to this period's increment.
+ */
+function expectedG702NetCents(
+  payApp: Doc<"payApplications">,
+  view: Pick<Awaited<ReturnType<typeof buildSheet>>, "lines" | "summary">,
+): number | null {
+  const approved = payApp.g703?.approved;
+  if (approved !== undefined) return approved.currentPaymentDueCents;
+  if (payApp.review === undefined || payApp.g703 === undefined) return null;
+  const increments = new Map(payApp.review.lines.map((l) => [l.sovLineId as string, l.approvedCents]));
+  const lines = view.lines.map((l) => ({
+    ...l,
+    ...approvedWorkAndStored(l, increments.get(l.sovLineId) ?? 0),
+  }));
+  return g702Summary(lines, {
+    originalContractSumCents: view.summary.originalContractSumCents,
+    previousCertificatesCents: view.summary.previousCertificatesCents,
+  }).currentPaymentDueCents;
+}
+
+function proposalSplit(amountCents: number, g702NetCents: number | null, agreement: Doc<"agreements">) {
+  if (g702NetCents !== null && Number.isSafeInteger(g702NetCents) && g702NetCents >= 0) {
+    const netCents = Math.min(g702NetCents, amountCents);
+    return { grossCents: amountCents, retainageCents: amountCents - netCents, netCents };
+  }
+  return computePayoutSplit(amountCents, retainagePercentFor(agreement));
+}
 
 function notPending(p: Doc<"agentProposals">): ConvexError<{ code: string; message: string }> {
   const why =
@@ -178,16 +210,19 @@ export const listInbox = query({
       const paymentRow = payment ? await ctx.db.get(payment) : null;
       const license = await latestCompletedCheck(ctx, agreement.contractorId);
       const project = await ctx.db.get(agreement.projectId);
+      const view = await payAppView(ctx, p, sov);
+      const sheet = await buildSheet(ctx, agreement, p);
+      const g702NetCents = expectedG702NetCents(p, sheet);
       items.push({
         readOnlyReference: isReadOnlyReference(project),
-        payApp: await payAppView(ctx, p, sov),
+        payApp: view,
         agreement: {
           _id: agreement._id,
           agreementNumber: agreement.agreementNumber,
           projectTitle: agreement.projectTitle,
           subcontractorName: agreement.subcontractorName,
           contractorId: agreement.contractorId,
-          retainagePercent: retainagePercentFor(agreement),
+          retainagePercent: payAppRetainagePercent(p, agreement),
         },
         contractor: { companyName: contractor?.companyName ?? agreement.subcontractorName, licenseNumber: contractor?.licenseNumber ?? "" },
         license: license ? { status: license.status, checkedAt: license.checkedAt, checkId: license._id } : null,
@@ -205,7 +240,9 @@ export const listInbox = query({
               editedAmountCents: pr.editedAmountCents ?? null,
               editedReason: pr.editedReason ?? null,
               split:
-                amount !== undefined && MONEY_KINDS.has(pr.kind) ? computePayoutSplit(amount, retainagePercentFor(agreement)) : null,
+                amount !== undefined && MONEY_KINDS.has(pr.kind)
+                  ? proposalSplit(amount, g702NetCents, agreement)
+                  : null,
               rationale: pr.rationale,
               flags: pr.flags,
               licenseStatus: pr.licenseStatus ?? null,

@@ -182,7 +182,11 @@ async function approve(
       await ctx.db.patch(p._id, { status: "rejected", decidedBy: scope.viewer.userId, decidedAt: now });
       proposalsRejected += 1;
     } else {
-      await ctx.db.patch(p._id, { editedAmountCents: totalCents === p.amountCents ? undefined : totalCents });
+      await ctx.db.patch(p._id, {
+        editedAmountCents: totalCents === p.amountCents ? undefined : totalCents,
+        // The old edit reason described the old amount; never carry it onto the approval rewrite.
+        editedReason: undefined,
+      });
     }
   }
 

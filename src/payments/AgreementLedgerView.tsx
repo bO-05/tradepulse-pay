@@ -231,6 +231,7 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
             agreementId={agreement._id}
             balanceCents={totals.retainageHeldCents}
             releasableCents={ledger.retainageReleasableCents}
+            payeeEmail={ledger.retainagePayeeEmail}
             releases={retainageReleases}
           />
         )}

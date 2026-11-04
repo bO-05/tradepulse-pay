@@ -39,6 +39,7 @@ import {
   nextBillingPeriod,
   percentHundredths,
   previousCertificatesCents,
+  retainageOf,
   type BillingPeriod,
   type G702Summary,
 } from "./g703Math";
@@ -71,6 +72,8 @@ export type G703ContextLine = {
   retainageBps: number;
   previousWorkCents: number;
   previousStoredCents: number;
+  /** Retainage already held on this line through approved applications. */
+  previousRetainageCents?: number;
   pendingCents: number;
 };
 
@@ -116,20 +119,42 @@ export async function g703Context(
   for (const l of latestG703?.g703?.lines ?? []) storedPrev.set(l.sovLineId, approvedLineSplit(latestG703!, l).storedCents);
   const approvedToDateCents = approved.reduce((sum, p) => sum + (p.finalApproval?.totalCents ?? 0), 0);
   const bps = retainageBpsAtProgress(agreement, approvedToDateCents, agreementContractSumCents(agreement));
+  const baseBps = agreementRetainageBps(agreement);
+  const sovById = new Map(sov.map((s) => [s._id as string, s]));
+  // Retainage actually held per line after the latest approved application. Recompute it at that
+  // application's rate; never re-rate earlier work at a newly reduced rate.
+  const retainedByLine = new Map<string, number>();
+  if (latestG703?.g703 !== undefined) {
+    for (const l of latestG703.g703.lines) {
+      const s = sovById.get(l.sovLineId as string);
+      const appliedRate = s?.retainageBps ?? latestG703.g703.retainageBps;
+      const previousTotal = l.previousWorkCents + l.previousStoredCents;
+      // Rows written before line-level prior retainage existed: earlier work was held at the base
+      // rate, while only this application's increment may have used the reduced rate.
+      const previousRate = s?.retainageBps ?? baseBps;
+      const previousRetained = l.previousRetainageCents ?? retainageOf(previousTotal, previousRate);
+      retainedByLine.set(
+        l.sovLineId as string,
+        previousRetained + retainageOf(approvedIncrementOf(latestG703, l.sovLineId), appliedRate),
+      );
+    }
+  }
   const lines: G703ContextLine[] = sov.map((s) => {
     const p = prior.get(s._id);
     const totalPrev = p?.approvedCents ?? 0;
     // A deductive line's approved total to date is negative and carries no stored material.
     const fPrev = Math.max(0, Math.min(storedPrev.get(s._id) ?? 0, totalPrev));
+    const rate = s.retainageBps ?? bps;
     return {
       sovLineId: s._id,
       lineNo: s.lineNo,
       description: s.description,
       csiCode: s.csiCode ?? null,
       scheduledValueCents: s.scheduledValueCents,
-      retainageBps: s.retainageBps ?? bps,
+      retainageBps: rate,
       previousWorkCents: totalPrev - fPrev,
       previousStoredCents: fPrev,
+      previousRetainageCents: retainedByLine.get(s._id as string) ?? retainageOf(totalPrev, s.retainageBps ?? baseBps),
       pendingCents: p?.pendingRequestedCents ?? 0,
     };
   });
@@ -138,8 +163,9 @@ export async function g703Context(
     approved,
     retainageBps: bps,
     originalContractSumCents: agreementContractSumCents(agreement),
-    previousCertificatesCents: previousCertificatesCents(
-      lines.map((l) => ({ previousTotalCents: l.previousWorkCents + l.previousStoredCents, retainageBps: l.retainageBps })),
+    previousCertificatesCents: lines.reduce(
+      (acc, l) => acc + l.previousWorkCents + l.previousStoredCents - (l.previousRetainageCents ?? 0),
+      0,
     ),
   };
 }
@@ -379,6 +405,7 @@ export async function buildSheet(ctx: QueryCtx, agreement: Doc<"agreements">, pa
             retainageBps: s.retainageBps ?? bps,
             previousWorkCents: l.previousWorkCents,
             previousStoredCents: l.previousStoredCents,
+            ...(l.previousRetainageCents !== undefined ? { previousRetainageCents: l.previousRetainageCents } : {}),
             pendingCents: 0,
           },
         ];
@@ -877,6 +904,7 @@ function mergeEntries(
       sovLineId: c.sovLineId,
       previousWorkCents: c.previousWorkCents,
       previousStoredCents: c.previousStoredCents,
+      ...(c.previousRetainageCents !== undefined ? { previousRetainageCents: c.previousRetainageCents } : {}),
       workThisPeriodCents: e?.workThisPeriodCents ?? prev?.workThisPeriodCents ?? 0,
       storedCents: e?.storedCents ?? prev?.storedCents ?? c.previousStoredCents,
       ...(note ? { note } : {}),
@@ -1045,6 +1073,8 @@ export async function approvedG702Figures(
         scheduledValueCents: s.scheduledValueCents,
         retainageBps: s.retainageBps ?? g.retainageBps,
         previousWorkCents: l.previousWorkCents,
+        previousStoredCents: l.previousStoredCents,
+        ...(l.previousRetainageCents !== undefined ? { previousRetainageCents: l.previousRetainageCents } : {}),
         ...split,
       },
     ];

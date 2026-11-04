@@ -540,11 +540,15 @@ function MoneyTrail({ view }: { view: PayAppView }) {
   const approved = view.approvalHistory.approvedGrossCents;
   const retainage = view.summary.retainageCents;
   const net = view.summary.currentPaymentDueCents;
+  const grossThisApp = approved ?? ai;
+  const periodRetainage = grossThisApp !== null ? grossThisApp - net : null;
   const steps: { label: string; value: number | null; tone?: string }[] = [
     { label: "Claimed", value: claimed },
-    ...(ai !== null ? [{ label: "AI recommends", value: ai }] : []),
+    ...(ai !== null ? [{ label: "Review suggests", value: ai }] : []),
     { label: "GC approves", value: approved },
-    { label: "Retainage this app", value: retainage, tone: retainage > 0 ? "text-amber-200" : undefined },
+    periodRetainage !== null
+      ? { label: "Retainage this app", value: periodRetainage, tone: periodRetainage > 0 ? "text-amber-200" : undefined }
+      : { label: "Total retainage held", value: retainage, tone: retainage > 0 ? "text-amber-200" : undefined },
     { label: "Net this app", value: net },
   ];
   return (
@@ -565,9 +569,13 @@ function MoneyTrail({ view }: { view: PayAppView }) {
           </li>
         ))}
       </ol>
+      <p className="mt-3 text-xs text-ink-subtle" data-testid="payapp-retainage-total">
+        Total retainage held to date: {formatCents(retainage)} (G702 line 5).
+        {periodRetainage !== null ? ` This application withheld ${formatCents(periodRetainage)}.` : ""}
+      </p>
       {ai !== null && approved !== null && ai !== approved ? (
         <p className="mt-3 text-xs text-ink-subtle" data-testid="payapp-money-trail-edit">
-          The GC approved {formatCents(Math.abs(approved - ai))} {approved < ai ? "below" : "above"} the AI recommendation.
+          The GC approved {formatCents(Math.abs(approved - ai))} {approved < ai ? "below" : "above"} the review suggestion.
           Per-line reasons, when entered, are under the GC decision below.
         </p>
       ) : null}

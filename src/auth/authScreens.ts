@@ -32,3 +32,27 @@ export function verificationResendParams(screen: VerifyScreen): Record<string, s
     ? { ...credentials, flow: "signIn" }
     : { ...credentials, flow: "signUp", name: screen.signUpName };
 }
+
+const BLOCKED_EMAIL_KEY = "tradepulse.auth.blockedEmail";
+
+/** Keep the server's EMAIL_BLOCKED reason across a back-navigation and a repeated sign-in attempt. */
+export function rememberBlockedEmail(email: string, message: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(BLOCKED_EMAIL_KEY, JSON.stringify({ email: email.trim().toLowerCase(), message }));
+  } catch {
+    // Storage can be unavailable in private mode; the first error is still shown.
+  }
+}
+
+export function rememberedBlockedEmail(email: string): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(BLOCKED_EMAIL_KEY);
+    if (raw === null) return null;
+    const parsed = JSON.parse(raw) as { email?: unknown; message?: unknown };
+    return parsed.email === email.trim().toLowerCase() && typeof parsed.message === "string" ? parsed.message : null;
+  } catch {
+    return null;
+  }
+}

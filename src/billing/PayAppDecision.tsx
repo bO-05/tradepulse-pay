@@ -120,7 +120,7 @@ export function GcReviewPanel({ view }: { view: PayAppView }) {
         review ? (
           <span data-testid="review-engine">
             Reviewed by {engineLabel(review)} · {formatDateTime(review.reviewedAt)}
-            {review.fallbackReason ? ` · ${review.fallbackReason}` : ""}. The AI recommends a percent complete to date per line; the dollars are computed by code.
+            {review.fallbackReason ? ` · ${review.fallbackReason}` : ""}. The review suggests a percent complete to date per line; the dollars are computed by code.
           </span>
         ) : view.status === "under_review" ? (
           "The review is running…"

@@ -213,6 +213,68 @@ describe("agreement cascade delete", () => {
     await gc.as.mutation(api.tradePackages.deleteTradePackage, { tradePackageId: agreement.tradePackageId });
     expect(Object.values(await orphanCounts(t)).every((n) => n === 0)).toBe(true);
   });
+
+  test("deleting a bid is refused when its non-executed agreement has billing history", async () => {
+    const { t, gc, agreement } = await seededWithMoney();
+    await t.run(async (ctx) => await ctx.db.patch(agreement._id, { status: "generated" }));
+
+    await expect(gc.as.mutation(api.bids.deleteBid, { bidId: agreement.bidId })).rejects.toThrow(/financial trail/);
+    expect(await t.run((ctx) => ctx.db.get(agreement._id))).not.toBeNull();
+    expect(await t.run((ctx) => ctx.db.get(agreement.bidId))).not.toBeNull();
+  });
+
+  test("deleting a project is refused while owner billing or a prime change order has financial history", async () => {
+    const { t, gc } = await seededWithMoney();
+    const projectId = await gc.as.mutation(api.projects.createProject, projectSetupArgs({ title: "Owner billing guard" }));
+    const now = Date.now();
+    const ownerPayAppId = await t.run(async (ctx) =>
+      ctx.db.insert("ownerPayApps", {
+        projectId,
+        applicationNo: 1,
+        periodStart: "2026-10-01",
+        periodEnd: "2026-10-25",
+        status: "submitted_to_owner",
+        lines: [],
+        retainageBps: 500,
+        figures: {
+          originalContractSumCents: 0,
+          netChangeOrdersCents: 0,
+          contractSumToDateCents: 0,
+          completedAndStoredCents: 0,
+          retainageCents: 0,
+          retainageWorkCents: 0,
+          retainageStoredCents: 0,
+          earnedLessRetainageCents: 0,
+          previousCertificatesCents: 0,
+          currentPaymentDueCents: 10_000,
+          balanceToFinishInclRetainageCents: 0,
+        },
+        pendingSubPayApps: 0,
+        history: [{ status: "submitted_to_owner", at: now, byUserId: gc.userId, byName: "GC" }],
+        createdBy: gc.userId,
+        createdAt: now,
+        updatedAt: now,
+      }),
+    );
+
+    await expect(gc.as.mutation(api.projects.deleteProject, { projectId })).rejects.toThrow(/owner pay app #1/);
+    expect(await t.run((ctx) => ctx.db.get(ownerPayAppId))).not.toBeNull();
+
+    await t.run(async (ctx) => await ctx.db.delete(ownerPayAppId));
+    await t.run(async (ctx) =>
+      ctx.db.insert("changeOrders", {
+        projectId,
+        scope: "prime",
+        number: 1,
+        description: "Owner-approved prime change order",
+        amountCents: 185_000,
+        status: "approved",
+        createdAt: now,
+      }),
+    );
+    await expect(gc.as.mutation(api.projects.deleteProject, { projectId })).rejects.toThrow(/prime change order #1/);
+    expect(await t.run((ctx) => ctx.db.get(projectId))).not.toBeNull();
+  });
 });
 
 /** Mirrors a completed AgentID sign-in (users row from profile(), authAccounts row, profile sync). */

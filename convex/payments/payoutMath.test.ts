@@ -9,6 +9,7 @@ import {
   payoutStatusFromPayPal,
   remainingAuthorizedCents,
   retainageBpsAtProgress,
+  payAppRetainagePercent,
   retainagePercentFor,
 } from "./payoutMath";
 import { canTransitionPayment } from "./stateMachine";
@@ -75,6 +76,15 @@ describe("retainage reduction at 50% complete", () => {
     expect(retainageBpsAtProgress(agreement, 900_000, 0)).toBe(1_000);
     expect(retainageBpsAtProgress(agreement, Number.NaN, 1_000_000)).toBe(1_000);
     expect(retainageBpsAtProgress({ terms: { retainageBps: 1_000, retainageReductionBpsAt50: 10_001 } }, 900_000, 1_000_000)).toBe(1_000);
+  });
+
+  test("the pay app's stored G703 rate wins over the agreement's base rate", () => {
+    expect(payAppRetainagePercent({ g703: { retainageBps: 500 } }, agreement)).toBe(5);
+    expect(payAppRetainagePercent({ g703: { retainageBps: 0 } }, agreement)).toBe(0);
+    expect(computePayoutSplit(1_000_000, payAppRetainagePercent({ g703: { retainageBps: 500 } }, agreement))).toMatchObject({
+      retainageCents: 50_000,
+      netCents: 950_000,
+    });
   });
 });
 

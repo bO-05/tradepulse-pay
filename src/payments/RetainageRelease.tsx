@@ -93,11 +93,13 @@ export function RetainageReleaseControl({
   agreementId,
   balanceCents,
   releasableCents,
+  payeeEmail,
   releases,
 }: {
   agreementId: Id<"agreements">;
   balanceCents: number;
   releasableCents: number;
+  payeeEmail: string | null;
   releases: MilestoneRelease[];
 }) {
   const releaseRetainage = useAction(api.payments.retainage.releaseRetainage);
@@ -181,14 +183,14 @@ export function RetainageReleaseControl({
         title="Release retainage now?"
         amountCents={releasableCents}
         amountLabel="Retainage payout"
-        payee="The sub's confirmed PayPal payee"
+        payee={payeeEmail ?? "The sub's confirmed PayPal payee"}
         payeeLabel="Payee (confirmed PayPal email)"
         effect={`Pays the sub ${formatCents(releasableCents)} immediately as a PayPal payout. This is the closeout release and can't be undone. If the platform balance is short, PayPal may refuse the payout; no money moves in that case.`}
         confirmLabel={`Release ${formatCents(releasableCents)} payout`}
         onCancel={() => setConfirmRelease(false)}
         onConfirm={async () => {
           setConfirmRelease(false);
-          await run(() => releaseRetainage({ agreementId }));
+          await run(() => releaseRetainage({ agreementId, expectedCents: releasableCents }));
         }}
       />
       {interrupted && (

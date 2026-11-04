@@ -225,6 +225,28 @@ describe("honor-period watcher", () => {
     ]);
   });
 
+  test("warns once in the last day, with a human UTC expiry and no raw ISO timestamp", async () => {
+    const s = await setup({ honorPeriodEndsAt: Date.now() + 3 * DAY, authorizationExpiresAt: Date.now() + 12 * 3600_000 });
+    const out = await s.t.action(internal.payments.honorPeriod.watchAuthorizations, { paymentId: s.paymentId });
+    expect(out.results[0].outcome).toBe("skipped");
+
+    const notes = await s.t.run(async (ctx) =>
+      (await ctx.db.query("notifications").collect()).filter((n) => n.kind === "funding_expiring"),
+    );
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toMatchObject({ kind: "funding_expiring", title: "Funding authorization expires soon ($10,000.00)" });
+    expect(notes[0].body).toContain("UTC");
+    expect(notes[0].body).not.toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/);
+
+    const r = await s.read();
+    expect(r.payment.expiryWarnedAt).toBeDefined();
+    await s.t.action(internal.payments.honorPeriod.watchAuthorizations, { paymentId: s.paymentId });
+    const after = await s.t.run(async (ctx) =>
+      (await ctx.db.query("notifications").collect()).filter((n) => n.kind === "funding_expiring"),
+    );
+    expect(after).toHaveLength(1);
+  });
+
   test("an expired authorization marks the payment expired and the milestone funding_expired, without a PayPal call", async () => {
     const s = await setup({ honorPeriodEndsAt: Date.now() - 26 * DAY, authorizationExpiresAt: Date.now() + DAY });
     await s.t.mutation(internal.payments.testing.backdateAuthorization, {
@@ -239,6 +261,12 @@ describe("honor-period watcher", () => {
     expect(r.payment.error).toMatch(/Funding expired/);
     expect(r.milestone.status).toBe("funding_expired");
     expect(r.cron.map((a) => a.operation)).toEqual(["honor_period.expire"]);
+    const expiredNotes = await s.t.run(async (ctx) =>
+      (await ctx.db.query("notifications").collect()).filter((n) => n.kind === "funding_expired"),
+    );
+    expect(expiredNotes).toHaveLength(1);
+    expect(expiredNotes[0].title).toContain("$10,000.00");
+    expect(expiredNotes[0].body).toMatch(/expired/);
 
     // A capture on the expired authorization is refused with a readable message and no PayPal call.
     await expect(

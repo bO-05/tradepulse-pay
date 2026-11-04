@@ -1,6 +1,6 @@
 import type { Doc } from "../_generated/dataModel";
 import { agreementContractSumCents } from "../payments/sov";
-import { retainagePercentFor } from "../payments/payoutMath";
+import { payAppRetainagePercent } from "../payments/payoutMath";
 import { buildReviewLines, type ReviewContext } from "./reviewMath";
 import { APPROVED_PAY_APP_STATUSES, approvedTotalFor, sovBaselineByLine } from "./validation";
 
@@ -41,7 +41,7 @@ export function buildReviewContext(input: {
       csiDivision: agreement.csiDivision,
       tradeName: agreement.tradeName,
       contractSumCents: agreementContractSumCents(agreement),
-      retainagePercent: retainagePercentFor(agreement),
+      retainagePercent: payAppRetainagePercent(payApp, agreement),
       scopeSummary: agreement.scopeSummary,
       mandatoryInclusions: agreement.mandatoryInclusions,
       excludedScopeNotes: agreement.excludedScopeNotes ?? [],

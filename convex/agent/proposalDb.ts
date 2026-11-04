@@ -3,7 +3,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from "../_generated/server";
 import { formatCents } from "../lib/money";
 import { submitterAuditFields } from "../lib/agentAudit";
-import { retainagePercentFor } from "../payments/payoutMath";
+import { payAppRetainagePercent } from "../payments/payoutMath";
 import { latestCompletedCheck } from "../kernel/licenseChecks";
 import { projectGcCompanyName } from "../lib/gcCompanyName";
 import { planProposals, requiredKinds, type PlanLicenseStatus, type PlanMilestone, type ProposalPlan } from "./proposalMath";
@@ -68,7 +68,7 @@ async function planFor(
       requestedCents: requested.get(l.sovLineId) ?? 0,
     })),
     milestones: await milestonePlanRows(ctx, agreement._id),
-    retainagePercent: retainagePercentFor(agreement),
+    retainagePercent: payAppRetainagePercent(payApp, agreement),
     licenseStatus,
   });
 }
@@ -128,7 +128,7 @@ export const loadAgentInputs = internalQuery({
         contractorId: agreement.contractorId,
         subcontractorName: agreement.subcontractorName,
         csiDivision: agreement.csiDivision,
-        retainagePercent: retainagePercentFor(agreement),
+        retainagePercent: payAppRetainagePercent(payApp, agreement),
       },
       contractor: {
         companyName: contractor?.companyName ?? agreement.subcontractorName,

@@ -29,6 +29,31 @@ function sheet(entries: Record<number, { d?: number; e?: number; f?: number }>, 
   }));
 }
 
+describe("retainage reduction applies only to the current increment", () => {
+  test("prior work keeps its original 10% hold while the next $10,000 is held at 5%", () => {
+    const line: G703LineInput = {
+      scheduledValueCents: 10_000_000,
+      previousWorkCents: 5_000_000,
+      previousStoredCents: 0,
+      workThisPeriodCents: 1_000_000,
+      storedCents: 0,
+      retainageBps: 500,
+      previousRetainageCents: 500_000,
+    };
+    expect(g703Line(line)).toMatchObject({ totalCents: 6_000_000, retainageCents: 550_000 });
+    const summary = g702Summary([line], { originalContractSumCents: 10_000_000, previousCertificatesCents: 4_500_000 });
+    expect(summary).toMatchObject({
+      retainageCents: 550_000,
+      earnedLessRetainageCents: 5_450_000,
+      currentPaymentDueCents: 950_000,
+    });
+    // The same line without prior-retainage context is the old, retroactive re-rating.
+    expect(g702Summary([{ ...line, previousRetainageCents: undefined }], {
+      originalContractSumCents: 10_000_000,
+      previousCertificatesCents: 4_750_000,
+    }).retainageCents).toBe(300_000);
+  });
+});
 describe("retainage rounding", () => {
   test("rounds half-up per line: 4,800.10 and 12,612.50 at 5%", () => {
     expect(retainageOf(480_010, 500)).toBe(24_001); // 240.005 → 240.01

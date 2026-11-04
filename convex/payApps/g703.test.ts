@@ -1,11 +1,13 @@
 /// <reference types="vite/client" />
 import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { api } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import schema from "../schema";
 import { buildTenancyFixture, type FixtureUser } from "../lib/tenancyFixtures";
 import { insertTestSession } from "../lib/testIdentity";
+import { g703Context } from "./g703";
+import { DEFAULT_INSURANCE, DEFAULT_PAYMENT_TERMS, DEFAULT_WARRANTY_MONTHS } from "../lib/agreementTerms";
 
 const modules = import.meta.glob("/convex/**/*.ts");
 type T = TestConvex<typeof schema>;
@@ -363,6 +365,99 @@ describe("G703 approval, carry-forward and periods", () => {
     // Line 5's increment is 15,000.00 + 6,000.00 − 18,000.00 carried in = 3,000.00.
     expect(row!.lines.find((l) => l.sovLineId === s.sov[4])!.requestedCents).toBe(300_000);
     expect(row!.requestedTotalCents).toBe(9_043_750 - 4_341_260);
+  });
+
+  test("a 50% retainage reduction keeps the earlier 10% hold and applies 5% to the next increment", async () => {
+    const s = await setup();
+    await s.t.run(async (ctx) => {
+      await ctx.db.patch(s.agreementId, {
+        terms: {
+          retainageBps: 1_000,
+          retainageReductionBpsAt50: 500,
+          paymentTerms: DEFAULT_PAYMENT_TERMS,
+          insurance: DEFAULT_INSURANCE,
+          warrantyMonths: DEFAULT_WARRANTY_MONTHS,
+          governingState: "CA",
+        },
+        contractSumCents: 8_000_000,
+      });
+    });
+    const payAppId = await submitPayApp1(s);
+    await approvePayApp1(s.t, payAppId, s.sov, s.f.gcA.admin.userId);
+
+    const context = await s.t.run(async (ctx) => {
+      const agreement = (await ctx.db.get(s.agreementId))!;
+      return await g703Context(ctx, agreement);
+    });
+    expect(context.retainageBps).toBe(500);
+    expect(context.previousCertificatesCents).toBe(3_907_134);
+    expect(context.lines[1]).toMatchObject({ previousRetainageCents: 48_001 });
+
+    const { payAppId: app2 } = await s.f.sub.admin.as.mutation(api.payApps.g703.startPayApp, { agreementId: s.agreementId });
+    await s.f.sub.admin.as.mutation(api.payApps.g703.saveDraft, { payAppId: app2, lines: [entry(s.sov[1], 10_000)] });
+    const view = (await s.f.sub.admin.as.query(api.payApps.g703.getPayApp, { payAppId: app2 }))!;
+    expect(view.summary).toMatchObject({
+      retainageCents: 434_626,
+      previousCertificatesCents: 3_907_134,
+      currentPaymentDueCents: 9_500,
+    });
+
+    await s.f.sub.admin.as.mutation(api.payApps.g703.submitPayApp, { payAppId: app2 });
+    await s.t.run(async (ctx) => {
+      const row = (await ctx.db.get(app2))!;
+      const reviewLines = row.lines.map((l) => ({
+        sovLineId: l.sovLineId,
+        verdict: "ok" as const,
+        recommendedPctToDate: l.pctCompleteToDate / 100,
+        approvedCents: l.requestedCents,
+        reason: "Approved as requested.",
+      }));
+      await ctx.db.patch(app2, {
+        status: "reviewed" as const,
+        review: {
+          engine: "Offline rules engine",
+          provider: "Offline rules engine",
+          model: "none",
+          lines: reviewLines,
+          flags: { lienWaiverMissing: false, licenseIssue: false, notes: "" },
+          approvedTotalCents: reviewLines.reduce((a, l) => a + l.approvedCents, 0),
+          reviewedAt: Date.now(),
+        },
+      });
+      await ctx.db.insert("agentProposals", {
+        payAppId: app2,
+        agreementId: s.agreementId,
+        kind: "payout",
+        amountCents: 10_000,
+        rationale: "Pay the reviewed increment.",
+        flags: [],
+        status: "pending",
+        source: "agent",
+        agentRunId: "retainage-reduction-test",
+        createdAt: Date.now(),
+      });
+    });
+    const inbox = await s.f.gcA.admin.as.query(api.payApps.proposals.listInbox, { agreementId: s.agreementId });
+    const item = inbox.find((i) => i.payApp._id === app2)!;
+    expect(item.agreement.retainagePercent).toBe(5);
+    expect(item.proposals.find((p) => p.kind === "payout")!.split).toMatchObject({
+      grossCents: 10_000,
+      retainageCents: 500,
+      netCents: 9_500,
+    });
+    const inputs = await s.t.query(internal.agent.proposalDb.loadAgentInputs, { payAppId: app2 });
+    expect(inputs!.agreement.retainagePercent).toBe(5);
+
+    await s.t.run(async (ctx) => {
+      const row = await ctx.db
+        .query("agentProposals")
+        .withIndex("by_payAppId", (q) => q.eq("payAppId", app2))
+        .first();
+      await ctx.db.patch(row!._id, { editedAmountCents: 9_000 });
+    });
+    const editedInbox = await s.f.gcA.admin.as.query(api.payApps.proposals.listInbox, { agreementId: s.agreementId });
+    const edited = editedInbox.find((i) => i.payApp._id === app2)!.proposals.find((p) => p.kind === "payout")!;
+    expect(edited.split).toMatchObject({ grossCents: 9_000, retainageCents: 0, netCents: 9_000 });
   });
 
   test("a billing-day change applies to periods not yet created only", async () => {

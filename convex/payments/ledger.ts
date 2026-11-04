@@ -16,6 +16,7 @@ import type { ContractSumBreakdown } from "./changeOrderMath";
 import { loadSovRows } from "../lib/sovLines";
 import { loadTranches } from "../lib/trancheRows";
 import { isReadOnlyReference } from "../lib/demoReference";
+import { payoutReceiverForContractorReadOnly } from "../lib/payee";
 import { agreementLedgerValidator, ledgerAgreementValidator } from "./ledgerValidators";
 
 /** contractSumCents is the contract sum to date (original plus approved change orders). */
@@ -123,6 +124,7 @@ export const getAgreementLedger = query({
     const isGc = viewer.role === "gc";
     const readOnlyReference = isReadOnlyReference(scope.project);
     const canWrite = isGc && !readOnlyReference;
+    const receiver = await payoutReceiverForContractorReadOnly(ctx, agreement.contractorId);
     const bid = await ctx.db.get(agreement.bidId);
     const retainageReleases = payments.filter((p) => p.kind === "retainage_release");
     const totals = computeLedgerTotals({
@@ -163,6 +165,10 @@ export const getAgreementLedger = query({
       })),
       retainageReleasedCents: totals.retainageReleasedCents,
       retainageReleasableCents: releasableRetainageCents(payments, retainage),
+      retainagePayeeEmail:
+        receiver.ok
+          ? receiver.email
+          : ([...retainageReleases].reverse().find((p) => p.receiverEmail !== undefined)?.receiverEmail ?? null),
       balanceFormula: BALANCE_FORMULA,
       // Approved pay apps whose final amount is unknown are left out of billed; listed so it is not silent.
       billingAttention: [

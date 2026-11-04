@@ -144,6 +144,7 @@ export const payAppVersionValidator = v.object({
       sovLineId: v.id("scheduleOfValues"),
       previousWorkCents: v.number(),
       previousStoredCents: v.number(),
+      previousRetainageCents: v.optional(v.number()),
       workThisPeriodCents: v.number(),
       storedCents: v.number(),
       note: v.optional(v.string()),
@@ -674,6 +675,8 @@ export default defineSchema({
             sovLineId: v.id("scheduleOfValues"),
             previousWorkCents: v.number(),
             previousStoredCents: v.number(),
+            // Retainage already held through earlier approved applications; absent on older rows.
+            previousRetainageCents: v.optional(v.number()),
             workThisPeriodCents: v.number(),
             storedCents: v.number(),
             note: v.optional(v.string()),

@@ -23,8 +23,16 @@ const retainageResult = v.object({
 });
 type RetainageResult = Infer<typeof retainageResult>;
 
-async function releaseRetainageFor(ctx: ActionCtx, agreementId: Id<"agreements">, actor: string): Promise<RetainageResult> {
-  const begun: BeginRetainageRelease = await ctx.runMutation(internal.payments.retainageDb.beginRetainageRelease, { agreementId });
+async function releaseRetainageFor(
+  ctx: ActionCtx,
+  agreementId: Id<"agreements">,
+  actor: string,
+  expectedCents?: number,
+): Promise<RetainageResult> {
+  const begun: BeginRetainageRelease = await ctx.runMutation(internal.payments.retainageDb.beginRetainageRelease, {
+    agreementId,
+    ...(expectedCents !== undefined ? { expectedCents } : {}),
+  });
   if (begun.state === "nothing_to_release") {
     return { state: "nothing_to_release", amountCents: 0, message: "No retainage is held on this agreement; nothing was sent to PayPal." };
   }
@@ -57,11 +65,11 @@ async function sendRelease(ctx: ActionCtx, paymentId: Id<"payments">, amountCent
 }
 
 export const releaseRetainage = action({
-  args: { agreementId: v.id("agreements") },
+  args: { agreementId: v.id("agreements"), expectedCents: v.optional(v.number()) },
   returns: retainageResult,
-  handler: async (ctx, { agreementId }): Promise<RetainageResult> => {
+  handler: async (ctx, { agreementId, expectedCents }): Promise<RetainageResult> => {
     const scope = await requireProjectScopeInAction(ctx, { docs: [{ table: "agreements", id: agreementId }] }, { roles: ["gc"], write: true });
-    return await releaseRetainageFor(ctx, agreementId, scope.actor);
+    return await releaseRetainageFor(ctx, agreementId, scope.actor, expectedCents);
   },
 });
 

@@ -871,6 +871,20 @@ describe("retainage release", () => {
     expect(ledger?.totals.paidCents).toBe(900_000 + 450_000 + 150_000);
   });
 
+  test("refuses a release when the confirmed amount changed, and shows the payee on the ledger", async () => {
+    const { t, gc, agreement } = await withBalance();
+    const err = await errorOf(
+      gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id, expectedCents: 149_999 }),
+    );
+    expect(err.data).toMatchObject({ code: "AMOUNT_CHANGED" });
+    expect(err.data.message).toMatch(/\$1,499\.99.*\$1,500\.00/);
+    expect((await releaseRows(t, agreement._id)).releases).toHaveLength(0);
+
+    const ledger = await gc.as.query(api.payments.ledger.getAgreementLedger, { agreementId: agreement._id });
+    expect(ledger?.retainagePayeeEmail).toBe(SUB_EMAIL);
+    expect(ledger?.retainageReleasableCents).toBe(150_000);
+  });
+
   test("a second release after success is a no-op with no PayPal call and no ledger row", async () => {
     const { t, gc, agreement } = await withBalance();
     await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id });

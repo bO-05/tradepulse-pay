@@ -32,7 +32,7 @@ export const ledgerTotalsValidator = v.object({
 export const agreementLedgerValidator = v.union(v.null(), v.object({
   agreement: ledgerAgreementValidator, readOnlyReference: v.boolean(), canViewReviews: v.boolean(),
   canFund: v.boolean(), canRelease: v.boolean(), canReleaseRetainage: v.boolean(),
-  retainageReleasedCents: v.number(), retainageReleasableCents: v.number(), balanceFormula: v.string(),
+  retainageReleasedCents: v.number(), retainageReleasableCents: v.number(), retainagePayeeEmail: nullableString, balanceFormula: v.string(),
   billingAttention: v.array(v.string()), historyTruncated: v.boolean(),
   excludedScopeEstimates: v.array(v.object({ description: v.string(), amountCents: nullableNumber })),
   retainageReleases: v.array(releaseValidator),

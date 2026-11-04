@@ -38,6 +38,19 @@ async function auditWatcher(
 
 const EXPIRY_WARNING_WINDOW_MS = 24 * HOUR_MS;
 
+/** Human-readable UTC timestamp for notices; raw ISO strings are for logs, not people. */
+function noticeTimestamp(ms: number): string {
+  return new Date(ms).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "UTC",
+    timeZoneName: "short",
+  });
+}
+
 /** In-app warning to the GC company, which owns funding. Notifications are never emailed. */
 async function notifyFundingParties(
   ctx: MutationCtx,
@@ -114,7 +127,7 @@ export const beginWatch = internalMutation({
         p,
         "funding_expiring",
         `Funding authorization expires soon (${remaining})`,
-        `The PayPal authorization for ${remaining} expires ${new Date(p.authorizationExpiresAt).toISOString()}. Capture the approved work before then, or fund the milestone again.`,
+        `The PayPal authorization for ${remaining} expires ${noticeTimestamp(p.authorizationExpiresAt)}. Capture the approved work before then, or fund the milestone again.`,
       );
       await ctx.db.patch(p._id, { expiryWarnedAt: now, updatedAt: now });
     }

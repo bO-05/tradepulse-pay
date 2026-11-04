@@ -4,7 +4,7 @@ import { Button, TextInput } from "../ui";
 import { AgentIdButton } from "./AgentIdButton";
 import { AuthLayout, FormAlert, TextLink } from "./AuthLayout";
 import { describeAuthError, emailInputProblem, normalizeEmailInput } from "./authErrors";
-import { isCodeSendError, type AuthScreen, type VerifyScreen } from "./authScreens";
+import { isCodeSendError, rememberedBlockedEmail, rememberBlockedEmail, type AuthScreen, type VerifyScreen } from "./authScreens";
 import { CreateAccountForm } from "./CreateAccountForm";
 import { ForgotPasswordForm } from "./ForgotPasswordForm";
 import { VerifyEmailForm } from "./VerifyEmailForm";
@@ -90,12 +90,14 @@ function SignInForm({
     try {
       const result = await signIn("password", { email: normalized, password, flow: "signIn" });
       if (!result.signingIn) {
+        const blocked = rememberedBlockedEmail(normalized);
         onVerify({
           kind: "verify",
           email: normalized,
           password,
-          codeSent: true,
-          notice: "Your email isn't verified yet. We sent a new code.",
+          codeSent: blocked === null,
+          error: blocked ?? undefined,
+          notice: blocked === null ? "Your email isn't verified yet. We sent a new code." : "Your email isn't verified yet, but this test deployment cannot email that address.",
         });
         return;
       }
@@ -103,6 +105,7 @@ function SignInForm({
     } catch (err) {
       const info = describeAuthError(err, "signIn");
       if (isCodeSendError(info)) {
+        if (info.code === "EMAIL_BLOCKED") rememberBlockedEmail(normalized, info.message);
         onVerify({ kind: "verify", email: normalized, password, codeSent: false, error: info.message, retryAfterMs: info.retryAfterMs });
         return;
       }

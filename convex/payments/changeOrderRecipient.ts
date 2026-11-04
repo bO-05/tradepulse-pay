@@ -40,7 +40,16 @@ export async function invoiceRecipientForProject(ctx: QueryCtx, projectId: Id<"p
   if (company === null) return { ok: false, reason: NO_PROJECT_OWNER_REASON };
   const email = company.billingEmail?.trim();
   if (!email) return { ok: false, reason: noOwnerEmailReason(company.name) };
-  if (project.isDemoProject && email.toLowerCase().endsWith("@demo.tradepulse")) {
+  // Guided demo projects use demoSandbox instead of isDemoProject, and the demo seed may set the
+  // Owner's billing email to the configured sandbox account rather than the @demo.tradepulse suffix.
+  const sandboxOwnerEmail = process.env.PAYPAL_SANDBOX_OWNER_EMAIL?.trim().toLowerCase();
+  const demoProject = project.isDemoProject === true || project.demoSandbox === true;
+  const normalizedEmail = email.toLowerCase();
+  if (
+    demoProject &&
+    (normalizedEmail.endsWith("@demo.tradepulse") ||
+      (sandboxOwnerEmail !== undefined && sandboxOwnerEmail.length > 0 && normalizedEmail === sandboxOwnerEmail))
+  ) {
     return { ok: true, email: demoInvoiceEmailFor(projectId), ownerCompanyId: company._id, ownerCompanyName: company.name };
   }
   return { ok: true, email, ownerCompanyId: company._id, ownerCompanyName: company.name };

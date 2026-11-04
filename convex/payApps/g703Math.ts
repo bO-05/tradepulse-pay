@@ -48,9 +48,17 @@ export function formatPercentHundredths(h: number | null): string {
 export type G703LineInput = {
   scheduledValueCents: number;
   previousWorkCents: number;
+  /** Last application's stored material (column F), used to measure this period's increment. */
+  previousStoredCents?: number;
   workThisPeriodCents: number;
   storedCents: number;
   retainageBps: number;
+  /**
+   * Retainage already held on this line through earlier approved applications. When present, only
+   * this period's increment is retained at `retainageBps`, so a mid-project rate reduction never
+   * retroactively re-rates work already billed. Absent on legacy sheets, which retain on the total.
+   */
+  previousRetainageCents?: number;
 };
 
 export type G703LineFigures = {
@@ -65,7 +73,15 @@ export type G703LineFigures = {
 
 export function g703Line(l: G703LineInput): G703LineFigures {
   const totalCents = l.previousWorkCents + l.workThisPeriodCents + l.storedCents;
-  const retainageCents = retainageOf(totalCents, l.retainageBps);
+  const incrementCents = l.workThisPeriodCents + l.storedCents - (l.previousStoredCents ?? 0);
+  // Keep the long-standing total-based rounding when the rate is unchanged (including its one-cent
+  // per-line rounding drift). Only a real mid-project rate change uses prior-held + increment math.
+  const previousRetained = l.previousRetainageCents;
+  const sameRate = previousRetained !== undefined && Math.abs(previousRetained - retainageOf(totalCents - incrementCents, l.retainageBps)) <= 1;
+  const retainageCents =
+    previousRetained !== undefined && !sameRate
+      ? previousRetained + retainageOf(incrementCents, l.retainageBps)
+      : retainageOf(totalCents, l.retainageBps);
   const retainageStoredCents = Math.min(retainageCents, retainageOf(l.storedCents, l.retainageBps));
   return {
     totalCents,

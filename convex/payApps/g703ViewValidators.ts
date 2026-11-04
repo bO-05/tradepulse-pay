@@ -11,6 +11,7 @@ const line = v.object({
   sovLineId: v.id("scheduleOfValues"), lineNo: v.number(), description: v.string(), csiCode: ns,
   scheduledValueCents: v.number(), retainageBps: v.number(), previousWorkCents: v.number(),
   previousStoredCents: v.number(), pendingCents: v.number(), workThisPeriodCents: v.number(), storedCents: v.number(),
+  previousRetainageCents: v.optional(v.number()),
   note: ns, requestedWorkCents: nn, requestedStoredCents: nn,
 });
 const decision = v.union(v.null(), v.object({

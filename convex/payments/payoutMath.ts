@@ -50,6 +50,22 @@ export function retainageBpsAtProgress(
   return priorApprovedCents * 2 >= contractSumCents ? reduced : base;
 }
 
+/**
+ * The retainage rate actually stored on a pay application's G703. After a mid-project reduction this
+ * is the reduced rate for the new increment, while earlier periods keep the rate they were billed at.
+ */
+export function payAppRetainagePercent(
+  payApp: { g703?: { retainageBps: number } | null },
+  agreement: {
+    retainagePercent?: number | null;
+    terms?: { retainageBps: number; retainageReductionBpsAt50?: number } | null;
+  },
+): number {
+  const bps = payApp.g703?.retainageBps;
+  if (typeof bps === "number" && Number.isSafeInteger(bps) && bps >= 0 && bps <= 10_000) return bps / 100;
+  return retainagePercentFor(agreement);
+}
+
 /** gross → retainage = round(gross × pct), net = gross − retainage, all integer cents. */
 export function computePayoutSplit(
   grossCents: number,

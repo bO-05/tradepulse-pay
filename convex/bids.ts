@@ -3,7 +3,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { auditActor, requireDocOfProject, requireDocScope, requireProjectScope } from "./lib/projectScope";
 import { v, ConvexError } from "convex/values";
-import { deleteAgreementCascade } from "./payments/cascade";
+import { agreementHasFinancialHistory, deleteAgreementCascade, moneyHistoryRefusal } from "./payments/cascade";
 import { syncAgreementForBid } from "./agreements";
 import { validateProjectText } from "./validation";
 import { leadTimePenaltyFor, targetWeeksForDivision } from "./terms";
@@ -408,6 +408,9 @@ export const deleteBid = mutation({
     for (const a of bidAgreements) {
       if (a.status === "executed") {
         throw new ConvexError("Executed agreements are immutable and cannot be deleted with their bid. Void the executed subcontract first.");
+      }
+      if (await agreementHasFinancialHistory(ctx, a._id)) {
+        throw moneyHistoryRefusal("delete", `Bid ${bid.subcontractorName} has agreement ${a.agreementNumber} with billing history.`);
       }
       await deleteAgreementCascade(ctx, a._id);
     }

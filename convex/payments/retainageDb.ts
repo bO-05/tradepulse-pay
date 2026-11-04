@@ -2,6 +2,7 @@ import { ConvexError, v, type Infer } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
 import { payoutBlockedMessage, payoutReceiverForContractor } from "../lib/payee";
+import { formatCents } from "../lib/money";
 import { availableRetainageCents, isInterruptedRelease } from "./retainageMath";
 
 /**
@@ -31,9 +32,9 @@ export type BeginRetainageRelease = Infer<typeof beginRetainageResult>;
  * yet (status created) is returned instead of creating another, so double clicks resume the same batch.
  */
 export const beginRetainageRelease = internalMutation({
-  args: { agreementId: v.id("agreements") },
+  args: { agreementId: v.id("agreements"), expectedCents: v.optional(v.number()) },
   returns: beginRetainageResult,
-  handler: async (ctx, { agreementId }): Promise<BeginRetainageRelease> => {
+  handler: async (ctx, { agreementId, expectedCents }): Promise<BeginRetainageRelease> => {
     const agreement = await ctx.db.get(agreementId);
     if (agreement === null) throw new ConvexError({ code: "NOT_FOUND", message: "Agreement not found." });
 
@@ -47,6 +48,12 @@ export const beginRetainageRelease = internalMutation({
 
     const balanceCents = availableRetainageCents(payments, await ledgerRows(ctx, agreementId));
     if (balanceCents <= 0) return { state: "nothing_to_release", balanceCents };
+    if (expectedCents !== undefined && expectedCents !== balanceCents) {
+      throw new ConvexError({
+        code: "AMOUNT_CHANGED",
+        message: `The releasable retainage changed from ${formatCents(expectedCents)} to ${formatCents(balanceCents)}. Review the new amount and confirm the release again.`,
+      });
+    }
 
     const receiver = await payoutReceiverForContractor(ctx, agreement.contractorId);
     if (!receiver.ok) {

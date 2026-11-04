@@ -1074,6 +1074,34 @@ export const deleteProject = mutation({
       }
     }
 
+    // Owner billing and prime change orders are project-level financial history, not agreement children.
+    const ownerApps = await ctx.db
+      .query("ownerPayApps")
+      .withIndex("by_projectId_and_applicationNo", (q) => q.eq("projectId", args.projectId))
+      .take(500);
+    const submittedOwnerApp = ownerApps.find((a) => a.status !== "draft");
+    if (submittedOwnerApp) {
+      throw moneyHistoryRefusal(
+        "delete",
+        `Project ${project.title} has owner pay app #${submittedOwnerApp.applicationNo} with status ${submittedOwnerApp.status.replace(/_/g, " ")}.`,
+      );
+    }
+    const primeChangeOrders = await ctx.db
+      .query("changeOrders")
+      .filter((q) => q.eq(q.field("projectId"), args.projectId))
+      .take(500);
+    const billablePrimeChangeOrder = primeChangeOrders.find(
+      (co) =>
+        co.agreementId === undefined &&
+        (co.status === "approved" || co.status === "invoiced" || co.status === "paid" || co.paypalInvoiceStatus !== undefined),
+    );
+    if (billablePrimeChangeOrder) {
+      throw moneyHistoryRefusal(
+        "delete",
+        `Project ${project.title} has prime change order #${billablePrimeChangeOrder.number} with billing or invoice history.`,
+      );
+    }
+
     const packages = await ctx.db
       .query("tradePackages")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
