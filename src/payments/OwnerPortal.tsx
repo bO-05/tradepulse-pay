@@ -82,7 +82,7 @@ function OwnerJobSoFar({ job }: { job: OwnerJob }) {
             {basis}
           </p>
           {dates.length > 0 ? (
-            <p className="mt-1 text-xs text-slate-500" data-testid="owner-job-dates">
+            <p className="mt-1 text-xs text-slate-400" data-testid="owner-job-dates">
               {dates.join(" · ")}
             </p>
           ) : null}
@@ -103,10 +103,10 @@ function OwnerJobSoFar({ job }: { job: OwnerJob }) {
         </dl>
       </div>
 
-      <p className="mt-3 text-xs text-slate-500" data-testid="owner-job-status">
+      <p className="mt-3 text-xs text-slate-400" data-testid="owner-job-status">
         {status}
       </p>
-      <p className="mt-1 text-[11px] text-slate-500">
+      <p className="mt-1 text-[11px] text-slate-400">
         Paid to date = {formatCents(job.paidOwnerPayAppsCents)} in paid pay apps + {formatCents(job.paidChangeOrdersCents)} in paid change
         orders. Figures come from owner pay apps and paid prime change orders; they do not move money.
       </p>
@@ -119,7 +119,7 @@ function JobMetric({ label, value, detail, testId }: { label: string; value: str
     <div data-testid={testId}>
       <dt className="text-xs text-slate-400">{label}</dt>
       <dd className="font-semibold tabular-nums text-slate-100">{value}</dd>
-      {detail ? <dd className="text-[11px] text-slate-500">{detail}</dd> : null}
+      {detail ? <dd className="text-[11px] text-slate-400">{detail}</dd> : null}
     </div>
   );
 }

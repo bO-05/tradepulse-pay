@@ -23,6 +23,7 @@ function agreementSummary(a: Doc<"agreements">) {
     tradeName: a.tradeName,
     contractSum: a.contractSum,
     retainagePercent: a.retainagePercent,
+    retainageReductionBpsAt50: a.terms?.retainageReductionBpsAt50 ?? null,
     status: a.status,
     executedAt: a.executedAt ?? null,
     createdAt: a.createdAt,

@@ -50,6 +50,7 @@ export const notificationKindValidator = v.union(
   v.literal("funding_expired"),
   v.literal("waiver_requested"),
   v.literal("waiver_signed"),
+  v.literal("lien_waiver_gate_disabled"),
   v.literal("compliance_expiring"),
   v.literal("compliance_expired"),
   v.literal("compliance_submitted"),
@@ -732,6 +733,7 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_payAppId_and_createdAt", ["payAppId", "createdAt"])
+    .index("by_authorUserId_and_createdAt", ["authorUserId", "createdAt"])
     .index("by_projectId", ["projectId"]),
 
   // Signed lien-waiver attestations. A row exists only after the sub signs; the pay gate reads them.
@@ -753,6 +755,10 @@ export default defineSchema({
     signedAt: v.number(),
     gateEnabledAt: v.number(),
     note: v.optional(v.string()),
+    // Set when the approved amount changed after signing: the signature is kept for audit but no
+    // longer satisfies the gate, and the sub can sign a replacement for the current amount.
+    supersededAt: v.optional(v.number()),
+    supersededByWaiverId: v.optional(v.id("lienWaivers")),
   })
     .index("by_payAppId_and_kind", ["payAppId", "kind"])
     .index("by_agreementId", ["agreementId"])

@@ -57,7 +57,9 @@ export function PackageBidders({ pkg, readOnly }: { pkg: Pkg; readOnly?: boolean
               <li key={b._id} className="flex flex-wrap items-center justify-between gap-2 py-2">
                 <span className="flex flex-col">
                   <span className="font-semibold">{vendor?.name ?? b.companyName}</span>
-                  <span className="break-all text-xs text-ink-subtle">{b.contactEmail}</span>
+                  <span className="break-all text-xs text-ink-subtle">
+                    {/\.invalid$/i.test(b.contactEmail) ? "Contact not published" : b.contactEmail}
+                  </span>
                   {vendor?.linked && !b.linkedCompanyId && (
                     <span className="text-xs text-ink-subtle" data-testid="bidder-not-on-project">
                       Has a TradePulse Pay account but is not on this project. Invite them from People to let them bid in the portal.

@@ -201,7 +201,7 @@ export function deriveSteps(s: DemoState): DemoStep[] {
     },
     {
       id: "license",
-      label: "KERNEL CSLB license check",
+      label: "CSLB license check",
       status: license ? (license.status === "active" ? "done" : "error") : s.agentFiled ? "running" : "todo",
       detail: license ? `CSLB status ${license.status}, checked ${new Date(license.checkedAt).toISOString()} (UTC)` : "waiting",
     },

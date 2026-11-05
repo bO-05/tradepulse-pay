@@ -265,12 +265,12 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
           <ol className="space-y-2 text-sm">
             <li>Submitted: {formatDateTime(view.approvalHistory.submittedAt, { timeZone: "UTC" })} UTC · requested gross {formatCents(view.approvalHistory.requestedGrossCents)}</li>
             {view.approvalHistory.reviewedAt !== null && <li>Review completed: {formatDateTime(view.approvalHistory.reviewedAt, { timeZone: "UTC" })} UTC. A review is a recommendation, not a payment approval.</li>}
-            {view.review && view.approvalHistory.approvedGrossCents !== null ? (
+            {view.reviewSuggestedTotalCents !== null && view.approvalHistory.approvedGrossCents !== null ? (
               <li data-testid="payapp-ai-vs-approved">
-                Rules recommended gross {formatCents(view.review.approvedTotalCents)} · GC approved {formatCents(view.approvalHistory.approvedGrossCents)} ·{" "}
-                {view.approvalHistory.approvedGrossCents === view.review.approvedTotalCents
+                Rules recommended gross {formatCents(view.reviewSuggestedTotalCents)} · GC approved {formatCents(view.approvalHistory.approvedGrossCents)} ·{" "}
+                {view.approvalHistory.approvedGrossCents === view.reviewSuggestedTotalCents
                   ? "no change to the recommendation."
-                  : `${formatCents(Math.abs(view.approvalHistory.approvedGrossCents - view.review.approvedTotalCents))} ${view.approvalHistory.approvedGrossCents < view.review.approvedTotalCents ? "below" : "above"} the recommendation.`}
+                  : `${formatCents(Math.abs(view.approvalHistory.approvedGrossCents - view.reviewSuggestedTotalCents))} ${view.approvalHistory.approvedGrossCents < view.reviewSuggestedTotalCents ? "below" : "above"} the recommendation.`}
               </li>
             ) : null}
             {view.approvalHistory.approvedGrossCents !== null && <li>
@@ -540,7 +540,7 @@ function Requested({ value, requested }: { value: number; requested: number | nu
 
 function MoneyTrail({ view }: { view: PayAppView }) {
   const claimed = view.approvalHistory.requestedGrossCents;
-  const ai = view.review?.approvedTotalCents ?? null;
+  const ai = view.reviewSuggestedTotalCents;
   const approved = view.approvalHistory.approvedGrossCents;
   const retainage = view.summary.retainageCents;
   const net = view.summary.currentPaymentDueCents;

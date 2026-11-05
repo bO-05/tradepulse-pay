@@ -42,7 +42,12 @@ export function AgreementSummaryView({ agreementId, backHash }: { agreementId: s
         </div>
         <div>
           <dt className="text-xs text-slate-400">Retainage</dt>
-          <dd className="font-semibold">{agreement.retainagePercent}%</dd>
+          <dd className="font-semibold" data-testid="agreement-retainage">
+            {agreement.retainagePercent}%
+            {agreement.retainageReductionBpsAt50 !== null
+              ? ` → ${agreement.retainageReductionBpsAt50 / 100}% after 50% complete`
+              : ""}
+          </dd>
         </div>
         <div>
           <dt className="text-xs text-slate-400">Executed</dt>

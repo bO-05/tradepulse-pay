@@ -1,7 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import { mutation, query } from "../_generated/server";
-import type { QueryCtx } from "../_generated/server";
+import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { auditActor, findDocScope, requireDocScope } from "../lib/projectScope";
 import { notify } from "../lib/notify";
 import { notFound } from "../lib/tenancy";
@@ -10,6 +10,19 @@ import { isReadOnlyReference } from "../lib/demoReference";
 export const MAX_PAY_APP_QUESTION_LENGTH = 2_000;
 const MIN_PAY_APP_QUESTION_LENGTH = 2;
 const CLOSED_STATUSES = new Set(["draft", "withdrawn"]);
+
+/** One person can post this many entries per pay app thread in a rolling window (and per day). */
+export const QUESTION_RATE_WINDOW_MS = 10 * 60_000;
+export const QUESTIONS_PER_WINDOW = 8;
+export const QUESTIONS_PER_DAY = 40;
+
+/** The notification carries a short excerpt; the thread holds the full text. */
+export const NOTIFICATION_EXCERPT_CHARS = 160;
+
+export function notificationExcerpt(body: string): string {
+  const oneLine = body.replace(/\s+/g, " ").trim();
+  return oneLine.length > NOTIFICATION_EXCERPT_CHARS ? `${oneLine.slice(0, NOTIFICATION_EXCERPT_CHARS - 1).trimEnd()}…` : oneLine;
+}
 
 const threadEntryValidator = v.object({
   _id: v.id("payAppThreadEntries"),
@@ -53,6 +66,31 @@ function postingBlockedReason(
   return null;
 }
 
+/**
+ * Anti-spam for the thread: one person may post a bounded number of entries in a rolling window and
+ * per day. Keyed by user across every pay app, so opening another pay app does not reset the budget.
+ */
+export async function postingRateLimitReason(ctx: QueryCtx, userId: Id<"users">, now: number): Promise<string | null> {
+  const rows = await ctx.db
+    .query("payAppThreadEntries")
+    .withIndex("by_authorUserId_and_createdAt", (q) => q.eq("authorUserId", userId).gte("createdAt", now - 86_400_000))
+    .order("desc")
+    .take(QUESTIONS_PER_DAY + 1);
+  if (rows.length >= QUESTIONS_PER_DAY) {
+    return `You have posted ${QUESTIONS_PER_DAY} entries in the last 24 hours. Try again tomorrow, or call the other party.`;
+  }
+  const inWindow = rows.filter((row) => row.createdAt >= now - QUESTION_RATE_WINDOW_MS).length;
+  if (inWindow >= QUESTIONS_PER_WINDOW) {
+    return `You can post ${QUESTIONS_PER_WINDOW} entries per 10 minutes. Wait a few minutes before posting again.`;
+  }
+  return null;
+}
+
+async function assertPostingRate(ctx: MutationCtx, userId: Id<"users">, now: number): Promise<void> {
+  const reason = await postingRateLimitReason(ctx, userId, now);
+  if (reason !== null) throw new ConvexError({ code: "RATE_LIMITED", message: reason });
+}
+
 /** The sub company that should hear a GC reply: the pay app snapshot, the contractor link, or the filer. */
 async function subCompanyFor(
   ctx: QueryCtx,
@@ -87,6 +125,8 @@ export const list = query({
       .withIndex("by_payAppId_and_createdAt", (q) => q.eq("payAppId", scope.doc._id))
       .order("asc")
       .take(200);
+    const blocked = postingBlockedReason(scope, scope.doc.status);
+    const postingBlocked = blocked ?? (await postingRateLimitReason(ctx, scope.viewer.userId, Date.now()));
     return {
       payAppId: scope.doc._id,
       applicationNo: scope.doc.applicationNo ?? null,
@@ -95,8 +135,8 @@ export const list = query({
       status: scope.doc.status,
       viewerRole: scope.partyRole,
       counterpartyName: scope.partyRole === "gc" ? agreement.subcontractorName : agreement.generalContractorName,
-      canPost: postingBlockedReason(scope, scope.doc.status) === null,
-      postingBlockedReason: postingBlockedReason(scope, scope.doc.status),
+      canPost: postingBlocked === null,
+      postingBlockedReason: postingBlocked,
       entries: entries.map((entry) => ({
         _id: entry._id,
         authorRole: entry.authorRole,
@@ -138,6 +178,7 @@ export const post = mutation({
     const agreement = await ctx.db.get(scope.doc.agreementId);
     if (agreement === null) throw notFound();
     const now = Date.now();
+    await assertPostingRate(ctx, scope.viewer.userId, now);
     const actor = auditActor(scope);
     const entryId = await ctx.db.insert("payAppThreadEntries", {
       projectId: agreement.projectId,
@@ -171,7 +212,7 @@ export const post = mutation({
         {
           kind: scope.partyRole === "sub" ? "pay_app_question" : "pay_app_reply",
           title: scope.partyRole === "sub" ? `Question about ${label}` : `GC replied on ${label}`,
-          body: `${actor.actor}: ${body}`,
+          body: `${actor.actor}: ${notificationExcerpt(body)}`,
           link: `#/pay-apps/${scope.doc._id}`,
           projectId: agreement.projectId,
         },

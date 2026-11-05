@@ -11,7 +11,8 @@ import { MAX_TOP_UP_CENTS, MIN_TOP_UP_CENTS, topUpStatusForCapture } from "./san
 
 /**
  * Sandbox-only setup step, GC only: tops up the platform's sandbox business balance with a CAPTURE order
- * paid by the guest test card. PayPal keeps ~3.5% + $0.49 of every capture, so after paying subs 90% the
+ * paid by the guest test card. PayPal's card rate takes roughly 2.99% + $0.49 of the capture
+ * (3.49% + $0.49 for a wallet), so after paying subs 90% the
  * platform holds less than the retainage it owes, and a retainage release would fail with
  * INSUFFICIENT_FUNDS. The top-up is not linked to any agreement and never counts in ledger totals.
  * The platform account is shared, so the in-app panel is Demo company chrome only.

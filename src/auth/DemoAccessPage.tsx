@@ -3,6 +3,7 @@ import { useConvexAuth } from "convex/react";
 import { useState } from "react";
 import { describeAuthError } from "./authErrors";
 import { FormAlert } from "./AuthLayout";
+import { ResidentialHero } from "./ResidentialHero";
 import { useSignOutAndReset } from "./signOutAndReset";
 import { BuildStamp } from "../ui/BuildStamp";
 
@@ -12,21 +13,6 @@ const ROLES = [
   { email: "gc@demo.tradepulse", title: "General contractor", detail: "Review a sub's pay app and release sandbox payment.", hash: "#/inbox" },
   { email: "sub1@demo.tradepulse", title: "Subcontractor", detail: "File a pay app, answer a question and track payment.", hash: "#/portal" },
   { email: "owner@demo.tradepulse", title: "Project owner", detail: "See job progress and pay a change-order invoice.", hash: "#/projects" },
-] as const;
-
-const OUTCOMES = [
-  {
-    title: "Catch overbilling early",
-    detail: "Every line is checked against the schedule of values, exclusions and what was already paid.",
-  },
-  {
-    title: "Decide with the evidence",
-    detail: "See the contract, change orders, licence status and prior payments beside the amount you are approving.",
-  },
-  {
-    title: "Keep a clean owner trail",
-    detail: "Sub pay apps, owner invoices and PayPal receipts stay tied to one job ledger for the owner or lender.",
-  },
 ] as const;
 
 /** Public instructions; every role still signs in through the ordinary password provider. */
@@ -60,29 +46,8 @@ export function DemoAccessPage() {
           <span className="font-mono text-xs uppercase tracking-widest text-amber-200">Residential remodel GCs · PayPal sandbox</span>
         </header>
         <div className="grid gap-10 py-10 lg:grid-cols-[1.08fr_1fr] lg:gap-16">
-          <section aria-labelledby="landing-heading" className="space-y-7">
-            <div className="space-y-4">
-              <p className="font-mono text-xs uppercase tracking-[0.2em] text-emerald-300">Pay apps for owner-run remodels</p>
-              <h1 id="landing-heading" className="max-w-xl font-serif text-5xl leading-[1.05] sm:text-6xl">
-                Pay the right amount.<br /><span className="text-emerald-300">Keep the receipt.</span>
-              </h1>
-              <p className="max-w-xl text-lg leading-relaxed text-slate-300">
-                A sub sends a pay app. TradePulse checks the claim against the contract and schedule of values, shows
-                you the backup, and waits for your approval before PayPal moves sandbox money.
-              </p>
-            </div>
-            <ul className="grid gap-3 sm:grid-cols-3" aria-label="What TradePulse Pay does">
-              {OUTCOMES.map((item) => (
-                <li key={item.title} className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
-                  <h2 className="text-sm font-semibold text-white">{item.title}</h2>
-                  <p className="mt-2 text-xs leading-relaxed text-slate-300">{item.detail}</p>
-                </li>
-              ))}
-            </ul>
-            <p className="max-w-xl text-sm leading-relaxed text-slate-300">
-              Built for the GC running a handful of kitchens, additions and whole-home remodels — not a
-              billion-dollar ERP. Rules compute the money. A model can explain the evidence. You make the call.
-            </p>
+          <div className="space-y-7">
+            <ResidentialHero />
             <p className="max-w-xl rounded-lg border border-amber-800/70 bg-amber-950/30 px-3 py-2 text-xs leading-relaxed text-amber-100">
               This public build uses PayPal sandbox money only. No real funds move, and every demo account is shared.
             </p>
@@ -97,7 +62,7 @@ export function DemoAccessPage() {
                 <p><strong className="text-white">Owner step.</strong> Open a separate private browser as Project owner, pay the $1,850 change-order invoice, then refresh its status in the GC tab. A submitted payout is not a settled payout.</p>
               </div>
             </details>
-          </section>
+          </div>
           <section aria-labelledby="choose-demo-role" className="space-y-4">
             <h2 id="choose-demo-role" tabIndex={-1} className="text-xl font-semibold">Choose your seat</h2>
             <p className="text-sm text-slate-400">
@@ -142,7 +107,7 @@ export function DemoAccessPage() {
             </details>
           </div>
           <div><h2 className="font-semibold text-amber-200">What to verify</h2><p className="mt-2 text-slate-300">Read the rules-computed amounts and the model’s explanations in the approval inbox. Check PayPal captures are COMPLETED, payout items are SUCCESS, and the Owner invoice is PAID. Dashboard and agreement-ledger totals must agree. Pending, unclaimed or failed is not paid.</p></div>
-          <div><h2 className="font-semibold text-amber-200">Honest limits</h2><p className="mt-2 text-slate-300">AgentID needs owner-approved OAuth setup on this recovery build. The ordinary dashboard works without AG Studio; its optional licensed editor needs a valid license. Model or browser-service failures are surfaced, not presented as successful live calls. Compliance documents, sub submissions and Owner change-order approval are explicitly labeled demo stand-ins.</p></div>
+          <div><h2 className="font-semibold text-amber-200">Honest limits</h2><p className="mt-2 text-slate-300">AgentID needs owner-approved OAuth setup in this demo. The ordinary dashboard works without a Studio license; its optional layout editor needs a valid license. Model or browser-service failures are surfaced, not presented as successful live calls. Compliance documents, sub submissions and Owner change-order approval are explicitly labeled demo stand-ins.</p></div>
         </section>
         <footer className="border-t border-slate-800 py-6 text-xs leading-relaxed text-slate-400">
           <p>

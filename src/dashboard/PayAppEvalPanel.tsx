@@ -1,5 +1,6 @@
 import React from "react";
 import { formatFullDateTime } from "../lib/datetime.ts";
+import { reviewAttribution } from "../lib/aiProvenance.ts";
 
 export type PayAppEvalRun = {
   runId: string;
@@ -55,24 +56,23 @@ const pct = (value: number) => `${Math.round(value * 1000) / 10}%`;
 
 function modelLabel(provider: string | undefined, model: string | undefined): string {
   if (!provider) return "Unknown provider";
-  if (!model || model === "none") return provider;
-  return `${provider} · ${model}`;
+  return reviewAttribution({ provider, model: model ?? "none" });
 }
 
-/** Pay-app review fixtures scored by the same evals:executeEvalSuite run as bid leveling. */
+/** Pay-app review cases scored by the same evals:executeEvalSuite run as bid leveling. */
 export const PayAppEvalPanel: React.FC<{ run: PayAppEvalRun | null | undefined }> = ({ run }) => {
   if (!run) return null;
   return (
     <div className="space-y-2" data-testid="payapp-eval-panel">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300">Pay-App Review Fixtures</h4>
+        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300">Pay-app review cases</h4>
         <span className="text-[11px] text-slate-400">
           Run ID: <code className="font-mono text-slate-300">{run.runId}</code>
           {run.createdAt ? ` • ${formatFullDateTime(run.createdAt)}` : ""}
         </span>
       </div>
       <div className="text-xs text-slate-300">
-        Overall score <span className="font-mono font-bold text-emerald-400">{run.overallScore}%</span> • {run.passedCases} / {run.totalCases} fixtures
+        Overall score <span className="font-mono font-bold text-emerald-400">{run.overallScore}%</span> • {run.passedCases} / {run.totalCases} cases
         passed • {modelLabel(run.provider, run.model)}
       </div>
       {run.reviewMetrics ? (
@@ -140,7 +140,7 @@ export const PayAppEvalPanel: React.FC<{ run: PayAppEvalRun | null | undefined }
         <table className="w-full text-left text-xs">
           <thead className="bg-slate-900 text-[10px] uppercase text-slate-400">
             <tr>
-              <th className="px-3 py-2">Fixture</th>
+              <th className="px-3 py-2">Case</th>
               <th className="px-3 py-2">Score</th>
               <th className="px-3 py-2">Result</th>
               <th className="px-3 py-2">Reviewed by</th>
@@ -150,7 +150,7 @@ export const PayAppEvalPanel: React.FC<{ run: PayAppEvalRun | null | undefined }
             {(run.fixtureScores ?? []).map((f) => (
               <tr key={f.fixtureId} className="border-t border-slate-800 bg-slate-950">
                 <td className="px-3 py-2 text-slate-200" title={f.checks.join("\n")}>
-                  {FIXTURE_NAMES[f.fixtureId] ?? f.fixtureId}
+                  {FIXTURE_NAMES[f.fixtureId] ?? "Pay-app review case"}
                 </td>
                 <td className="px-3 py-2 font-mono text-slate-200">{Math.round(f.score * 100)}%</td>
                 <td className={`px-3 py-2 font-bold ${f.passed ? "text-emerald-400" : "text-rose-400"}`}>{f.passed ? "PASS" : "FAIL"}</td>

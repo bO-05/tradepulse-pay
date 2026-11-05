@@ -1674,7 +1674,8 @@ const deceptiveBidIds = getDeceptiveBidIds(bids);
                     <option value="">-- Select Registered Contractor --</option>
                     {contractors.map((c) => (
                       <option key={c._id} value={c._id}>
-                        {c.companyName} ({c.contactEmail})
+                        {c.companyName}
+                        {/\.invalid$/i.test(c.contactEmail) ? "" : ` (${c.contactEmail})`}
                       </option>
                     ))}
                     <option value="new_contractor">+ Enter Custom / New Subcontractor Name</option>

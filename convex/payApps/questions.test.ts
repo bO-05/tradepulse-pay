@@ -6,6 +6,7 @@ import type { Id } from "../_generated/dataModel";
 import schema from "../schema";
 import { withSession } from "../lib/testIdentity";
 import { buildTenancyFixture } from "../lib/tenancyFixtures";
+import { QUESTIONS_PER_WINDOW } from "./questions";
 
 const modules = import.meta.glob("/convex/**/*.ts");
 
@@ -90,6 +91,29 @@ describe("pay-app question thread", () => {
     );
     expect(audit.map((a) => a.eventType).sort()).toEqual(["pay_app_question", "pay_app_reply"]);
     expect(audit.every((a) => a.projectId === f.gcA.project.projectId && a.agreementId === f.gcA.project.agreementId)).toBe(true);
+  });
+
+  test("posting is rate limited per person and the notification carries only an excerpt", async () => {
+    const { t, f, payAppId } = await setup();
+    const long = "A".repeat(400);
+    await f.sub.admin.as.mutation(api.payApps.questions.post, { payAppId, body: long });
+    const note = (await notifications(t, f.gcA.companyId)).find((n) => n.kind === "pay_app_question")!;
+    expect(note.body.length).toBeLessThan(220);
+    expect(note.body.endsWith("…")).toBe(true);
+    expect(note.body).not.toContain(long);
+
+    // The first post above counts toward the window; fill the rest and refuse the next one.
+    for (let i = 1; i < QUESTIONS_PER_WINDOW; i++) {
+      await f.sub.admin.as.mutation(api.payApps.questions.post, { payAppId, body: `Question ${i}` });
+    }
+    await expect(f.sub.admin.as.mutation(api.payApps.questions.post, { payAppId, body: "One too many." })).rejects.toThrow(
+      /per 10 minutes/,
+    );
+    const view = await f.sub.admin.as.query(api.payApps.questions.list, { payAppId });
+    expect(view?.canPost).toBe(false);
+    expect(view?.postingBlockedReason).toMatch(/per 10 minutes/);
+    // Another party is unaffected by this person's budget.
+    expect((await f.gcA.admin.as.query(api.payApps.questions.list, { payAppId }))?.canPost).toBe(true);
   });
 
   test("the thread never changes the pay app or its requested amount", async () => {

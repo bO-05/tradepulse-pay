@@ -12,13 +12,28 @@ type Slot = NonNullable<WaiverState["current"]>;
 
 function SignedLine({ slot }: { slot: Slot }) {
   if (slot.signed === null) return null;
+  const stale = slot.signed.amountCents !== slot.amountCents;
   return (
-    <p className="text-xs text-emerald-300" data-testid={`lien-waiver-signed-${slot.signed.waiverId}`}>
-      Signed by {slot.signed.signedByName}
-      {slot.signed.signerTitle ? `, ${slot.signed.signerTitle}` : ""} · {formatDateTime(slot.signed.signedAt)} UTC
-      {slot.signed.note ? ` · ${slot.signed.note}` : ""}
-    </p>
+    <>
+      <p className={`text-xs ${stale ? "text-amber-200" : "text-emerald-300"}`} data-testid={`lien-waiver-signed-${slot.signed.waiverId}`}>
+        Signed by {slot.signed.signedByName}
+        {slot.signed.signerTitle ? `, ${slot.signed.signerTitle}` : ""} · {formatDateTime(slot.signed.signedAt)} UTC
+        {slot.signed.note ? ` · ${slot.signed.note}` : ""}
+      </p>
+      {stale ? (
+        <p className="text-xs text-amber-200" data-testid="lien-waiver-amount-changed">
+          This signature covers {formatCents(slot.signed.amountCents)}, but the payment is now {formatCents(slot.amountCents)}.
+          Sign a new waiver for the current amount; the earlier signature stays on record.
+        </p>
+      ) : null}
+    </>
   );
+}
+
+function statusLabel(slot: Slot | null, waitingForApproval: boolean): string {
+  if (slot === null) return waitingForApproval ? "After approval" : "Not available";
+  if (slot.signed === null) return waitingForApproval ? "After approval" : "Not signed";
+  return slot.signed.amountCents === slot.amountCents ? "Signed" : "Amount changed";
 }
 
 function SlotRows({ slot, recipientName }: { slot: Slot; recipientName: string }) {
@@ -118,7 +133,7 @@ export function LienWaiverPanel({ payAppId }: { payAppId: string }) {
               Conditional waiver for this payment
             </h3>
             <span className="text-xs font-semibold uppercase tracking-wide text-ink-subtle">
-              {data.current?.signed ? "Signed" : data.waitingForApproval ? "After approval" : "Not signed"}
+              {statusLabel(data.current, data.waitingForApproval)}
             </span>
           </div>
           {data.current ? (
@@ -127,8 +142,10 @@ export function LienWaiverPanel({ payAppId }: { payAppId: string }) {
               <SignedLine slot={data.current} />
               {data.canSignCurrent ? (
                 <Button size="sm" leadingIcon={<ShieldCheck className="h-4 w-4" aria-hidden="true" />} onClick={() => open("conditional")} data-testid="lien-waiver-sign-conditional">
-                  Sign conditional waiver
+                  {data.current.signed === null ? "Sign conditional waiver" : "Sign a new conditional waiver"}
                 </Button>
+              ) : data.current.signed !== null && data.current.signed.amountCents !== data.current.amountCents ? (
+                <p className="text-xs text-ink-subtle">Waiting for the sub to sign a waiver for the current amount. The payout stays blocked until then.</p>
               ) : data.current.signed === null && data.viewerRole === "sub" ? (
                 <p className="text-xs text-ink-subtle">Signing opens after the GC approves the payment.</p>
               ) : data.current.signed === null ? (
@@ -147,7 +164,7 @@ export function LienWaiverPanel({ payAppId }: { payAppId: string }) {
                 Unconditional waiver for the prior payment
               </h3>
               <span className="text-xs font-semibold uppercase tracking-wide text-ink-subtle">
-                {data.prior?.signed ? "Signed" : "Not signed"}
+                {statusLabel(data.prior, false)}
               </span>
             </div>
             <p className="text-xs text-ink-muted">
@@ -160,8 +177,10 @@ export function LienWaiverPanel({ payAppId }: { payAppId: string }) {
                 <SignedLine slot={data.prior} />
                 {data.canSignPrior ? (
                   <Button size="sm" variant="secondary" leadingIcon={<ShieldCheck className="h-4 w-4" aria-hidden="true" />} onClick={() => open("unconditional")} data-testid="lien-waiver-sign-prior">
-                    Sign unconditional waiver
+                    {data.prior.signed === null ? "Sign unconditional waiver" : "Sign a new unconditional waiver"}
                   </Button>
+                ) : data.prior.signed !== null && data.prior.signed.amountCents !== data.prior.amountCents ? (
+                  <p className="text-xs text-ink-subtle">Waiting for the sub to sign a waiver for the current prior-payment amount.</p>
                 ) : data.prior.signed === null && data.viewerRole === "gc" ? (
                   <p className="text-xs text-ink-subtle">Waiting for the sub to sign.</p>
                 ) : null}

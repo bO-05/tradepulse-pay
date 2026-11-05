@@ -65,7 +65,9 @@ async function sendRelease(ctx: ActionCtx, paymentId: Id<"payments">, amountCent
 }
 
 export const releaseRetainage = action({
-  args: { agreementId: v.id("agreements"), expectedCents: v.optional(v.number()) },
+  // `expectedCents` is required: the GC's dialog confirms a specific amount, and a release must
+  // refuse (AMOUNT_CHANGED) when the releasable balance moved since the dialog opened.
+  args: { agreementId: v.id("agreements"), expectedCents: v.number() },
   returns: retainageResult,
   handler: async (ctx, { agreementId, expectedCents }): Promise<RetainageResult> => {
     const scope = await requireProjectScopeInAction(ctx, { docs: [{ table: "agreements", id: agreementId }] }, { roles: ["gc"], write: true });
@@ -92,6 +94,7 @@ export const resumeRetainageRelease = action({
 
 /** CLI entry point (`npx convex run payments/retainage:releaseRetainageInternal`). */
 export const releaseRetainageInternal = internalAction({
+  // Trusted operator path: no dialog amount to compare against, so the expected-amount guard is skipped.
   args: { agreementId: v.id("agreements"), actor: v.optional(v.string()) },
   returns: retainageResult,
   handler: async (ctx, args): Promise<RetainageResult> =>

@@ -897,7 +897,7 @@ describe("opt-in lien-waiver gate", () => {
     const dana = s.f.gcA.admin.as;
     const kim = s.f.sub.admin.as;
     await dana.mutation(api.lienWaivers.setGate, { agreementId: s.agreementId, enabled: true });
-    await kim.mutation(api.lienWaivers.signWaiver, { payAppId, kind: "conditional", signedByName: "Kim Alvarez", acknowledged: true });
+    const first = await kim.mutation(api.lienWaivers.signWaiver, { payAppId, kind: "conditional", signedByName: "Kim Alvarez", acknowledged: true });
     await s.t.run(async (ctx) => {
       const p = (await ctx.db.get(payAppId))!;
       await ctx.db.patch(payAppId, { finalApproval: { ...p.finalApproval!, totalCents: p.finalApproval!.totalCents + 100 } });
@@ -908,6 +908,24 @@ describe("opt-in lien-waiver gate", () => {
         message: "Lien waiver: the signed conditional waiver covers $43,412.60, but this payment is $43,413.60. The sub must sign a new waiver.",
       },
     ]);
+    // The sub is not stuck: a replacement for the new amount is accepted, clears the gate, and the
+    // earlier signature stays in the table marked superseded.
+    const state = (await kim.query(api.lienWaivers.payAppState, { payAppId }))!;
+    expect(state.current).toMatchObject({ amountCents: 4_341_360 });
+    expect(state.current!.signed).toMatchObject({ waiverId: first.waiverId, amountCents: 4_341_260 });
+    expect(state.canSignCurrent).toBe(true);
+    const replacement = await kim.mutation(api.lienWaivers.signWaiver, { payAppId, kind: "conditional", signedByName: "Kim Alvarez", acknowledged: true });
+    expect(replacement.alreadySigned).toBe(false);
+    expect(replacement.waiverId).not.toBe(first.waiverId);
+    const afterReplacement = await dana.query(api.billing.canPay.canPay, { payAppId });
+    expect(afterReplacement.reasons.map((r) => r.code)).not.toContain("LIEN_WAIVER_AMOUNT_CHANGED");
+    expect(afterReplacement.reasons.map((r) => r.code)).not.toContain("LIEN_WAIVER_MISSING");
+    const old = (await s.t.run((ctx) => ctx.db.get(first.waiverId)))!;
+    expect(old.supersededAt).toBeGreaterThan(0);
+    expect(old.supersededByWaiverId).toBe(replacement.waiverId);
+    const after = (await kim.query(api.lienWaivers.payAppState, { payAppId }))!;
+    expect(after.current!.signed).toMatchObject({ waiverId: replacement.waiverId, amountCents: 4_341_360 });
+    expect(after.canSignCurrent).toBe(false);
   });
 
   test("only a GC company admin can change the gate; another GC, the sub, the owner and a GC member are refused", async () => {
@@ -921,6 +939,24 @@ describe("opt-in lien-waiver gate", () => {
     expect(await s.t.run(async (ctx) => (await ctx.db.get(s.agreementId))!.lienWaiverGate ?? null)).toBeNull();
     const gate = (await s.f.gcA.member.as.query(api.lienWaivers.agreementGate, { agreementId: s.agreementId }))!;
     expect(gate).toMatchObject({ enabled: false, canManage: false });
+  });
+
+  test("turning the gate off tells the sub company why, instead of disabling it silently", async () => {
+    const s = await setup();
+    const dana = s.f.gcA.admin.as;
+    await dana.mutation(api.lienWaivers.setGate, { agreementId: s.agreementId, enabled: true });
+    await dana.mutation(api.lienWaivers.setGate, {
+      agreementId: s.agreementId,
+      enabled: false,
+      reason: "Closeout finished; the final waiver is on file.",
+    });
+    const note = (await s.t.run((ctx) => ctx.db.query("notifications").collect())).find(
+      (n) => n.kind === "lien_waiver_gate_disabled",
+    );
+    expect(note).toBeDefined();
+    expect(note!.companyId).toBe(s.f.sub.companyId);
+    expect(note!.title).toMatch(/turned off/i);
+    expect(note!.body).toMatch(/Closeout finished/);
   });
 });
 

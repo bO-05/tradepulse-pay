@@ -7,6 +7,7 @@ export const ledgerAgreementValidator = v.object({
   _id: v.id("agreements"), agreementNumber: v.string(), projectId: v.id("projects"),
   projectTitle: v.string(), subcontractorName: v.string(), contractorId: v.id("contractors"),
   csiDivision: v.string(), tradeName: v.string(), status: v.string(), retainagePercent: v.number(),
+  retainagePercentApplied: v.number(), retainageReductionBpsAt50: nullableNumber,
   contractSumCents: v.number(), originalContractSumCents: v.number(), netChangeOrdersCents: v.number(),
   excludedScopeNotes: v.array(v.string()), executedAt: nullableNumber,
 });

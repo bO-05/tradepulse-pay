@@ -7,6 +7,7 @@ import { describeAuthError, emailInputProblem, normalizeEmailInput } from "./aut
 import { isCodeSendError, rememberedBlockedEmail, rememberBlockedEmail, type AuthScreen, type VerifyScreen } from "./authScreens";
 import { CreateAccountForm } from "./CreateAccountForm";
 import { ForgotPasswordForm } from "./ForgotPasswordForm";
+import { ResidentialHero } from "./ResidentialHero";
 import { VerifyEmailForm } from "./VerifyEmailForm";
 
 
@@ -117,6 +118,7 @@ function SignInForm({
   return (
     <AuthLayout
       title="Sign in"
+      hero={<ResidentialHero showDemoLink />}
       footer={
         <>
           New to TradePulse Pay? <TextLink onClick={onCreateAccount}>Create account</TextLink>

@@ -62,7 +62,7 @@ export async function waiverBlockers(
     } else if (prior.signed.amountCents !== prior.amountCents) {
       reasons.push({
         code: "LIEN_WAIVER_AMOUNT_CHANGED",
-        message: `Lien waiver: the unconditional waiver for pay app ${prior.label} covers ${formatCents(prior.signed.amountCents)}, but that payment was ${formatCents(prior.amountCents)}.`,
+        message: `Lien waiver: the unconditional waiver for pay app ${prior.label} covers ${formatCents(prior.signed.amountCents)}, but that payment was ${formatCents(prior.amountCents)}. The sub must sign a new waiver.`,
       });
     }
   }

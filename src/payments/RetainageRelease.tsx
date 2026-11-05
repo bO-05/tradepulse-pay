@@ -113,7 +113,7 @@ export function RetainageReleaseControl({
   const now = useNow(created.length > 0);
   const interrupted = created.find((r) => isInterruptedRelease(r, now));
   const inFlight = created.length > 0;
-  const disabled = busy || inFlight || releasableCents <= 0;
+  const disabled = busy || inFlight || releasableCents <= 0 || payeeEmail === null;
   const waitingCents = balanceCents - releasableCents;
 
   async function run(call: () => Promise<{ message: string }>) {
@@ -134,6 +134,7 @@ export function RetainageReleaseControl({
     if (interrupted) return `A ${formatCents(interrupted.netCents)} retainage release was interrupted before PayPal answered. Resume it to send the same batch; it is never paid twice.`;
     if (inFlight) return "A retainage release is being processed.";
     if (balanceCents <= 0) return "Nothing to release: no retainage is held.";
+    if (payeeEmail === null) return "No confirmed PayPal payee yet: the sub must confirm their payout email before retainage can be released.";
     if (releasableCents <= 0) return `${formatCents(balanceCents)} held, none releasable yet: it waits for the sub payouts it came from to succeed at PayPal.`;
     if (waitingCents > 0) {
       return `${formatCents(balanceCents)} held, ${formatCents(releasableCents)} releasable now. ${formatCents(waitingCents)} waits for pending or unclaimed sub payouts to succeed.`;
@@ -183,7 +184,7 @@ export function RetainageReleaseControl({
         title="Release retainage now?"
         amountCents={releasableCents}
         amountLabel="Retainage payout"
-        payee={payeeEmail ?? "The sub's confirmed PayPal payee"}
+        payee={payeeEmail ?? "No confirmed PayPal payee yet"}
         payeeLabel="Payee (confirmed PayPal email)"
         effect={`Pays the sub ${formatCents(releasableCents)} immediately as a PayPal payout. This is the closeout release and can't be undone. If the platform balance is short, PayPal may refuse the payout; no money moves in that case.`}
         confirmLabel={`Release ${formatCents(releasableCents)} payout`}
@@ -199,7 +200,7 @@ export function RetainageReleaseControl({
           title="Resume the retainage release?"
           amountCents={interrupted.netCents}
           amountLabel="Retainage payout"
-          payee={interrupted.receiverEmail ?? "The sub's confirmed PayPal payee"}
+          payee={interrupted.receiverEmail ?? payeeEmail ?? "No confirmed PayPal payee yet"}
           payeeLabel="Payee (confirmed PayPal email)"
           effect={`Sends the interrupted ${formatCents(interrupted.netCents)} retainage payout to PayPal under the same batch id. If PayPal already received it, PayPal returns that payout instead of paying twice. This can't be undone.`}
           confirmLabel={`Resume ${formatCents(interrupted.netCents)} payout`}

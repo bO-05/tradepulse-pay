@@ -665,6 +665,7 @@ async function payAppView(ctx: QueryCtx, scope: ProjectAccess & { doc: Doc<"payA
     versions: versionRows,
     decision,
     revisionRequest,
+    reviewSuggestedTotalCents: payApp.review?.approvedTotalCents ?? null,
     review,
     excludedScopeNotes: isSub ? [] : (agreement.excludedScopeNotes ?? []),
     changeOrders,

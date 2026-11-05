@@ -95,6 +95,12 @@ export function centsToDollarsForDisplay(cents: number): number {
   return cents / 100;
 }
 
+/** Basis points (1 bps = 0.01%) to a 0-100 percentage number, for display-only consumers. */
+export function bpsToPercent(bps: number): number {
+  if (!Number.isFinite(bps)) throw new Error(`Invalid basis points: ${bps}`);
+  return bps / 100;
+}
+
 const PERCENT_SCALE = 1_000_000n;
 
 /**

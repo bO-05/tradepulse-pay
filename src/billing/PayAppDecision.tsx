@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import { approvedWorkAndStored, g702Summary } from "../../convex/payApps/g703Math";
 import { getErrorMessage } from "../lib/errors";
-import { isAIReviewProvider } from "../lib/aiProvenance";
+import { reviewAttribution } from "../lib/aiProvenance";
 import { Button, Card, ConfirmDialog, MoneyInput, StatusPill, TextInput, formatCents, formatDateTime } from "../ui";
 
 type PayAppView = NonNullable<FunctionReturnType<typeof api.payApps.g703.getPayApp>>;
@@ -32,7 +32,7 @@ function pct(fraction: number): string {
 }
 
 function engineLabel(r: Review): string {
-  return isAIReviewProvider(r.provider) ? `${r.provider} · ${r.model}` : "Offline rules engine";
+  return reviewAttribution(r);
 }
 
 /** GC: the rules review per line and the per-line decision (accept, override with reason, or revise), then approve, send back or reject. */
@@ -120,7 +120,7 @@ export function GcReviewPanel({ view }: { view: PayAppView }) {
         review ? (
           <span data-testid="review-engine">
             Reviewed by {engineLabel(review)} · {formatDateTime(review.reviewedAt)}
-            {review.fallbackReason ? ` · ${review.fallbackReason}` : ""}. The review suggests a percent complete to date per line; the dollars are computed by code.
+            {review.fallbackReason ? ` · ${review.fallbackReason}` : ""}. The review suggests a percent complete to date per line; the amounts are computed by code.
           </span>
         ) : view.status === "under_review" ? (
           "The review is running…"
@@ -176,7 +176,7 @@ export function GcReviewPanel({ view }: { view: PayAppView }) {
                 <th className="px-2 py-2 font-medium">Verdict</th>
                 <th className="px-2 py-2 text-right font-medium">Recommended % to date</th>
                 <th className="px-2 py-2 text-right font-medium">Requested (E + F)</th>
-                <th className="px-2 py-2 text-right font-medium">AI amount</th>
+                <th className="px-2 py-2 text-right font-medium">Recommended amount</th>
                 <th className="px-2 py-2 font-medium">{view.canApprove ? "Your decision" : "Reason"}</th>
               </tr>
             </thead>

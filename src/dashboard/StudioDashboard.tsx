@@ -36,7 +36,7 @@ export default function StudioDashboard({ raw }: { raw: DashboardRaw }) {
       loadPaySummary: () => convex.query(api.dashboard.payAgent.getPaySummary, {}),
     });
   }, [convex]);
-  const fallback = <DashboardFallback raw={raw} reason="AG Studio could not load. Check the deployment's license and configuration." />;
+  const fallback = <DashboardFallback raw={raw} reason="The optional dashboard layout could not load." />;
 
   return (
     <>

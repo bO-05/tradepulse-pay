@@ -526,7 +526,7 @@ describe("queued payouts re-check the confirmed payee before sending", () => {
     clearPayPalTokenCache();
     fake.state.failOAuth = true;
     let settled = false;
-    const failing = errorOf(s.gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: s.agreement._id })).finally(() => {
+    const failing = errorOf(s.gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: s.agreement._id, expectedCents: 100_000 })).finally(() => {
       settled = true;
     });
     // The action reaches its backoff sleeps asynchronously, so yield real time between fake-timer advances.
@@ -834,7 +834,7 @@ describe("retainage release", () => {
     expect((await releaseRows(t, agreement._id)).balance).toBe(150_000);
     const before = payoutPosts().length;
 
-    const out = await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id });
+    const out = await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id, expectedCents: 150_000 });
     expect(out).toMatchObject({ state: "pending", amountCents: 150_000 });
     const posts = payoutPosts().slice(before);
     expect(posts).toHaveLength(1);
@@ -887,12 +887,12 @@ describe("retainage release", () => {
 
   test("a second release after success is a no-op with no PayPal call and no ledger row", async () => {
     const { t, gc, agreement } = await withBalance();
-    await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id });
+    await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id, expectedCents: 150_000 });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     const callsBefore = fake.calls.length;
     const before = await releaseRows(t, agreement._id);
 
-    const again = await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id });
+    const again = await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id, expectedCents: 150_000 });
     expect(again.state).toBe("nothing_to_release");
     expect(fake.calls).toHaveLength(callsBefore);
     const after = await releaseRows(t, agreement._id);
@@ -904,7 +904,7 @@ describe("retainage release", () => {
 
   test("a zero balance releases nothing and makes no PayPal call or audit entry", async () => {
     const { t, gc, agreement } = await setup();
-    const out = await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id });
+    const out = await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id, expectedCents: 150_000 });
     expect(out).toMatchObject({ state: "nothing_to_release", amountCents: 0 });
     expect(fake.calls).toHaveLength(0);
     const r = await releaseRows(t, agreement._id);
@@ -919,11 +919,11 @@ describe("retainage release", () => {
     const begun = await t.mutation(internal.payments.retainageDb.beginRetainageRelease, { agreementId: agreement._id });
     expect(begun.state).toBe("new");
     fake.state.dropNextPayoutResponse = true;
-    const p = gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id });
+    const p = gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id, expectedCents: 150_000 });
     await vi.advanceTimersByTimeAsync(5_000);
     const out = await p;
     expect(out.message).toMatch(/not sent twice/);
-    const again = await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id });
+    const again = await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id, expectedCents: 150_000 });
     expect(again.state).toBe("nothing_to_release");
 
     const posts = payoutPosts().slice(before);
@@ -952,12 +952,12 @@ describe("retainage release", () => {
     expect(view?.retainageReleasableCents).toBe(100_000);
 
     fake.state.defaultItemStatus = "SUCCESS";
-    const out = await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id });
+    const out = await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id, expectedCents: 100_000 });
     expect(out.amountCents).toBe(100_000);
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     expect((await releaseRows(t, agreement._id)).balance).toBe(50_000);
     // The unclaimed credit is still not releasable.
-    expect((await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id })).state).toBe("nothing_to_release");
+    expect((await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id, expectedCents: 150_000 })).state).toBe("nothing_to_release");
 
     await t.mutation(internal.payments.payoutDb.applyPayoutStatus, { paymentId: unclaimed._id, status: "returned", itemStatus: "RETURNED" });
     const r = await releaseRows(t, agreement._id);
@@ -975,13 +975,13 @@ describe("retainage release", () => {
     await payFromTranche(t, gc.as, { milestoneId: milestone._id, amountCents: 500_000, requestKey: key("cl") });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     const before = payoutPosts().length;
-    expect((await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id })).state).toBe("nothing_to_release");
+    expect((await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id, expectedCents: 150_000 })).state).toBe("nothing_to_release");
     expect(payoutPosts()).toHaveLength(before);
 
     const source = (await rows(t, milestone._id)).payouts[0];
     await t.mutation(internal.payments.payoutDb.applyPayoutStatus, { paymentId: source._id, status: "success", itemStatus: "SUCCESS" });
     fake.state.defaultItemStatus = "SUCCESS";
-    const out = await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id });
+    const out = await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id, expectedCents: 50_000 });
     expect(out.amountCents).toBe(50_000);
   });
 
@@ -1047,7 +1047,7 @@ describe("retainage release", () => {
   test("a failed release puts the retainage back on hold so it can be released again", async () => {
     const { t, gc, agreement } = await withBalance();
     fake.state.defaultItemStatus = "FAILED";
-    await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id });
+    await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id, expectedCents: 150_000 });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     let r = await releaseRows(t, agreement._id);
     expect(r.releases[0].status).toBe("failed");
@@ -1055,7 +1055,7 @@ describe("retainage release", () => {
     expect(r.balance).toBe(150_000);
 
     fake.state.defaultItemStatus = "SUCCESS";
-    const out = await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id });
+    const out = await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id, expectedCents: 150_000 });
     expect(out.amountCents).toBe(150_000);
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     r = await releaseRows(t, agreement._id);
@@ -1068,7 +1068,7 @@ describe("retainage release", () => {
     const { t, agreement } = await withBalance();
     const callsBefore = fake.calls.length;
     const caller = role === null ? t : (await signInAs(t, role)).as;
-    const err = await errorOf(caller.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id }));
+    const err = await errorOf(caller.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id, expectedCents: 150_000 }));
     expect(String(err.data?.message ?? err.message)).toMatch(/Not authenticated|Forbidden|Not found/);
     expect(fake.calls).toHaveLength(callsBefore);
     expect((await releaseRows(t, agreement._id)).releases).toHaveLength(0);
@@ -1076,7 +1076,7 @@ describe("retainage release", () => {
 
   test("a sub sees the release on its ledger but no release control", async () => {
     const { t, gc, sub, agreement } = await withBalance();
-    await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id });
+    await gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: agreement._id, expectedCents: 150_000 });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     const ledger = await sub.as.query(api.payments.ledger.getAgreementLedger, { agreementId: agreement._id });
     expect(ledger?.canReleaseRetainage).toBe(false);
@@ -1389,7 +1389,7 @@ describe("held retainage is reserved between closeout releases and negative-reta
     if (begun.state !== "new") throw new Error("expected a new release");
     expect(begun.amountCents).toBe(43_000);
     await s.t.finishAllScheduledFunctions(vi.runAllTimers);
-    await s.gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: s.agreement._id });
+    await s.gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: s.agreement._id, expectedCents: 43_000 });
     await s.t.finishAllScheduledFunctions(vi.runAllTimers);
     expect(await balance(s)).toEqual({ held: 0, lowest: 0 });
   });
@@ -1410,7 +1410,7 @@ describe("held retainage is reserved between closeout releases and negative-reta
     expect(await balance(s)).toEqual({ held: 43_000, lowest: 0 });
 
     // Releasing again pays the current balance.
-    const out = await s.gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: s.agreement._id });
+    const out = await s.gc.as.action(api.payments.retainage.releaseRetainage, { agreementId: s.agreement._id, expectedCents: 43_000 });
     expect(out.amountCents).toBe(43_000);
     await s.t.finishAllScheduledFunctions(vi.runAllTimers);
     expect(await balance(s)).toEqual({ held: 0, lowest: 0 });

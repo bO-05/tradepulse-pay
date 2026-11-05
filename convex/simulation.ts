@@ -3,7 +3,7 @@ import { auditActor, requireDocOfProject, requireDocScope, requireProjectScope }
 import { attributeDemoPlugsForProject } from "./lib/demoPlugs";
 import { v, ConvexError } from "convex/values";
 import { notFound } from "./lib/tenancy";
-import { deleteAgreementCascade } from "./payments/cascade";
+import { deleteAgreementCascade, agreementHasFinancialHistory, moneyHistoryRefusal } from "./payments/cascade";
 import { internal } from "./_generated/api";
 import { defaultTermsForProject, legacyTermFields, refreshAgreementDocument } from "./lib/agreementDocument";
 import { persistPendingRfi } from "./rfq";
@@ -779,8 +779,17 @@ export const runFullProcurementCycle = mutation({
       );
     }
 
-    // Clear old agreements for package
+    // Clear old agreements for package. Never erase money history: a pay app, payment or retainage
+    // row on the old draft means the demo's shared numbers would disappear with it.
     const oldAgreements = packageAgreementsBefore;
+    for (const oa of oldAgreements) {
+      if (await agreementHasFinancialHistory(ctx, oa._id)) {
+        throw moneyHistoryRefusal(
+          "delete",
+          `Package ${tradePkg.csiDivision} has agreement ${oa.agreementNumber} with billing history. The full-cycle simulation cannot erase it — choose a package without billing history.`,
+        );
+      }
+    }
     for (const oa of oldAgreements) {
       await deleteAgreementCascade(ctx, oa._id);
     }

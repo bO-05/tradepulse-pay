@@ -8,8 +8,9 @@ import { loadBillingHistory, unresolvedApprovalMessage } from "../payApps/billin
 import { isCaptureCollected } from "./captureSettlement";
 import { HISTORY_TRUNCATED_MESSAGE, loadAgreementHistory } from "./agreementHistory";
 import { BALANCE_FORMULA, computeLedgerTotals } from "./ledgerTotals";
+import { bpsToPercent } from "../lib/money";
 import { attemptsFor, checkRetry } from "./payoutRetryMath";
-import { retainagePercentFor } from "./payoutMath";
+import { retainageBpsAtProgress, retainagePercentFor } from "./payoutMath";
 import { releasableRetainageCents } from "./retainageMath";
 import { agreementContractSum } from "../billing/changeOrderView";
 import type { ContractSumBreakdown } from "./changeOrderMath";
@@ -20,7 +21,12 @@ import { payoutReceiverForContractorReadOnly } from "../lib/payee";
 import { agreementLedgerValidator, ledgerAgreementValidator } from "./ledgerValidators";
 
 /** contractSumCents is the contract sum to date (original plus approved change orders). */
-function ledgerAgreementSummary(a: Doc<"agreements">, sum: ContractSumBreakdown) {
+function ledgerAgreementSummary(a: Doc<"agreements">, sum: ContractSumBreakdown, billedCents = 0) {
+  const basePercent = retainagePercentFor(a);
+  // The rate that applies to the next application: the base rate, or the reduced rate once approved
+  // billing has reached half the contract sum. Shown next to the base so "10%" is never mistaken for
+  // the rate actually withheld after the reduction.
+  const appliedPercent = bpsToPercent(retainageBpsAtProgress(a, billedCents, sum.toDateCents));
   return {
     _id: a._id,
     agreementNumber: a.agreementNumber,
@@ -31,7 +37,9 @@ function ledgerAgreementSummary(a: Doc<"agreements">, sum: ContractSumBreakdown)
     csiDivision: a.csiDivision,
     tradeName: a.tradeName,
     status: a.status,
-    retainagePercent: retainagePercentFor(a),
+    retainagePercent: basePercent,
+    retainagePercentApplied: appliedPercent,
+    retainageReductionBpsAt50: a.terms?.retainageReductionBpsAt50 ?? null,
     contractSumCents: sum.toDateCents,
     originalContractSumCents: sum.originalCents,
     netChangeOrdersCents: sum.netChangeCents,
@@ -112,7 +120,7 @@ export const getAgreementLedger = query({
     const history = await loadAgreementHistory(ctx, id);
     const { payments, retainage, changeOrders } = history;
 
-    const summary = ledgerAgreementSummary(agreement, await agreementContractSum(ctx, agreement));
+    const sum = await agreementContractSum(ctx, agreement);
     // Latest funding attempt per milestone (payments come back in creation order).
     const latestFunding = new Map<string, Doc<"payments">>();
     for (const p of payments) if (p.kind === "funding" && p.milestoneId) latestFunding.set(p.milestoneId, p);
@@ -128,13 +136,14 @@ export const getAgreementLedger = query({
     const bid = await ctx.db.get(agreement.bidId);
     const retainageReleases = payments.filter((p) => p.kind === "retainage_release");
     const totals = computeLedgerTotals({
-      contractSumCents: summary.contractSumCents,
+      contractSumCents: sum.toDateCents,
       payApps: billing.rows,
       payments,
       retainage,
       // Change-order invoices are between the GC and the owner; a sub's ledger never counts them.
       changeOrders: isGc ? changeOrders : [],
     });
+    const summary = ledgerAgreementSummary(agreement, sum, totals.billedCents);
     const capturedReleaseIds = new Set<string>();
     const captureByRelease = new Map<string, string>();
     for (const p of payments) {

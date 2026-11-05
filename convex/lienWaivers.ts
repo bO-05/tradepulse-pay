@@ -39,7 +39,14 @@ function signedView(w: Doc<"lienWaivers"> | null) {
     note: w.note ?? null,
     amountCents: w.amountCents,
     throughDate: w.throughDate,
+    supersededAt: w.supersededAt ?? null,
+    supersededByWaiverId: w.supersededByWaiverId ?? null,
   };
+}
+
+/** A signature only satisfies its slot when it covers the slot's current amount. */
+function waiverMatches(signed: { amountCents: number } | null, amountCents: number): boolean {
+  return signed !== null && signed.amountCents === amountCents;
 }
 
 function slotView(s: WaiverSlot) {
@@ -82,6 +89,8 @@ export const setGate = mutation({
     agreementId: v.string(),
     enabled: v.boolean(),
     requirePriorUnconditional: v.optional(v.boolean()),
+    /** Shown to the sub when the GC turns the gate off. */
+    reason: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const scope = await requireDocScope(ctx, "agreements", args.agreementId, { roles: ["gc"], write: true });
@@ -91,6 +100,7 @@ export const setGate = mutation({
     }
     const agreement = scope.doc;
     const now = Date.now();
+    const reason = cleanText(args.reason, NOTE_MAX);
     const requirePrior = args.requirePriorUnconditional ?? agreement.lienWaiverGate?.requirePriorUnconditional ?? true;
     if (args.enabled) {
       const existing = agreement.lienWaiverGate;
@@ -116,10 +126,33 @@ export const setGate = mutation({
       title: args.enabled ? "Lien-waiver gate enabled" : "Lien-waiver gate disabled",
       description: args.enabled
         ? `${agreement.agreementNumber}: payouts now require a signed conditional waiver${requirePrior ? " and an unconditional waiver for the prior payment" : ""}.`
-        : `${agreement.agreementNumber}: payouts no longer require a lien-waiver signature.`,
+        : `${agreement.agreementNumber}: payouts no longer require a lien-waiver signature.${reason !== undefined ? ` Reason: ${reason}` : ""}`,
       ...auditActor(scope),
       timestamp: now,
     });
+    // A gate the sub relies on is never turned off silently: tell the sub's company.
+    if (!args.enabled) {
+      const contractor = await ctx.db.get(agreement.contractorId);
+      const anyPayApp = await ctx.db
+        .query("payApplications")
+        .withIndex("by_agreementId", (q) => q.eq("agreementId", agreement._id))
+        .order("desc")
+        .first();
+      const subCompanyId = contractor?.linkedCompanyId ?? anyPayApp?.subCompanyId;
+      if (subCompanyId !== undefined) {
+        await notify(
+          ctx,
+          { companyId: subCompanyId },
+          {
+            kind: "lien_waiver_gate_disabled",
+            title: `Lien-waiver requirement turned off on ${agreement.agreementNumber}`,
+            body: `${scope.user.name ?? scope.user.email ?? "The GC admin"} turned off the lien-waiver gate. Payouts no longer wait for a waiver signature; signatures already recorded stay in the audit log.${reason !== undefined ? ` Reason: ${reason}` : ""}`,
+            link: anyPayApp !== null ? payAppHash(anyPayApp._id) : "#/payments",
+            projectId: agreement.projectId,
+          },
+        );
+      }
+    }
     return { enabled: args.enabled, requirePriorUnconditional: args.enabled ? requirePrior : false };
   },
 });
@@ -151,9 +184,16 @@ export const payAppState = query({
       viewerRole: scope.partyRole,
       current: state.current === null ? null : slotView(state.current),
       prior: state.prior === null ? null : slotView(state.prior),
-      canSignCurrent: writable && signableStatus && state.current !== null && state.current.signed === null,
+      canSignCurrent:
+        writable &&
+        signableStatus &&
+        state.current !== null &&
+        !waiverMatches(state.current.signed, state.current.amountCents),
       canSignPrior:
-        writable && state.requirePriorUnconditional && state.prior !== null && state.prior.signed === null,
+        writable &&
+        state.requirePriorUnconditional &&
+        state.prior !== null &&
+        !waiverMatches(state.prior.signed, state.prior.amountCents),
       waitingForApproval: state.current === null,
       noAmountMessage: NO_CURRENT_AMOUNT_MESSAGE,
       disclaimer: LIEN_WAIVER_DISCLAIMER,
@@ -220,7 +260,7 @@ export const signWaiver = mutation({
       throughDate = state.prior.throughDate;
       existing = state.prior.signed;
     }
-    if (existing !== null) {
+    if (existing !== null && existing.amountCents === amountCents) {
       return { waiverId: existing._id, alreadySigned: true, signedAt: existing.signedAt };
     }
     if (amountCents <= 0) throw invalid("The waiver amount is not available.");
@@ -241,6 +281,11 @@ export const signWaiver = mutation({
       gateEnabledAt: agreement.lienWaiverGate.enabledAt,
       ...(note !== undefined ? { note } : {}),
     });
+    // A signature for a superseded amount is kept as evidence but can never be mistaken for the
+    // live one; the replacement above is what the gate reads.
+    if (existing !== null && existing.amountCents !== amountCents) {
+      await ctx.db.patch(existing._id, { supersededAt: now, supersededByWaiverId: waiverId });
+    }
     await ctx.db.insert("auditLogs", {
       projectId: agreement.projectId,
       agreementId: agreement._id,
@@ -248,7 +293,11 @@ export const signWaiver = mutation({
       title: args.kind === "conditional" ? "Conditional lien waiver signed" : "Unconditional lien waiver signed",
       description: `${name} signed the ${args.kind} waiver for ${formatCents(amountCents)} through ${throughDate} (${
         args.kind === "conditional" ? `pay app ${payAppLabel(covers)}` : `prior pay app ${payAppLabel(covers)}`
-      }), recipient ${agreement.generalContractorName}.`,
+      }), recipient ${agreement.generalContractorName}.${
+        existing !== null
+          ? ` This replaces the earlier signature for ${formatCents(existing.amountCents)}, which is kept as superseded.`
+          : ""
+      }`,
       ...auditActor(scope),
       timestamp: now,
     });

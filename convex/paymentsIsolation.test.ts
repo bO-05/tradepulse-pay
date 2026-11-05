@@ -334,7 +334,7 @@ const GC_ONLY: Case[] = [
   a("payments/release:refreshCaptureStatus", api.payments.release.refreshCaptureStatus, (i) => ({ paymentId: i.payoutId })),
   a("payments/release:refreshPayoutStatus", api.payments.release.refreshPayoutStatus, (i) => ({ paymentId: i.payoutId })),
   a("payments/payoutRetry:retryPayout", api.payments.payoutRetry.retryPayout, (i) => ({ paymentId: i.payoutId })),
-  a("payments/retainage:releaseRetainage", api.payments.retainage.releaseRetainage, (i) => ({ agreementId: i.agreementId })),
+  a("payments/retainage:releaseRetainage", api.payments.retainage.releaseRetainage, (i) => ({ agreementId: i.agreementId, expectedCents: 1_000 })),
   a("payments/retainage:resumeRetainageRelease", api.payments.retainage.resumeRetainageRelease, (i) => ({ paymentId: i.retainageId })),
   m("billing/changeOrders:createChangeOrder (prime)", api.billing.changeOrders.createChangeOrder, (i) => ({
     scope: "prime",

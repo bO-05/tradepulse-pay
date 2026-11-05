@@ -116,7 +116,7 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
           </span>
         </h1>
         <p className="text-sm text-slate-300">
-          After confirmation, the guided flow uses the real PayPal sandbox, the configured model provider and KERNEL: execute a fresh demo
+          After confirmation, the guided flow uses the real PayPal sandbox, the configured model provider and a hosted-browser CSLB lookup: execute a fresh demo
           agreement (${DEMO_CONTRACT_SUM.toLocaleString("en-US")}, seismic bracing excluded) for sub1's contractor, fund Mobilization, file an
           honest pay app for sub1 and an overbilled one for a labeled billing-agent stand-in, run the rules review with the model's
           explanations and the CSLB license check, approve (editing the agent's amount down), capture and pay with 10% retainage, and invoice a change
@@ -183,7 +183,7 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
         details={[
           { label: "Funding", value: "$5,500 PayPal sandbox authorization, requiring your checkout approval" },
           { label: "Recipients", value: "Existing demo subcontractor's configured sandbox payee; $1,850 invoice to the demo Owner" },
-          { label: "Provider calls", value: "Mistral review, KERNEL CSLB lookup and PayPal sandbox; these use provider credits" },
+          { label: "Provider calls", value: "Model-written review explanation, hosted CSLB license lookup and PayPal sandbox; these use provider credits" },
           { label: "Shared account limit", value: "Up to 3 new guided runs per hour" },
         ]}
         effect="Creates a new project, $55,000 agreement and labeled stand-in pay applications. After funding, the driver approves the displayed demo proposals as the GC and sends sandbox payouts with 10% retainage. The Owner pays the invoice separately. The new run remains in history; the preserved fixtures are unchanged. Cancel creates nothing."
@@ -285,7 +285,7 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
             <SandboxTopUpPanel suggestedCents={Math.ceil(((ledger?.retainageReleasableCents ?? 0) * 11) / 1000) * 100} />
             <button
               type="button"
-              disabled={closeoutBusy || (ledger?.retainageReleasableCents ?? 0) <= 0}
+              disabled={closeoutBusy || (ledger?.retainageReleasableCents ?? 0) <= 0 || !ledger?.retainagePayeeEmail}
               data-testid="judge-demo-release-retainage"
               className="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-semibold hover:bg-emerald-600 disabled:opacity-50"
               onClick={() => setConfirmCloseout(true)}
@@ -297,7 +297,7 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
               title="Release retainage now?"
               amountCents={ledger?.retainageReleasableCents ?? 0}
               amountLabel="Retainage payout"
-              payee="The sub's confirmed PayPal payee"
+              payee={ledger?.retainagePayeeEmail ?? "No confirmed PayPal payee yet"}
               payeeLabel="Payee (confirmed PayPal email)"
               effect={`Pays the sub ${formatCents(ledger?.retainageReleasableCents ?? 0)} immediately as a PayPal sandbox payout. This is the optional closeout release and can't be undone.`}
               confirmLabel={`Release ${formatCents(ledger?.retainageReleasableCents ?? 0)} payout`}
@@ -307,7 +307,10 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
                 setCloseoutBusy(true);
                 setCloseoutError(null);
                 try {
-                  const res = await releaseRetainage({ agreementId: run.agreementId });
+                  const res = await releaseRetainage({
+                    agreementId: run.agreementId,
+                    expectedCents: ledger?.retainageReleasableCents ?? 0,
+                  });
                   setCloseoutNote(res.message);
                 } catch (e) {
                   setCloseoutError(readableError(e));

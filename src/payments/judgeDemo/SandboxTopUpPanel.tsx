@@ -41,7 +41,7 @@ export function SandboxTopUpPanel({ suggestedCents }: { suggestedCents: number }
       <div>
         <h3 className="text-sm font-semibold text-amber-200">Sandbox setup: top up the platform balance</h3>
         <p className="text-xs text-slate-300 mt-1">
-          Sandbox only. PayPal keeps about 3.5% + $0.49 of every capture, so after paying subs 90% the platform account holds less
+          Sandbox only. PayPal's card rate takes roughly 2.99% + $0.49 of the capture (3.49% + $0.49 for a wallet), so after paying subs 90% the platform account holds less
           than the retainage it owes. This creates a PayPal CAPTURE order for the platform; pay it with the sandbox guest card in
           the PayPal tab, then capture it here. It is not linked to any agreement and is not counted in any total.
         </p>

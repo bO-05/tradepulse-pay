@@ -4,6 +4,7 @@ import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { demoEditedApprovalCents } from "../../../convex/judgeDemo/scenario";
 import { readableError } from "../FundMilestone";
+import { formatCents } from "../format";
 import { changeOrderInvoiced, ensureChangeOrderInvoiced, type DriverChangeOrder } from "./changeOrderStep";
 import { demoRunBlocker, FUNDED_STATUSES, moneyProposal, payoutFinished, proposalsReady, type DemoInboxItem, type DemoLedger } from "./steps";
 
@@ -102,7 +103,7 @@ export function useJudgeDemoDriver(snapshot: DriverSnapshot, onRunCreated: (runI
       await fileDemoPayApp({ runId: id, kind: "honest" });
       await fileDemoPayApp({ runId: id, kind: "agent" });
 
-      setPhase("Rules review, KERNEL license check and pay-agent proposals are running…");
+      setPhase("Rules review, license check and pay-agent proposals are running…");
       const honest = await waitFor("the honest pay app's proposals", (s) => {
         const item = checkedItem(s.honest);
         return proposalsReady(item) ? item : null;
@@ -124,11 +125,13 @@ export function useJudgeDemoDriver(snapshot: DriverSnapshot, onRunCreated: (runI
         const edited = agentPayout.editedAmountCents ?? demoEditedApprovalCents(agentPayout.amountCents ?? 0);
         if (edited !== null && agentPayout.editedAmountCents === null) {
           setPhase("GC edits the agent's proposal down…");
+          const recommended = agentPayout.amountCents ?? 0;
           await editProposal({
             proposalId: agentPayout._id,
             amountCents: edited,
-            reason:
-              "GC accepted 90% of the recommended amount. The remaining 10% is held pending closeout evidence and a signed lien waiver; the sub can revise and resubmit.",
+            // The sub sees these numbers on the pay app. No waiver, retainage or resubmit wording:
+            // the demo agreements have the waiver gate off and nothing is rescheduled by this edit.
+            reason: `GC approved ${formatCents(edited)} of the ${formatCents(recommended)} the rules review recommended for this period. Line 2 includes seismic bracing that the agreement lists as excluded scope, so that work is not payable. The remaining ${formatCents(Math.max(0, recommended - edited))} is unapproved and stays unpaid.`,
           });
         }
         setPhase("GC approves the edited amount…");

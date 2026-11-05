@@ -194,7 +194,8 @@ function parseHashRoute(hash: string): Route | null {
   const path = hash.replace(/^#/, "");
   const demoRun = path.match(/^\/judge-demo\/([^/?#]+)$/);
   if (demoRun) return { area: "judge-demo", demoRunId: decodeURIComponent(demoRun[1]) };
-  if (`#${path}` === COMPANY_HASH) return { area: "company" };
+  // `#/company-settings` was the pre-recovery name; keep old bookmarks working.
+  if (`#${path}` === COMPANY_HASH || path === "/company-settings") return { area: "company" };
   if (`#${path}` === NOTIFICATIONS_HASH) return { area: "notifications" };
   const bidMatch = path.match(/^\/bids\/([^/?#]+)$/);
   if (bidMatch) return { area: "bid-invitations", tradePackageId: decodeURIComponent(bidMatch[1]) };

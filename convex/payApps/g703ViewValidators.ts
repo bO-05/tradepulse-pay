@@ -51,6 +51,9 @@ export const g703ViewValidator = v.object({
     })),
   })),
   decision, revisionRequest: decision,
+  // The review's suggested gross is visible to both parties (the sub needs the benchmark the GC
+  // cut against); the per-line review detail and model internals stay GC-only in `review`.
+  reviewSuggestedTotalCents: nn,
   review: v.union(v.null(), v.object({
     engine: v.string(), provider: v.string(), model: v.string(), fallbackReason: ns,
     reviewedAt: v.number(), approvedTotalCents: v.number(), flags: payAppReviewValidator.fields.flags,

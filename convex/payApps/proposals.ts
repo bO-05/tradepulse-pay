@@ -1,7 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
-import { internalAction, internalMutation, internalQuery, mutation, query, type MutationCtx } from "../_generated/server";
+import { internalAction, internalMutation, internalQuery, mutation, query, type MutationCtx, type QueryCtx } from "../_generated/server";
 import { formatCents } from "../lib/money";
 import { requireRole } from "../lib/roles";
 import { scopedAgreements } from "../lib/agreementScope";
@@ -64,6 +64,33 @@ function proposalSplit(amountCents: number, g702NetCents: number | null, agreeme
   return computePayoutSplit(amountCents, retainagePercentFor(agreement));
 }
 
+/**
+ * The split the payout will actually use for `amountCents` on a pay app that is still awaiting the
+ * GC's decision: the same per-line allocation and G702 figures approveProposal stores. Without it an
+ * edited proposal showed the review's unedited net (or, after an edit up, the whole edited gross as
+ * net), so the GC confirmed a different net than the sub was paid.
+ */
+async function pendingPayoutSplit(
+  ctx: QueryCtx,
+  payApp: Doc<"payApplications">,
+  agreement: Doc<"agreements">,
+  amountCents: number,
+  sheetNetCents: number | null,
+) {
+  const fallback = proposalSplit(amountCents, sheetNetCents, agreement);
+  if (payApp.status !== "reviewed" || payApp.g703 === undefined) return fallback;
+  try {
+    const lines = await finalAllocation(ctx, payApp, amountCents);
+    const figures = await approvedG702Figures(ctx, payApp, lines);
+    if (figures === null) return fallback;
+    return proposalSplit(amountCents, figures.currentPaymentDueCents, agreement);
+  } catch {
+    // The approve mutation re-runs the same allocation and refuses with the reason; the inbox keeps
+    // its best estimate rather than failing the whole list.
+    return fallback;
+  }
+}
+
 function notPending(p: Doc<"agentProposals">): ConvexError<{ code: string; message: string }> {
   const why =
     p.status === "rejected"
@@ -109,7 +136,7 @@ function reasonRequired(message: string): ConvexError<{ code: string; message: s
 }
 
 /** The final per-line split of an approved total, or a readable INVALID_AMOUNT error. */
-async function finalAllocation(ctx: MutationCtx, payApp: Doc<"payApplications">, amountCents: number) {
+async function finalAllocation(ctx: QueryCtx, payApp: Doc<"payApplications">, amountCents: number) {
   const result = await allocateFinalApproval(ctx, payApp, amountCents);
   if (!result.ok) throw new ConvexError({ code: "INVALID_AMOUNT", message: result.message });
   return result.lines.map((l) => ({ sovLineId: l.sovLineId as Id<"scheduleOfValues">, approvedCents: l.approvedCents }));
@@ -213,6 +240,40 @@ export const listInbox = query({
       const view = await payAppView(ctx, p, sov);
       const sheet = await buildSheet(ctx, agreement, p);
       const g702NetCents = expectedG702NetCents(p, sheet);
+      const splitCache = new Map<number, ReturnType<typeof proposalSplit>>();
+      const splitFor = async (amountCents: number) => {
+        const cached = splitCache.get(amountCents);
+        if (cached !== undefined) return cached;
+        const split = await pendingPayoutSplit(ctx, p, agreement, amountCents, g702NetCents);
+        splitCache.set(amountCents, split);
+        return split;
+      };
+      const proposalRows = [];
+      for (const pr of proposals
+        .filter((row) => row.status !== "cancelled" && row.source !== "gc_ledger")
+        .sort((a, b) => a.createdAt - b.createdAt)) {
+        const amount = effectiveAmount(pr);
+        proposalRows.push({
+          _id: pr._id,
+          kind: pr.kind,
+          status: pr.status,
+          source: pr.source ?? "agent",
+          amountCents: pr.amountCents ?? null,
+          editedAmountCents: pr.editedAmountCents ?? null,
+          editedReason: pr.editedReason ?? null,
+          split: amount !== undefined && MONEY_KINDS.has(pr.kind) ? await splitFor(amount) : null,
+          rationale: pr.rationale,
+          flags: pr.flags,
+          licenseStatus: pr.licenseStatus ?? null,
+          milestoneName: pr.milestoneId ? (milestoneNames.get(pr.milestoneId) ?? null) : null,
+          decidedAt: pr.decidedAt ?? null,
+          executedAt: pr.executedAt ?? null,
+          paypalCaptureId: pr.paypalCaptureId ?? null,
+          error: pr.error ?? null,
+          overrideLicenseHold: pr.overrideLicenseHold ?? false,
+          createdAt: pr.createdAt,
+        });
+      }
       items.push({
         readOnlyReference: isReadOnlyReference(project),
         payApp: view,
@@ -226,35 +287,7 @@ export const listInbox = query({
         },
         contractor: { companyName: contractor?.companyName ?? agreement.subcontractorName, licenseNumber: contractor?.licenseNumber ?? "" },
         license: license ? { status: license.status, checkedAt: license.checkedAt, checkId: license._id } : null,
-        proposals: proposals
-          .filter((pr) => pr.status !== "cancelled" && pr.source !== "gc_ledger")
-          .sort((a, b) => a.createdAt - b.createdAt)
-          .map((pr) => {
-            const amount = effectiveAmount(pr);
-            return {
-              _id: pr._id,
-              kind: pr.kind,
-              status: pr.status,
-              source: pr.source ?? "agent",
-              amountCents: pr.amountCents ?? null,
-              editedAmountCents: pr.editedAmountCents ?? null,
-              editedReason: pr.editedReason ?? null,
-              split:
-                amount !== undefined && MONEY_KINDS.has(pr.kind)
-                  ? proposalSplit(amount, g702NetCents, agreement)
-                  : null,
-              rationale: pr.rationale,
-              flags: pr.flags,
-              licenseStatus: pr.licenseStatus ?? null,
-              milestoneName: pr.milestoneId ? (milestoneNames.get(pr.milestoneId) ?? null) : null,
-              decidedAt: pr.decidedAt ?? null,
-              executedAt: pr.executedAt ?? null,
-              paypalCaptureId: pr.paypalCaptureId ?? null,
-              error: pr.error ?? null,
-              overrideLicenseHold: pr.overrideLicenseHold ?? false,
-              createdAt: pr.createdAt,
-            };
-          }),
+        proposals: proposalRows,
         payment: paymentRow
           ? {
               status: paymentRow.status,

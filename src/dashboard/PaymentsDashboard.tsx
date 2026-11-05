@@ -21,7 +21,7 @@ export default function PaymentsDashboard() {
 
   const { totals, incomplete } = raw;
   const readOnly = raw.readOnly;
-  const fallback = <DashboardFallback raw={raw} reason="AG Studio could not load. Check the deployment's license and configuration." />;
+  const fallback = <DashboardFallback raw={raw} reason="The optional dashboard layout could not load." />;
 
   return (
     <section className="space-y-3" aria-label="Payments dashboard">
@@ -51,7 +51,7 @@ export default function PaymentsDashboard() {
               onClick={() => setBasicView((v) => !v)}
               className="rounded-lg border border-emerald-700 px-3 py-1.5 text-xs text-emerald-200 hover:bg-emerald-900/40"
             >
-              {basicView ? "Try AG Studio" : "Use basic view"}
+              {basicView ? "Try the layout view" : "Use basic view"}
             </button>
           )}
         </div>
@@ -80,7 +80,7 @@ export default function PaymentsDashboard() {
         <DashboardFallback raw={raw} reason={!hasStudioKey ? undefined : "Basic view selected."} />
       ) : (
         <StudioErrorBoundary fallback={fallback}>
-          <Suspense fallback={<p className="text-sm text-slate-400">Loading AG Studio…</p>}>
+          <Suspense fallback={<p className="text-sm text-slate-400">Loading the dashboard layout…</p>}>
             <StudioDashboard raw={raw} />
           </Suspense>
         </StudioErrorBoundary>

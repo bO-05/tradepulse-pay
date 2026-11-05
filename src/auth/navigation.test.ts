@@ -67,6 +67,10 @@ describe("role navigation", () => {
     expect(resolveRoute("owner", "#/my-projects")).toEqual({ area: "my-projects" });
     expect(resolveRoute("gc", "#/my-projects")).toEqual({ area: "not-found" });
     for (const role of ["gc", "sub", "owner"] as const) expect(resolveRoute(role, "#/company")).toEqual({ area: "company" });
+    // The pre-recovery name still resolves so an old bookmark or emailed link is not a dead end.
+    for (const role of ["gc", "sub", "owner"] as const) {
+      expect(resolveRoute(role, "#/company-settings")).toEqual({ area: "company" });
+    }
   });
 
   test("GC project setup routes: list, wizard, quick start, project page and settings; GC only", () => {

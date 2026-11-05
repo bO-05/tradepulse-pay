@@ -11,6 +11,7 @@ import { clearPayPalTokenCache } from "../payments/paypalClient";
 import { CSLB_FIXTURES } from "../kernel/cslbFixtures";
 import { ANTHROPIC_KEY_PREFIX, CUSTOM_TOOL_NAMES, READ_ONLY_TOOLKIT_TOOLS } from "./tools";
 import { payFromTranche } from "../lib/testPayApp";
+import { payFiguresFor } from "../billing/payGate";
 // Load the real Node action/toolkit graph during collection, before fake timers.
 // Otherwise the first scheduled run spends its timer-pump budget waiting on
 // Vitest's dynamic module transformation rather than executing the agent.
@@ -555,6 +556,32 @@ describe("final approved allocation", () => {
 
     const ledger = await s.gc.as.query(api.payments.ledger.getAgreementLedger, { agreementId: s.agreement._id });
     expect(ledger!.totals.billedCents).toBe(edited);
+  });
+
+  test("after a 90% edit the inbox shows the payout's exact net and retainage, not the unedited net", async () => {
+    const s = await setup();
+    const payAppId = await submitAndRun(s);
+    const st = await state(s, payAppId);
+    const edited = Math.floor(st.payApp.review!.approvedTotalCents * 0.9);
+    await s.gc.as.mutation(api.payApps.proposals.editProposal, {
+      proposalId: st.byKind("payout")!._id,
+      amountCents: edited,
+      reason: "Paying 90% until the panel schedule is delivered.",
+    });
+    const inbox = await s.gc.as.query(api.payApps.proposals.listInbox, {});
+    const split = inbox.find((i) => i.payApp._id === payAppId)!.proposals.find((p) => p.kind === "payout")!.split!;
+    expect(split.grossCents).toBe(edited);
+    expect(split.netCents + split.retainageCents).toBe(edited);
+    // 10% retainage still comes out of the edited gross (the bug showed the whole edited gross as net).
+    expect(split.retainageCents).toBeGreaterThan(0);
+    expect(Math.abs(split.retainageCents - Math.round(edited * 0.1))).toBeLessThanOrEqual(2);
+
+    await s.gc.as.mutation(api.payApps.proposals.approveProposal, { proposalId: st.byKind("payout")!._id });
+    const after = (await s.t.run(async (ctx) => ctx.db.get(payAppId)))!;
+    const figures = payFiguresFor(after, s.agreement)!;
+    expect(figures.grossCents).toBe(edited);
+    // The number the GC confirmed in the inbox is the number the payout uses.
+    expect(split).toEqual(figures);
   });
 
   test("an upward edit bills the edited per-line cents, so a later application cannot overbill", async () => {

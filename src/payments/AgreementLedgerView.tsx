@@ -72,7 +72,11 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
             <h1 className="text-lg font-semibold">{agreement.subcontractorName} payment ledger</h1>
             <p className="text-sm text-slate-400">
               {agreement.projectTitle} · Division {agreement.csiDivision} {agreement.tradeName} · Retainage{" "}
-              {agreement.retainagePercent}%
+              <span data-testid="ledger-retainage-rate">
+                {agreement.retainagePercentApplied === agreement.retainagePercent
+                  ? `${agreement.retainagePercent}%`
+                  : `${agreement.retainagePercent}% → ${agreement.retainagePercentApplied}% after 50% complete`}
+              </span>
             </p>
           </div>
           <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
@@ -237,7 +241,7 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
         )}
         <RetainageReleaseList releases={retainageReleases} canRefresh={canReleaseRetainage} />
         {retainageLedger.length === 0 ? (
-          <p className="text-sm text-slate-400">No retainage held yet. Each paid pay app withholds its approved retainage ({agreement.retainagePercent}% per line).</p>
+          <p className="text-sm text-slate-400">No retainage held yet. Each paid pay app withholds its approved retainage ({agreement.retainagePercentApplied}% per line).</p>
         ) : (
           <div className="table-scroll" role="region" aria-label="Retainage entries, scroll horizontally on narrow screens" tabIndex={0}>
           <table className="w-full text-sm" data-testid="retainage-ledger-table">

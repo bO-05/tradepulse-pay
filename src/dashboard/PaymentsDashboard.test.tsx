@@ -27,7 +27,8 @@ test("missing Studio license shows live basic dashboard without loading Studio",
   const html = renderToStaticMarkup(<PaymentsDashboard />);
   expect(html).toContain("dashboard-basic-view");
   expect(html).not.toContain("not configured");
-  expect(html).toContain("Basic report from live Convex data.");
+  expect(html).toContain("Basic report from the same payment ledger.");
+  expect(html).not.toContain("AG Studio");
   expect(html).toContain("Read-only");
   expect(html).toContain("Owner change orders");
   expect(html).not.toContain("Loading AG Studio");

@@ -38,8 +38,13 @@ export async function signedWaiver(
   const rows = await ctx.db
     .query("lienWaivers")
     .withIndex("by_payAppId_and_kind", (q) => q.eq("payAppId", payAppId).eq("kind", kind))
-    .take(10);
-  return rows.find((w) => w.coversPayAppId === coversPayAppId) ?? null;
+    .take(50);
+  const matching = rows.filter((w) => w.coversPayAppId === coversPayAppId);
+  // The latest live signature is the one the gate reads. A row superseded by a replacement stays
+  // in the table as evidence; an older live row is only used when nothing newer exists.
+  const live = matching.filter((w) => w.supersededAt === undefined);
+  const pool = live.length > 0 ? live : matching;
+  return pool.sort((a, b) => b.signedAt - a.signedAt || b._creationTime - a._creationTime)[0] ?? null;
 }
 
 /**

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { ShieldCheck } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 import { getErrorMessage } from "../lib/errors";
-import { Button, Card, ConfirmDialog, formatDateTime, useToast } from "../ui";
+import { Button, Card, ConfirmDialog, TextInput, formatDateTime, useToast } from "../ui";
 
 /**
  * GC-only opt-in switch on the agreement. Off by default: enabling it makes every payout wait for
@@ -14,17 +14,24 @@ export function LienWaiverGateCard({ agreementId }: { agreementId: string }) {
   const setGate = useMutation(api.lienWaivers.setGate);
   const toast = useToast();
   const [confirm, setConfirm] = useState<"enable" | "disable" | null>(null);
+  const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   if (data === undefined || data === null) return null;
   if (!data.canManage && !data.enabled) return null;
 
-  const change = async (enabled: boolean) => {
+  const change = async (enabled: boolean, why?: string) => {
     setError(null);
     try {
-      await setGate({ agreementId, enabled, requirePriorUnconditional: true });
+      await setGate({
+        agreementId,
+        enabled,
+        requirePriorUnconditional: true,
+        ...(enabled || !why?.trim() ? {} : { reason: why.trim() }),
+      });
       toast.success(enabled ? "Lien-waiver gate enabled." : "Lien-waiver gate turned off.");
       setConfirm(null);
+      setReason("");
     } catch (err) {
       setError(getErrorMessage(err, "The lien-waiver setting could not be changed."));
     }
@@ -102,8 +109,15 @@ export function LienWaiverGateCard({ agreementId }: { agreementId: string }) {
         effect="Payouts stop waiting for a waiver signature. Signatures already recorded are kept, and the change is written to the audit log."
         confirmLabel="Turn off gate"
         onCancel={() => setConfirm(null)}
-        onConfirm={() => change(false)}
-      />
+        onConfirm={() => change(false, reason)}
+      >
+        <TextInput
+          label="Reason shown to the sub (optional)"
+          value={reason}
+          maxLength={500}
+          onChange={setReason}
+        />
+      </ConfirmDialog>
     </Card>
   );
 }

@@ -30,7 +30,7 @@ describe("license-independent dashboard", () => {
     }] } as unknown as Pick<DashboardRaw, "agreements">;
     const html = renderToStaticMarkup(<DashboardFallback raw={raw} reason="Basic view selected." />);
     expect(html).toContain("Basic view selected.");
-    expect(html).toContain("AI chat are unavailable");
+    expect(html).toContain("Showing the basic report instead");
     expect(html).toContain('href="#/payments/agreement1"');
     expect(html).toContain("Captured $100.00");
     expect(html).toContain("paid $0.00");
@@ -44,7 +44,8 @@ describe("license-independent dashboard", () => {
   test("the default basic report does not mention an unconfigured license", () => {
     const raw = { agreements: [] } as unknown as Pick<DashboardRaw, "agreements">;
     const html = renderToStaticMarkup(<DashboardFallback raw={raw} />);
-    expect(html).toContain("No AG Studio license is needed.");
+    expect(html).toContain("No Studio license is needed.");
+    expect(html).not.toContain("AG Studio");
     expect(html).not.toContain("not configured");
   });
 

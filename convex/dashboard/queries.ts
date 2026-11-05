@@ -13,7 +13,7 @@ import {
   loadAgreementPayApps,
 } from "../payments/agreementHistory";
 import { retainageReleaseIds, retainageReleasedCentsOf, type LedgerTotals } from "../payments/ledgerTotals";
-import { retainagePercentFor } from "../payments/payoutMath";
+import { retainageBpsAtProgress, retainagePercentFor } from "../payments/payoutMath";
 
 /** Agreements read per dashboard query (newest first); more than this sets `incomplete.truncated`. */
 export const DASHBOARD_MAX_AGREEMENTS = 500;
@@ -86,6 +86,10 @@ export const getDashboardData = query({
       const { totals } = fin;
       perAgreementTotals.push(totals);
       const retainagePercent = retainagePercentFor(a);
+      // With a 50% reduction the base rate applies to work already billed; only the unbilled
+      // remainder takes the reduced rate, so the cap is not simply base% × contract sum.
+      const retainagePercentApplied = retainageBpsAtProgress(a, totals.billedCents, totals.contractSumCents) / 100;
+      const unbilledCents = Math.max(0, totals.contractSumCents - totals.billedCents);
       agreements.push({
         agreementId: a._id,
         agreementNumber: a.agreementNumber,
@@ -95,7 +99,9 @@ export const getDashboardData = query({
         status: a.status,
         contractSumCents: totals.contractSumCents,
         retainagePercent,
-        retainageCapCents: percentageOfCents(totals.contractSumCents, retainagePercent),
+        retainagePercentApplied,
+        retainageCapCents:
+          percentageOfCents(totals.billedCents, retainagePercent) + percentageOfCents(unbilledCents, retainagePercentApplied),
         totals,
       });
 

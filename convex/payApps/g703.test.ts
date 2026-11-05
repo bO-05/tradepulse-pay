@@ -457,7 +457,9 @@ describe("G703 approval, carry-forward and periods", () => {
     });
     const editedInbox = await s.f.gcA.admin.as.query(api.payApps.proposals.listInbox, { agreementId: s.agreementId });
     const edited = editedInbox.find((i) => i.payApp._id === app2)!.proposals.find((p) => p.kind === "payout")!;
-    expect(edited.split).toMatchObject({ grossCents: 9_000, retainageCents: 0, netCents: 9_000 });
+    // The inbox shows the split the payout will use: the edited 90.00 is billed at this period's 5%
+    // rate, exactly as approveProposal's final allocation does (it used to show the full 90.00 net).
+    expect(edited.split).toMatchObject({ grossCents: 9_000, retainageCents: 450, netCents: 8_550 });
   });
 
   test("a billing-day change applies to periods not yet created only", async () => {

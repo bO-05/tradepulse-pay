@@ -13,10 +13,10 @@ export function DashboardFallback({ raw, reason }: { raw: Pick<DashboardRaw, "ag
     <div className="space-y-4" data-testid="dashboard-basic-view">
       {reason ? (
         <p role="status" className="text-sm text-amber-200">
-          {reason} Basic view uses the same live Convex data. AG Studio layout editing and AI chat are unavailable here.
+          {reason} Showing the basic report instead; the optional Studio layout is unavailable here.
         </p>
       ) : (
-        <p className="text-sm text-ink-subtle">Basic report from live Convex data. No AG Studio license is needed.</p>
+        <p className="text-sm text-ink-subtle">Basic report from the same payment ledger. No Studio license is needed.</p>
       )}
       {active.length > 0 ? <MoneyChart agreements={active} /> : null}
       {raw.agreements.length === 0 && !raw.changeOrders?.length ? <p className="text-sm text-slate-400">No agreements to report.</p> : active.length > 0 ? (

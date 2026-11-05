@@ -6,7 +6,7 @@ import { readableError } from "./FundMilestone";
 import { formatCents, formatDate } from "./format";
 import { LicenseCheckPanel } from "./LicenseCheck";
 import { submissionAttribution } from "./SubmissionAttribution";
-import { isAIReviewProvider } from "../lib/aiProvenance";
+import { isAIReviewProvider, reviewAttribution } from "../lib/aiProvenance";
 
 type PayAppWithReview = FunctionReturnType<typeof api.payApps.review.listAgreementPayApps>[number];
 
@@ -42,13 +42,13 @@ function ReviewSource({ review }: { review: NonNullable<PayAppWithReview["review
   if (isAIReviewProvider(review.provider)) {
     return (
       <p className="text-xs text-slate-300" data-testid="payapp-review-source">
-        Reviewed by {review.provider} · model {review.model} · {formatDate(review.reviewedAt)}
+        Explanation by {reviewAttribution(review)} (rules set the amount) · {formatDate(review.reviewedAt)}
       </p>
     );
   }
   return (
     <p className="text-xs text-amber-200" data-testid="payapp-review-source">
-      Reviewed by the {review.provider}: deterministic rules, no AI model ran
+      Computed by deterministic rules; no AI model ran
       {review.fallbackReason ? ` (${review.fallbackReason})` : ""} · {formatDate(review.reviewedAt)}
     </p>
   );

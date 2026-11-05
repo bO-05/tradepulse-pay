@@ -84,7 +84,7 @@ export function LicenseCheckPanel({ contractorId, readOnly = false }: { contract
             <LicenseBadge status={shown} running={running} />
             {completed && !running ? (
               <span className="text-xs text-slate-400" data-testid="license-checked-at">
-                Checked {formatDateTime(completed.checkedAt)} via a KERNEL hosted browser ·{" "}
+                Checked {formatDateTime(completed.checkedAt)} via a hosted browser lookup ·{" "}
                 {completed.status === "unverified" ? "not cached, the next check runs a new lookup" : "cached 24 h"}
               </span>
             ) : null}
@@ -104,16 +104,16 @@ export function LicenseCheckPanel({ contractorId, readOnly = false }: { contract
       {running ? (
         latest?.liveViewUrl ? (
           <div className="space-y-1">
-            <p className="text-xs text-sky-200">Live view of the CSLB lookup in a KERNEL hosted browser</p>
+            <p className="text-xs text-sky-200">Live view of the CSLB lookup in a hosted browser</p>
             <iframe
               src={latest.liveViewUrl}
-              title="KERNEL live view of the CSLB license lookup"
+              title="Live view of the CSLB license lookup"
               className="w-full h-96 rounded-lg border border-slate-700 bg-black"
               data-testid="license-live-view"
             />
           </div>
         ) : (
-          <p className="text-xs text-slate-400" role="status">Starting the KERNEL browser…</p>
+          <p className="text-xs text-slate-400" role="status">Starting the hosted browser…</p>
         )
       ) : null}
 

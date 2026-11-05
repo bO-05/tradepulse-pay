@@ -284,6 +284,7 @@ function useNow(active: boolean): number {
 
 function SubPaymentPanel({ panel }: { panel: Panel }) {
   const payment = panel.payment;
+  const thisPeriodCents = payment ? payoutFigures(payment).retainageCents : panel.retainageThisPeriodCents;
   return (
     <Card title="Payment" data-testid="payment-panel">
       <div className="space-y-3">
@@ -306,14 +307,20 @@ function SubPaymentPanel({ panel }: { panel: Panel }) {
           <div>
             <dt className="text-xs text-ink-subtle">Retainage held this period</dt>
             <dd className="font-semibold tabular-nums">
-              {payment ? formatCents(payoutFigures(payment).retainageCents) : panel.retainageThisPeriodCents !== null ? formatCents(panel.retainageThisPeriodCents) : "—"}
+              {thisPeriodCents !== null ? formatCents(thisPeriodCents) : "—"}
             </dd>
           </div>
           <div>
-            <dt className="text-xs text-ink-subtle">Total retainage held</dt>
+            <dt className="text-xs text-ink-subtle">Retainage still held on this agreement</dt>
             <dd className="font-semibold tabular-nums">{formatCents(panel.totalRetainageHeldCents)}</dd>
           </div>
         </dl>
+        {thisPeriodCents !== null && thisPeriodCents > 0 && panel.totalRetainageHeldCents === 0 ? (
+          <p className="text-xs text-amber-200" data-testid="sub-retainage-zero-note">
+            This application withheld {formatCents(thisPeriodCents)}, but the agreement ledger shows nothing still held, so a
+            retainage release is already on record. Open Payments for the release payout and its PayPal reference.
+          </p>
+        ) : null}
         <p className="text-xs text-ink-subtle">
           Retainage held is withheld from approved work. A retainage release is a separate recorded payout; releasing it in this demo does
           not certify project closeout.
