@@ -179,6 +179,7 @@ import type * as payApps_g703Math from "../payApps/g703Math.js";
 import type * as payApps_g703ViewValidators from "../payApps/g703ViewValidators.js";
 import type * as payApps_proposalSync from "../payApps/proposalSync.js";
 import type * as payApps_proposals from "../payApps/proposals.js";
+import type * as payApps_questions from "../payApps/questions.js";
 import type * as payApps_review from "../payApps/review.js";
 import type * as payApps_reviewContext from "../payApps/reviewContext.js";
 import type * as payApps_reviewEvalFixtures from "../payApps/reviewEvalFixtures.js";
@@ -431,6 +432,7 @@ declare const fullApi: ApiFromModules<{
   "payApps/g703ViewValidators": typeof payApps_g703ViewValidators;
   "payApps/proposalSync": typeof payApps_proposalSync;
   "payApps/proposals": typeof payApps_proposals;
+  "payApps/questions": typeof payApps_questions;
   "payApps/review": typeof payApps_review;
   "payApps/reviewContext": typeof payApps_reviewContext;
   "payApps/reviewEvalFixtures": typeof payApps_reviewEvalFixtures;

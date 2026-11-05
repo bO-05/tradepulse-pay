@@ -19,6 +19,7 @@ import { Button, Card, ConfirmDialog, MoneyInput, PageHeader, StatusPill, TextIn
 import { DecisionCard, GcReviewPanel, VersionHistory } from "./PayAppDecision";
 import { LienWaiverPanel } from "./LienWaiverPanel";
 import { PaymentPanel } from "./PaymentPanel";
+import { PayAppThread } from "./PayAppThread";
 
 type PayAppView = NonNullable<FunctionReturnType<typeof api.payApps.g703.getPayApp>>;
 type SheetLine = PayAppView["lines"][number];
@@ -291,6 +292,7 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
       {view.viewerRole === "gc" ? <GcReviewPanel key={view.review?.reviewedAt ?? 0} view={view} /> : null}
       {view.status !== "draft" ? <PaymentPanel payAppId={view._id} /> : null}
       {view.status !== "draft" ? <LienWaiverPanel payAppId={view._id} /> : null}
+      {view.status !== "draft" ? <PayAppThread payAppId={view._id} /> : null}
 
       <ContinuationSheet
         lines={lines}

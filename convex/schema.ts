@@ -42,6 +42,8 @@ export const notificationKindValidator = v.union(
   v.literal("pay_app_approved"),
   v.literal("pay_app_revision_requested"),
   v.literal("pay_app_rejected"),
+  v.literal("pay_app_question"),
+  v.literal("pay_app_reply"),
   v.literal("payout_sent"),
   v.literal("payout_failed"),
   v.literal("funding_expiring"),
@@ -714,6 +716,23 @@ export default defineSchema({
     .index("by_subCompanyId", ["subCompanyId"])
     .index("by_subUserId", ["subUserId"])
     .index("by_status", ["status"]),
+
+  // A plain-language thread attached to one pay application: the sub asks about the amount and the
+  // GC answers. Entries never change the G702/G703, approval, or payment; they only carry the
+  // conversation and notify the other company in-app.
+  payAppThreadEntries: defineTable({
+    projectId: v.id("projects"),
+    agreementId: v.id("agreements"),
+    payAppId: v.id("payApplications"),
+    authorUserId: v.id("users"),
+    // Only the two parties to the subcontract can post; owners and other companies cannot see it.
+    authorRole: v.union(v.literal("gc"), v.literal("sub")),
+    authorName: v.string(),
+    body: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_payAppId_and_createdAt", ["payAppId", "createdAt"])
+    .index("by_projectId", ["projectId"]),
 
   // Signed lien-waiver attestations. A row exists only after the sub signs; the pay gate reads them.
   lienWaivers: defineTable({
