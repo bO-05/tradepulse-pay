@@ -76,8 +76,9 @@ The first write run paid the invoice, then the QA script timed out on its final 
 | --- | --- | --- |
 | Full test suite | 2,001 tests in 151 files passed after the final code change | local run on this branch |
 | Type check | `npx tsc -b` clean after the final code change | local run |
-| Guard audit | 258 public functions, 201 internal, 0 problems | `node scripts/tools/guard-audit.mjs` |
-| Docs links | 83 relative links checked, all resolve | `npm run verify:docs` |
+| Guard audit | 262 public functions, 201 internal, 0 problems | `node scripts/tools/guard-audit.mjs` |
+| Docs links | 90 relative links checked, all resolve | `npm run verify:docs` |
+| Full regression | 2,034 tests across 153 files passed | `npm test` |
 | Three-origin browser acceptance | 53/53 passed; all three hosts served `a083354` | `evidence/dual-host-browser-2026-11-04T13-29-16-412Z/report.json` |
 | GC/sub/Owner role smoke on canonical | 6/6 checks passed; GC nav shows `Approvals`; mirror `/api/health` returns `ok` | `evidence/recovery-tradepulse-pay.asynchronope.tech-2026-11-04T13-30-47-467Z/report.json` |
 | Blocked sign-up browser check | 5/5 checks passed; no email was sent; the Verify screen showed the generic test-address reason | `evidence/r5-auth-error-check-2026-11-04T13-33-14-482Z/report.json` |
@@ -85,7 +86,7 @@ The first write run paid the invoice, then the QA script timed out on its final 
 | Quick start browser acceptance | 23/23 checks passed on build `2629233`; job and subcontract created, SOV approved, demo invite limitation shown | `evidence/quick-start-browser-2026-11-05T05-59-52-092Z/report.json` |
 | Lien-waiver gate backend | 22/22 tests in `convex/billing/payGate.test.ts`, including four new gate tests; `npx tsc -b` clean | local run on this branch |
 | Lien-waiver gate browser | 18/18 checks on build `3d3d03c`; GC blocked view, sub panel and signing dialog, gate off cleanup, no waiver record | `evidence/lien-waiver-browser-2026-11-05T06-56-48-194Z/report.json` |
-| Pay-app review eval | 24/24 cases, 71 lines, 15 issue lines, 100% issue precision/recall, 100% macro F1 on the offline rules engine | `evals/results/pay-app-review-scorecard.md` |
+| Pay-app review eval | 24/24 cases, 71 lines, 15 issue lines, 100% issue precision/recall, 100% macro F1 on live Mistral `mistral-large-4` | `evals/results/pay-app-review-scorecard.md` |
 
 The blocked-sign-up report contains one console error with code `EMAIL_BLOCKED`. That is the refusal being tested, not an unexpected page failure. The screenshot is in the same evidence directory.
 

@@ -24,6 +24,23 @@ The managed cloud workspace is unavailable. GitHub is the recoverable source bas
 - Final regression after these changes: **1,982 tests across 149 files**, `tsc -b` clean, guard audit 258 public / 201 internal / 0 problems, and 65 relative documentation links resolve.
 - The acceptance performed no guided run, PayPal popup, financial write or reference-run mutation.
 
+## Pay-app review eval, 5 November 2026
+
+- The review suite now has **24 fixtures** covering honest, overbilled, excluded, front-loaded and
+  out-of-sequence verdicts, their precedence, stored materials, missing funding tranches, review
+  flags, zero progress, prior baselines and a prompt-injection note.
+- Live Mistral `mistral-large-4` run `eval_payapp_1793864125712` scored **24/24 cases, 71 lines and
+  15 issue lines** with **100% line accuracy, issue precision/recall/F1 and macro F1**. All fixtures
+  reported Mistral, not the offline fallback.
+- The run is recorded in `evalRuns.reviewMetrics` with per-verdict TP/FP/FN counts. Scorecard:
+  `evals/results/pay-app-review-scorecard.md`; JSON:
+  `evals/results/pay-app-review-scorecard-2026-11-05T07-39-28-584Z.json`.
+- The pinned command is `npm.cmd run eval:payapps`; it refuses any deployment other than
+  `dev:cheery-axolotl-689`. See [pay-app-review-eval.md](./pay-app-review-eval.md).
+- Full regression after the change: **2,034 tests across 153 files** passed; guard audit 262 public /
+  201 internal / 0 problems; 90 documentation links resolve.
+- No PayPal call, guided run or financial write was made by this eval.
+
 ## Verified recovery baseline
 
 - Final judge-access regression: **1,957 tests passed across 144 files** (`evidence/recovery-judge-final-regression.json`), plus **eight Node safety/integration helper tests**. The earlier recovery checkpoint was 1,950 tests across 142 files.

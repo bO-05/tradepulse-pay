@@ -135,6 +135,7 @@ import type * as lib_notify from "../lib/notify.js";
 import type * as lib_ownerView from "../lib/ownerView.js";
 import type * as lib_packageContractors from "../lib/packageContractors.js";
 import type * as lib_passwordPolicy from "../lib/passwordPolicy.js";
+import type * as lib_payAppReviewMetrics from "../lib/payAppReviewMetrics.js";
 import type * as lib_payee from "../lib/payee.js";
 import type * as lib_projectScope from "../lib/projectScope.js";
 import type * as lib_projectSetup from "../lib/projectSetup.js";
@@ -386,6 +387,7 @@ declare const fullApi: ApiFromModules<{
   "lib/ownerView": typeof lib_ownerView;
   "lib/packageContractors": typeof lib_packageContractors;
   "lib/passwordPolicy": typeof lib_passwordPolicy;
+  "lib/payAppReviewMetrics": typeof lib_payAppReviewMetrics;
   "lib/payee": typeof lib_payee;
   "lib/projectScope": typeof lib_projectScope;
   "lib/projectSetup": typeof lib_projectSetup;

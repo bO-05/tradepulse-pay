@@ -43,7 +43,8 @@ a high overall score cannot hide a weak class.
 
 ## Current result
 
-Offline rules engine on the recovery dev deployment:
+Live Mistral / `mistral-large-4` on the recovery dev deployment, run
+`eval_payapp_1793864125712` (2026-11-05):
 
 | Metric | Result |
 | :--- | ---: |
@@ -56,9 +57,11 @@ Offline rules engine on the recovery dev deployment:
 | Issue F1 | 100% |
 | Macro F1 | 100% |
 
-The scorecard is generated at `evals/results/pay-app-review-scorecard.md` and the full JSON result
-is next to it. The scorecard is only evidence for the run named in its header; a later deploy or a
-different model is a different run.
+All 24 fixtures reported `Mistral · mistral-large-4`, not the offline fallback. The scorecard is
+generated at `evals/results/pay-app-review-scorecard.md` and the full JSON result is next to it. The
+scorecard is only evidence for the run named in its header; a later deploy or a different model is a
+different run. An offline rules-engine run with no provider key also passes 24/24; the provenance
+line distinguishes the two.
 
 ## Run it
 

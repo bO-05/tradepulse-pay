@@ -1,0 +1,395 @@
+{
+  "generatedAt": "2026-11-05T07:39:28.584Z",
+  "deployment": "cheery-axolotl-689",
+  "fixtureScores": [
+    {
+      "checks": [
+        "fx-sov-1: expected ok, got ok",
+        "fx-sov-2: expected ok, got ok",
+        "fx-sov-3: expected ok, got ok",
+        "flags: lien waiver present (expected present), license clear (expected clear)"
+      ],
+      "fixtureId": "payapp_honest",
+      "model": "mistral-large-4",
+      "passed": true,
+      "provider": "Mistral",
+      "score": 1
+    },
+    {
+      "checks": [
+        "fx-sov-1: expected ok, got ok",
+        "fx-sov-2: expected overbilled, got overbilled",
+        "fx-sov-3: expected ok, got ok",
+        "flags: lien waiver present (expected present), license clear (expected clear)"
+      ],
+      "fixtureId": "payapp_overbilled",
+      "model": "mistral-large-4",
+      "passed": true,
+      "provider": "Mistral",
+      "score": 1
+    },
+    {
+      "checks": [
+        "fx-sov-1: expected ok, got ok",
+        "fx-sov-2: expected ok, got ok",
+        "fx-sov-3: expected excluded_scope, got excluded_scope",
+        "fx-sov-3: approved 0 cents, expected 0",
+        "flags: lien waiver present (expected present), license clear (expected clear)"
+      ],
+      "fixtureId": "payapp_excluded_scope",
+      "model": "mistral-large-4",
+      "passed": true,
+      "provider": "Mistral",
+      "score": 1
+    },
+    {
+      "checks": [
+        "fx-sov-1: expected ok, got ok",
+        "fx-sov-2: expected ok, got ok",
+        "fx-sov-3: expected front_loaded, got front_loaded",
+        "flags: lien waiver present (expected present), license clear (expected clear)"
+      ],
+      "fixtureId": "payapp_front_loaded",
+      "model": "mistral-large-4",
+      "passed": true,
+      "provider": "Mistral",
+      "score": 1
+    },
+    {
+      "checks": [
+        "fx-sov-1: expected ok, got ok",
+        "fx-sov-2: expected ok, got ok",
+        "fx-sov-3: expected ok, got ok",
+        "fx-sov-4: expected out_of_sequence, got out_of_sequence",
+        "fx-sov-4: approved 0 cents, expected 0",
+        "flags: lien waiver present (expected present), license clear (expected clear)"
+      ],
+      "fixtureId": "payapp_out_of_sequence",
+      "model": "mistral-large-4",
+      "passed": true,
+      "provider": "Mistral",
+      "score": 1
+    },
+    {
+      "checks": [
+        "fx-sov-1: expected ok, got ok",
+        "fx-sov-2: expected ok, got ok",
+        "fx-sov-3: expected ok, got ok",
+        "fx-sov-4: expected out_of_sequence, got out_of_sequence",
+        "fx-sov-4: approved 0 cents, expected 0",
+        "flags: lien waiver present (expected present), license clear (expected clear)"
+      ],
+      "fixtureId": "payapp_closeout_over_ceiling",
+      "model": "mistral-large-4",
+      "passed": true,
+      "provider": "Mistral",
+      "score": 1
+    },
+    {
+      "checks": [
+        "fx-sov-1: expected ok, got ok",
+        "fx-sov-2: expected ok, got ok",
+        "fx-sov-3: expected excluded_scope, got excluded_scope",
+        "fx-sov-3: approved 0 cents, expected 0",
+        "flags: lien waiver present (expected present), license clear (expected clear)"
+      ],
+      "fixtureId": "payapp_excluded_over_ceiling",
+      "model": "mistral-large-4",
+      "passed": true,
+      "provider": "Mistral",
+      "score": 1
+    },
+    {
+      "checks": [
+        "fx-sov-1: expected ok, got ok",
+        "fx-sov-2: expected overbilled, got overbilled",
+        "fx-sov-3: expected ok, got ok",
+        "flags: lien waiver present (expected present), license clear (expected clear)"
+      ],
+      "fixtureId": "payapp_overbilled_over_front",
+      "model": "mistral-large-4",
+      "passed": true,
+      "provider": "Mistral",
+      "score": 1
+    },
+    {
+      "checks": [
+        "fx-sov-1: expected ok, got ok",
+        "fx-sov-2: expected ok, got ok",
+        "fx-sov-3: expected ok, got ok",
+        "flags: lien waiver present (expected present), license clear (expected clear)"
+      ],
+      "fixtureId": "payapp_at_ceiling",
+      "model": "mistral-large-4",
+      "passed": true,
+      "provider": "Mistral",
+      "score": 1
+    },
+    {
+      "checks": [
+        "fx-sov-1: expected ok, got ok",
+        "fx-sov-2: expected ok, got ok",
+        "fx-sov-3: expected ok, got ok",
+        "flags: lien waiver present (expected present), license clear (expected clear)"
+      ],
+      "fixtureId": "payapp_stored_materials",
+      "model": "mistral-large-4",
+      "passed": true,
+      "provider": "Mistral",
+      "score": 1
+    },
+    {
+      "checks": [
+        "alt-sov-1: expected ok, got ok",
+        "alt-sov-2: expected ok, got ok",
+        "alt-sov-3: expected ok, got ok",
+        "flags: lien waiver present (expected present), license clear (expected clear)"
+      ],
+      "fixtureId": "payapp_early_phase",
+      "model": "mistral-large-4",
+      "passed": true,
+      "provider": "Mistral",
+      "score": 1
+    },
+    {
+      "checks": [
+        "nt-sov-1: expected ok, got ok",
+        "nt-sov-2: expected ok, got ok",
+        "flags: lien waiver present (expected present), license clear (expected clear)"
+      ],
+      "fixtureId": "payapp_no_tranche_stored",
+      "model": "mistral-large-4",
+      "passed": true,
+      "provider": "Mistral",
+      "score": 1
+    },
+    {
+      "checks": [
+        "nt-sov-1: expected ok, got ok",
+        "nt-sov-2: expected ok, got ok",
+        "flags: lien waiver present (expected present), license clear (expected clear)"
+      ],
+      "fixtureId": "payapp_no_tranche_complete",
+      "model": "mistral-large-4",
+      "passed": true,
+      "provider": "Mistral",
+      "score": 1
+    },
+    {
+      "checks": [
+        "fx-sov-1: expected ok, got ok",
+        "fx-sov-2: expected excluded_scope, got excluded_scope",
+        "fx-sov-3: expected excluded_scope, got excluded_scope",
+        "fx-sov-2: approved 0 cents, expected 0",
+        "fx-sov-3: approved 0 cents, expected 0",
+        "flags: lien waiver present (expected present), license clear (expected clear)"
+      ],
+      "fixtureId": "payapp_multiple_exclusions",
+      "model": "mistral-large-4",
+      "passed": true,
+      "provider": "Mistral",
+      "score": 1
+    },
+    {
+      "checks": [
+        "fx-sov-1: expected ok, got ok",
+        "fx-sov-2: expected ok, got ok",
+        "fx-sov-3: expected ok, got ok",
+        "flags: lien waiver missing (expected missing), license clear (expected clear)"
+      ],
+      "fixtureId": "payapp_missing_lien_waiver",
+      "model": "mistral-large-4",
+      "passed": true,
+      "provider": "Mistral",
+      "score": 1
+    },
+    {
+      "checks": [
+        "fx-sov-1: expected ok, got ok",
+        "fx-sov-2: expected ok, got ok",
+        "fx-sov-3: expected ok, got ok",
+        "flags: lien waiver present (expected present), license issue (expected issue)"
+      ],
+      "fixtureId": "payapp_expired_license",
+      "model": "mistral-large-4",
+      "passed": true,
+      "provider": "Mistral",
+      "score": 1
+    },
+    {
+      "checks": [
+        "fx-sov-1: expected ok, got ok",
+        "fx-sov-2: expected overbilled, got overbilled",
+        "fx-sov-3: expected ok, got ok",
+        "flags: lien waiver present (expected present), license clear (expected clear)"
+      ],
+      "fixtureId": "payapp_prompt_injection",
+      "model": "mistral-large-4",
+      "passed": true,
+      "provider": "Mistral",
+      "score": 1
+    },
+    {
+      "checks": [
+        "fx-sov-1: expected ok, got ok",
+        "fx-sov-2: expected ok, got ok",
+        "fx-sov-3: expected ok, got ok",
+        "flags: lien waiver present (expected present), license clear (expected clear)"
+      ],
+      "fixtureId": "payapp_zero_progress",
+      "model": "mistral-large-4",
+      "passed": true,
+      "provider": "Mistral",
+      "score": 1
+    },
+    {
+      "checks": [
+        "fx-sov-1: expected ok, got ok",
+        "fx-sov-2: expected ok, got ok",
+        "fx-sov-3: expected ok, got ok",
+        "flags: lien waiver present (expected present), license clear (expected clear)"
+      ],
+      "fixtureId": "payapp_prior_baseline",
+      "model": "mistral-large-4",
+      "passed": true,
+      "provider": "Mistral",
+      "score": 1
+    },
+    {
+      "checks": [
+        "fx-sov-1: expected ok, got ok",
+        "fx-sov-2: expected ok, got ok",
+        "fx-sov-3: expected overbilled, got overbilled",
+        "flags: lien waiver present (expected present), license clear (expected clear)"
+      ],
+      "fixtureId": "payapp_overbilled_third_line",
+      "model": "mistral-large-4",
+      "passed": true,
+      "provider": "Mistral",
+      "score": 1
+    },
+    {
+      "checks": [
+        "fx-sov-1: expected ok, got ok",
+        "fx-sov-2: expected ok, got ok",
+        "fx-sov-3: expected ok, got ok",
+        "flags: lien waiver present (expected present), license clear (expected clear)"
+      ],
+      "fixtureId": "payapp_unbilled_closeout",
+      "model": "mistral-large-4",
+      "passed": true,
+      "provider": "Mistral",
+      "score": 1
+    },
+    {
+      "checks": [
+        "alt-sov-1: expected ok, got ok",
+        "alt-sov-4: expected excluded_scope, got excluded_scope",
+        "alt-sov-3: expected ok, got ok",
+        "alt-sov-4: approved 0 cents, expected 0",
+        "flags: lien waiver present (expected present), license clear (expected clear)"
+      ],
+      "fixtureId": "payapp_excluded_sov_line",
+      "model": "mistral-large-4",
+      "passed": true,
+      "provider": "Mistral",
+      "score": 1
+    },
+    {
+      "checks": [
+        "fx-sov-1: expected overbilled, got overbilled",
+        "fx-sov-2: expected ok, got ok",
+        "fx-sov-3: expected excluded_scope, got excluded_scope",
+        "fx-sov-3: approved 0 cents, expected 0",
+        "flags: lien waiver present (expected present), license clear (expected clear)"
+      ],
+      "fixtureId": "payapp_mixed_findings",
+      "model": "mistral-large-4",
+      "passed": true,
+      "provider": "Mistral",
+      "score": 1
+    },
+    {
+      "checks": [
+        "nt-sov-1: expected ok, got ok",
+        "nt-sov-2: expected front_loaded, got front_loaded",
+        "flags: lien waiver present (expected present), license clear (expected clear)"
+      ],
+      "fixtureId": "payapp_front_loaded_no_tranche",
+      "model": "mistral-large-4",
+      "passed": true,
+      "provider": "Mistral",
+      "score": 1
+    }
+  ],
+  "model": "mistral-large-4",
+  "overallScore": 100,
+  "passedCases": 24,
+  "provider": "Mistral",
+  "reviewMetrics": {
+    "casePassRate": 1,
+    "issueF1": 1,
+    "issuePrecision": 1,
+    "issueRecall": 1,
+    "lineAccuracy": 1,
+    "macroF1": 1,
+    "perVerdict": [
+      {
+        "f1": 1,
+        "fn": 0,
+        "fp": 0,
+        "precision": 1,
+        "recall": 1,
+        "support": 56,
+        "tp": 56,
+        "verdict": "ok"
+      },
+      {
+        "f1": 1,
+        "fn": 0,
+        "fp": 0,
+        "precision": 1,
+        "recall": 1,
+        "support": 5,
+        "tp": 5,
+        "verdict": "overbilled"
+      },
+      {
+        "f1": 1,
+        "fn": 0,
+        "fp": 0,
+        "precision": 1,
+        "recall": 1,
+        "support": 6,
+        "tp": 6,
+        "verdict": "excluded_scope"
+      },
+      {
+        "f1": 1,
+        "fn": 0,
+        "fp": 0,
+        "precision": 1,
+        "recall": 1,
+        "support": 2,
+        "tp": 2,
+        "verdict": "front_loaded"
+      },
+      {
+        "f1": 1,
+        "fn": 0,
+        "fp": 0,
+        "precision": 1,
+        "recall": 1,
+        "support": 2,
+        "tp": 2,
+        "verdict": "out_of_sequence"
+      }
+    ],
+    "totalCases": 24,
+    "totalIssues": 15,
+    "totalLines": 71
+  },
+  "runId": "eval_payapp_1793864125712",
+  "suite": "pay_app_review",
+  "totalCases": 24
+}

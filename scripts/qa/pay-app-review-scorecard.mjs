@@ -28,7 +28,8 @@ const envPath = path.join(repoRoot, ".env.local");
 if (!fs.existsSync(envPath)) fail(".env.local is missing; cannot verify the pinned dev target.");
 const envText = fs.readFileSync(envPath, "utf8");
 const deploymentLine = envText.split(/\r?\n/).find((line) => line.trim().startsWith("CONVEX_DEPLOYMENT="));
-if (!deploymentLine || deploymentLine.trim() !== `CONVEX_DEPLOYMENT=dev:${deployment}`) {
+const deploymentValue = deploymentLine?.trim().slice("CONVEX_DEPLOYMENT=".length).split("#")[0].trim();
+if (deploymentValue !== `dev:${deployment}`) {
   fail(`.env.local must pin CONVEX_DEPLOYMENT=dev:${deployment}; no scorecard was run.`);
 }
 
@@ -49,8 +50,10 @@ console.log(`Running the ${expectedCases}-case pay-app review eval on ${deployme
 const run = spawnSync(npx, args, {
   cwd: repoRoot,
   encoding: "utf8",
-  timeout: 300_000,
-  shell: false,
+  timeout: 600_000,
+  // Windows cannot spawn a .cmd shim directly with shell:false; every argument is fixed above.
+  shell: process.platform === "win32",
+  windowsHide: true,
 });
 if (run.error) fail(`Could not start Convex CLI: ${run.error.message}`);
 if (run.status !== 0) {
