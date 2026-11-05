@@ -29,7 +29,7 @@ Partial or not fixed in this round:
 - R6-A is **live-proven** as of 2026-11-05. On fresh dev run `nx7c971zm1xkfbaccs0wdtqae58hm175`, the Owner invoice `INV2-8DKA-MRJH-6BXD-DFL2` ($1,850) opened from the Owner app billed `owner-q9728ekyzqrb8sm290r6px1b5s8hn23q@example.com`, not the GC. PayPal confirmed it `paid`, the app recorded the payment, and a read-only browser rerun verified the Owner row shows `paid`. See the live proof section below.
 - R6-D is partial. The Owner change-order detail labels UTC and PayPal shows its own date zone; there is no single combined timezone display across every Owner invoice surface.
 - N-10, the guided-demo canned override reason, is deferred. R6 rule 5 forbids changing the guided-demo driver or runs before 12 Nov.
-- The largest ICP gaps are deferred: real sign-up, create a job, add a sub, invite a sub, question a payment, the conditional lien-waiver gate, the 24-case review eval, the Owner job card and nav/inbox trimming.
+- Quick start now covers create a job, add a sub, paste a schedule of values and execute a subcontract in one pass. Real sign-up, the demo invite limitation, question a payment, the conditional lien-waiver gate, the 24-case review eval, the Owner job card and nav/inbox trimming remain open.
 
 ## R6 correctness findings
 
@@ -82,6 +82,7 @@ The first write run paid the invoice, then the QA script timed out on its final 
 | GC/sub/Owner role smoke on canonical | 6/6 checks passed; GC nav shows `Approvals`; mirror `/api/health` returns `ok` | `evidence/recovery-tradepulse-pay.asynchronope.tech-2026-11-04T13-30-47-467Z/report.json` |
 | Blocked sign-up browser check | 5/5 checks passed; no email was sent; the Verify screen showed the generic test-address reason | `evidence/r5-auth-error-check-2026-11-04T13-33-14-482Z/report.json` |
 | R6-A live Owner invoice | **Paid and verified** on fresh run `nx7c971...`; alias bill-to correct; Owner row `paid`; read-only rerun clean | `evidence/recovery-settlement-2026-11-05T05-16-02-852Z/report.json` |
+| Quick start browser acceptance | 23/23 checks passed on build `2629233`; job and subcontract created, SOV approved, demo invite limitation shown | `evidence/quick-start-browser-2026-11-05T05-59-52-092Z/report.json` |
 
 The blocked-sign-up report contains one console error with code `EMAIL_BLOCKED`. That is the refusal being tested, not an unexpected page failure. The screenshot is in the same evidence directory.
 
@@ -89,9 +90,11 @@ The full suite passed after the final code change. A passing unit suite is not l
 
 ## Usefulness work not claimed
 
-The R6 ranked plan estimated 48-61 hours for the ICP work. This round implements none of it:
+The R6 ranked plan estimated 48-61 hours for the ICP work. This round implements Quick start only:
 
-- Quick start: create job, add sub, paste SOV, retainage, invite, sub accepts.
+- Quick start: create job, add sub, paste SOV, retainage and execute a subcontract. A real GC also
+  creates the invite; the shared read-only demo company skips it with an explicit note. See
+  [quick-start.md](./quick-start.md).
 - Conditional lien-waiver gate with recipient and date, not a checkbox.
 - 20-30 pay-app review eval cases with precision and recall.
 - Sub "Question this amount" thread.

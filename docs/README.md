@@ -6,6 +6,7 @@ Start with the [judge guide](./judge-guide.md): the shortest path through the de
 
 - [Judge guide](./judge-guide.md) — demo access, two-minute path, and a screen-by-screen inspection route.
 - [Submission draft](./submission-draft.md) — the Devpost text, testing instructions, and the separate owner publishing checklist.
+- [Quick start](./quick-start.md) — create a job, add a sub, paste a schedule of values and execute a subcontract in one pass, plus the demo-company invite limit.
 - [Browser audit start](./browser-audit-start.md) — a blind, read-only first-use brief for an independent reviewer.
 - [Browser audit playbook](./browser-agent-audit.md) — the detailed role, route, and evidence checklist after the blind pass.
 - [Guard audit](./guard-audit.md) — every public Convex function and the role guard it calls.
