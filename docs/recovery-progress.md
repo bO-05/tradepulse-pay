@@ -100,8 +100,10 @@ The managed cloud workspace is unavailable. GitHub is the recoverable source bas
 - Read-only browser acceptance `scripts/qa/landing-nav-inbox-browser.mjs`: **41/41 checks** on
   canonical build `517be73`, including the six-item primary bar, all seven More links, the inbox
   buckets, R6-A filtering and a 390px phone layout. Existing Owner-card acceptance stayed **18/18**,
-  and the three-role smoke passed with no failures. Evidence:
-  `evidence/landing-nav-inbox-browser-2026-11-05T09-22-03-912Z/report.json`.
+  and the three-role smoke passed with no failures. The three-host acceptance passed **53/53 checks**
+  with all hosts serving commit `517be73a93963e836ca11a3befa91da3c23873fb`. Evidence:
+  `evidence/landing-nav-inbox-browser-2026-11-05T09-22-03-912Z/report.json` and
+  `evidence/dual-host-browser-2026-11-05T09-25-28-884Z/report.json`.
 - No approval, payment, PayPal call, guided run or reference-run mutation was made. See
   [landing-navigation-inbox.md](./landing-navigation-inbox.md).
 

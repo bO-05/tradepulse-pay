@@ -67,5 +67,9 @@ the long approval inbox.
   `evidence/landing-nav-inbox-browser-2026-11-05T09-22-03-912Z/report.json`.
 - Existing Owner-card acceptance stayed green at **18/18** on the same build. The read-only role smoke
   passed all three demo logins and every checked route with no page, console or request failures.
+- Three-host acceptance `scripts/qa/dual-host-browser.mjs`: **53/53 checks** on the canonical domain,
+  `tradepulse-pay.pages.dev` and `cheery-axolotl-689.convex.site`. All three returned commit
+  `517be73a93963e836ca11a3befa91da3c23873fb`. Evidence:
+  `evidence/dual-host-browser-2026-11-05T09-25-28-884Z/report.json`.
 - The browser runs made no approval, rejection, payment, PayPal popup, guided run or reference-run
   change.
