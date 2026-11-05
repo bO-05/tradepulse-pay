@@ -35,6 +35,7 @@ import {
 
 type Step = 1 | 2 | 3 | 4 | 5;
 type SetupKey = "project" | "package" | "sub" | "bid" | "agreement" | "sov" | "execute" | "invite";
+type ProgressStatus = "pending" | "running" | "done" | "error" | "skipped";
 
 type CreatedIds = {
   projectId?: Id<"projects">;
@@ -97,8 +98,8 @@ export function QuickStartWizard() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [busyLabel, setBusyLabel] = useState<string | null>(null);
-  const [progress, setProgress] = useState<Record<SetupKey, "pending" | "running" | "done" | "error">>(() =>
-    Object.fromEntries(SETUP_STEPS.map((item) => [item.key, "pending"])) as Record<SetupKey, "pending" | "running" | "done" | "error">,
+  const [progress, setProgress] = useState<Record<SetupKey, ProgressStatus>>(() =>
+    Object.fromEntries(SETUP_STEPS.map((item) => [item.key, "pending"])) as Record<SetupKey, ProgressStatus>,
   );
   const [created, setCreated] = useState<CreatedIds>({});
   const [invite, setInvite] = useState<InviteResultData | null>(null);
@@ -122,6 +123,7 @@ export function QuickStartWizard() {
   if (companyData === undefined) return <p role="status" className="text-sm text-ink-subtle">Loading…</p>;
   const companyDefaultBps = companyData.company.defaultRetainageBps;
   const isDemo = companyData.company.isDemo;
+  const demoInviteBlocked = isDemo;
   const jobErrors = validateForm(form, companyDefaultBps);
   const shownJobErrors = { ...visibleErrors(jobErrors, jobSubmitted) };
   if (jobServerError?.field && !(jobServerError.field in shownJobErrors)) {
@@ -159,7 +161,7 @@ export function QuickStartWizard() {
     }
   };
 
-  const mark = (key: SetupKey, status: "pending" | "running" | "done" | "error") => {
+  const mark = (key: SetupKey, status: ProgressStatus) => {
     setProgress((prev) => ({ ...prev, [key]: status }));
   };
 
@@ -332,7 +334,12 @@ export function QuickStartWizard() {
       await executeAgreement({ agreementId: idsRef.current.agreementId! });
       mark("execute", "done");
 
-      if (!invite) {
+      if (demoInviteBlocked) {
+        mark("invite", "skipped");
+        setInviteError(
+          "Demo companies cannot create invites because shared demo identity and recipient settings are read-only. The job and subcontract are ready; use a real GC account to invite the sub.",
+        );
+      } else if (!invite) {
         current = "invite";
         setBusyLabel("Creating the sub invite…");
         mark("invite", "running");
@@ -377,7 +384,13 @@ export function QuickStartWizard() {
     <div className="max-w-3xl space-y-5">
       <PageHeader
         title="Quick start"
-        description={setupDone ? "The job, subcontract, approved SOV and invite are ready." : `Step ${step} of 4: ${stepName(step)}`}
+        description={
+          setupDone
+            ? invite
+              ? "The job, subcontract, approved SOV and invite are ready."
+              : "The job, subcontract and approved SOV are ready."
+            : `Step ${step} of 4: ${stepName(step)}`
+        }
         back={{ href: GC_PROJECTS_HASH, label: "All projects" }}
         actions={
           <a href="#/all-projects/new" className="inline-flex min-h-touch items-center rounded-lg px-3 text-sm text-ink-subtle hover:text-ink">
@@ -616,7 +629,14 @@ export function QuickStartWizard() {
       )}
 
       {step === 4 && (
-        <Card title="Review and create" description="One confirmation creates the job and subcontract, approves the SOV, records execution, and prepares the invite.">
+        <Card
+          title="Review and create"
+          description={
+            demoInviteBlocked
+              ? "One confirmation creates the job and subcontract, approves the SOV and records execution. Demo invites are read-only."
+              : "One confirmation creates the job and subcontract, approves the SOV, records execution, and prepares the invite."
+          }
+        >
           <div className="space-y-4">
             <dl className="grid gap-x-6 text-sm sm:grid-cols-2">
               <SummaryRow label="Job" value={form.title || "—"} />
@@ -649,13 +669,13 @@ export function QuickStartWizard() {
                 className="mt-1 h-4 w-4"
                 checked={sendEmail}
                 onChange={(event) => setSendEmail(event.target.checked)}
-                disabled={busy}
+                disabled={busy || demoInviteBlocked}
               />
               <span>
                 <span className="font-semibold">Email the invite now</span>
                 <span className="mt-1 block text-ink-subtle">
-                  {isDemo
-                    ? "Demo companies return a copyable invite link instead of email."
+                  {demoInviteBlocked
+                    ? "Demo companies cannot create invites because shared demo identity and recipient settings are read-only. The job and subcontract are still created."
                     : "The sub gets a 7-day, one-use link. If email is blocked or the daily limit is reached, you'll get the link to share."}
                 </span>
               </span>
@@ -687,7 +707,7 @@ export function QuickStartWizard() {
 
             <div className="flex flex-wrap gap-2">
               <Button type="button" loading={busy} loadingLabel="Setting up…" onClick={() => void runSetup()}>
-                {canRetry ? "Retry setup" : "Create job and invite sub"}
+                {canRetry ? "Retry setup" : demoInviteBlocked ? "Create job and subcontract" : "Create job and invite sub"}
               </Button>
               <Button type="button" variant="secondary" onClick={() => setStep(3)} disabled={busy}>Back</Button>
             </div>
@@ -696,7 +716,14 @@ export function QuickStartWizard() {
       )}
 
       {setupDone && (
-        <Card title="Ready" description="The sub can accept the invite and file a pay application after the SOV is approved (it is approved here).">
+        <Card
+          title={invite ? "Ready" : "Job and subcontract ready"}
+          description={
+            invite
+              ? "The sub can accept the invite and file a pay application after the SOV is approved (it is approved here)."
+              : "The job, subcontract and approved SOV are ready. The invite is the only step that did not complete."
+          }
+        >
           <div className="space-y-4">
             <dl className="grid gap-x-6 text-sm sm:grid-cols-2">
               <SummaryRow label="Job" value={form.title} />
@@ -729,7 +756,7 @@ export function QuickStartWizard() {
             ) : (
               <div role="alert" className="rounded-lg border border-amber-700 bg-amber-950/50 px-3 py-2 text-sm text-amber-100">
                 <p>{inviteError ?? "The invite was not created."}</p>
-                {created.projectId && (
+                {created.projectId && !demoInviteBlocked && (
                   <a href={`#/people/${encodeURIComponent(created.projectId)}`} className="mt-2 inline-block underline">
                     Open People to create the invite
                   </a>
@@ -781,13 +808,13 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ProgressDot({ status }: { status: "pending" | "running" | "done" | "error" }) {
-  const label = status === "done" ? "Done" : status === "running" ? "In progress" : status === "error" ? "Failed" : "Waiting";
+function ProgressDot({ status }: { status: ProgressStatus }) {
+  const label = status === "done" ? "Done" : status === "running" ? "In progress" : status === "error" ? "Failed" : status === "skipped" ? "Skipped" : "Waiting";
   return (
     <span
       aria-label={label}
       className={`inline-block h-2.5 w-2.5 rounded-full ${
-        status === "done" ? "bg-emerald-500" : status === "running" ? "bg-amber-400" : status === "error" ? "bg-rose-500" : "bg-slate-600"
+        status === "done" ? "bg-emerald-500" : status === "running" ? "bg-amber-400" : status === "error" ? "bg-rose-500" : status === "skipped" ? "bg-slate-500" : "bg-slate-700"
       }`}
     />
   );
