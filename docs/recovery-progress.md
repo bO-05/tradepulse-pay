@@ -84,6 +84,27 @@ The managed cloud workspace is unavailable. GitHub is the recoverable source bas
 - The browser run made no write, payment, PayPal call or guided run. See
   [owner-job-so-far.md](./owner-job-so-far.md).
 
+## Residential landing, nav and inbox focus, 5 November 2026
+
+- The public `#/demo` landing now leads with residential remodel GCs: catching overbilling, deciding
+  with the evidence, and keeping a clean owner or lender trail. The judge checklist and sandbox test
+  card remain available behind collapsed disclosures, so they no longer dominate the first screen.
+- The GC primary bar is five daily areas — Approvals, Billing, Projects, Change orders, Payments — plus
+  Guided demo for the demo company. Procurement, compliance, project summaries, people, vendors,
+  billing agents and payment reports moved under More. Sub and Owner nav are unchanged.
+- The approval inbox now groups entries into Needs your attention, Approved · awaiting payment, and
+  collapsed History. Filters still search all loaded entries, and the history section opens itself
+  when the filter leaves no open work.
+- Focused tests: **26/26**. Full regression on the deployed build: **2,052 tests across 157 files**,
+  build clean, guard audit **264 public / 201 internal / 0 problems**.
+- Read-only browser acceptance `scripts/qa/landing-nav-inbox-browser.mjs`: **41/41 checks** on
+  canonical build `517be73`, including the six-item primary bar, all seven More links, the inbox
+  buckets, R6-A filtering and a 390px phone layout. Existing Owner-card acceptance stayed **18/18**,
+  and the three-role smoke passed with no failures. Evidence:
+  `evidence/landing-nav-inbox-browser-2026-11-05T09-22-03-912Z/report.json`.
+- No approval, payment, PayPal call, guided run or reference-run mutation was made. See
+  [landing-navigation-inbox.md](./landing-navigation-inbox.md).
+
 ## Verified recovery baseline
 
 - Final judge-access regression: **1,957 tests passed across 144 files** (`evidence/recovery-judge-final-regression.json`), plus **eight Node safety/integration helper tests**. The earlier recovery checkpoint was 1,950 tests across 142 files.

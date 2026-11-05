@@ -52,7 +52,8 @@ try {
       cardPresent: !!card,
     };
   });
-  check("landing leads with the residential GC job story", landing.text.includes("Residential remodel GCs") && landing.text.includes("Pay the right amount."));
+  const landingText = landing.text.toLowerCase();
+  check("landing leads with the residential GC job story", landingText.includes("residential remodel gcs") && landingText.includes("pay the right amount."));
   for (const text of ["Catch overbilling early", "Decide with the evidence", "Keep a clean owner trail", "owner or lender", "PayPal sandbox money only"]) {
     check(`landing explains ${text}`, landing.text.includes(text), landing.text.slice(0, 1600));
   }

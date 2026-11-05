@@ -29,7 +29,7 @@ Partial or not fixed in this round:
 - R6-A is **live-proven** as of 2026-11-05. On fresh dev run `nx7c971zm1xkfbaccs0wdtqae58hm175`, the Owner invoice `INV2-8DKA-MRJH-6BXD-DFL2` ($1,850) opened from the Owner app billed `owner-q9728ekyzqrb8sm290r6px1b5s8hn23q@example.com`, not the GC. PayPal confirmed it `paid`, the app recorded the payment, and a read-only browser rerun verified the Owner row shows `paid`. See the live proof section below.
 - R6-D is partial. The Owner change-order detail labels UTC and PayPal shows its own date zone; there is no single combined timezone display across every Owner invoice surface.
 - N-10, the guided-demo canned override reason, is deferred. R6 rule 5 forbids changing the guided-demo driver or runs before 12 Nov.
-- Quick start now covers create a job, add a sub, paste a schedule of values and execute a subcontract in one pass. The opt-in lien-waiver gate now records conditional and prior-payment unconditional signatures rather than a checkbox, and blocks the pay gate when they are missing. The 24-case review eval now reports line accuracy and issue/per-verdict precision and recall. The sub “Question this amount” thread now gives both companies a non-financial conversation on a submitted pay app, and the Owner home has a read-only job-so-far card. Real sign-up, the demo invite limitation and nav/inbox trimming remain open.
+- Quick start now covers create a job, add a sub, paste a schedule of values and execute a subcontract in one pass. The opt-in lien-waiver gate now records conditional and prior-payment unconditional signatures rather than a checkbox, and blocks the pay gate when they are missing. The 24-case review eval now reports line accuracy and issue/per-verdict precision and recall. The sub “Question this amount” thread now gives both companies a non-financial conversation on a submitted pay app, and the Owner home has a read-only job-so-far card. The public landing now speaks to residential remodel GCs, the GC bar is split into daily work and More, and the inbox separates open work from history. Real sign-up and the demo invite limitation remain open.
 
 ## R6 correctness findings
 
@@ -116,7 +116,9 @@ opt-in lien-waiver gate, the pay-app question thread and the 24-case pay-app rev
 - Owner "job so far" card: approved or GC-reported progress, contract to date, paid to date, retainage,
   balance to finish and change orders, with explicit sources and no payment control. See
   [owner-job-so-far.md](./owner-job-so-far.md).
-- Nav and inbox trimming.
+- Residential landing copy, a five-item GC primary bar with the back-office under More, and an inbox
+  split into attention, awaiting payment and collapsed history. See
+  [landing-navigation-inbox.md](./landing-navigation-inbox.md).
 
 Those remain the path from a strong demo to a product a real owner-run remodel GC can use. They are not hidden behind a "fixed" claim here.
 
