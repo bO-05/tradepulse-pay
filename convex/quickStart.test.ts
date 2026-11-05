@@ -5,6 +5,7 @@ import rateLimiterTest from "@convex-dev/rate-limiter/test";
 import { api } from "./_generated/api";
 import schema from "./schema";
 import { buildTenancyFixture } from "./lib/tenancyFixtures";
+import { withSession } from "./lib/testIdentity";
 
 /** The backend sequence the GC Quick start wizard drives, in the same order. */
 
@@ -34,6 +35,7 @@ const SOV = [
   { description: "Trim-out", scheduledValueCents: 1_950_000 },
   { description: "Closeout", scheduledValueCents: 825_000 },
 ];
+const SUB_EMAIL = "nora@eastbay-electric.example";
 
 describe("GC Quick start backend sequence", () => {
   test("one job, one sub, an SOV, an executed subcontract, and a pending sub invite", async () => {
@@ -55,7 +57,7 @@ describe("GC Quick start backend sequence", () => {
       name: "Eastbay Electric",
       trades: ["26 00 00"],
       contactName: "Nora Patel",
-      email: "nora@eastbay-electric.example",
+      email: SUB_EMAIL,
       phone: "(510) 555-0142",
       licenseNumber: "C10-123456",
     });
@@ -85,7 +87,7 @@ describe("GC Quick start backend sequence", () => {
     await asGc.mutation(api.agreements.executeAgreement, { agreementId: agreement!._id });
     const invite = await fx.gcA.admin.as.action(api.invites.create, {
       kind: "sub",
-      email: "nora@eastbay-electric.example",
+      email: SUB_EMAIL,
       projectId,
       vendorId: added.vendorId,
       sendEmail: false,
@@ -117,12 +119,32 @@ describe("GC Quick start backend sequence", () => {
     const savedInvite = await t.run((ctx) => ctx.db.get(invite.inviteId));
     expect(savedInvite).toMatchObject({
       kind: "sub",
-      email: "nora@eastbay-electric.example",
+      email: SUB_EMAIL,
       projectId,
       vendorId: added.vendorId,
       status: "pending",
       emailStatus: "not_sent",
     });
     expect(invite.link).toContain("#/invite/");
+
+    const subUserId = await t.run((ctx) =>
+      ctx.db.insert("users", { email: SUB_EMAIL, emailVerificationTime: Date.now() }),
+    );
+    const sub = await withSession(t, subUserId, SUB_EMAIL);
+    const token = invite.link.match(/#\/invite\/([A-Za-z0-9_-]+)$/)?.[1];
+    expect(token).toBeTruthy();
+    const accepted = await sub.mutation(api.invites.accept, { token: token! });
+    expect(accepted).toMatchObject({ kind: "sub", projectId, companyId: expect.any(String) });
+    const membership = await t.run(async (ctx) =>
+      await ctx.db
+        .query("projectMembers")
+        .withIndex("by_project_company_and_status", (q) =>
+          q.eq("projectId", projectId).eq("companyId", accepted.companyId).eq("status", "active"),
+        )
+        .first(),
+    );
+    expect(membership).not.toBeNull();
+    const linkedVendor = await t.run((ctx) => ctx.db.get(added.vendorId));
+    expect(linkedVendor?.linkedCompanyId).toBe(accepted.companyId);
   }, 120_000);
 });
