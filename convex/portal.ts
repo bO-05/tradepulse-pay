@@ -247,7 +247,7 @@ function ownerJobView(
   const approvedChangeOrdersCents = changeOrders
     .filter((co) => ["approved", "invoiced", "paid", "cancelled"].includes(co.status))
     .reduce((acc, co) => acc + co.amountCents, 0);
-  return {
+  const result = {
     basis,
     contractSumToDateCents,
     completedAndStoredCents,
@@ -267,6 +267,15 @@ function ownerJobView(
     startDate: project.startDate ?? null,
     substantialCompletionDate: project.substantialCompletionDate ?? null,
   };
+  // Do not add a titled empty card to every legacy project in the Owner home. A contract value,
+  // owner pay app, or approved/paid change order is enough to make the summary useful.
+  const hasData =
+    result.contractSumToDateCents !== null ||
+    result.completedAndStoredCents !== null ||
+    result.latestApplicationNo !== null ||
+    result.paidToDateCents !== 0 ||
+    result.changeOrdersApprovedCents !== 0;
+  return hasData ? result : null;
 }
 
 /** Owner portal: projects with their prime change orders (and, for the GC, the subcontract agreements). */

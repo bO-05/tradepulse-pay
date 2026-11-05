@@ -174,6 +174,13 @@ describe("Owner job so far", () => {
     });
   });
 
+  test("hides an empty summary on a project with no prime value or activity", async () => {
+    const t = convexTest(schema, modules);
+    const f = await buildTenancyFixture(t);
+    const overview = await f.owner.admin.as.query(api.portal.ownerOverview, {});
+    expect(overview.find((p) => p._id === f.gcA.project.projectId)).toMatchObject({ partyRole: "owner", ownerJob: null });
+  });
+
   test("a GC never receives the owner job summary", async () => {
     const t = convexTest(schema, modules);
     const f = await buildTenancyFixture(t);
