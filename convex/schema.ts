@@ -18,6 +18,7 @@ import {
   licenseFieldsValidator,
   w9FieldsValidator,
 } from "./compliance/validators";
+import { payAppReviewMetricsValidator } from "./lib/payAppReviewMetrics";
 
 export const roleValidator = v.union(v.literal("gc"), v.literal("sub"), v.literal("owner"));
 export const actorTypeValidator = v.union(v.literal("human"), v.literal("agent"));
@@ -1470,6 +1471,9 @@ export default defineSchema({
     suite: v.optional(v.string()),
     provider: v.optional(v.string()),
     model: v.optional(v.string()),
+    // Set by the pay-app review suite: exact-verdict accuracy plus issue and per-verdict
+    // precision/recall over every eval line. Absent on bid-leveling runs and older rows.
+    reviewMetrics: v.optional(payAppReviewMetricsValidator),
     fixtureScores: v.optional(
       v.array(
         v.object({

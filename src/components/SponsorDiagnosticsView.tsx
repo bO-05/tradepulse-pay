@@ -63,13 +63,13 @@ export const SponsorDiagnosticsView: React.FC = () => {
 
   const handleRunExpertEvals = async () => {
     setIsRunningEvals(true);
-    setEvalStatusMsg("Running the 13-case extraction, holdout and cross-trade evaluation plus the 4 pay-app review fixtures against live backend...");
+    setEvalStatusMsg("Running the 13-case extraction, holdout and cross-trade evaluation plus the 24-case pay-app review scorecard against live backend...");
     try {
       const res = await executeEvalSuiteAction({
         targetEnvironment: "prod",
         triggeredBy: "judge_diagnostics",
       });
-      setEvalStatusMsg(`Run ${res.runId} completed. Extraction matches: ${res.passedCases}/${res.totalCases} • Holdout (answer not in prompt): ${res.holdoutPassed ?? 0}/${res.holdoutCases ?? 0} • Leveled-cost MAPE: ${res.leveledCostMape}% • Exclusion recall: ${Math.round(res.scopeRecallAvg * 100)}%${res.payAppReview ? ` • Pay-app review fixtures: ${res.payAppReview.passedCases}/${res.payAppReview.totalCases} (${res.payAppReview.overallScore}%)` : ""}`);
+      setEvalStatusMsg(`Run ${res.runId} completed. Extraction matches: ${res.passedCases}/${res.totalCases} • Holdout (answer not in prompt): ${res.holdoutPassed ?? 0}/${res.holdoutCases ?? 0} • Leveled-cost MAPE: ${res.leveledCostMape}% • Exclusion recall: ${Math.round(res.scopeRecallAvg * 100)}%${res.payAppReview ? ` • Pay-app review: ${res.payAppReview.passedCases}/${res.payAppReview.totalCases} cases (${res.payAppReview.overallScore}%)${res.payAppReview.reviewMetrics ? ` • issue P/R ${Math.round(res.payAppReview.reviewMetrics.issuePrecision * 100)}% / ${Math.round(res.payAppReview.reviewMetrics.issueRecall * 100)}%` : ""}` : ""}`);
     } catch (err: any) {
       setEvalStatusMsg(`Evaluation failed: ${err.message || err}`);
     } finally {

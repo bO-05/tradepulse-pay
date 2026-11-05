@@ -7,6 +7,11 @@ import { requireDemoCompanyInAction } from "../lib/tenancyAction";
 import { PAY_APP_REVIEW_FIXTURES, type PayAppReviewFixture } from "./reviewEvalFixtures";
 import { runPayAppReview, type ModelCaller, type ReviewRun } from "./reviewModel";
 import { getAIConfiguration, type AIConfiguration, type AIProvider } from "../lib/aiProvider";
+import {
+  computePayAppReviewMetrics,
+  payAppReviewMetricsValidator,
+  type PayAppReviewMetrics,
+} from "../lib/payAppReviewMetrics";
 
 export const PAY_APP_REVIEW_SUITE = "pay_app_review";
 
@@ -43,8 +48,25 @@ export function scoreFixture(fixture: PayAppReviewFixture, run: ReviewRun): Fixt
     zeroOk &&= ok;
     checks.push(`${id}: approved ${cents ?? "none"} cents, expected 0${ok ? "" : " (miss)"}`);
   }
+  const flagOk =
+    run.review.flags.lienWaiverMissing === fixture.expectedFlags.lienWaiverMissing &&
+    run.review.flags.licenseIssue === fixture.expectedFlags.licenseIssue;
+  checks.push(
+    `flags: lien waiver ${run.review.flags.lienWaiverMissing ? "missing" : "present"} (expected ${
+      fixture.expectedFlags.lienWaiverMissing ? "missing" : "present"
+    }), license ${run.review.flags.licenseIssue ? "issue" : "clear"} (expected ${
+      fixture.expectedFlags.licenseIssue ? "issue" : "clear"
+    })${flagOk ? "" : " (miss)"}`,
+  );
   const score = expectedIds.length === 0 ? 0 : Math.round((matched / expectedIds.length) * 1000) / 1000;
-  return { fixtureId: fixture.fixtureId, score, passed: matched === expectedIds.length && zeroOk, provider: run.provider, model: run.model, checks };
+  return {
+    fixtureId: fixture.fixtureId,
+    score,
+    passed: matched === expectedIds.length && zeroOk && flagOk,
+    provider: run.provider,
+    model: run.model,
+    checks,
+  };
 }
 
 /** The run's provenance: the single provider/model every fixture used, or "mixed" when some fell back. */
@@ -77,6 +99,7 @@ export const recordPayAppReviewEvalRun = internalMutation({
     overallScore: v.number(),
     passedCases: v.number(),
     totalDurationMs: v.number(),
+    reviewMetrics: v.optional(payAppReviewMetricsValidator),
     fixtureScores: v.array(
       v.object({
         fixtureId: v.string(),
@@ -96,6 +119,7 @@ export const recordPayAppReviewEvalRun = internalMutation({
       suite: PAY_APP_REVIEW_SUITE,
       provider: args.provider,
       model: args.model,
+      ...(args.reviewMetrics ? { reviewMetrics: args.reviewMetrics } : {}),
       fixtureScores: args.fixtureScores,
       totalCases: args.fixtureScores.length,
       passedCases: args.passedCases,
@@ -122,6 +146,7 @@ export type PayAppReviewSuiteResult = {
   overallScore: number;
   passedCases: number;
   totalCases: number;
+  reviewMetrics: PayAppReviewMetrics;
   fixtureScores: FixtureScore[];
 };
 
@@ -157,6 +182,7 @@ export async function executePayAppReviewSuite(
     });
   }
   const fixtureScores = results.map((r) => r.score);
+  const reviewMetrics = computePayAppReviewMetrics(results);
   const overallScore = Math.round((fixtureScores.reduce((a, s) => a + s.score, 0) / fixtureScores.length) * 1000) / 10;
   const passedCases = fixtureScores.filter((s) => s.passed).length;
   const { provider, model } = suiteProvenance(fixtureScores);
@@ -169,9 +195,20 @@ export async function executePayAppReviewSuite(
     overallScore,
     passedCases,
     totalDurationMs: Date.now() - started,
+    reviewMetrics,
     fixtureScores,
   });
-  return { runId, suite: PAY_APP_REVIEW_SUITE, provider, model, overallScore, passedCases, totalCases: fixtureScores.length, fixtureScores };
+  return {
+    runId,
+    suite: PAY_APP_REVIEW_SUITE,
+    provider,
+    model,
+    overallScore,
+    passedCases,
+    totalCases: fixtureScores.length,
+    reviewMetrics,
+    fixtureScores,
+  };
 }
 
 /** CLI: npx convex run payApps/reviewEvals:runPayAppReviewEvalSuite '{}' */

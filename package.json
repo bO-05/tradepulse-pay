@@ -18,6 +18,7 @@
     "webhook:setup": "node scripts/setup-agentmail-webhook.mjs",
     "benchmark": "node scripts/run-real-world-benchmark.mjs",
     "evals": "node scripts/run-expert-evals.mjs",
+    "eval:payapps": "node scripts/qa/pay-app-review-scorecard.mjs",
     "test": "vitest run",
     "verify:docs": "node scripts/tools/check-docs-links.mjs docs README.md && node scripts/tools/reorder-hackathon-log.mjs --check",
     "verify:reports": "node scripts/qa/render-audit-reports.mjs",
