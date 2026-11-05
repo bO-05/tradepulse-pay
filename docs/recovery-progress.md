@@ -65,6 +65,25 @@ The managed cloud workspace is unavailable. GitHub is the recoverable source bas
   201 internal / 0 problems; 92 documentation links resolve. See
   [pay-app-questions.md](./pay-app-questions.md).
 
+## Owner job-so-far card, 5 November 2026
+
+- The Owner home now shows a read-only **Job so far** card for projects with meaningful prime activity:
+  percent complete, contract to date, completed and stored, paid to date, retainage held, balance to
+  finish and change orders. It names whether the progress basis is approved or still awaiting the
+  Owner's review.
+- Paid to date separates paid owner pay apps from paid prime change orders, so a direct invoice such
+  as the R6-A $1,850 change order is not presented as a pay-app payment.
+- The summary is computed only for the Owner in `portal.ownerOverview`; a GC receives `ownerJob: null`.
+  Projects with no prime value or activity return null, so the card is not repeated as empty chrome on
+  every legacy project.
+- Focused tests: **4/4** in `convex/ownerJob.test.ts` and **2/2** in
+  `src/payments/OwnerPortal.test.tsx`. Browser acceptance `scripts/qa/owner-job-browser.mjs` passed
+  **18/18 checks** on canonical build `57fcd50`: Owner progress bar and six summary labels, explicit
+  paid-to-date sources, no controls, and no card in the GC summary. Evidence:
+  `evidence/owner-job-browser-2026-11-05T09-00-58-465Z/report.json`.
+- The browser run made no write, payment, PayPal call or guided run. See
+  [owner-job-so-far.md](./owner-job-so-far.md).
+
 ## Verified recovery baseline
 
 - Final judge-access regression: **1,957 tests passed across 144 files** (`evidence/recovery-judge-final-regression.json`), plus **eight Node safety/integration helper tests**. The earlier recovery checkpoint was 1,950 tests across 142 files.

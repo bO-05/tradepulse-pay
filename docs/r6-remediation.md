@@ -29,7 +29,7 @@ Partial or not fixed in this round:
 - R6-A is **live-proven** as of 2026-11-05. On fresh dev run `nx7c971zm1xkfbaccs0wdtqae58hm175`, the Owner invoice `INV2-8DKA-MRJH-6BXD-DFL2` ($1,850) opened from the Owner app billed `owner-q9728ekyzqrb8sm290r6px1b5s8hn23q@example.com`, not the GC. PayPal confirmed it `paid`, the app recorded the payment, and a read-only browser rerun verified the Owner row shows `paid`. See the live proof section below.
 - R6-D is partial. The Owner change-order detail labels UTC and PayPal shows its own date zone; there is no single combined timezone display across every Owner invoice surface.
 - N-10, the guided-demo canned override reason, is deferred. R6 rule 5 forbids changing the guided-demo driver or runs before 12 Nov.
-- Quick start now covers create a job, add a sub, paste a schedule of values and execute a subcontract in one pass. The opt-in lien-waiver gate now records conditional and prior-payment unconditional signatures rather than a checkbox, and blocks the pay gate when they are missing. The 24-case review eval now reports line accuracy and issue/per-verdict precision and recall. The sub “Question this amount” thread now gives both companies a non-financial conversation on a submitted pay app. Real sign-up, the demo invite limitation, the Owner job card and nav/inbox trimming remain open.
+- Quick start now covers create a job, add a sub, paste a schedule of values and execute a subcontract in one pass. The opt-in lien-waiver gate now records conditional and prior-payment unconditional signatures rather than a checkbox, and blocks the pay gate when they are missing. The 24-case review eval now reports line accuracy and issue/per-verdict precision and recall. The sub “Question this amount” thread now gives both companies a non-financial conversation on a submitted pay app, and the Owner home has a read-only job-so-far card. Real sign-up, the demo invite limitation and nav/inbox trimming remain open.
 
 ## R6 correctness findings
 
@@ -89,6 +89,8 @@ The first write run paid the invoice, then the QA script timed out on its final 
 | Pay-app review eval | 24/24 cases, 71 lines, 15 issue lines, 100% issue precision/recall, 100% macro F1 on live Mistral `mistral-large-4` | `evals/results/pay-app-review-scorecard.md` |
 | Pay-app question thread backend | 7/7 tests in `convex/payApps/questions.test.ts`; role, draft, agent, read-only, validation and no-financial-write cases | local run on this branch |
 | Pay-app question thread browser | 21/21 checks on build `0ba5d11`; sub question, GC reply, both views, unchanged money trail, read-only reference composer refusal | `evidence/pay-app-thread-browser-2026-11-05T08-14-04-182Z/report.json` |
+| Owner job card backend and UI | 4 backend tests in `convex/ownerJob.test.ts` and 2 static-render tests in `src/payments/OwnerPortal.test.tsx` | local run on this branch |
+| Owner job card browser | 18/18 checks on build `57fcd50`; Owner progress bar, six summary labels, paid-to-date sources, no controls, GC card absent | `evidence/owner-job-browser-2026-11-05T09-00-58-465Z/report.json` |
 
 The blocked-sign-up report contains one console error with code `EMAIL_BLOCKED`. That is the refusal being tested, not an unexpected page failure. The screenshot is in the same evidence directory.
 
@@ -111,7 +113,9 @@ opt-in lien-waiver gate, the pay-app question thread and the 24-case pay-app rev
 - Sub “Question this amount” thread: both companies can discuss one pay app, with in-app notification,
   while the G702/G703, approval, ledger and payment stay unchanged. See
   [pay-app-questions.md](./pay-app-questions.md).
-- Owner "job so far" card.
+- Owner "job so far" card: approved or GC-reported progress, contract to date, paid to date, retainage,
+  balance to finish and change orders, with explicit sources and no payment control. See
+  [owner-job-so-far.md](./owner-job-so-far.md).
 - Nav and inbox trimming.
 
 Those remain the path from a strong demo to a product a real owner-run remodel GC can use. They are not hidden behind a "fixed" claim here.
