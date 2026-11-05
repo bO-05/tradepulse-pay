@@ -753,6 +753,177 @@ describe("compliance hold", () => {
   });
 });
 
+async function reviewAndApprove(s: Setup, payAppId: Id<"payApplications">) {
+  await s.t.run(async (ctx) => {
+    const p = (await ctx.db.get(payAppId))!;
+    const lines = p.lines.map((l) => ({
+      sovLineId: l.sovLineId,
+      verdict: "ok" as const,
+      recommendedPctToDate: l.pctCompleteToDate / 100,
+      approvedCents: l.requestedCents,
+      reason: "Fixture review.",
+    }));
+    await ctx.db.patch(payAppId, {
+      status: "reviewed",
+      review: {
+        engine: "Offline rules engine",
+        provider: "Offline rules engine",
+        model: "none",
+        lines,
+        flags: { lienWaiverMissing: false, licenseIssue: false, notes: "" },
+        approvedTotalCents: lines.reduce((a, l) => a + l.approvedCents, 0),
+        reviewedAt: Date.now(),
+      },
+    });
+  });
+  await s.f.gcA.admin.as.mutation(api.payApps.decisions.decidePayApp, { payAppId, decision: "approve" });
+}
+
+describe("opt-in lien-waiver gate", () => {
+  test("off by default; enabling it blocks the payout until the sub signs the conditional waiver", async () => {
+    const s = await setup();
+    const { t1 } = await addTranches(s);
+    await fundTranche(s, t1, 6_000_000);
+    const payAppId = await reviewedPayApp1(s);
+    await approvePayApp1(s, payAppId);
+    const dana = s.f.gcA.admin.as;
+    const kim = s.f.sub.admin.as;
+
+    expect((await dana.query(api.billing.canPay.canPay, { payAppId })).reasons).toEqual([]);
+    expect(await dana.query(api.lienWaivers.payAppState, { payAppId })).toBeNull();
+
+    await dana.mutation(api.lienWaivers.setGate, { agreementId: s.agreementId, enabled: true });
+    const blocked = await dana.query(api.billing.canPay.canPay, { payAppId });
+    expect(blocked.ok).toBe(false);
+    expect(blocked.reasons).toEqual([
+      {
+        code: "LIEN_WAIVER_MISSING",
+        message: "Lien waiver: the sub has not signed the conditional waiver for $43,412.60.",
+      },
+    ]);
+
+    const state = (await kim.query(api.lienWaivers.payAppState, { payAppId }))!;
+    expect(state).toMatchObject({
+      enabled: true,
+      viewerRole: "sub",
+      canSignCurrent: true,
+      canSignPrior: false,
+      prior: null,
+      current: { amountCents: 4_341_260, signed: null },
+    });
+    expect(await errorOf(dana.mutation(api.lienWaivers.signWaiver, {
+      payAppId,
+      kind: "conditional",
+      signedByName: "Dana GC",
+      acknowledged: true,
+    }))).toBe("Not found.");
+
+    const signed = await kim.mutation(api.lienWaivers.signWaiver, {
+      payAppId,
+      kind: "conditional",
+      signedByName: "Kim Alvarez",
+      signerTitle: "Project manager",
+      acknowledged: true,
+    });
+    expect(signed.alreadySigned).toBe(false);
+    const again = await kim.mutation(api.lienWaivers.signWaiver, {
+      payAppId,
+      kind: "conditional",
+      signedByName: "Someone Else",
+      acknowledged: true,
+    });
+    expect(again).toMatchObject({ waiverId: signed.waiverId, alreadySigned: true });
+
+    expect((await dana.query(api.billing.canPay.canPay, { payAppId })).ok).toBe(true);
+    const after = (await dana.query(api.lienWaivers.payAppState, { payAppId }))!;
+    expect(after.current!.signed).toMatchObject({ signedByName: "Kim Alvarez", signerTitle: "Project manager", amountCents: 4_341_260 });
+    expect(after.canSignCurrent).toBe(false);
+
+    const audit = await s.t.run(async (ctx) =>
+      (await ctx.db.query("auditLogs").collect()).find((a) => a.eventType === "waiver_signed")!,
+    );
+    expect(audit.description).toContain("conditional waiver for $43,412.60");
+    expect(audit.description).toContain("recipient Fixture GC");
+    const notices = await s.t.run(async (ctx) => (await ctx.db.query("notifications").collect()).filter((n) => n.kind === "waiver_signed"));
+    expect(notices).toHaveLength(2); // the GC company's admin and member
+  });
+
+  test("after a prior payment, the unconditional waiver is required and the gate names both missing signatures", async () => {
+    const s = await setup();
+    const dana = s.f.gcA.admin.as;
+    const kim = s.f.sub.admin.as;
+    const { t1 } = await addTranches(s);
+    await fundTranche(s, t1, 6_000_000);
+    await dana.mutation(api.lienWaivers.setGate, { agreementId: s.agreementId, enabled: true });
+
+    const first = await reviewedPayApp1(s);
+    await approvePayApp1(s, first);
+    await kim.mutation(api.lienWaivers.signWaiver, { payAppId: first, kind: "conditional", signedByName: "Kim Alvarez", acknowledged: true });
+    await s.t.run(async (ctx) => ctx.db.patch(first, { status: "paid" }));
+
+    const { payAppId: second } = await kim.mutation(api.payApps.g703.startPayApp, { agreementId: s.agreementId });
+    await kim.mutation(api.payApps.g703.submitPayApp, { payAppId: second, lines: [entry(s.sov[3], 200_000)] });
+    await reviewAndApprove(s, second);
+
+    const danaGate = await dana.query(api.billing.canPay.canPay, { payAppId: second });
+    expect(danaGate.reasons.map((r) => r.code)).toEqual(["LIEN_WAIVER_MISSING", "LIEN_WAIVER_MISSING"]);
+    const state = (await kim.query(api.lienWaivers.payAppState, { payAppId: second }))!;
+    expect(state.current).toMatchObject({ amountCents: 200_000, signed: null });
+    expect(state.prior).toMatchObject({ amountCents: 4_341_260, signed: null });
+    expect(state.canSignPrior).toBe(true);
+
+    await kim.mutation(api.lienWaivers.signWaiver, { payAppId: second, kind: "conditional", signedByName: "Kim Alvarez", acknowledged: true });
+    expect((await dana.query(api.billing.canPay.canPay, { payAppId: second })).reasons).toEqual([
+      {
+        code: "LIEN_WAIVER_MISSING",
+        message: "Lien waiver: the sub has not signed the unconditional waiver for the prior payment (pay app #1, $43,412.60).",
+      },
+    ]);
+    await kim.mutation(api.lienWaivers.signWaiver, { payAppId: second, kind: "unconditional", signedByName: "Kim Alvarez", acknowledged: true });
+    expect((await dana.query(api.billing.canPay.canPay, { payAppId: second })).ok).toBe(true);
+    const cleared = (await kim.query(api.lienWaivers.payAppState, { payAppId: second }))!;
+    expect(cleared.prior!.signed).toMatchObject({ signedByName: "Kim Alvarez", amountCents: 4_341_260 });
+  });
+
+  test("a changed approved amount invalidates the signed conditional waiver", async () => {
+    const { s, payAppId } = await (async () => {
+      const s = await setup();
+      const { t1 } = await addTranches(s);
+      await fundTranche(s, t1, 6_000_000);
+      const payAppId = await reviewedPayApp1(s);
+      await approvePayApp1(s, payAppId);
+      return { s, payAppId };
+    })();
+    const dana = s.f.gcA.admin.as;
+    const kim = s.f.sub.admin.as;
+    await dana.mutation(api.lienWaivers.setGate, { agreementId: s.agreementId, enabled: true });
+    await kim.mutation(api.lienWaivers.signWaiver, { payAppId, kind: "conditional", signedByName: "Kim Alvarez", acknowledged: true });
+    await s.t.run(async (ctx) => {
+      const p = (await ctx.db.get(payAppId))!;
+      await ctx.db.patch(payAppId, { finalApproval: { ...p.finalApproval!, totalCents: p.finalApproval!.totalCents + 100 } });
+    });
+    expect((await dana.query(api.billing.canPay.canPay, { payAppId })).reasons).toEqual([
+      {
+        code: "LIEN_WAIVER_AMOUNT_CHANGED",
+        message: "Lien waiver: the signed conditional waiver covers $43,412.60, but this payment is $43,413.60. The sub must sign a new waiver.",
+      },
+    ]);
+  });
+
+  test("only a GC company admin can change the gate; another GC, the sub, the owner and a GC member are refused", async () => {
+    const s = await setup();
+    expect(await errorOf(s.f.gcA.member.as.mutation(api.lienWaivers.setGate, { agreementId: s.agreementId, enabled: true }))).toBe(
+      "Forbidden: company admin required.",
+    );
+    for (const caller of [s.f.sub.admin.as, s.f.owner.admin.as, s.f.gcB.admin.as, s.f.demo.gc.as]) {
+      expect(await errorOf(caller.mutation(api.lienWaivers.setGate, { agreementId: s.agreementId, enabled: true }))).toBe("Not found.");
+    }
+    expect(await s.t.run(async (ctx) => (await ctx.db.get(s.agreementId))!.lienWaiverGate ?? null)).toBeNull();
+    const gate = (await s.f.gcA.member.as.query(api.lienWaivers.agreementGate, { agreementId: s.agreementId }))!;
+    expect(gate).toMatchObject({ enabled: false, canManage: false });
+  });
+});
+
 describe("daily compliance expiry notifications", () => {
   test("pages through accepted records and notifies the sub and its GC once per record and state", async () => {
     vi.setSystemTime(new Date("2026-10-11T18:00:00Z"));

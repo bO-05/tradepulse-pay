@@ -7,6 +7,7 @@ import { formatCents } from "../ui/format";
 import { MilestoneFundingTable } from "./MilestoneFundingSummary";
 import { AgreementTermsPanel } from "../contracts/AgreementTermsPanel";
 import { DocumentDownloadButton } from "../documents/DocumentDownload";
+import { LienWaiverGateCard } from "./LienWaiverGateCard";
 
 export function AgreementSummaryView({ agreementId, backHash }: { agreementId: string; backHash: string }) {
   const agreement = useQuery(api.portal.getAgreementSummary, { agreementId });
@@ -87,6 +88,7 @@ export function AgreementSummaryView({ agreementId, backHash }: { agreementId: s
         </section>
       )}
       <AgreementTermsPanel agreementId={agreement._id} />
+      {agreement.status === "executed" ? <LienWaiverGateCard agreementId={agreement._id} /> : null}
       {agreement.status === "executed" ? (
         <section aria-labelledby="agreement-milestone-funding">
           <h2 id="agreement-milestone-funding" className="text-sm font-semibold mb-1">

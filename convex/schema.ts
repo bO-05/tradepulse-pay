@@ -101,6 +101,8 @@ export const payAppStatusValidator = v.union(
   v.literal("paid"),
 );
 
+export const lienWaiverKindValidator = v.union(v.literal("conditional"), v.literal("unconditional"));
+
 export const g702FiguresValidator = v.object({
   originalContractSumCents: v.number(),
   netChangeOrdersCents: v.number(),
@@ -712,6 +714,30 @@ export default defineSchema({
     .index("by_subUserId", ["subUserId"])
     .index("by_status", ["status"]),
 
+  // Signed lien-waiver attestations. A row exists only after the sub signs; the pay gate reads them.
+  lienWaivers: defineTable({
+    projectId: v.id("projects"),
+    agreementId: v.id("agreements"),
+    // The pay app whose waiver panel produced the signature.
+    payAppId: v.id("payApplications"),
+    // The payment the waiver covers: the same pay app for a conditional waiver, the prior paid one
+    // for an unconditional waiver.
+    coversPayAppId: v.id("payApplications"),
+    kind: lienWaiverKindValidator,
+    recipientName: v.string(),
+    amountCents: v.number(),
+    throughDate: v.string(),
+    signedByName: v.string(),
+    signerTitle: v.optional(v.string()),
+    signedByUserId: v.id("users"),
+    signedAt: v.number(),
+    gateEnabledAt: v.number(),
+    note: v.optional(v.string()),
+  })
+    .index("by_payAppId_and_kind", ["payAppId", "kind"])
+    .index("by_agreementId", ["agreementId"])
+    .index("by_coversPayAppId_and_kind", ["coversPayAppId", "kind"]),
+
   agentProposals: defineTable({
     payAppId: v.optional(v.id("payApplications")),
     agreementId: v.id("agreements"),
@@ -1317,6 +1343,16 @@ export default defineSchema({
     // Mirrors of terms.retainageBps / terms.liquidatedDamagesCentsPerDay for legacy readers.
     retainagePercent: v.number(),
     liquidatedDamagesDaily: v.number(),
+    // Opt-in lien-waiver gate. Absent means off; enabling it requires signed waivers before payout.
+    lienWaiverGate: v.optional(
+      v.object({
+        enabled: v.boolean(),
+        enabledAt: v.number(),
+        enabledByUserId: v.id("users"),
+        enabledByName: v.string(),
+        requirePriorUnconditional: v.boolean(),
+      }),
+    ),
     // §14 per-agreement terms; legacy rows without it are resolved from the fields above.
     terms: v.optional(agreementTermsValidator),
     // True once the GC picked a governing state other than the project's; otherwise drafts follow the project state.

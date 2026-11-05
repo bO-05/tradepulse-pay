@@ -17,6 +17,7 @@ import { getErrorMessage } from "../lib/errors";
 import { DocumentDownloadButton } from "../documents/DocumentDownload";
 import { Button, Card, ConfirmDialog, MoneyInput, PageHeader, StatusPill, TextInput, formatCents, formatDate, formatDateTime } from "../ui";
 import { DecisionCard, GcReviewPanel, VersionHistory } from "./PayAppDecision";
+import { LienWaiverPanel } from "./LienWaiverPanel";
 import { PaymentPanel } from "./PaymentPanel";
 
 type PayAppView = NonNullable<FunctionReturnType<typeof api.payApps.g703.getPayApp>>;
@@ -289,6 +290,7 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
       ) : null}
       {view.viewerRole === "gc" ? <GcReviewPanel key={view.review?.reviewedAt ?? 0} view={view} /> : null}
       {view.status !== "draft" ? <PaymentPanel payAppId={view._id} /> : null}
+      {view.status !== "draft" ? <LienWaiverPanel payAppId={view._id} /> : null}
 
       <ContinuationSheet
         lines={lines}

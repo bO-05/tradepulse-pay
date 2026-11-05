@@ -230,7 +230,7 @@ export async function evaluatePayGate(
 
   if (!paid) {
     reasons.push(...(await complianceBlockers(ctx, agreement, payApp)));
-    reasons.push(...(await waiverBlockers(ctx, payApp, figures)));
+    reasons.push(...(await waiverBlockers(ctx, agreement, payApp, figures)));
   }
 
   const sources = await fundingSources(ctx, agreement._id);

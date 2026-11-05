@@ -286,7 +286,8 @@ describe("legacy public mutations and actions are GC-only", () => {
     // directory writes and directory bidders have theirs in vendors.test.ts. Payee control, billing
     // email and notifications have theirs in payee.test.ts and notifications.test.ts. Bid portal
     // submissions, GC bid entry/confirmation and Q&A publishing have theirs in bidPortal.test.ts.
-    // RFI answer sends and addendum acknowledgments have theirs in rfiAnswers.test.ts.
+    // RFI answer sends and addendum acknowledgments have theirs in rfiAnswers.test.ts. The
+    // lien-waiver gate has its admin/sub/cross-company denial tests in billing/payGate.test.ts.
     const covered = new Set([
       ...CASES.map((c) => c.name),
       "agentLinks:addAgentLink",
@@ -324,6 +325,8 @@ describe("legacy public mutations and actions are GC-only", () => {
       "bidPortal:publishQuestion",
       "rfiAnswers:sendRfiAnswer",
       "addenda:acknowledgeAddendum",
+      "lienWaivers:setGate",
+      "lienWaivers:signWaiver",
     ]);
     expect(exported.filter((name) => !covered.has(name))).toEqual([]);
   });
