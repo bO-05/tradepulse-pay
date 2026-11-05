@@ -84,6 +84,7 @@ The first write run paid the invoice, then the QA script timed out on its final 
 | R6-A live Owner invoice | **Paid and verified** on fresh run `nx7c971...`; alias bill-to correct; Owner row `paid`; read-only rerun clean | `evidence/recovery-settlement-2026-11-05T05-16-02-852Z/report.json` |
 | Quick start browser acceptance | 23/23 checks passed on build `2629233`; job and subcontract created, SOV approved, demo invite limitation shown | `evidence/quick-start-browser-2026-11-05T05-59-52-092Z/report.json` |
 | Lien-waiver gate backend | 22/22 tests in `convex/billing/payGate.test.ts`, including four new gate tests; `npx tsc -b` clean | local run on this branch |
+| Lien-waiver gate browser | 18/18 checks on build `3d3d03c`; GC blocked view, sub panel and signing dialog, gate off cleanup, no waiver record | `evidence/lien-waiver-browser-2026-11-05T06-56-48-194Z/report.json` |
 
 The blocked-sign-up report contains one console error with code `EMAIL_BLOCKED`. That is the refusal being tested, not an unexpected page failure. The screenshot is in the same evidence directory.
 

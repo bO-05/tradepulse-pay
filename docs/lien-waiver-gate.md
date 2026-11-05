@@ -71,6 +71,14 @@ reference run are untouched.
 The suite also asserts the audit text, the notification recipients, the signer fields, idempotent
 re-signing and the stale-amount wording.
 
+Browser acceptance: `scripts/qa/lien-waiver-browser.mjs` passed all 18 checks against canonical build
+`3d3d03c` on 2026-11-05. It enables the gate on the synthetic demo agreement, verifies the GC sees
+the blocked conditional waiver with no signing control, verifies the sub sees the panel and the
+signing dialog with the server-set amount and recipient, cancels without submitting, turns the gate
+off, and confirms the panel disappears. Evidence is in
+`evidence/lien-waiver-browser-2026-11-05T06-56-48-194Z/report.json`; the run created no waiver record
+and left the gate off.
+
 ## Limits
 
 - One signed record per waiver slot; there is no void-and-replace flow yet.
