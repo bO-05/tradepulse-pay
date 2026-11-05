@@ -29,7 +29,7 @@ Partial or not fixed in this round:
 - R6-A is **live-proven** as of 2026-11-05. On fresh dev run `nx7c971zm1xkfbaccs0wdtqae58hm175`, the Owner invoice `INV2-8DKA-MRJH-6BXD-DFL2` ($1,850) opened from the Owner app billed `owner-q9728ekyzqrb8sm290r6px1b5s8hn23q@example.com`, not the GC. PayPal confirmed it `paid`, the app recorded the payment, and a read-only browser rerun verified the Owner row shows `paid`. See the live proof section below.
 - R6-D is partial. The Owner change-order detail labels UTC and PayPal shows its own date zone; there is no single combined timezone display across every Owner invoice surface.
 - N-10, the guided-demo canned override reason, is deferred. R6 rule 5 forbids changing the guided-demo driver or runs before 12 Nov.
-- Quick start now covers create a job, add a sub, paste a schedule of values and execute a subcontract in one pass. The opt-in lien-waiver gate now records conditional and prior-payment unconditional signatures rather than a checkbox, and blocks the pay gate when they are missing. The 24-case review eval now reports line accuracy and issue/per-verdict precision and recall. Real sign-up, the demo invite limitation, question a payment, the Owner job card and nav/inbox trimming remain open.
+- Quick start now covers create a job, add a sub, paste a schedule of values and execute a subcontract in one pass. The opt-in lien-waiver gate now records conditional and prior-payment unconditional signatures rather than a checkbox, and blocks the pay gate when they are missing. The 24-case review eval now reports line accuracy and issue/per-verdict precision and recall. The sub “Question this amount” thread now gives both companies a non-financial conversation on a submitted pay app. Real sign-up, the demo invite limitation, the Owner job card and nav/inbox trimming remain open.
 
 ## R6 correctness findings
 
@@ -76,9 +76,9 @@ The first write run paid the invoice, then the QA script timed out on its final 
 | --- | --- | --- |
 | Full test suite | 2,001 tests in 151 files passed after the final code change | local run on this branch |
 | Type check | `npx tsc -b` clean after the final code change | local run |
-| Guard audit | 262 public functions, 201 internal, 0 problems | `node scripts/tools/guard-audit.mjs` |
-| Docs links | 90 relative links checked, all resolve | `npm run verify:docs` |
-| Full regression | 2,034 tests across 153 files passed | `npm test` |
+| Guard audit | 264 public functions, 201 internal, 0 problems | `node scripts/tools/guard-audit.mjs` |
+| Docs links | 92 relative links checked, all resolve | `npm run verify:docs` |
+| Full regression | 2,041 tests across 154 files passed | `npm test` |
 | Three-origin browser acceptance | 53/53 passed; all three hosts served `a083354` | `evidence/dual-host-browser-2026-11-04T13-29-16-412Z/report.json` |
 | GC/sub/Owner role smoke on canonical | 6/6 checks passed; GC nav shows `Approvals`; mirror `/api/health` returns `ok` | `evidence/recovery-tradepulse-pay.asynchronope.tech-2026-11-04T13-30-47-467Z/report.json` |
 | Blocked sign-up browser check | 5/5 checks passed; no email was sent; the Verify screen showed the generic test-address reason | `evidence/r5-auth-error-check-2026-11-04T13-33-14-482Z/report.json` |
@@ -87,6 +87,8 @@ The first write run paid the invoice, then the QA script timed out on its final 
 | Lien-waiver gate backend | 22/22 tests in `convex/billing/payGate.test.ts`, including four new gate tests; `npx tsc -b` clean | local run on this branch |
 | Lien-waiver gate browser | 18/18 checks on build `3d3d03c`; GC blocked view, sub panel and signing dialog, gate off cleanup, no waiver record | `evidence/lien-waiver-browser-2026-11-05T06-56-48-194Z/report.json` |
 | Pay-app review eval | 24/24 cases, 71 lines, 15 issue lines, 100% issue precision/recall, 100% macro F1 on live Mistral `mistral-large-4` | `evals/results/pay-app-review-scorecard.md` |
+| Pay-app question thread backend | 7/7 tests in `convex/payApps/questions.test.ts`; role, draft, agent, read-only, validation and no-financial-write cases | local run on this branch |
+| Pay-app question thread browser | 21/21 checks on build `0ba5d11`; sub question, GC reply, both views, unchanged money trail, read-only reference composer refusal | `evidence/pay-app-thread-browser-2026-11-05T08-14-04-182Z/report.json` |
 
 The blocked-sign-up report contains one console error with code `EMAIL_BLOCKED`. That is the refusal being tested, not an unexpected page failure. The screenshot is in the same evidence directory.
 
@@ -95,7 +97,7 @@ The full suite passed after the final code change. A passing unit suite is not l
 ## Usefulness work not claimed
 
 The R6 ranked plan estimated 48-61 hours for the ICP work. This round implements Quick start, the
-opt-in lien-waiver gate and the 24-case pay-app review eval:
+opt-in lien-waiver gate, the pay-app question thread and the 24-case pay-app review eval:
 
 - Quick start: create job, add sub, paste SOV, retainage and execute a subcontract. A real GC also
   creates the invite; the shared read-only demo company skips it with an explicit note. See
@@ -106,7 +108,9 @@ opt-in lien-waiver gate and the 24-case pay-app review eval:
   See [lien-waiver-gate.md](./lien-waiver-gate.md).
 - 24-case pay-app review eval with line accuracy, issue precision/recall/F1 and per-verdict counts.
   See [pay-app-review-eval.md](./pay-app-review-eval.md).
-- Sub "Question this amount" thread.
+- Sub “Question this amount” thread: both companies can discuss one pay app, with in-app notification,
+  while the G702/G703, approval, ledger and payment stay unchanged. See
+  [pay-app-questions.md](./pay-app-questions.md).
 - Owner "job so far" card.
 - Nav and inbox trimming.
 

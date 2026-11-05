@@ -41,6 +41,30 @@ The managed cloud workspace is unavailable. GitHub is the recoverable source bas
   201 internal / 0 problems; 90 documentation links resolve.
 - No PayPal call, guided run or financial write was made by this eval.
 
+## Pay-app question thread, 5 November 2026
+
+- The sub can now **Question this amount** on a submitted pay app and the GC can reply. The thread
+  stores its entries in `payAppThreadEntries`, not on the pay application, so the G702/G703,
+  approval, ledger and PayPal state are untouched.
+- Drafts stay private to the filing sub; the Owner and other companies get `Not found.` Billing
+  agents and preserved read-only demo runs can read but not post. Archived projects and withdrawn
+  pay apps are read-only.
+- Each post writes `pay_app_question` or `pay_app_reply` to the audit log and sends an in-app
+  notification to every active human member of the other company. The notification links back to
+  `#/pay-apps/<id>`.
+- `convex/payApps/questions.test.ts` passed **7/7 tests**, including the no-financial-write check,
+  draft visibility, role refusals, agent read-only behaviour, body validation and in-app
+  notification recipients.
+- Browser acceptance `scripts/qa/pay-app-thread-browser.mjs` passed **21/21 checks** on canonical
+  build `0ba5d11`: sub question, GC reply, both views, an unchanged money trail, and a read-only
+  reference pay app with no composer. Evidence:
+  `evidence/pay-app-thread-browser-2026-11-05T08-14-04-182Z/report.json`.
+- The run wrote two synthetic thread entries to R6-A dev run `nx7c971zm1xkfbaccs0wdtqae58hm175`; it
+  made no PayPal call, financial write or guided run, and did not mutate the preserved reference.
+- Full regression after the change: **2,041 tests across 154 files** passed; guard audit 264 public /
+  201 internal / 0 problems; 92 documentation links resolve. See
+  [pay-app-questions.md](./pay-app-questions.md).
+
 ## Verified recovery baseline
 
 - Final judge-access regression: **1,957 tests passed across 144 files** (`evidence/recovery-judge-final-regression.json`), plus **eight Node safety/integration helper tests**. The earlier recovery checkpoint was 1,950 tests across 142 files.

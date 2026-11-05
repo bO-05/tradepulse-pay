@@ -8,6 +8,7 @@ Start with the [judge guide](./judge-guide.md): the shortest path through the de
 - [Submission draft](./submission-draft.md) — the Devpost text, testing instructions, and the separate owner publishing checklist.
 - [Quick start](./quick-start.md) — create a job, add a sub, paste a schedule of values and execute a subcontract in one pass, plus the demo-company invite limit.
 - [Lien-waiver gate](./lien-waiver-gate.md) — the opt-in per-subcontract gate, what the sub signs, the pay-gate reasons and the legal limits.
+- [Pay-app questions](./pay-app-questions.md) — the sub “Question this amount” thread, who can read or post, and why it never edits the figures.
 - [Pay-app review evaluation](./pay-app-review-eval.md) — the 24-case verdict suite, precision/recall definitions and the reproducible scorecard command.
 - [Browser audit start](./browser-audit-start.md) — a blind, read-only first-use brief for an independent reviewer.
 - [Browser audit playbook](./browser-agent-audit.md) — the detailed role, route, and evidence checklist after the blind pass.
