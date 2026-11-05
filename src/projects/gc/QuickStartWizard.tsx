@@ -60,7 +60,7 @@ const SETUP_STEPS: { key: SetupKey; label: string }[] = [
   { key: "bid", label: "Record the subcontract bid" },
   { key: "agreement", label: "Generate the subcontract" },
   { key: "sov", label: "Import and approve the SOV" },
-  { key: "execute", label: "Record the subcontract as executed" },
+  { key: "execute", label: "Record the GC's execution" },
   { key: "invite", label: "Create the sub invite" },
 ];
 
@@ -328,7 +328,7 @@ export function QuickStartWizard() {
       } else mark("sov", "done");
 
       current = "execute";
-      setBusyLabel("Recording the subcontract as executed…");
+      setBusyLabel("Recording the GC's execution…");
       mark("execute", "running");
       // Idempotent: an already-executed agreement returns success without changing it.
       await executeAgreement({ agreementId: idsRef.current.agreementId! });
@@ -682,7 +682,8 @@ export function QuickStartWizard() {
             </label>
 
             <p role="note" className="rounded-lg border border-amber-700 bg-amber-950/40 px-3 py-2 text-sm text-amber-100">
-              This records the subcontract as executed in TradePulse Pay. External signature verification is still your responsibility.
+              This records the GC's execution in TradePulse Pay. The sub's signature and acceptance happen outside the
+              app and are still your responsibility; this record does not replace them.
             </p>
 
             {error && (

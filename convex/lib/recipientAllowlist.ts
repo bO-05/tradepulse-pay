@@ -22,7 +22,7 @@ export const DEFAULT_RECIPIENT_ALLOWLIST = [
 ];
 
 export const BLOCKED_RECIPIENT_MESSAGE =
-  "Not sent: this test deployment only emails approved test addresses. Use an approved test address, or ask the operator to add this one to EMAIL_RECIPIENT_ALLOWLIST.";
+  "Not sent: this test deployment only emails approved test addresses. Use an approved test address, or ask the operator to approve this one.";
 
 export function isProductionDeployment(cloudUrl: string | undefined, appEnv: string | undefined = process.env.APP_ENV): boolean {
   // Deployments set APP_ENV=production explicitly; the name list keeps existing deployments working.

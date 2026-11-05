@@ -23,6 +23,7 @@ Start with the [judge guide](./judge-guide.md): the shortest path through the de
 - [External audit fixes](./external-audit-fixes.md) — sanitized retest handoffs. The raw audit folders stay private.
 - [R5 remediation](./r5-remediation.md) — finding-by-finding R5 status, including the payment and onboarding work that remains open.
 - [R6 remediation](./r6-remediation.md) — R6 Block 0 correctness fixes, what is only unit-tested, and the ICP work still deferred.
+- [R7 remediation](./r7-remediation.md) — R7 correctness and copy fixes, the new landing/contrast evidence, and the residential demo work still open.
 - [Production environment names](./prod-env-names.md) — variable names only; no values.
 - [Archived September audits](./audits/README.md) — the earlier TradePulse Pro reviews.
 
