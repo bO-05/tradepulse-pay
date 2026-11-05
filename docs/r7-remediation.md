@@ -69,6 +69,7 @@ Status meanings: **Fixed** = code and regression tests in this branch. **Partial
 - `npm run verify:guards`: 264 public functions, 201 internal, 0 problems.
 - `npm run verify:docs`: 100 relative links resolve.
 - Read-only browser acceptance:
+  - `scripts/qa/dual-host-browser.mjs`: 37/37 on the Convex site and Pages mirror, both serving the same commit, including the pinned reference run.
   - `scripts/qa/landing-nav-inbox-browser.mjs`: 41/41 against the canonical host.
   - `scripts/qa/owner-landing-browser.mjs`: 9/9, 0 contrast violations, signed-out hero and Owner home.
 - Deployed static build: see the commit recorded in `/version.json` on the canonical, mirror and Pages hosts. The app build was produced by `npm run deploy:all`, which verifies the dev target, `CONVEX_SITE_URL` and the recovery branch before uploading.

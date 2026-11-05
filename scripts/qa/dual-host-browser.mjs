@@ -161,7 +161,7 @@ try {
     await open(gc.page, site, `#/judge-demo/${DEMO_RUN}`);
     await gc.page.waitForSelector('[data-testid="read-only-reference"]', { timeout: 45000 });
     const judgeText = await bodyText(gc.page);
-    check(`${hostLabel} opens the pinned read-only run`, judgeText.includes(REFERENCE_AGREEMENT) && judgeText.includes("Preserved demo fixture"));
+    check(`${hostLabel} opens the pinned read-only run`, judgeText.includes(REFERENCE_AGREEMENT) && judgeText.includes("Preserved demo run"));
     check(`${hostLabel} does not offer a new run on the reference`, !judgeText.includes("Start guided demo"));
 
     const archiveResponses = [];
@@ -210,7 +210,7 @@ try {
 
     await open(gc.page, site, "#/dashboard");
     await gc.page.waitForSelector('[data-testid="dashboard-basic-view"]', { timeout: 45000 });
-    check(`${hostLabel} reports load without a Studio license`, (await bodyText(gc.page)).includes("No AG Studio license is needed"));
+    check(`${hostLabel} reports load without a Studio license`, (await bodyText(gc.page)).includes("No Studio license is needed"));
 
     await open(gc.page, site, "#/payments/jn78x0j5xeh7q9gb55p26r7pdh8hdmjx");
     await gc.page
