@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { agreementHash, judgeDemoHash, ledgerHash, NAV_BY_ROLE, navFor, parseHash, payAppHash, resolveRoute } from "./navigation";
+import { agreementHash, judgeDemoHash, ledgerHash, NAV_BY_ROLE, navFor, navSections, parseHash, payAppHash, resolveRoute } from "./navigation";
 
 describe("role navigation", () => {
   test("run-specific bookmarks preserve the demo-company and GC restrictions", () => {
@@ -29,6 +29,20 @@ describe("role navigation", () => {
     expect(NAV_BY_ROLE.sub.map((i) => i.area)).toEqual(["sub-portal", "pay-apps", "change-orders", "compliance", "bid-invitations", "my-projects", "payments"]);
     expect(NAV_BY_ROLE.owner.map((i) => i.area)).toEqual(["owner-portal", "my-projects", "owner-pay-apps", "change-orders", "dashboard"]);
     expect(NAV_BY_ROLE.owner.map((i) => i.label)).toEqual(["Home", "Projects", "Applications to owner", "Change orders", "Reports"]);
+  });
+
+  test("GC keeps the payment path in the bar and the back-office registers under More", () => {
+    const gc = navSections("gc");
+    expect(gc.primary.map((i) => i.area)).toEqual(["inbox", "billing", "gc-projects", "change-orders", "payments"]);
+    expect(gc.more.map((i) => i.area)).toEqual(["procurement", "compliance", "owner-portal", "people", "vendors", "billing-agents", "dashboard"]);
+    expect([...gc.primary, ...gc.more].map((i) => i.area).sort()).toEqual(navFor("gc").map((i) => i.area).sort());
+
+    const demo = navSections("gc", true);
+    expect(demo.primary.map((i) => i.area)).toEqual(["inbox", "billing", "gc-projects", "change-orders", "payments", "judge-demo"]);
+    expect(demo.more.map((i) => i.area)).toEqual(["procurement", "compliance", "owner-portal", "people", "vendors", "billing-agents", "dashboard"]);
+
+    expect(navSections("sub")).toEqual({ primary: navFor("sub"), more: [] });
+    expect(navSections("owner")).toEqual({ primary: navFor("owner"), more: [] });
   });
 
   test("Compliance is for GC and sub company members; owners and billing agents get Not found", () => {

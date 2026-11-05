@@ -16,6 +16,14 @@ test("public guide provides three ordinary demo roles and honest payment instruc
     "not an authentication bypass", "owner-approved OAuth", "valid license"]) expect(html).toContain(text);
 });
 
+test("the landing leads with the residential GC job story, not the judge checklist", () => {
+  const html = renderToStaticMarkup(<DemoAccessPage />);
+  for (const text of ["Residential remodel GCs", "Pay the right amount.", "Catch overbilling early",
+    "Keep a clean owner trail", "owner-run remodels", "PayPal sandbox money only"]) expect(html).toContain(text);
+  expect(html).toContain("Judge walkthrough");
+  expect(html).toContain("<details");
+});
+
 test("guide never silently replaces an existing signed-in account", () => {
   vi.mocked(useConvexAuth).mockReturnValue({ isAuthenticated: true, isLoading: false, isRefreshing: false });
   const html = renderToStaticMarkup(<DemoAccessPage />);

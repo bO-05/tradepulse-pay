@@ -20,7 +20,7 @@ export function AuthLayout({ title, description, children, footer }: {
           <div aria-hidden="true" className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 border border-emerald-400/30" />
           <div>
             <p className="text-lg font-bold tracking-tight">TradePulse Pay</p>
-            <p className="text-xs text-ink-subtle">Rules compute every dollar. You decide. PayPal settles.</p>
+            <p className="text-xs text-ink-subtle">Pay apps for residential remodel GCs. Checked before you pay.</p>
           </div>
         </div>
         <p className="mb-4 rounded-xl border border-amber-800 bg-amber-950/40 px-3 py-2 text-xs text-amber-100" data-testid="auth-sandbox-notice">

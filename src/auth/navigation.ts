@@ -242,6 +242,26 @@ export function navFor(role: Role, isDemo = false, actorType: ActorType = "human
   );
 }
 
+/**
+ * The GC's daily path: approvals, sub pay apps, jobs, change orders and the payment ledger.
+ * Procurement and the back-office registers stay reachable under "More" instead of filling the bar.
+ */
+const GC_PRIMARY_ORDER = ["inbox", "billing", "gc-projects", "change-orders", "payments"] as const satisfies readonly NavItem["area"][];
+
+export type NavSections = { primary: NavItem[]; more: NavItem[] };
+
+/** Split a role's nav into the always-visible primary bar and the GC back-office menu. */
+export function navSections(role: Role, isDemo = false, actorType: ActorType = "human"): NavSections {
+  const nav = navFor(role, isDemo, actorType);
+  if (role !== "gc") return { primary: nav, more: [] };
+  const order: NavItem["area"][] = isDemo ? [...GC_PRIMARY_ORDER, "judge-demo"] : [...GC_PRIMARY_ORDER];
+  const rank = new Map(order.map((area, index) => [area, index]));
+  const primary = nav
+    .filter((item) => rank.has(item.area))
+    .sort((a, b) => (rank.get(a.area) ?? order.length) - (rank.get(b.area) ?? order.length));
+  return { primary, more: nav.filter((item) => !rank.has(item.area)) };
+}
+
 /** `?project=` / `?tab=` only mean something to the GC procurement workspace. */
 function hasProcurementQuery(search: string): boolean {
   const params = new URLSearchParams(search);

@@ -33,14 +33,11 @@ import { ProjectSettingsPage } from "../projects/gc/ProjectSettingsPage";
 import { ProjectsListPage } from "../projects/gc/ProjectsListPage";
 import { ActiveCompanyContext } from "./companyContext";
 import { ConnectionBanner } from "./ConnectionBanner";
-import { COMPANY_HASH, DEMO_ONLY_AREAS, agreementHash, navFor, resolveRoute, type Role } from "./navigation";
+import { COMPANY_HASH, DEMO_ONLY_AREAS, agreementHash, navFor, navSections, resolveRoute, type Role } from "./navigation";
 import { useSignOutAndReset } from "./signOutAndReset";
 import { useHash } from "./useHash";
 
 const PaymentsDashboard = lazy(() => import("../dashboard/PaymentsDashboard"));
-
-/** Demo GCs get the payment path first; the procurement back office moves under "More". */
-const DEMO_PRIMARY_AREAS = new Set(["inbox", "payments", "billing", "change-orders", "dashboard", "judge-demo"]);
 
 const ROLE_LABEL: Record<Role, string> = { gc: "General contractor", sub: "Subcontractor", owner: "Owner" };
 
@@ -62,9 +59,7 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
   const isDemo = me.isDemo === true;
   const route = resolveRoute(me.role, hash, isDemo, window.location.search, me.actorType);
   const nav = navFor(me.role, isDemo, me.actorType);
-  const demoTrim = isDemo && me.role === "gc";
-  const primaryNav = demoTrim ? nav.filter((item) => DEMO_PRIMARY_AREAS.has(item.area)) : nav;
-  const moreNav = demoTrim ? nav.filter((item) => !DEMO_PRIMARY_AREAS.has(item.area)) : [];
+  const { primary: primaryNav, more: moreNav } = navSections(me.role, isDemo, me.actorType);
   const homeHash = nav[0].hash;
   const leftProcurement = route.area !== "procurement" && hash !== "" && hash !== "#" && hash !== "#/";
   useEffect(() => {
@@ -191,7 +186,6 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
               route.area === item.area ||
               (route.area === "ledger" && item.area === "payments") ||
               (route.area === "pay-app" && (item.area === "billing" || item.area === "pay-apps"));
-            const label = demoTrim && item.area === "billing" ? "Pay apps" : item.label;
             return (
               <li key={item.area}>
                 <a
@@ -201,7 +195,7 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
                     active ? "bg-emerald-700/40 text-emerald-200" : "text-slate-300 hover:bg-slate-800"
                   }`}
                 >
-                  {label}
+                  {item.label}
                   {DEMO_ONLY_AREAS.has(item.area) ? (
                     <span aria-hidden="true" className="rounded border border-amber-600 px-1 text-[9px] font-bold uppercase text-amber-200">
                       Demo
@@ -214,7 +208,9 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
           {moreNav.length > 0 ? (
             <li className="relative">
               <details className="group">
-                <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-lg px-3 py-2 text-slate-300 hover:bg-slate-800 [&::-webkit-details-marker]:hidden">
+                <summary className={`flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-lg px-3 py-2 hover:bg-slate-800 [&::-webkit-details-marker]:hidden ${
+                  moreNav.some((item) => route.area === item.area) ? "text-emerald-200" : "text-slate-300"
+                }`}>
                   More
                   <span aria-hidden="true" className="text-[10px] text-slate-400 group-open:rotate-180">▼</span>
                 </summary>

@@ -12,6 +12,7 @@ import { payAppHash, ledgerHash } from "../../auth/navigation";
 import { TextInput } from "../../ui";
 import { ReceiptId } from "../ReceiptId";
 import { isAIReviewProvider } from "../../lib/aiProvenance";
+import { inboxGroup, payAppStatusLabel } from "./inboxBuckets";
 
 type InboxItem = FunctionReturnType<typeof api.payApps.proposals.listInbox>[number];
 type Proposal = InboxItem["proposals"][number];
@@ -428,7 +429,7 @@ function InboxEntry({ item }: { item: InboxItem }) {
           </h2>
           <p className="text-xs text-slate-400">
             {item.agreement.agreementNumber} · {item.agreement.projectTitle} · status{" "}
-            <span data-testid="inbox-payapp-status">{item.payApp.status}</span>
+            <span data-testid="inbox-payapp-status" data-status={item.payApp.status}>{payAppStatusLabel(item.payApp.status)}</span>
           </p>
           <p className="text-sm text-slate-300" data-testid="inbox-attribution" data-actor={item.payApp.submittedBy.actorType}>{submissionAttribution(item.payApp.submittedBy, item.payApp.judgeDemoFiledBy)}</p>
           <div className="flex flex-wrap gap-3 text-xs text-emerald-300">
@@ -500,34 +501,88 @@ export function ApprovalInbox() {
   const [status, setStatus] = useState("all");
   const filtered = items?.filter((item) => (status === "all" || item.payApp.status === status) &&
     [item.agreement.agreementNumber, item.agreement.projectTitle, item.agreement.subcontractorName, item.payApp.periodLabel, item.payApp._id].join(" ").toLowerCase().includes(search.toLowerCase().trim()));
+  const visible = filtered ?? [];
+  const active = visible.filter((item) => inboxGroup(item.payApp.status) === "active");
+  const waiting = visible.filter((item) => inboxGroup(item.payApp.status) === "waiting");
+  const history = visible.filter((item) => inboxGroup(item.payApp.status) === "history");
+  const historyOpen = active.length === 0 && waiting.length === 0;
+  const filtering = search.trim() !== "" || status !== "all";
   return (
     <div className="min-w-0 max-w-6xl mx-auto space-y-4">
-      <header className="space-y-1">
-        <h1 className="text-xl font-semibold">Approvals</h1>
-        <p className="text-sm text-slate-400">
-          The pay agent applies the code rules, checks the contractor's CSLB license and proposes a capture and payout. Code computes
-          every dollar; the model explains the evidence. Nothing is captured or paid until you approve.
-        </p>
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div className="space-y-1">
+          <h1 className="text-xl font-semibold">Approvals</h1>
+          <p className="max-w-2xl text-sm text-slate-400">
+            Review each sub pay app before money moves. Code computes the amounts; you approve, trim or reject.
+          </p>
+        </div>
+        {items ? (
+          <p role="status" className="text-xs text-slate-400" data-testid="inbox-counts">
+            {active.length} open · {waiting.length} awaiting payment · {history.length} in history
+          </p>
+        ) : null}
       </header>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_14rem_auto]">
         <label className="text-sm">Search loaded applications
           <input className="mt-1 block w-full rounded-lg border border-slate-600 bg-slate-900 p-2" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Agreement, project, company or pay app ID" />
         </label>
         <label className="text-sm">Status
           <select className="mt-1 block w-full rounded-lg border border-slate-600 bg-slate-900 p-2" value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="all">All statuses</option>
-            {["submitted", "under_review", "reviewed", "approved", "approved_as_noted", "revision_requested", "paid", "rejected"].map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
+            {["submitted", "under_review", "reviewed", "approved", "approved_as_noted", "revision_requested", "paid", "rejected"].map((s) => <option key={s} value={s}>{payAppStatusLabel(s)}</option>)}
           </select>
         </label>
+        {filtering ? (
+          <button
+            type="button"
+            className="self-end rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800"
+            onClick={() => { setSearch(""); setStatus("all"); }}
+          >
+            Clear
+          </button>
+        ) : null}
       </div>
-      {items && <p role="status" className="text-xs text-slate-400">Showing {filtered?.length} of {items.length} loaded applications. Inbox loads up to 60 recent applications across up to 200 agreements; use Payments for an older agreement's full ledger.</p>}
+      {items && <p className="text-xs text-slate-400">Showing {visible.length} of {items.length} loaded applications. Loads up to 60 recent applications across 200 agreements; open Payments for an older ledger.</p>}
       {items === undefined ? (
         <p className="text-sm text-slate-400" role="status">Loading the inbox…</p>
       ) : items.length === 0 ? (
         <p className="text-sm text-slate-400">No pay applications to review.</p>
+      ) : visible.length === 0 ? (
+        <p>No applications match these filters.</p>
       ) : (
-        filtered?.length ? filtered.map((item) => <InboxEntry key={item.payApp._id} item={item} />) : <p>No applications match these filters.</p>
+        <div className="space-y-6">
+          <InboxBucket title="Needs your attention" description="Submitted, under review or ready for a decision." items={active} />
+          <InboxBucket title="Approved · awaiting payment" items={waiting} />
+          {history.length > 0 ? (
+            <details className="group rounded-2xl border border-slate-800 bg-slate-900/40" open={historyOpen}>
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+                <span>
+                  <span className="text-base font-semibold">History</span>
+                  <span className="ml-2 text-xs text-slate-400">{history.length} paid, rejected or revised</span>
+                </span>
+                <span aria-hidden="true" className="text-xs text-slate-400 group-open:hidden">Show</span>
+                <span aria-hidden="true" className="hidden text-xs text-slate-400 group-open:inline">Hide</span>
+              </summary>
+              <div className="space-y-3 border-t border-slate-800 p-3">
+                {history.map((item) => <InboxEntry key={item.payApp._id} item={item} />)}
+              </div>
+            </details>
+          ) : null}
+        </div>
       )}
     </div>
+  );
+}
+
+function InboxBucket({ title, description, items }: { title: string; description?: string; items: InboxItem[] }) {
+  if (items.length === 0) return null;
+  return (
+    <section aria-label={title} className="space-y-3">
+      <div>
+        <h2 className="text-base font-semibold">{title} <span className="text-sm font-normal text-slate-400">{items.length}</span></h2>
+        {description ? <p className="text-xs text-slate-400">{description}</p> : null}
+      </div>
+      {items.map((item) => <InboxEntry key={item.payApp._id} item={item} />)}
+    </section>
   );
 }
