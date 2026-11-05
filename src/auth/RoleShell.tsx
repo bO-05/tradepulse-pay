@@ -27,6 +27,7 @@ import { NotificationBell } from "../notifications/NotificationBell";
 import { NotificationsPage } from "../notifications/NotificationsPage";
 import { MyProjectsPage } from "../projects/MyProjectsPage";
 import { NewProjectWizard } from "../projects/gc/NewProjectWizard";
+import { QuickStartWizard } from "../projects/gc/QuickStartWizard";
 import { ProjectPage } from "../projects/gc/ProjectPage";
 import { ProjectSettingsPage } from "../projects/gc/ProjectSettingsPage";
 import { ProjectsListPage } from "../projects/gc/ProjectsListPage";
@@ -123,6 +124,7 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
   else if (route.area === "company") content = <CompanySettingsPage />;
   else if (route.area === "gc-projects") {
     if (route.view === "new") content = <NewProjectWizard />;
+    else if (route.view === "quick-start") content = <QuickStartWizard />;
     else if (route.projectId && route.view === "settings") content = <ProjectSettingsPage projectId={route.projectId} />;
     else if (route.projectId) content = <ProjectPage projectId={route.projectId} />;
     else content = <ProjectsListPage />;

@@ -43,7 +43,7 @@ export type Route = {
   demoRunId?: string;
   /** Compliance record opened from a notification. */
   complianceItemId?: string;
-  view?: "new" | "settings" | "sov";
+  view?: "new" | "settings" | "sov" | "quick-start";
   /** Billing tab for the GC: pay apps (default), owner billing or retainage. */
   tab?: BillingTab;
 };
@@ -172,6 +172,7 @@ export function myProjectHash(projectId: string): string {
 /** GC project setup: list, New project wizard, project page and Project settings. */
 export const GC_PROJECTS_HASH = "#/all-projects";
 export const NEW_PROJECT_HASH = "#/all-projects/new";
+export const QUICK_START_HASH = "#/all-projects/quick-start";
 
 export function gcProjectHash(projectId: string): string {
   return `${GC_PROJECTS_HASH}/${encodeURIComponent(projectId)}`;
@@ -200,6 +201,7 @@ function parseHashRoute(hash: string): Route | null {
   const vendorMatch = path.match(/^\/vendors\/([^/?#]+)$/);
   if (vendorMatch) return { area: "vendors", vendorId: decodeURIComponent(vendorMatch[1]) };
   if (`#${path}` === NEW_PROJECT_HASH) return { area: "gc-projects", view: "new" };
+  if (`#${path}` === QUICK_START_HASH) return { area: "gc-projects", view: "quick-start" };
   const gcProject = path.match(/^\/all-projects\/([^/?#]+)(\/settings)?$/);
   if (gcProject) {
     const projectId = decodeURIComponent(gcProject[1]);

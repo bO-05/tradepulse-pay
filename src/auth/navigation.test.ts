@@ -55,14 +55,15 @@ describe("role navigation", () => {
     for (const role of ["gc", "sub", "owner"] as const) expect(resolveRoute(role, "#/company")).toEqual({ area: "company" });
   });
 
-  test("GC project setup routes: list, wizard, project page and settings; GC only", () => {
+  test("GC project setup routes: list, wizard, quick start, project page and settings; GC only", () => {
     expect(resolveRoute("gc", "#/all-projects")).toEqual({ area: "gc-projects" });
     expect(resolveRoute("gc", "#/all-projects/new")).toEqual({ area: "gc-projects", view: "new" });
+    expect(resolveRoute("gc", "#/all-projects/quick-start")).toEqual({ area: "gc-projects", view: "quick-start" });
     expect(resolveRoute("gc", "#/all-projects/k97p")).toEqual({ area: "gc-projects", projectId: "k97p" });
     expect(resolveRoute("gc", "#/all-projects/k97p/settings")).toEqual({ area: "gc-projects", projectId: "k97p", view: "settings" });
     expect(resolveRoute("gc", "#/all-projects/k97p/other")).toEqual({ area: "not-found" });
     for (const role of ["sub", "owner"] as const) {
-      for (const hash of ["#/all-projects", "#/all-projects/new", "#/all-projects/k97p", "#/all-projects/k97p/settings"]) {
+      for (const hash of ["#/all-projects", "#/all-projects/new", "#/all-projects/quick-start", "#/all-projects/k97p", "#/all-projects/k97p/settings"]) {
         expect(resolveRoute(role, hash)).toEqual({ area: "not-found" });
       }
     }
