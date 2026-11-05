@@ -21,10 +21,23 @@ import { assertCorrectedDemoAward, assertSandboxCheckout, assertOwnerInvoice, as
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const site = "https://cheery-axolotl-689.convex.site";
 const cloud = "https://cheery-axolotl-689.convex.cloud";
-const flags = process.argv.slice(2);
+const rawFlags = process.argv.slice(2);
+let selectedRunId;
+const flags = [];
+for (let i = 0; i < rawFlags.length; i++) {
+  if (rawFlags[i] === "--run") {
+    selectedRunId = rawFlags[++i];
+    if (!selectedRunId || !/^nx[a-z0-9]+$/i.test(selectedRunId)) {
+      throw new Error("--run requires a judge demo run id.");
+    }
+  } else {
+    flags.push(rawFlags[i]);
+  }
+}
 if (flags.some(flag => !["--start", "--resume", "--guest", "--owner-checkout", "--owner-pay", "--release-retainage"].includes(flag)) ||
-    (flags.includes("--start") && flags.includes("--resume"))) {
-  throw new Error("Use --start/--resume, --owner-checkout/--owner-pay, or --release-retainage; no target override is allowed.");
+    (flags.includes("--start") && flags.includes("--resume")) ||
+    (selectedRunId && (flags.includes("--start") || flags.includes("--resume")))) {
+  throw new Error("Use --start/--resume, --owner-checkout/--owner-pay, --run, or --release-retainage; no target override is allowed.");
 }
 if (flags.includes("--guest") && !flags.some(flag => ["--start", "--resume"].includes(flag))) {
   throw new Error("--guest requires an explicit --start or --resume.");
@@ -38,6 +51,7 @@ const client = new ConvexHttpClient(cloud);
 let browser;
 let token;
 let appPage;
+let activeRunId = selectedRunId;
 let phase = "sandbox preflight";
 
 const sanitize = value => value === site || /^https:\/\/(?:[a-z]+\.)?sandbox\.paypal\.com$/.test(String(value)) ? String(value) : String(value)
@@ -162,7 +176,7 @@ async function paymentScreenshots() {
 }
 
 async function ledgerSnapshot() {
-  const run = await client.query(api.judgeDemo.runs.getRun, {});
+  const run = await client.query(api.judgeDemo.runs.getRun, activeRunId ? { runId: activeRunId } : {});
   if (!run) return { run: null };
   const ledger = await client.query(api.payments.ledger.getAgreementLedger, { agreementId: run.agreementId });
   return {
@@ -309,7 +323,7 @@ async function settlementSnapshot() {
 }
 
 async function inspectOwnerInvoice() {
-  const run = await client.query(api.judgeDemo.runs.getRun, {});
+  const run = await client.query(api.judgeDemo.runs.getRun, activeRunId ? { runId: activeRunId } : {});
   if (!run?.changeOrderId) throw new Error("No invoice on this demo run.");
   const orders = await client.query(api.billing.changeOrders.listForProject, { projectId: run.projectId });
   const invoice = orders.prime.changeOrders.find(order => order._id === run.changeOrderId);
@@ -368,7 +382,7 @@ async function inspectOwnerInvoice() {
 }
 
 async function payOwnerInvoice(opened) {
-  const { owner, payer, checkout, invoice } = opened;
+  const { owner, payer, checkout, context, invoice } = opened;
   if (invoice.status !== "paid") {
     if (payer.url() !== invoice.payerViewUrl) throw new Error("Sandbox invoice payer view changed.");
     const orderId = new URL(checkout.url()).searchParams.get("token");
@@ -390,9 +404,14 @@ async function payOwnerInvoice(opened) {
   }
   report.ownerInvoice.finalStatus = status;
   if (status !== "paid") throw new Error("PayPal has not confirmed payment of the Owner invoice.");
-  await owner.waitForFunction(url => [...document.querySelectorAll('[data-testid="change-order-invoice-link"]')]
+  // The invoice link may replace the Owner app tab with PayPal. Verify the app row on a fresh tab
+  // that shares the same authenticated browser context.
+  const ownerUi = await context.newPage();
+  await ownerUi.goto(`${site}/#/projects`, { waitUntil: "domcontentloaded" });
+  await ownerUi.waitForSelector('[data-testid="portal-change-orders"]', { timeout: 30_000 });
+  await ownerUi.waitForFunction(url => [...document.querySelectorAll('[data-testid="change-order-invoice-link"]')]
     .some(link => link.getAttribute("href") === url && link.closest('[data-testid="change-order-row"]')?.dataset.status === "paid"),
-    { timeout: 30_000 }, invoice.payerViewUrl);
+    { timeout: 45_000 }, invoice.payerViewUrl);
   report.steps.push({ action: "verify Owner payment", result: "PayPal confirmed PAID; Owner app row updated" });
 }
 
@@ -461,6 +480,11 @@ try {
   page.setDefaultTimeout(30_000);
   phase = "public demo browser sign-in";
   await login(page);
+  if (activeRunId) {
+    await page.goto(`${site}/#/judge-demo/${activeRunId}`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="judge-demo-page"]');
+    await page.waitForFunction(() => !document.body.innerText.includes("Loading…"));
+  }
   report.initialUi = await demoSnapshot(page);
   if (driveDemo) {
     phase = flags.includes("--start") ? "start guided demo" : "resume guided demo";
@@ -468,10 +492,20 @@ try {
     await page.waitForSelector(selector);
     await page.click(selector);
     if (flags.includes("--start")) {
+      await page.waitForSelector('[role="alertdialog"]');
+      await page.evaluate(() => {
+        const button = [...document.querySelectorAll('[role="alertdialog"] button')]
+          .find(el => el.textContent.trim() === "Create sandbox run");
+        if (!button || button.disabled) throw new Error("Start-run confirmation unavailable.");
+        button.click();
+      });
       await page.waitForFunction(previous => {
         const href = document.querySelector('[data-testid="judge-demo-agreement"]')?.getAttribute("href");
         return href?.startsWith("#/payments/") && href !== previous;
       }, { timeout: 30_000 }, report.initialUi.agreementHash ?? null);
+      const hash = await page.evaluate(() => location.hash);
+      activeRunId = hash.split("/").filter(Boolean).pop();
+      if (!activeRunId) throw new Error("The fresh guided run did not expose its run id.");
     }
     await page.waitForFunction(() => document.querySelector('[data-testid="fund-milestone-button"]') ||
       document.querySelector('[data-testid="judge-demo-step-fund"]')?.dataset.status === "done" ||

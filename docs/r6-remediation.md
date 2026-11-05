@@ -1,6 +1,6 @@
 # R6 remediation record
 
-Date: 2026-11-04
+Date: 2026-11-04 (Block 0 code record); live R6-A proof appended 2026-11-05
 Audit: private R6 retest (kept in the ignored `docs/external-audit/` folder, not reproduced here)
 Branch: `recovery/stabilize-2026-11-01`
 Code commit: `a0833541140bdbb78d7457168f457c36ac89ed32`
@@ -14,7 +14,7 @@ This file maps every R6 correctness finding to code and tests. It does not turn 
 Fixed in code with regression tests:
 
 - Deleting a bid or project can no longer erase pay applications, Owner pay apps, prime change orders or other financial history through a void-then-delete path.
-- The Owner invoice demo alias now keys on `isDemoProject || demoSandbox` and on the configured sandbox Owner address, not only the old `@demo.tradepulse` check. This is unit-tested, not live-proven against a fresh guided run.
+- The Owner invoice demo alias now keys on `isDemoProject || demoSandbox` and on the configured sandbox Owner address, not only the old `@demo.tradepulse` check. It is unit-tested and **live-proven** on a fresh guided run: the PayPal invoice billed the synthetic Owner alias and was confirmed paid.
 - A retained-amount reduction at 50% now keeps the earlier hold and applies the reduced rate only to the new increment. G702, the approval-inbox split, the agent proposal split and the agent/review context use the pay app's stored G703 rate, so the confirm-before-money screen agrees with the payout.
 - Approving different per-line amounts clears the stale inbox edit reason.
 - The payee confirmation is admin-only in the UI, and the server refusal is unchanged.
@@ -26,7 +26,7 @@ Fixed in code with regression tests:
 
 Partial or not fixed in this round:
 
-- R6-A is **not live-proven**. The code and tests cover the guided-run shape (`demoSandbox: true`, Owner address `owner@demo.tradepulse`), but proving step 13 needs a fresh guided run and an Owner-invoice payment. That requires explicit approval and was not run.
+- R6-A is **live-proven** as of 2026-11-05. On fresh dev run `nx7c971zm1xkfbaccs0wdtqae58hm175`, the Owner invoice `INV2-8DKA-MRJH-6BXD-DFL2` ($1,850) opened from the Owner app billed `owner-q9728ekyzqrb8sm290r6px1b5s8hn23q@example.com`, not the GC. PayPal confirmed it `paid`, the app recorded the payment, and a read-only browser rerun verified the Owner row shows `paid`. See the live proof section below.
 - R6-D is partial. The Owner change-order detail labels UTC and PayPal shows its own date zone; there is no single combined timezone display across every Owner invoice surface.
 - N-10, the guided-demo canned override reason, is deferred. R6 rule 5 forbids changing the guided-demo driver or runs before 12 Nov.
 - The largest ICP gaps are deferred: real sign-up, create a job, add a sub, invite a sub, question a payment, the conditional lien-waiver gate, the 24-case review eval, the Owner job card and nav/inbox trimming.
@@ -37,7 +37,7 @@ Status meanings: **Fixed** = code and regression tests in this branch. **Partial
 
 | ID | Sev | Finding | Status | What changed / why it remains |
 | --- | --- | --- | --- | --- |
-| R6-A | P1 (demo) | Owner invoice alias never fires; step 13 fails live | Fixed in code, **not live-proven** | `convex/payments/changeOrderRecipient.ts` treats `isDemoProject` or `demoSandbox` as a demo project and aliases the Owner email when it ends `@demo.tradepulse` or matches the normalized `PAYPAL_SANDBOX_OWNER_EMAIL`. Tests in `convex/payee.test.ts` cover both the old and the judge-demo-shaped project. A fresh guided run and Owner-invoice payment would be the live proof; neither was run under this authorization. |
+| R6-A | P1 (demo) | Owner invoice alias never fires; step 13 fails live | Fixed and **live-proven** 2026-11-05 | `convex/payments/changeOrderRecipient.ts` treats `isDemoProject` or `demoSandbox` as a demo project and aliases the Owner email when it ends `@demo.tradepulse` or matches the normalized `PAYPAL_SANDBOX_OWNER_EMAIL`. Tests in `convex/payee.test.ts` cover both the old and the judge-demo-shaped project. Live proof: fresh guided run `nx7c971zm1xkfbaccs0wdtqae58hm175`, invoice `INV2-8DKA-MRJH-6BXD-DFL2`, bill-to `owner-q9728ekyzqrb8sm290r6px1b5s8hn23q@example.com`, PayPal `paid`, app row `paid`. |
 | N-1 | P1 | Financial-history guard bypassed by voiding an agreement, then deleting its bid | Fixed | `convex/bids.ts` refuses `deleteBid` when a non-executed agreement still has financial history, before `deleteAgreementCascade`. `convex/payments/cascade.test.ts` adds the void-then-delete regression. |
 | N-2 | P2 | Project delete ignores Owner pay apps and prime change orders | Fixed | `convex/projects.ts` refuses when any Owner pay app is not `draft`, or a prime change order is `approved`, `invoiced`, `paid` or has a PayPal invoice. `convex/payments/cascade.test.ts` covers a submitted Owner pay app on delete. |
 | N-3 | P3 | Stale `editedReason` after the GC changes per-line amounts | Fixed | `convex/payApps/decisions.ts` clears `editedReason` whenever it rewrites or clears `editedAmountCents`. `convex/payApps/decisions.test.ts` covers the stale-reason case. |
@@ -54,6 +54,22 @@ Status meanings: **Fixed** = code and regression tests in this branch. **Partial
 | Agent framing | P2 | Sub notes are passed to the pay agent as free text | Fixed | `convex/agent/agentLoop.ts` now frames notes as untrusted data supplied by the sub, never instructions. `convex/agent/agentLoop.test.ts` includes a prompt-injection note and asserts the framing. |
 | AI wording | P3 | "AI recommends" implies the model chose dollars | Fixed | `src/billing/PayAppPage.tsx` and `src/billing/PayAppDecision.tsx` say "Review suggests" / "review suggestion". No `AI recommends` strings remain in `src/`. |
 
+## R6-A live proof (2026-11-05)
+
+This proof used a fresh guided demo run on dev; it did not touch the preserved reference run or production.
+
+- Run: `nx7c971zm1xkfbaccs0wdtqae58hm175`
+- Agreement: `jn759h53ce7h290fmpckyszrwd8hnzpc` (`A401-DEMO-PAY-20261105-07`)
+- Change order: `kx76bc3nmm50bp7jymcemykm1x8hmn2b`
+- Owner invoice: `INV2-8DKA-MRJH-6BXD-DFL2`, $1,850, opened from the Owner app
+- Payer-view bill-to: `owner-q9728ekyzqrb8sm290r6px1b5s8hn23q@example.com` (the synthetic Owner alias, not the GC)
+- PayPal status: `paid`; ledger `changeOrdersPaidCents` 185,000 and `changeOrdersInvoicedCents` 0
+- Owner app: change-order row and invoice surface show `paid`
+- Payment evidence: `evidence/recovery-settlement-2026-11-05T05-09-37-998Z/report.json`
+- Read-only verification rerun: `evidence/recovery-settlement-2026-11-05T05-16-02-852Z/report.json`
+
+The first write run paid the invoice, then the QA script timed out on its final Owner-row assertion. The report already showed `finalStatus: paid` and the correct alias. The assertion was fixed to open a fresh authenticated Owner tab (the invoice link had replaced the original tab), and the read-only rerun passed with no duplicate checkout and no errors. The timeout is recorded here rather than presented as a clean first-run script pass.
+
 ## Verification
 
 | Check | Result | Evidence |
@@ -65,7 +81,7 @@ Status meanings: **Fixed** = code and regression tests in this branch. **Partial
 | Three-origin browser acceptance | 53/53 passed; all three hosts served `a083354` | `evidence/dual-host-browser-2026-11-04T13-29-16-412Z/report.json` |
 | GC/sub/Owner role smoke on canonical | 6/6 checks passed; GC nav shows `Approvals`; mirror `/api/health` returns `ok` | `evidence/recovery-tradepulse-pay.asynchronope.tech-2026-11-04T13-30-47-467Z/report.json` |
 | Blocked sign-up browser check | 5/5 checks passed; no email was sent; the Verify screen showed the generic test-address reason | `evidence/r5-auth-error-check-2026-11-04T13-33-14-482Z/report.json` |
-| R6-A live Owner invoice | **Not run** | Needs explicit approval for a fresh guided run and Owner-invoice payment |
+| R6-A live Owner invoice | **Paid and verified** on fresh run `nx7c971...`; alias bill-to correct; Owner row `paid`; read-only rerun clean | `evidence/recovery-settlement-2026-11-05T05-16-02-852Z/report.json` |
 
 The blocked-sign-up report contains one console error with code `EMAIL_BLOCKED`. That is the refusal being tested, not an unexpected page failure. The screenshot is in the same evidence directory.
 
