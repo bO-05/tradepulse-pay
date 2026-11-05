@@ -211,6 +211,64 @@ export const getAgreementSummary = query({
   },
 });
 
+const OWNER_APPROVED_STATUSES = new Set(["approved", "approved_invoiced", "paid"]);
+const OWNER_PAID_CHANGE_ORDER_STATUSES = new Set(["paid"]);
+
+/**
+ * The owner's "job so far" numbers, all read-only. Approved owner pay apps are the basis when they
+ * exist; a submitted-but-unapproved app is labelled as the GC's report, never as approved work.
+ * Paid change orders are shown separately so a direct invoice is not mistaken for a pay-app payment.
+ */
+function ownerJobView(
+  project: Doc<"projects">,
+  sum: Awaited<ReturnType<typeof primeContractSum>>,
+  apps: readonly Doc<"ownerPayApps">[],
+  changeOrders: readonly { status: string; amountCents: number }[],
+) {
+  const visible = apps.filter((a) => a.status !== "draft").sort((a, b) => b.applicationNo - a.applicationNo);
+  const latest = visible[0] ?? null;
+  const latestApproved = apps
+    .filter((a) => OWNER_APPROVED_STATUSES.has(a.status))
+    .sort((a, b) => b.applicationNo - a.applicationNo)[0] ?? null;
+  const progress = latestApproved ?? (latest?.status === "submitted_to_owner" ? latest : null);
+  const basis = latestApproved !== null ? "approved" : progress !== null ? "submitted" : "none";
+  const contractSumToDateCents = sum?.toDateCents ?? project.contractValueCents ?? null;
+  const completedAndStoredCents = progress?.figures.completedAndStoredCents ?? null;
+  const completionBps =
+    completedAndStoredCents !== null && contractSumToDateCents !== null && contractSumToDateCents > 0
+      ? Math.max(0, Math.min(10_000, Math.round((completedAndStoredCents * 10_000) / contractSumToDateCents)))
+      : null;
+  const paidOwnerPayAppsCents = apps
+    .filter((a) => a.status === "paid")
+    .reduce((acc, a) => acc + a.figures.currentPaymentDueCents, 0);
+  const paidChangeOrdersCents = changeOrders
+    .filter((co) => OWNER_PAID_CHANGE_ORDER_STATUSES.has(co.status))
+    .reduce((acc, co) => acc + co.amountCents, 0);
+  const approvedChangeOrdersCents = changeOrders
+    .filter((co) => ["approved", "invoiced", "paid", "cancelled"].includes(co.status))
+    .reduce((acc, co) => acc + co.amountCents, 0);
+  return {
+    basis,
+    contractSumToDateCents,
+    completedAndStoredCents,
+    completionBps,
+    paidToDateCents: paidOwnerPayAppsCents + paidChangeOrdersCents,
+    paidOwnerPayAppsCents,
+    paidChangeOrdersCents,
+    retainageHeldCents: progress?.figures.retainageCents ?? null,
+    balanceToFinishCents: progress?.figures.balanceToFinishInclRetainageCents ?? null,
+    changeOrdersApprovedCents: approvedChangeOrdersCents,
+    openChangeOrders: changeOrders.filter((co) => co.status === "submitted").length,
+    latestApplicationNo: latest?.applicationNo ?? null,
+    latestStatus: latest?.status ?? null,
+    paymentDueCents: latest?.status === "submitted_to_owner" ? latest.figures.currentPaymentDueCents : null,
+    approvedApplicationNo: latestApproved?.applicationNo ?? null,
+    paidApplicationCount: apps.filter((a) => a.status === "paid").length,
+    startDate: project.startDate ?? null,
+    substantialCompletionDate: project.substantialCompletionDate ?? null,
+  };
+}
+
 /** Owner portal: projects with their prime change orders (and, for the GC, the subcontract agreements). */
 export const ownerOverview = query({
   args: {},
@@ -235,6 +293,8 @@ export const ownerOverview = query({
                 .take(100)
             ).filter((a) => a.status !== "superseded")
           : [];
+      const primeSum = await primeContractSum(ctx, project);
+      const ownerPayApps = await projectOwnerPayApps(ctx, project._id);
       result.push({
         _id: project._id,
         title: project.title,
@@ -244,8 +304,9 @@ export const ownerOverview = query({
         isDemoProject: project.isDemoProject,
         partyRole: access.partyRole,
         agreements: agreements.map(agreementSummary),
-        primeContractSum: await primeContractSum(ctx, project),
-        primeRetainageHeldCents: primeRetainageHeld(await projectOwnerPayApps(ctx, project._id))?.cents ?? null,
+        primeContractSum: primeSum,
+        primeRetainageHeldCents: primeRetainageHeld(ownerPayApps)?.cents ?? null,
+        ownerJob: access.partyRole === "owner" ? ownerJobView(project, primeSum, ownerPayApps, changeOrders) : null,
         changeOrders,
       });
     }
