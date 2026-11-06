@@ -79,6 +79,16 @@ Status meanings: **Fixed** = code and regression tests in this branch. **Partial
   - The combined two-host run (no `--url`) passed 27 checks and then hit a 30 s Puppeteer navigation timeout on three attempts while the desktop Chrome held about 7 GB of RAM. The same pages answer in under a second over HTTP (`?project=...&tab=packages` in 0.77 s, the entry bundle in 2.7 s) and the per-host runs pass every assertion, so this is machine contention rather than an app fault. It is recorded here as the one check that is not green in a single process on this build.
 - Deployed app code: `f55d8eb` (the B4 fix) plus the deploy-guard fix in `6ff5476`, on `cheery-axolotl-689.convex.site`, `tradepulse-pay.pages.dev` and `tradepulse-pay.asynchronope.tech`. `/version.json` on each host reports the exact commit that is live; documentation commits after that change no app code. `npm run deploy:all` now also probes every hashed asset that `index.html` references: one Pages deploy served the new HTML before an asset was reachable, the SPA fallback answered that asset with `index.html`, and the page could not load for about a minute. The first version of that probe read the previous build's hashes, which is why it refused a deploy it had just made; that is fixed.
 
+## Verification after B10 and B13 (6 November 2026)
+
+- `npx vitest run`: **159 files, 2083 tests, 0 failures**, including five new signing-evidence tests in `convex/billing/payGate.test.ts`.
+- `node scripts/tools/guard-audit.mjs`: **267 public functions, 202 internal, 0 problems**; the new evidence route is listed as ticket-gated in the audit.
+- `npm run verify:docs`: **102** relative links resolve.
+- `node scripts/qa/lien-waiver-browser.mjs --url https://tradepulse-pay.asynchronope.tech`: **26/26**, no page or console errors; the review step rendered the server-built statement naming the amount, the recipient and the typed signer.
+- `node scripts/qa/quick-start-resume-browser.mjs --url https://cheery-axolotl-689.convex.site`: **15/15**.
+- Live probes of `POST /api/waivers/evidence`: an unknown ticket returns `409` with "This signing session is not recognised", the `OPTIONS` preflight returns `204` with CORS on an allowed origin, and an unknown `/api/waivers/*` path still returns the JSON `404`.
+- All three hosts serve the deployed build (`/version.json` matches `main`). `docs/audit-entry.md` is the one-page entry point for an external reviewer.
+
 ## Branch handoff, 6 November 2026
 
 `main` was a strict ancestor of the recovery branch (`fb5e416`, 41 commits behind, 0 ahead), so the handoff is a fast-forward with no merge commit and no history rewrite:

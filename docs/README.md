@@ -6,6 +6,7 @@ Source: `main` carries the current build. `recovery/stabilize-2026-11-01` is fro
 
 ## For judges and reviewers
 
+- [Audit entry point](./audit-entry.md) — the one-page start for an external reviewer: how to confirm the build, the commands that reproduce the evidence, and every open item.
 - [Judge guide](./judge-guide.md) — demo access, two-minute path, and a screen-by-screen inspection route.
 - [Submission draft](./submission-draft.md) — the Devpost text, testing instructions, and the separate owner publishing checklist.
 - [Quick start](./quick-start.md) — create a job, add a sub, paste a schedule of values and execute a subcontract in one pass, plus the demo-company invite limit.
