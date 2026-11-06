@@ -89,7 +89,7 @@ const timestamp = new Date().toISOString();
 
 const summaryRows = [
   ["Cases passed", `${result.passedCases} / ${result.totalCases}`, pct(result.reviewMetrics.casePassRate), "Every fixture's verdicts, zero holds and flags match"],
-  ["Line accuracy", pct(result.reviewMetrics.lineAccuracy), `${result.reviewMetrics.totalLines} lines`, "Exact verdict per submitted line"],
+  ["Line agreement", pct(result.reviewMetrics.lineAccuracy), `${result.reviewMetrics.totalLines} lines`, "Exact verdict per submitted line, against this app's rules"],
   ["Issue precision", pct(result.reviewMetrics.issuePrecision), `${result.reviewMetrics.totalIssues} issue lines`, "Flagged lines that were truly issues"],
   ["Issue recall", pct(result.reviewMetrics.issueRecall), `${result.reviewMetrics.totalIssues} issue lines`, "Truly flagged issue lines that were caught"],
   ["Issue F1", pct(result.reviewMetrics.issueF1), "precision + recall", "Harmonic mean of issue detection"],
@@ -125,6 +125,14 @@ const markdown = `# Pay-App Review Eval Scorecard
 ${summaryRows.map((row) => `| **${row[0]}** | **${row[1]}** | ${row[2]} | ${row[3]} |`).join("\n")}
 
 ${failedCases.length === 0 ? "All cases matched their expected verdicts, zero holds and flags." : `${failedCases.length} case(s) did not match exactly:\n\n${failedCases.map((f) => `- \`${f.fixtureId}\``).join("\n")}`}
+
+## How to read this scorecard
+
+The 24 fixtures, their expected verdicts and the rules that produce those verdicts were written by the
+same author. Every metric above is **agreement with this app's rules**, not accuracy against an
+independent adjudication. The deterministic rules engine scores 24/24 and 100% on line agreement by
+construction, so a perfect score is a regression check on the rules, not evidence that the rules are
+right. Only real claims adjudicated by a general contractor would test that.
 
 ## Per-verdict precision and recall
 
@@ -162,9 +170,10 @@ fs.writeFileSync(mdPath, markdown, "utf8");
 
 console.log(`Run: ${result.runId}`);
 console.log(`Cases: ${result.passedCases}/${result.totalCases} (${pct(result.reviewMetrics.casePassRate)} exact)`);
-console.log(`Line accuracy: ${pct(result.reviewMetrics.lineAccuracy)} across ${result.reviewMetrics.totalLines} lines`);
+console.log(`Line agreement: ${pct(result.reviewMetrics.lineAccuracy)} across ${result.reviewMetrics.totalLines} lines`);
 console.log(`Issue precision/recall/F1: ${pct(result.reviewMetrics.issuePrecision)} / ${pct(result.reviewMetrics.issueRecall)} / ${pct(result.reviewMetrics.issueF1)}`);
 console.log(`Macro F1: ${pct(result.reviewMetrics.macroF1)}`);
+console.log("Baseline: the rules engine matches these fixtures 100% by construction, so this score is agreement with the app's rules, not external accuracy.");
 console.log(`Markdown scorecard: ${mdPath}`);
 console.log(`JSON result: ${jsonPath}`);
 

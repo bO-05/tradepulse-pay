@@ -72,14 +72,19 @@ export const PayAppEvalPanel: React.FC<{ run: PayAppEvalRun | null | undefined }
         </span>
       </div>
       <div className="text-xs text-slate-300">
-        Overall score <span className="font-mono font-bold text-emerald-400">{run.overallScore}%</span> • {run.passedCases} / {run.totalCases} cases
+        Rules-agreement score <span className="font-mono font-bold text-emerald-400">{run.overallScore}%</span> • {run.passedCases} / {run.totalCases} cases
         passed • {modelLabel(run.provider, run.model)}
       </div>
+      <p className="text-[11px] leading-relaxed text-slate-400">
+        These scores measure how closely the reviewer matches <strong className="text-slate-300">this app&apos;s own rules</strong> on
+        24 hand-built fixtures. The deterministic rules engine matches them 100% by construction, so a perfect score is a
+        regression check on the rules, not proof that the rules are right; only real claims adjudicated by a GC test that.
+      </p>
       {run.reviewMetrics ? (
         <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-950/60 p-3">
           <div className="grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-5">
             <div>
-              <div className="text-slate-500">Line accuracy</div>
+              <div className="text-slate-500">Line agreement</div>
               <div className="font-mono text-slate-200">{pct(run.reviewMetrics.lineAccuracy)}</div>
             </div>
             <div>

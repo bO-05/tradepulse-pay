@@ -28,9 +28,14 @@ verdict, every zero hold and both flags match.
 
 ## Metrics
 
+Every metric below is **agreement with this app's rules**, not accuracy against an independent
+adjudication. The 24 fixtures, their expected verdicts and the rules in `reviewMath.ts` were written
+by the same author, so the score says how faithfully the reviewer reproduces the rules, not whether
+the rules are right.
+
 `reviewMetrics` is stored on the `evalRuns` row and returned by the suite:
 
-- **Line accuracy** — exact verdict matches over all submitted lines.
+- **Line agreement** — exact verdict matches over all submitted lines.
 - **Issue precision** — flagged lines that were truly issues, over all flagged lines.
 - **Issue recall** — truly flagged issue lines caught, over all issue lines.
 - **Issue F1** — harmonic mean of issue precision and recall.
@@ -62,6 +67,24 @@ generated at `evals/results/pay-app-review-scorecard.md` and the full JSON resul
 scorecard is only evidence for the run named in its header; a later deploy or a different model is a
 different run. An offline rules-engine run with no provider key also passes 24/24; the provenance
 line distinguishes the two.
+
+## Rules-only baseline
+
+The deterministic rules engine scores **24/24 cases and 100% line agreement** on these fixtures by
+construction, because each expected verdict is what that engine produces. The baseline is the point of
+the number:
+
+- A model below the baseline disagrees with the rules on a hand-picked case. That is a useful defect
+  report for the reviewer, not a finding about the rules.
+- A model at the baseline reproduced the rules on 24 cases the author chose. It says nothing about the
+  cases nobody wrote, and nothing about whether the rules match a real contract or a real GC's
+  judgment.
+- Changing a rule changes the expected verdict with it, so the suite cannot catch a rule that is wrong
+  in the same way on the fixture and in production.
+
+The scorecard markdown, the console output and the diagnostics panel now print that baseline and
+label the score as agreement with this app's rules. The in-app panel is at **Diagnostics → Pay-app
+review cases** for the demo GC.
 
 ## Run it
 

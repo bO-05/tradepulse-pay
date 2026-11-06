@@ -23,6 +23,7 @@ Fixed in code with regression tests:
 - **Sub visibility.** The sub sees the review's suggested gross (`reviewSuggestedTotalCents`) and the approval-history bullet even though per-line review notes stay GC-only.
 - **N-10 (new runs only, approved by the owner).** The guided demo's edit reason names line 2 and the excluded seismic bracing, and promises no lien waiver or resubmit path. Existing runs are unchanged.
 - **Landing and accessibility.** Signed-out `/` now shows the residential hero beside/above the sign-in card with a link to `#/demo`. The Owner home has zero text-contrast violations in the new measurement. `#/company-settings` resolves to the real company page instead of Not found.
+- **B13.** The 24-case suite is now labelled as what it is: agreement with this app's rules. `docs/pay-app-review-eval.md` adds a rules-only baseline section, the scorecard markdown and console output print that baseline and rename the headline metric to line agreement, and the diagnostics panel says it on screen. The score still cannot prove the rules are right; it reports whether the reviewer reproduces them on hand-picked cases.
 - **Copy.** PayPal's sandbox fee note uses the card/wallet rates instead of "3.5% + $0.49"; the sub retainage tile distinguishes this period's withhold from what is still held; the signup wall no longer prints the environment-variable name.
 
 Partial or deferred in this round:
@@ -30,7 +31,7 @@ Partial or deferred in this round:
 - **B2 (gate retainage release)** is deferred. A correct fix needs a release-specific waiver slot and a sub signing surface; a partial guard would create a new dead end like B3. Not shipped before 12 Nov.
 - **B5 (subcontract executed before sub acceptance)** is partial. The step now says "Record the GC's execution" and states that the sub's signature and acceptance happen outside the app and are not replaced by the record. There is still no in-app sub acceptance step.
 - **B10 (waiver evidence)** is deferred. The record still stores the signer's user id, server time, amount and through-date, but not a rendered-statement hash, IP or user agent. Convex mutations do not expose the request headers, so IP capture needs an HTTP action.
-- **B13 (eval honesty)** is deferred. The 24 cases are still self-authored and the ground truth is the app's own rules. The "rules-agreement" framing and a rules-only baseline are not shipped.
+- **B13 (eval honesty)** is fixed as a framing and baseline change; see the short result and the finding map.
 - **Block 1 (residential reference job)** is deferred. The demo still leads with the commercial Austin/Rosendin job. A residential seeded job with a prime value, milestone draws and the waiver gate on is the largest remaining score lever, but it needs a new seed path plus financial writes that were not authorised in this session.
 - **Owner "Test Store"** is a PayPal sandbox merchant setting, not app code.
 
@@ -52,7 +53,7 @@ Status meanings: **Fixed** = code and regression tests in this branch. **Partial
 | B10 | P3 | Weak waiver evidence | Deferred | No rendered-statement hash, IP or user agent. The attestation wording and disclaimer already existed. |
 | B11 | P3 | Gate disable is silent to the sub | Fixed | `convex/lienWaivers.ts` accepts a reason, records it in the audit log and notifies the sub company; `src/payments/LienWaiverGateCard.tsx` asks for the reason in the confirm dialog; `convex/billing/payGate.test.ts` asserts the notification. |
 | B12 | P2 | Dev/sponsor copy leaks | Fixed (mostly) | `src/lib/aiProvenance.ts` centralises attribution; `PayAppReviews`, `PayAppDecision`, `DashboardFallback`, `PaymentsDashboard`, `StudioDashboard`, `LicenseCheck`, `PayAppEvalPanel`, `ReferenceNotice`, the judge-demo screens, `PackageBidders` and `BidLevelingMatrixView` were rewritten. The G703 column is "Recommended amount". Remaining "Test Store" is a PayPal sandbox merchant name. |
-| B13 | P3 | Eval honesty | Deferred | The 24 cases, their ground truth and the code-set flags are unchanged. |
+| B13 | P3 | Eval honesty | Fixed (framing and baseline) | `docs/pay-app-review-eval.md` states that every metric is agreement with this app's rules, adds a rules-only baseline section (24/24 and 100% by construction) and explains what that baseline cannot detect; `scripts/qa/pay-app-review-scorecard.mjs` renames the headline metric to line agreement and prints the baseline in the markdown and the console; `src/dashboard/PayAppEvalPanel.tsx` says the same on screen. No eval case or rule changed. |
 | N-10 | P2 (demo) | Canned guided-demo override reason | Fixed (new runs only) | `src/payments/judgeDemo/useJudgeDemoDriver.ts` names line 2 and the excluded seismic bracing. `src/payments/judgeDemo/driverCopy.test.ts` forbids waiver/resubmit/90% wording. |
 | Owner contrast | P2 | 15 serious axe contrast nodes on Owner home | Fixed | `src/payments/OwnerPortal.tsx` lifts the 11–12 px slate-500 text to slate-400. `scripts/qa/owner-landing-browser.mjs` measures every visible text/background pair on the signed-in Owner home and reports 0 violations. |
 | Root `/` | P2 | Signed-out root is only a sign-in card | Fixed | `src/auth/ResidentialHero.tsx` is shared by `#/demo` and `src/auth/AuthLayout.tsx`; `SignInPage` passes it as `hero`. The page keeps one `h1` (the hero) and the card title becomes `h2`. |
@@ -91,6 +92,6 @@ This changes no deployed backend or financial data. It moves the public default 
 ## Not done
 
 - Block 1 residential reference job, owner milestone draw and the GC collected/paid/owed strip.
-- B2, B10 and B13.
+- B2 and B10.
 - Statutory California waiver forms, PayPal multiparty, QuickBooks.
 - Production deployment, YouTube upload, Devpost submission, a new guided run, PayPal popup, live Owner-invoice retry and any financial write on a new run. Those remain owner decisions.
