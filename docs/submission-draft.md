@@ -8,14 +8,15 @@ The [official rules](https://paypalaihackathon.devpost.com/rules) set the deadli
 
 - Running app and public judge credentials: https://tradepulse-pay.asynchronope.tech/#/demo
 - Mirror (same build): https://cheery-axolotl-689.convex.site/#/demo
-- Matching source: https://github.com/bO-05/tradepulse-pay/tree/recovery/stabilize-2026-11-01
+- Matching source: https://github.com/bO-05/tradepulse-pay/tree/main
 - Quick proof: https://tradepulse-pay.asynchronope.tech/#/judge-demo/nx74k1sdcnsmqzvkr97kf0ts598hch6p
 - [Judge field guide](./judge-guide.md), [setup](../README.md#setup-and-run) and [MIT license](../LICENSE).
 - Public YouTube URL: **not published**. Add the actual URL only after uploading and checking signed-out access.
 
 The public GitHub repository and MIT license were reachable without authentication on November 1.
-The preserved default `main` branch is not the recovery build. Link the recovery branch unless its owner
-separately approves merging it. Production and the original development deployment remain unchanged.
+On November 6 the default `main` branch was fast-forwarded to the recovery build, so the source link
+above and the running app are the same code. `recovery/stabilize-2026-11-01` stays frozen at that
+commit as a backup. Production and the original development deployment remain unchanged.
 
 ## Copy-ready project description
 
@@ -126,7 +127,8 @@ AgentID and AG Studio integration code exists, but neither is enabled on the hos
 TradePulse Pro's procurement system predates this entry. PayPal-era work begins after baseline `2ad5543`,
 with first PayPal commit `c7986da` on October 7, 2026; see `2ad5543..paypal-hackathon`.
 The September TradePulse Pro procurement base was previously submitted to the Convex hackathon.
-The November recovery branch adds funded Mistral support, payment-state and reconciliation corrections,
+The November recovery work (on `main` since November 6) adds funded Mistral support, payment-state and
+reconciliation corrections,
 recovery-only integration setup, public judge access, independent run selection, workflow repairs and
 actual multi-role/email/sandbox settlement evidence. Do not claim that the earlier procurement app was
 created entirely during this contest.
@@ -162,7 +164,7 @@ Frame sampling and audio-level checks passed; the owner should still watch the f
    settled sandbox run, not a live payment replay. AI proposes, code computes, the GC approves.
    Public demo and source links are listed above. Narration uses a synthetic voice.”
    Add the actual demo/source URLs and respect any channel or platform disclosure requirements.
-4. Test the YouTube URL, hosted app and recovery-branch source in a signed-out browser.
+4. Test the YouTube URL, hosted app and the `main`-branch source in a signed-out browser.
 5. Add the actual YouTube URL to Devpost, review the existing-project disclosure and submit before the deadline.
 6. Keep PayPal, Convex and model/service credits available through judging. Do not promise the Studio
    editor after its November 20 trial expiry without a legitimate extension.

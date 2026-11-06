@@ -2,9 +2,9 @@
 
 **General contractors pay subcontractors only for verified progress.** A subcontractor files a pay application; the rules engine checks each line against the awarded contract, and the configured model explains the evidence; code computes every dollar; the GC approves; PayPal holds, captures, pays out net of retainage, and invoices the Owner.
 
-[**Open the judge demo →**](https://tradepulse-pay.asynchronope.tech/#/demo) · [.convex.site mirror](https://cheery-axolotl-689.convex.site/#/demo) · [judge walkthrough](./docs/judge-guide.md) · [source on the recovery branch](https://github.com/bO-05/tradepulse-pay/tree/recovery/stabilize-2026-11-01) · MIT licensed.
+[**Open the judge demo →**](https://tradepulse-pay.asynchronope.tech/#/demo) · [.convex.site mirror](https://cheery-axolotl-689.convex.site/#/demo) · [judge walkthrough](./docs/judge-guide.md) · [source on `main`](https://github.com/bO-05/tradepulse-pay/tree/main) · MIT licensed.
 
-> **Try it in two minutes:** sign in as `gc@demo.tradepulse`, `sub1@demo.tradepulse` or `owner@demo.tradepulse` with `TradePulseDemo!2026`. PayPal sandbox only; synthetic data; no real money.
+> **Try it in two minutes:** open the demo page and pick a seat: GC, subcontractor or owner. Each button signs in to a shared demo account through ordinary password sign-in, and the page prints the manual password for anyone who signs in by hand. PayPal sandbox only; synthetic data; no real money.
 
 | Reports: money position | Pay app: claim to settlement |
 | --- | --- |
@@ -28,7 +28,7 @@
 
 **How it differs from Procore Pay / GCPay / Textura:** review is contract-scope-aware, so it flags excluded scope and out-of-sequence billing, not only arithmetic. A mid-size GC can pay an approved subcontractor through PayPal Payouts instead of a 30–60 day check run.
 
-**Known limits:** this is the tested recovery-dev build, **not production**; `earnest-mongoose-745` is untouched. PayPal is sandbox-only: one platform account is the merchant for GC, sub and Owner money, and fees are not yet modelled. A production launch needs PayPal multiparty with the GC as seller, a fee ledger, dispute handling and legal review. Email verification is allowlisted to test inboxes on this deployment. AgentID sign-in needs **owner-approved client registration**, so it is hidden on this hosted demo, and the licensed AG Studio editor is not enabled. The default `main` branch is the preserved baseline; the demo runs the recovery branch. See the [R5 remediation record](./docs/r5-remediation.md) and the [R6 remediation record](./docs/r6-remediation.md) for what is fixed and what remains a real-money blocker. Sandbox and synthetic data only. See [recovery status](#recovery-status), [what changed since Oct 1](#what-changed-since-oct-1), and the [documentation index](./docs/README.md).
+**Known limits:** this is the tested recovery-dev build, **not production**; `earnest-mongoose-745` is untouched. PayPal is sandbox-only: one platform account is the merchant for GC, sub and Owner money, and fees are not yet modelled. A production launch needs PayPal multiparty with the GC as seller, a fee ledger, dispute handling and legal review. Email verification is allowlisted to test inboxes on this deployment. AgentID sign-in needs **owner-approved client registration**, so it is hidden on this hosted demo, and the licensed AG Studio editor is not enabled. `main` carries this build; the pre-recovery TradePulse Pay work is preserved on `paypal-hackathon`, and `recovery/stabilize-2026-11-01` is kept as a frozen backup at the same commit. See the [R5 remediation record](./docs/r5-remediation.md) and the [R6 remediation record](./docs/r6-remediation.md) for what is fixed and what remains a real-money blocker. Sandbox and synthetic data only. See [recovery status](#recovery-status), [what changed since Oct 1](#what-changed-since-oct-1), and the [documentation index](./docs/README.md).
 
 ---
 
@@ -52,7 +52,7 @@ TradePulse Pay takes the contract the GC just awarded in TradePulse Pro and runs
 
 ## What changed since Oct 1
 
-The original TradePulse Pay work is the commit range **`2ad5543..paypal-hackathon`** on branch `paypal-hackathon` (first commit `c7986da`, Oct 7 2026). `2ad5543` is the last TradePulse Pro commit (Sep 22 2026), from the earlier Convex-hackathon submission. Recovery work continues on `recovery/stabilize-2026-11-01`. See the full update with `git log --oneline 2ad5543..recovery/stabilize-2026-11-01`.
+The original TradePulse Pay work is the commit range **`2ad5543..paypal-hackathon`** on branch `paypal-hackathon` (first commit `c7986da`, Oct 7 2026). `2ad5543` is the last TradePulse Pro commit (Sep 22 2026), from the earlier Convex-hackathon submission. The November recovery work was developed on `recovery/stabilize-2026-11-01` and fast-forwarded onto `main` on 6 Nov 2026; the recovery branch is kept frozen at the same commit as a backup. See the full update with `git log --oneline 2ad5543..main`.
 
 - **Sign-in and roles (AUTH).** Convex Auth email + password with roles gc, sub and owner; AgentID sign-in for billing agents with GC-managed links; every public Convex function, old and new, is role-guarded (`docs/guard-audit.md`).
 - **Payments (PAY).** Payments schema and integer-cents money helpers; PayPal client with token cache, `PayPal-Request-Id` idempotency, backoff and audit logs; SOV and milestones on execution; AUTHORIZE funding; partial capture, void and reauthorize; payouts net of retainage; retainage ledger and closeout release; change-order invoices; signature-verified `/paypal/webhook`; hourly honor-period watcher; payout retry and ledger reconciliation; a read-only milestone funding summary for subs.
@@ -116,8 +116,8 @@ Rules the code enforces:
 ```bash
 git clone https://github.com/bO-05/tradepulse-pay.git
 cd tradepulse-pay
-git checkout recovery/stabilize-2026-11-01
-# Earlier hackathon baseline: git checkout paypal-hackathon
+# `main` is the default branch and carries the current build.
+# The earlier TradePulse Pay baseline is on `paypal-hackathon`.
 npm ci
 ```
 
@@ -177,7 +177,7 @@ TradePulse Pay requires sign-in for workspaces. Signed-out visitors can read `#/
 
 **New accounts.** The sign-in page has **Create account** (name, email, password of at least 10 characters mixing two kinds of characters) and **Forgot password?**. Both email an 8-digit code from "TradePulse Pay" (`cleverneed464@agentmail.to`); codes are typed in and expire after 15 minutes, and a new code can be requested every 30 seconds. **Recovery dev only sends to allowlisted test inboxes**, not arbitrary personal/work addresses; judges should use the public demo roles. On your own configured deployment, after verifying, a person with no company or invite sets up their general contractor company (name, address, state, phone) and becomes its admin. Resetting a password signs the account out everywhere else. Code emails count against the deployment's daily email budget (`EMAIL_DAILY_BUDGET`); when it is used up, the screen says no code was sent.
 
-**Demo access.** The sign-in page links to the public **Judge & demo access** guide with all three role controls and credentials. The seeded demo accounts below sign in with email and password only (they are marked verified, so no code is sent). All demo accounts share the public demo password **`TradePulseDemo!2026`**.
+**Demo access.** Signed out, `#/demo` is the **Judge & demo access** page: one button per role signs in through ordinary password sign-in, and the page prints the shared manual password and the test-account limits. This README does not repeat that password, so it can be rotated in one place. The seeded demo accounts below are marked verified, so signing in never sends an email code.
 
 | Account | Role | What it sees |
 |---|---|---|
@@ -344,7 +344,7 @@ This is the tested, isolated recovery-dev build, not production. Production `ear
 
 The frontend is served from **https://tradepulse-pay.asynchronope.tech** (Cloudflare Pages project `tradepulse-pay`) and the original **https://cheery-axolotl-689.convex.site** mirror. The DNS record is `tradepulse-pay` CNAME `tradepulse-pay.pages.dev`, proxied. Both hosts serve the same `dist`; the footer and `/version.json` show the commit. Backend functions, webhooks, `/api/health`, Convex Auth and AgentID callbacks stay on `cheery-axolotl-689.convex.site`. `CONVEX_SITE_URL` is unchanged because the protected reference run checks it.
 
-`npm run deploy:all` verifies the recovery target, pushes the backend with `convex dev --once`, builds once with the deployment URLs, uploads that build to both static hosts, and refuses to finish unless both `/version.json` files match the git commit. It deliberately does not use `npx convex deploy`, which would target the project's production deployment when `CONVEX_DEPLOYMENT` is set. `deploy` and `deploy:site` are static-only uploads to the deployment in `.env.local`; the static-hosting package's own `deploy` subcommand is not used because it hardcodes `--prod`.
+`npm run deploy:all` verifies the dev deployment, `CONVEX_SITE_URL`, a clean tree and that the checkout is `main` or the frozen recovery branch, pushes the backend with `convex dev --once`, builds once with the deployment URLs, uploads that build to both static hosts, and refuses to finish unless both `/version.json` files match the git commit. It deliberately does not use `npx convex deploy`, which would target the project's production deployment when `CONVEX_DEPLOYMENT` is set. `deploy` and `deploy:site` are static-only uploads to the deployment in `.env.local`; the static-hosting package's own `deploy` subcommand is not used because it hardcodes `--prod`.
 
 ---
 

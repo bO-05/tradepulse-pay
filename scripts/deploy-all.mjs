@@ -7,6 +7,10 @@
  * dev:cheery-axolotl-689, so the backend is pushed with `convex dev --once` and every
  * target is checked before anything is written.
  *
+ * The build may be produced from `main` (the branch that carries the current app since
+ * 2026-11-06) or from the frozen `recovery/stabilize-2026-11-01` backup branch. Any other
+ * branch, a dirty tree or a different deployment is refused before a write.
+ *
  * Usage: npm run deploy:all
  */
 import { execSync } from "node:child_process";
@@ -20,7 +24,7 @@ const EXPECTED_SITE = "https://cheery-axolotl-689.convex.site";
 const CANONICAL = "https://tradepulse-pay.asynchronope.tech";
 const PAGES_PROJECT = "tradepulse-pay";
 const PAGES_BRANCH = "main";
-const BRANCH = "recovery/stabilize-2026-11-01";
+const BRANCHES = ["main", "recovery/stabilize-2026-11-01"];
 
 function fail(message) {
   console.error(`\nREFUSED: ${message}`);
@@ -93,7 +97,7 @@ if (cloud !== EXPECTED_CLOUD) fail(`VITE_CONVEX_URL is ${cloud || "unset"}, expe
 if (site !== EXPECTED_SITE) fail(`VITE_CONVEX_SITE_URL is ${site || "unset"}, expected ${EXPECTED_SITE}.`);
 
 const branch = capture("git rev-parse --abbrev-ref HEAD");
-if (branch !== BRANCH) fail(`current branch is ${branch}, expected ${BRANCH}.`);
+if (!BRANCHES.includes(branch)) fail(`current branch is ${branch}, expected one of ${BRANCHES.join(", ")}.`);
 const dirty = capture("git status --porcelain");
 if (dirty !== "") fail(`working tree is not clean:\n${dirty}`);
 
@@ -108,6 +112,7 @@ console.log("Target verified:");
 console.log(`  backend     ${deployment} (${cloud})`);
 console.log(`  mirror      ${site}`);
 console.log(`  canonical   ${CANONICAL}`);
+console.log(`  branch      ${branch}`);
 console.log(`  commit      ${commit}`);
 
 const buildEnv = {

@@ -2,7 +2,7 @@
 
 Date: 2026-11-05
 Audit: external R7 retest and usefulness verdict (kept in the ignored `docs/external-audit/` folder)
-Branch: `recovery/stabilize-2026-11-01`
+Branch: `main` since 2026-11-06, when `recovery/stabilize-2026-11-01` was fast-forwarded onto it; the recovery branch stays frozen at the same commit as a backup.
 First deployed code commit: `991b865`. Final deployed build (canonical, mirror and Pages): `4567602`. Documentation-only commits after that build do not change the app.
 
 This file maps every R7 finding to code, tests and what is still open. It does not turn the R7 verdict into a pass. The product is a tested PayPal-sandbox build, not a real-money production service, and the residential/ICP gaps the audit ranked as the biggest score lever are only partly addressed.
@@ -72,11 +72,22 @@ Status meanings: **Fixed** = code and regression tests in this branch. **Partial
   - `scripts/qa/dual-host-browser.mjs`: 37/37 on the Convex site and Pages mirror, both serving the same commit, including the pinned reference run.
   - `scripts/qa/landing-nav-inbox-browser.mjs`: 41/41 against the canonical host.
   - `scripts/qa/owner-landing-browser.mjs`: 9/9, 0 contrast violations, signed-out hero and Owner home.
-- Deployed static build: `4567602` on `cheery-axolotl-689.convex.site`, `tradepulse-pay.pages.dev` and `tradepulse-pay.asynchronope.tech`. `npm run deploy:all` verifies the dev target, `CONVEX_SITE_URL` and the recovery branch before uploading.
+- Deployed static build: `4567602` on `cheery-axolotl-689.convex.site`, `tradepulse-pay.pages.dev` and `tradepulse-pay.asynchronope.tech`. `npm run deploy:all` verifies the dev target, `CONVEX_SITE_URL` and that the checkout is `main` or the frozen recovery branch before uploading.
+
+## Branch handoff, 6 November 2026
+
+`main` was a strict ancestor of the recovery branch (`fb5e416`, 41 commits behind, 0 ahead), so the handoff is a fast-forward with no merge commit and no history rewrite:
+
+1. `recovery/stabilize-2026-11-01` got one hardening commit: `scripts/deploy-all.mjs` now accepts `main` as well as the recovery branch, and the README no longer prints the shared demo password (it points at `#/demo`, which signs each role in with one button and prints the manual password there).
+2. That commit was pushed to `recovery/stabilize-2026-11-01`.
+3. `main` was fast-forwarded to the same commit and pushed. The recovery branch stays frozen at that commit as a rollback, and `paypal-hackathon` keeps the pre-recovery TradePulse Pay work.
+4. Deploys now run from `main`: `npm run deploy:all` refuses any other checkout and still refuses a dirty tree, a non-dev `CONVEX_DEPLOYMENT`, or a mismatched `SITE_URL`.
+
+This changes no deployed backend or financial data. It moves the public default branch onto the build that has been under test since 1 November.
 
 ## Not done
 
 - Block 1 residential reference job, owner milestone draw and the GC collected/paid/owed strip.
 - B2, B4, B10 and B13.
 - Statutory California waiver forms, PayPal multiparty, QuickBooks.
-- Main merge, production deployment, YouTube upload, Devpost submission, a new guided run, PayPal popup, live Owner-invoice retry and any financial write on a new run. Those remain owner decisions.
+- Production deployment, YouTube upload, Devpost submission, a new guided run, PayPal popup, live Owner-invoice retry and any financial write on a new run. Those remain owner decisions.

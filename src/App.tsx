@@ -1104,7 +1104,7 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-white">
-      {/* A6-18: the Demo company's accounts and password are public (README); only its users see this. */}
+      {/* A6-18: the Demo company's accounts and password are public (the signed-out #/demo page); only its users see this. */}
       {isDemo && (
         <div
           role="note"

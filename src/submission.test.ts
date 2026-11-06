@@ -67,17 +67,27 @@ describe("README", () => {
     }
   });
 
-  test("documents the commit range, demo accounts, password, guest card and setup", () => {
+  test("documents the commit range, demo accounts and where the password lives, the guest card and setup", () => {
     expect(section("## What changed since Oct 1")).toMatch(/2ad5543\.\.paypal-hackathon/);
     const accounts = section("## Demo accounts and password");
     for (const who of ["gc", "sub1", "sub2", "sub3", "owner"]) expect(accounts).toContain(`${who}@demo.tradepulse`);
-    expect(accounts).toContain("TradePulseDemo!2026");
+    // The README links the public demo page instead of printing the shared password, so the credential
+    // has one published home (#/demo) and can be rotated without a README change.
+    expect(accounts).toContain("`#/demo`");
+    expect(README).not.toContain("TradePulseDemo!2026");
     const card = section("## Guest test card (PayPal sandbox)");
     for (const v of ["4032031427005060", "01/29", "480"]) expect(card).toContain(v);
     const setup = section("## Setup and run");
     for (const step of ["npm ci", "npx convex dev --once", ".env.example", "http://localhost:3150", "demoAccounts:seedDemo"]) {
       expect(setup, step).toContain(step);
     }
+    expect(setup).not.toContain("git checkout recovery");
+  });
+
+  test("points readers at the branch that carries the build", () => {
+    expect(README).toContain("https://github.com/bO-05/tradepulse-pay/tree/main");
+    expect(README).not.toContain("/tree/recovery/");
+    expect(section("## What changed since Oct 1")).toContain("git log --oneline 2ad5543..main");
   });
 
   test("describes AgentID sign-in and GC linking without credentials", () => {
@@ -157,6 +167,13 @@ describe("legacy files", () => {
     expect(src).toContain("CONVEX_SITE_URL is required");
     expect(src).not.toMatch(/https:\/\/brainy-skunk-440/);
     expect(src).not.toMatch(/console\.log\([^)]*\$\{secret\}/);
+  });
+
+  test("deploy:all accepts main and the frozen recovery branch only", () => {
+    const src = scriptSources["../scripts/deploy-all.mjs"];
+    expect(src).toContain('const BRANCHES = ["main", "recovery/stabilize-2026-11-01"];');
+    expect(src).toContain("!BRANCHES.includes(branch)");
+    expect(src).toContain("dev:cheery-axolotl-689");
   });
 });
 
