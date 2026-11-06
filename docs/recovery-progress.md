@@ -2,7 +2,7 @@
 
 ## Environments and source
 
-- Source branch: `main` since 6 November 2026. The work was developed on `recovery/stabilize-2026-11-01` (based on GitHub `main` at `fb5e416`) and fast-forwarded onto `main`; the recovery branch stays frozen at the same commit as a backup.
+- Source branch: `main` since 6 November 2026. The work was developed on `recovery/stabilize-2026-11-01` (based on GitHub `main` at `fb5e416`) and fast-forwarded onto `main`; the recovery branch is frozen at that handoff commit (`e4682a7`) as a backup.
 - Isolated recovery dev backend and mirror: **https://cheery-axolotl-689.convex.site**.
 - Canonical frontend: **https://tradepulse-pay.asynchronope.tech** (Cloudflare Pages project
   `tradepulse-pay`, CNAME to `tradepulse-pay.pages.dev`, same build). `CONVEX_SITE_URL` and

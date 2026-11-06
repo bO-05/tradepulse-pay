@@ -2,7 +2,7 @@
 
 Start with the [judge guide](./judge-guide.md): the shortest path through the demo, the three demo roles, and what each screen proves.
 
-Source: `main` carries the current build. `recovery/stabilize-2026-11-01` is frozen at the same commit as a backup, and `paypal-hackathon` keeps the pre-recovery TradePulse Pay work.
+Source: `main` carries the current build. `recovery/stabilize-2026-11-01` is frozen at the handoff commit as a backup, and `paypal-hackathon` keeps the pre-recovery TradePulse Pay work.
 
 ## For judges and reviewers
 
