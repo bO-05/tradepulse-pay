@@ -21,7 +21,13 @@ function fakeWindow(url: string) {
         location.hash = u.hash;
       },
     },
-    localStorage: { removeItem: (key: string) => store.delete(key) },
+    localStorage: {
+      removeItem: (key: string) => store.delete(key),
+      get length() {
+        return store.size;
+      },
+      key: (index: number) => [...store.keys()][index] ?? null,
+    },
   } as unknown as Window;
   return { win, location, store };
 }
@@ -40,6 +46,16 @@ describe("sign-out route reset", () => {
     const { win, store } = fakeWindow("http://127.0.0.1:3150/#/payments");
     resetRouteState(win);
     for (const key of SELECTION_STORAGE_KEYS) expect(store.has(key)).toBe(false);
+    expect(store.get("tradepulse.tourDismissed")).toBe("1");
+  });
+
+  test("forgets saved quick-start drafts but keeps unrelated browser settings", () => {
+    const { win, store } = fakeWindow("http://127.0.0.1:3150/#/all-projects/quick-start");
+    store.set("tradepulse.quickStart.v1.k978yam8bayview", "{}");
+    store.set("other.app", "keep");
+    resetRouteState(win);
+    expect(store.has("tradepulse.quickStart.v1.k978yam8bayview")).toBe(false);
+    expect(store.get("other.app")).toBe("keep");
     expect(store.get("tradepulse.tourDismissed")).toBe("1");
   });
 

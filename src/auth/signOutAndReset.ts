@@ -1,11 +1,13 @@
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useCallback } from "react";
+import { clearAllQuickStartProgress } from "../projects/gc/quickStartProgress";
 
 export const SELECTION_STORAGE_KEYS = ["tradepulse.selectedProjectId", "tradepulse.selectedPackageId"] as const;
 
 /**
- * Drops the previous user's route (hash, `?project`, `?tab`) and remembered selections, so whoever
- * signs in next lands on their own home instead of a page their role cannot open.
+ * Drops the previous user's route (hash, `?project`, `?tab`), remembered selections and any saved
+ * Quick start draft, so whoever signs in next lands on their own home and never resumes someone
+ * else's half-created job.
  */
 export function resetRouteState(win: Pick<Window, "history" | "location" | "localStorage"> = window): void {
   try {
@@ -19,6 +21,11 @@ export function resetRouteState(win: Pick<Window, "history" | "location" | "loca
     } catch {
       // Storage can be unavailable in restricted browser contexts.
     }
+  }
+  try {
+    clearAllQuickStartProgress({ storage: win.localStorage });
+  } catch {
+    // Storage can be unavailable in restricted browser contexts.
   }
 }
 

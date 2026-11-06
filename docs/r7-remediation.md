@@ -16,6 +16,7 @@ Fixed in code with regression tests:
 - **B6.** The full-cycle simulation refuses to delete agreements that have any financial history.
 - **B3.** A changed approved amount creates a replacement waiver instead of a dead end. The old signature is kept as superseded, the panel shows "Amount changed", and the gate reads only the live signature.
 - **B11.** Turning the lien-waiver gate off asks the GC for a reason and notifies the sub company with it.
+- **B4.** Quick start keeps its draft in `localStorage` under `tradepulse.quickStart.v1.<companyId>` for 12 hours, so a reload restores the ids it already created. Retrying skips the approved SOV, the execution record and an invite that already went out instead of repeating them; a step whose record exists locks its inputs and links to where the record can be edited; **Start over** forgets the draft and never deletes a created job. Sign-out clears every draft in the browser.
 - **B9.** The pay-app question thread has a 10-minute and 24-hour rate limit, and notifications truncate long bodies.
 - **B7 (display only).** The agreement ledger, owner summary and dashboard show `10% → 5% after 50% complete` and use the applied rate for the retainage cap.
 - **B12 (mostly).** Dev/sponsor strings are gone from user-facing screens: no KERNEL, no "live Convex data / AG Studio", no "recovery build", no `verify-required.invalid` e-mail, no "AI amount" column. Attribution reads "Explanation by Mistral Large (rules set the amount)". Contact e-mails that are `.invalid` are hidden.
@@ -27,7 +28,6 @@ Fixed in code with regression tests:
 Partial or deferred in this round:
 
 - **B2 (gate retainage release)** is deferred. A correct fix needs a release-specific waiver slot and a sub signing surface; a partial guard would create a new dead end like B3. Not shipped before 12 Nov.
-- **B4 (quick start partial failure)** is deferred. The wizard keeps created ids in memory; a reload loses them, and editing the SOV after a failed invite cannot change the already-approved SOV. The honest fix is session-persisted progress plus a start-over flow, which needs browser verification the audit itself skipped.
 - **B5 (subcontract executed before sub acceptance)** is partial. The step now says "Record the GC's execution" and states that the sub's signature and acceptance happen outside the app and are not replaced by the record. There is still no in-app sub acceptance step.
 - **B10 (waiver evidence)** is deferred. The record still stores the signer's user id, server time, amount and through-date, but not a rendered-statement hash, IP or user agent. Convex mutations do not expose the request headers, so IP capture needs an HTTP action.
 - **B13 (eval honesty)** is deferred. The 24 cases are still self-authored and the ground truth is the app's own rules. The "rules-agreement" framing and a rules-only baseline are not shipped.
@@ -43,7 +43,7 @@ Status meanings: **Fixed** = code and regression tests in this branch. **Partial
 | B1 | P1 | Inbox net/retainage ignores the edited amount | Fixed | `convex/payApps/proposals.ts` adds `pendingPayoutSplit` using `finalAllocation` and `approvedG702Figures`, cached per amount in `listInbox`. `convex/agent/payAgent.test.ts` edits to 90%, checks the 10% retainage parts sum to gross, then approves and asserts `payFiguresFor` equals the inbox split. `convex/payApps/g703.test.ts` covers the 50%-reduced rate. |
 | B2 | P2 | Gate does not cover retainage release or final payout | Deferred | `convex/payments/retainageDb.ts` still releases without a waiver check. A correct fix needs a release waiver kind/slot and a sub signing surface; see the short result. |
 | B3 | P2 | A changed approved amount makes the signed waiver a dead end | Fixed | `convex/schema.ts` adds `supersededAt`/`supersededByWaiverId`; `convex/lib/lienWaivers.ts` reads the latest live signature; `convex/lienWaivers.ts` inserts a replacement and supersedes the old row; `src/billing/LienWaiverPanel.tsx` shows "Amount changed" and "Sign a new waiver". `convex/billing/payGate.test.ts` asserts the replacement, the superseded row and the cleared reason codes. |
-| B4 | P2 | Quick start partial failure orphans ids; edits after failure are ignored | Deferred | Ids remain in `src/projects/gc/QuickStartWizard.tsx` memory only. See the short result. |
+| B4 | P2 | Quick start partial failure orphans ids; edits after failure are ignored | Fixed | `src/projects/gc/quickStartProgress.ts` persists the draft (fields, SOV rows, created ids, finished steps) for 12 h under `tradepulse.quickStart.v1.<companyId>`; `QuickStartWizard.tsx` restores it, skips the approved SOV, execution and invite on retry, locks a step whose record exists, and offers **Start over**; `src/auth/signOutAndReset.ts` sweeps every draft on sign-out. `quickStartProgress.test.ts` (19) and `signOutAndReset.test.ts` (4) cover corrupt, expired and foreign drafts, the locks and the sweep; `scripts/qa/quick-start-resume-browser.mjs` proves the reload without creating a record. |
 | B5 | P2 | Quick start marks the subcontract executed before the sub accepts | Partial | The step reads "Record the GC's execution" and the note says the sub's signature and acceptance happen outside the app and are not replaced by the record. No in-app acceptance exists. |
 | B6 | P2 | Full-cycle simulation can erase money history | Fixed | `convex/simulation.ts` refuses to delete any package agreement with billing history via `agreementHasFinancialHistory` / `moneyHistoryRefusal`. |
 | B7 | P3 | Retainage display shows the base rate after the 50% reduction | Fixed (display) | `convex/payments/ledger.ts` adds `retainagePercentApplied`; `ledgerValidators.ts`, `src/payments/AgreementLedgerView.tsx`, `convex/portal.ts` and `src/payments/AgreementSummaryView.tsx` show the applied rate; `convex/dashboard/queries.ts` uses it for the retainage cap. `convex/lib/money.ts` adds `bpsToPercent` so the money-boundary test stays green. Contracts register and bid leveling still show the base rate only. |
@@ -88,6 +88,6 @@ This changes no deployed backend or financial data. It moves the public default 
 ## Not done
 
 - Block 1 residential reference job, owner milestone draw and the GC collected/paid/owed strip.
-- B2, B4, B10 and B13.
+- B2, B10 and B13.
 - Statutory California waiver forms, PayPal multiparty, QuickBooks.
 - Production deployment, YouTube upload, Devpost submission, a new guided run, PayPal popup, live Owner-invoice retry and any financial write on a new run. Those remain owner decisions.

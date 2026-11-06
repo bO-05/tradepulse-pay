@@ -13,8 +13,8 @@ It creates one project and one subcontract in four steps:
 
 The final step creates the project, trade package, vendor and direct bid, generates the agreement,
 imports and approves the schedule of values, executes the agreement, and then tries to create the
-subcontractor invite. The button is disabled until the required fields are valid; progress is shown
-step by step.
+subcontractor invite. Pressing the button with invalid fields returns to the first step that needs
+attention and names the problem; progress is shown step by step.
 
 ## What the schedule of values accepts
 
@@ -28,6 +28,29 @@ step by step.
 
 If a step fails after some records exist, retrying reuses the project, package, vendor, bid and
 agreement instead of creating duplicates. Agreement execution is idempotent.
+
+## Resume after a reload or a failed step
+
+The wizard keeps its draft in this browser's `localStorage` under
+`tradepulse.quickStart.v1.<companyId>` for 12 hours: the typed fields, the SOV rows, the ids of the
+records it already created, and which steps finished. Nothing else is stored, and the key is scoped to
+the company id, so two accounts on one browser never see each other's draft.
+
+- After a reload the wizard reopens on the same step and shows a **Resumed a saved quick start**
+  banner naming what already exists, for example "Already created: the job, the trade package and the
+  sub."
+- Retrying continues where it stopped. The approved SOV, the GC's execution record and the sub invite
+  are recorded as finished steps, so a retry does not import an approved SOV a second time, and a draft
+  whose invite already went out does not send a second invite.
+- A step whose record already exists locks its inputs and explains where to edit it instead: **Project
+  settings** for the job, **People** for the sub, and the SOV screen for an approved schedule. Before
+  this, edits made after a failure were silently ignored because the retry reused the existing record.
+- **Start over** in the banner forgets the draft and its ids. A job that was already created stays in
+  Projects and is never deleted by this control.
+- The invite link is deliberately not stored, because it is a one-use link. If the page reloaded after
+  the invite was created, the final screen says so and links to People to copy it.
+
+The draft is cleared when the wizard reaches its final screen and when the GC signs out.
 
 ## Demo companies cannot create the invite
 
@@ -48,6 +71,12 @@ invite normally.
 
 - Unit tests: `src/projects/gc/quickStartPlan.test.ts` (8 tests) covers totals, the 3–8 line bounds,
   per-row errors, paste formats, header skipping, quotes, sub validation and the UTC bid deadline.
+- Unit tests: `src/projects/gc/quickStartProgress.test.ts` (19 tests) covers the saved draft, the
+  12-hour expiry, another company's draft, corrupt JSON, invalid document ids, the resume copy, the
+  step locks and the sign-out sweep; `src/auth/signOutAndReset.test.ts` (4 tests) covers the sweep.
+- Browser acceptance: `scripts/qa/quick-start-resume-browser.mjs` signs in as the demo GC, types a
+  project name, reloads, and checks the restored value, the resume banner and **Start over**. It never
+  presses a create button, so it writes no record.
 - Navigation tests: `src/auth/navigation.test.ts` covers the `quick-start` route (19 navigation tests
   pass in the targeted run).
 - Backend integration: `convex/quickStart.test.ts` runs the full mutation sequence, including rate

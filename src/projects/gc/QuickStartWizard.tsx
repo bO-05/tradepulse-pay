@@ -1,10 +1,17 @@
 import { useAction, useMutation, useQuery } from "convex/react";
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { CSI_DIVISION_OPTIONS, normalizeInviteEmail, tradeName, type InviteEmailStatus } from "../../../convex/lib/inviteRules";
 import { formatRetainagePercent } from "../../../convex/lib/retainageRules";
-import { GC_PROJECTS_HASH, agreementHash, gcProjectHash, sovHash } from "../../auth/navigation";
+import {
+  GC_PROJECTS_HASH,
+  agreementHash,
+  gcProjectHash,
+  gcProjectSettingsHash,
+  peopleHash,
+  sovHash,
+} from "../../auth/navigation";
 import { getErrorMessage } from "../../lib/errors";
 import { Button, Card, Field, MoneyInput, PageHeader, TextInput, focusFirstInvalid, formatCents, useToast } from "../../ui";
 import { inputClass } from "../../ui/Field";
@@ -32,9 +39,22 @@ import {
   type QuickStartSovRow,
   type QuickStartSub,
 } from "./quickStartPlan";
+import {
+  QUICK_START_EMPTY_SUB,
+  QUICK_START_PROGRESS_VERSION,
+  clearQuickStartProgress,
+  quickStartResumeText,
+  quickStartStepLock,
+  readQuickStartProgress,
+  writeQuickStartProgress,
+  type QuickStartDoneKey,
+  type QuickStartProgress,
+  type QuickStartSavedIds,
+  type QuickStartSavedStep,
+} from "./quickStartProgress";
 
 type Step = 1 | 2 | 3 | 4 | 5;
-type SetupKey = "project" | "package" | "sub" | "bid" | "agreement" | "sov" | "execute" | "invite";
+type SetupKey = QuickStartDoneKey;
 type ProgressStatus = "pending" | "running" | "done" | "error" | "skipped";
 
 type CreatedIds = {
@@ -64,15 +84,6 @@ const SETUP_STEPS: { key: SetupKey; label: string }[] = [
   { key: "invite", label: "Create the sub invite" },
 ];
 
-const EMPTY_SUB: QuickStartSub = {
-  companyName: "",
-  contactName: "",
-  email: "",
-  csiDivision: "26 00 00",
-  phone: "",
-  licenseNumber: "",
-};
-
 function stepName(step: Step): string {
   if (step === 1) return "Job";
   if (step === 2) return "Sub";
@@ -84,11 +95,33 @@ function stepName(step: Step): string {
 /** One job, one sub, one schedule of values, one invite. Additive; the full New project wizard stays available. */
 export function QuickStartWizard() {
   const companyData = useQuery(api.companies.myCompany, {});
-  const [step, setStep] = useState<Step>(1);
-  const [form, setForm] = useState<ProjectSetupFormState>(EMPTY_PROJECT_SETUP);
-  const [sub, setSub] = useState<QuickStartSub>(EMPTY_SUB);
-  const [rows, setRows] = useState<QuickStartSovRow[]>(() => emptyQuickStartRows());
-  const [sendEmail, setSendEmail] = useState(true);
+  if (companyData === undefined) return <p role="status" className="text-sm text-ink-subtle">Loading…</p>;
+  return (
+    <QuickStartWizardInner
+      key={companyData.company._id}
+      companyId={companyData.company._id}
+      companyDefaultBps={companyData.company.defaultRetainageBps}
+      isDemo={companyData.company.isDemo}
+    />
+  );
+}
+
+type QuickStartWizardInnerProps = {
+  companyId: string;
+  companyDefaultBps: number | null | undefined;
+  isDemo: boolean;
+};
+
+function QuickStartWizardInner({ companyId, companyDefaultBps, isDemo }: QuickStartWizardInnerProps) {
+  // A draft older than a working day is dropped by readQuickStartProgress, so a resumed wizard is
+  // never a surprise. The key includes the company id, so two GCs on one browser never share one.
+  const [draft] = useState(() => readQuickStartProgress(companyId));
+  const initialCreated = useRef<CreatedIds>(createdIdsFrom(draft?.ids));
+  const [step, setStep] = useState<Step>(() => draft?.step ?? 1);
+  const [form, setForm] = useState<ProjectSetupFormState>(() => draft?.form ?? EMPTY_PROJECT_SETUP);
+  const [sub, setSub] = useState<QuickStartSub>(() => draft?.sub ?? QUICK_START_EMPTY_SUB);
+  const [rows, setRows] = useState<QuickStartSovRow[]>(() => (draft && draft.rows.length > 0 ? draft.rows : emptyQuickStartRows()));
+  const [sendEmail, setSendEmail] = useState(() => draft?.sendEmail ?? true);
   const [jobSubmitted, setJobSubmitted] = useState(false);
   const [subSubmitted, setSubSubmitted] = useState(false);
   const [sovSubmitted, setSovSubmitted] = useState(false);
@@ -98,16 +131,18 @@ export function QuickStartWizard() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [busyLabel, setBusyLabel] = useState<string | null>(null);
-  const [progress, setProgress] = useState<Record<SetupKey, ProgressStatus>>(() =>
-    Object.fromEntries(SETUP_STEPS.map((item) => [item.key, "pending"])) as Record<SetupKey, ProgressStatus>,
-  );
-  const [created, setCreated] = useState<CreatedIds>({});
+  const [progress, setProgress] = useState<Record<SetupKey, ProgressStatus>>(() => progressFromDraft(draft));
+  const [created, setCreated] = useState<CreatedIds>(initialCreated.current);
+  const [done, setDone] = useState<QuickStartDoneKey[]>(() => draft?.done ?? []);
+  const [inviteCreated, setInviteCreated] = useState(() => draft?.inviteCreated ?? false);
+  const [resumedAt, setResumedAt] = useState<number | null>(() => draft?.savedAt ?? null);
   const [invite, setInvite] = useState<InviteResultData | null>(null);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const toast = useToast();
   const formRef = useRef<HTMLFormElement>(null);
   const subFormRef = useRef<HTMLFormElement>(null);
-  const idsRef = useRef<CreatedIds>({});
+  const idsRef = useRef<CreatedIds>(initialCreated.current);
+  const doneRef = useRef<Set<QuickStartDoneKey>>(new Set(draft?.done ?? []));
   const inFlight = useRef(false);
 
   const createProject = useMutation(api.projects.createProject);
@@ -120,9 +155,6 @@ export function QuickStartWizard() {
   const executeAgreement = useMutation(api.agreements.executeAgreement);
   const createInvite = useAction(api.invites.create);
 
-  if (companyData === undefined) return <p role="status" className="text-sm text-ink-subtle">Loading…</p>;
-  const companyDefaultBps = companyData.company.defaultRetainageBps;
-  const isDemo = companyData.company.isDemo;
   const demoInviteBlocked = isDemo;
   const jobErrors = validateForm(form, companyDefaultBps);
   const shownJobErrors = { ...visibleErrors(jobErrors, jobSubmitted) };
@@ -162,12 +194,71 @@ export function QuickStartWizard() {
   };
 
   const mark = (key: SetupKey, status: ProgressStatus) => {
+    if (status === "done" || status === "skipped") {
+      if (!doneRef.current.has(key)) {
+        doneRef.current.add(key);
+        setDone([...doneRef.current]);
+      }
+    }
     setProgress((prev) => ({ ...prev, [key]: status }));
   };
 
   const saveIds = (patch: Partial<CreatedIds>) => {
     idsRef.current = { ...idsRef.current, ...patch };
     setCreated(idsRef.current);
+  };
+
+  const savedIds = savedIdsFrom(created);
+  const jobLock = quickStartStepLock(1, { ids: savedIds, done });
+  const subLock = quickStartStepLock(2, { ids: savedIds, done });
+  const sovLock = quickStartStepLock(3, { ids: savedIds, done });
+  const setupDone = step === 5;
+
+  // Persist after every change so a reload keeps the records that already exist. Step 5 clears the
+  // draft, so the next visit to #/quick-start starts a fresh job instead of showing a stale confirmation.
+  useEffect(() => {
+    if (setupDone) {
+      clearQuickStartProgress(companyId);
+      return;
+    }
+    writeQuickStartProgress({
+      version: QUICK_START_PROGRESS_VERSION,
+      companyId,
+      savedAt: Date.now(),
+      step: step as QuickStartSavedStep,
+      form,
+      sub,
+      rows,
+      sendEmail,
+      done,
+      ids: savedIdsFrom(created),
+      inviteCreated,
+    });
+  }, [companyId, step, form, sub, rows, sendEmail, created, done, inviteCreated, setupDone]);
+
+  const resetWizard = () => {
+    clearQuickStartProgress(companyId);
+    idsRef.current = {};
+    doneRef.current = new Set();
+    setStep(1);
+    setForm(EMPTY_PROJECT_SETUP);
+    setSub(QUICK_START_EMPTY_SUB);
+    setRows(emptyQuickStartRows());
+    setSendEmail(true);
+    setCreated({});
+    setDone([]);
+    setInviteCreated(false);
+    setResumedAt(null);
+    setInvite(null);
+    setInviteError(null);
+    setProgress(pendingProgress());
+    setJobSubmitted(false);
+    setSubSubmitted(false);
+    setSovSubmitted(false);
+    setJobServerError(null);
+    setError(null);
+    setPasteText("");
+    setPasteError(null);
   };
 
   const applyPaste = () => {
@@ -237,7 +328,11 @@ export function QuickStartWizard() {
     setError(null);
     setInviteError(null);
     setPasteError(null);
-    setProgress(Object.fromEntries(SETUP_STEPS.map((item) => [item.key, "pending"])) as typeof progress);
+    setProgress((prev) =>
+      Object.fromEntries(
+        SETUP_STEPS.map((item) => [item.key, prev[item.key] === "error" ? "pending" : prev[item.key]]),
+      ) as Record<SetupKey, ProgressStatus>,
+    );
     const ids = idsRef.current;
     try {
       if (!ids.projectId) {
@@ -311,7 +406,8 @@ export function QuickStartWizard() {
         mark("agreement", "done");
       } else mark("agreement", "done");
 
-      if (progress.sov !== "done") {
+      // The SOV is a recorded step, not an id: a resumed run must not import or approve it twice.
+      if (!doneRef.current.has("sov")) {
         current = "sov";
         setBusyLabel("Importing and approving the SOV…");
         mark("sov", "running");
@@ -327,18 +423,23 @@ export function QuickStartWizard() {
         mark("sov", "done");
       } else mark("sov", "done");
 
-      current = "execute";
-      setBusyLabel("Recording the GC's execution…");
-      mark("execute", "running");
-      // Idempotent: an already-executed agreement returns success without changing it.
-      await executeAgreement({ agreementId: idsRef.current.agreementId! });
-      mark("execute", "done");
+      if (!doneRef.current.has("execute")) {
+        current = "execute";
+        setBusyLabel("Recording the GC's execution…");
+        mark("execute", "running");
+        // Idempotent: an already-executed agreement returns success without changing it.
+        await executeAgreement({ agreementId: idsRef.current.agreementId! });
+        mark("execute", "done");
+      } else mark("execute", "done");
 
       if (demoInviteBlocked) {
         mark("invite", "skipped");
         setInviteError(
           "Demo companies cannot create invites because shared demo identity and recipient settings are read-only. The job and subcontract are ready; use a real GC account to invite the sub.",
         );
+      } else if (inviteCreated || doneRef.current.has("invite")) {
+        // A resumed draft that already invited the sub must not send a second invite.
+        mark("invite", "done");
       } else if (!invite) {
         current = "invite";
         setBusyLabel("Creating the sub invite…");
@@ -352,6 +453,7 @@ export function QuickStartWizard() {
             sendEmail,
           });
           setInvite(result);
+          setInviteCreated(true);
           mark("invite", "done");
         } catch (err) {
           mark("invite", "error");
@@ -378,7 +480,6 @@ export function QuickStartWizard() {
   };
 
   const canRetry = Boolean(created.projectId);
-  const setupDone = step === 5;
 
   return (
     <div className="max-w-3xl space-y-5">
@@ -386,7 +487,7 @@ export function QuickStartWizard() {
         title="Quick start"
         description={
           setupDone
-            ? invite
+            ? invite || inviteCreated
               ? "The job, subcontract, approved SOV and invite are ready."
               : "The job, subcontract and approved SOV are ready."
             : `Step ${step} of 4: ${stepName(step)}`
@@ -398,6 +499,28 @@ export function QuickStartWizard() {
           </a>
         }
       />
+
+      {resumedAt !== null && !setupDone && (
+        <div role="status" className="rounded-lg border border-emerald-800 bg-emerald-950/40 px-3 py-2 text-sm text-emerald-100">
+          <p className="font-semibold">Resumed a saved quick start</p>
+          <p className="mt-1">{quickStartResumeText({ savedAt: resumedAt, ids: savedIds, done, inviteCreated })}</p>
+          <div className="mt-2 flex flex-wrap items-start gap-4 text-xs">
+            {created.projectId && (
+              <a href={gcProjectHash(created.projectId)} className="underline">Open the job</a>
+            )}
+            <details>
+              <summary className="cursor-pointer font-semibold">Start over</summary>
+              <p className="mt-1 max-w-prose text-emerald-200">
+                This forgets the saved draft and the ids it already created. A job that was already created stays in
+                Projects; nothing is deleted.
+              </p>
+              <Button type="button" size="sm" variant="secondary" className="mt-2" onClick={resetWizard}>
+                Start a fresh quick start
+              </Button>
+            </details>
+          </div>
+        </div>
+      )}
 
       {!setupDone && (
         <ol aria-label="Quick start progress" className="grid gap-2 text-sm sm:grid-cols-4">
@@ -428,6 +551,14 @@ export function QuickStartWizard() {
       {step === 1 && (
         <Card title="Job" description="The prime contract basics. You can change these later in Project settings.">
           <form ref={formRef} onSubmit={(event: FormEvent<HTMLFormElement>) => { event.preventDefault(); goNext(); }} noValidate aria-label="Quick start job" className="space-y-5">
+            {jobLock && (
+              <LockedStepNote>
+                {jobLock}{" "}
+                {created.projectId && (
+                  <a className="underline" href={gcProjectSettingsHash(created.projectId)}>Open Project settings</a>
+                )}
+              </LockedStepNote>
+            )}
             <ProjectSetupFields
               form={form}
               onChange={(patch) => {
@@ -437,7 +568,7 @@ export function QuickStartWizard() {
               errors={shownJobErrors}
               companyDefaultBps={companyDefaultBps}
               idPrefix="quick-start-job"
-              disabled={busy}
+              disabled={busy || Boolean(jobLock)}
             />
             {jobServerError && !jobServerError.field && (
               <p role="alert" className="rounded-lg border border-rose-800 bg-rose-950 px-3 py-2 text-sm text-rose-200">
@@ -452,6 +583,13 @@ export function QuickStartWizard() {
       {step === 2 && (
         <Card title="Sub" description="One subcontractor for this first pass. The vendor and bidder are added to your directory and this job.">
           <form ref={subFormRef} onSubmit={(event: FormEvent<HTMLFormElement>) => { event.preventDefault(); goNext(); }} noValidate aria-label="Quick start sub" className="space-y-4">
+            {subLock && (
+              <LockedStepNote>
+                {subLock}{" "}
+                {created.projectId && <a className="underline" href={peopleHash(created.projectId)}>Open People</a>}
+              </LockedStepNote>
+            )}
+            <fieldset disabled={busy || Boolean(subLock)} className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <TextInput
                 id="quick-start-sub-company"
@@ -523,6 +661,7 @@ export function QuickStartWizard() {
                 maxLength={40}
               />
             </div>
+            </fieldset>
             <div className="flex flex-wrap gap-2">
               <Button type="submit">Continue to the SOV</Button>
               <Button type="button" variant="secondary" onClick={() => setStep(1)} disabled={busy}>Back</Button>
@@ -537,6 +676,13 @@ export function QuickStartWizard() {
           description={`Paste ${QUICK_START_MIN_LINES}–${QUICK_START_MAX_LINES} lines from a spreadsheet, or type them. These become the approved schedule-of-values lines the sub bills against.`}
         >
           <div className="space-y-4">
+            {sovLock && (
+              <LockedStepNote>
+                {sovLock}{" "}
+                {created.agreementId && <a className="underline" href={sovHash(created.agreementId)}>Open the SOV</a>}
+              </LockedStepNote>
+            )}
+            <fieldset disabled={busy || Boolean(sovLock)} className="space-y-4">
             <div className="rounded-lg border border-line bg-surface-raised p-3">
               <Field
                 id="quick-start-paste"
@@ -601,6 +747,8 @@ export function QuickStartWizard() {
               ))}
             </div>
 
+            </fieldset>
+
             {(sovSubmitted && (sovErrors.count || sovErrors.total)) && (
               <p role="alert" className="rounded-lg border border-rose-800 bg-rose-950 px-3 py-2 text-sm text-rose-200">
                 {sovErrors.count ?? sovErrors.total}
@@ -617,7 +765,7 @@ export function QuickStartWizard() {
                 type="button"
                 variant="secondary"
                 onClick={() => setRows((prev) => [...prev, newQuickStartRow()])}
-                disabled={busy || rows.length >= QUICK_START_MAX_LINES}
+                disabled={busy || Boolean(sovLock) || rows.length >= QUICK_START_MAX_LINES}
               >
                 Add a line
               </Button>
@@ -718,11 +866,13 @@ export function QuickStartWizard() {
 
       {setupDone && (
         <Card
-          title={invite ? "Ready" : "Job and subcontract ready"}
+          title={invite || inviteCreated ? "Ready" : "Job and subcontract ready"}
           description={
             invite
               ? "The sub can accept the invite and file a pay application after the SOV is approved (it is approved here)."
-              : "The job, subcontract and approved SOV are ready. The invite is the only step that did not complete."
+              : inviteCreated
+                ? "The job, subcontract and approved SOV are ready, and the sub invite was created before the page reloaded."
+                : "The job, subcontract and approved SOV are ready. The invite is the only step that did not complete."
           }
         >
           <div className="space-y-4">
@@ -754,11 +904,21 @@ export function QuickStartWizard() {
                 <p className="mb-2 text-sm font-semibold text-ink">Sub invite</p>
                 <InviteResult result={invite} />
               </div>
+            ) : inviteCreated ? (
+              <div role="status" className="rounded-lg border border-line p-3 text-sm">
+                <p className="font-semibold text-ink">The sub invite was created before this page reloaded.</p>
+                <p className="mt-1 text-ink-subtle">The one-use link is not stored in the browser, so open People to copy it and send it again if needed.</p>
+                {created.projectId && (
+                  <a href={peopleHash(created.projectId)} className="mt-2 inline-block underline">
+                    Open People to copy the invite
+                  </a>
+                )}
+              </div>
             ) : (
               <div role="alert" className="rounded-lg border border-amber-700 bg-amber-950/50 px-3 py-2 text-sm text-amber-100">
                 <p>{inviteError ?? "The invite was not created."}</p>
                 {created.projectId && !demoInviteBlocked && (
-                  <a href={`#/people/${encodeURIComponent(created.projectId)}`} className="mt-2 inline-block underline">
+                  <a href={peopleHash(created.projectId)} className="mt-2 inline-block underline">
                     Open People to create the invite
                   </a>
                 )}
@@ -768,24 +928,7 @@ export function QuickStartWizard() {
               <a href={GC_PROJECTS_HASH} className="inline-flex min-h-touch items-center rounded-lg px-3 text-sm text-ink-subtle hover:text-ink">
                 Back to all projects
               </a>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => {
-                  setStep(1);
-                  setForm(EMPTY_PROJECT_SETUP);
-                  setSub(EMPTY_SUB);
-                  setRows(emptyQuickStartRows());
-                  setCreated({});
-                  idsRef.current = {};
-                  setInvite(null);
-                  setInviteError(null);
-                  setProgress(Object.fromEntries(SETUP_STEPS.map((item) => [item.key, "pending"])) as typeof progress);
-                  setJobSubmitted(false);
-                  setSubSubmitted(false);
-                  setSovSubmitted(false);
-                }}
-              >
+              <Button type="button" variant="secondary" onClick={resetWizard}>
                 Start another job
               </Button>
             </div>
@@ -793,6 +936,68 @@ export function QuickStartWizard() {
         </Card>
       )}
     </div>
+  );
+}
+
+function pendingProgress(): Record<SetupKey, ProgressStatus> {
+  return Object.fromEntries(SETUP_STEPS.map((item) => [item.key, "pending"])) as Record<SetupKey, ProgressStatus>;
+}
+
+/** Rebuilds the per-step dots from a restored draft: ids prove the first five steps, `done` the rest. */
+function progressFromDraft(draft: QuickStartProgress | null): Record<SetupKey, ProgressStatus> {
+  const progress = pendingProgress();
+  if (!draft) return progress;
+  for (const key of draft.done) progress[key] = "done";
+  for (const key of Object.keys(draft.ids) as (keyof QuickStartSavedIds)[]) {
+    if (draft.ids[key]) progress[STEP_FOR_ID[key]] = "done";
+  }
+  if (draft.inviteCreated) progress.invite = "done";
+  return progress;
+}
+
+const STEP_FOR_ID: Record<keyof QuickStartSavedIds, SetupKey> = {
+  projectId: "project",
+  tradePackageId: "package",
+  vendorId: "sub",
+  contractorId: "sub",
+  bidId: "bid",
+  agreementId: "agreement",
+};
+
+function savedId<T extends "projects" | "tradePackages" | "vendors" | "contractors" | "bids" | "agreements">(
+  value: string | undefined,
+): Id<T> | undefined {
+  return value === undefined ? undefined : (value as Id<T>);
+}
+
+/** Saved ids are plain strings; the wizard only accepts the shape readQuickStartProgress validated. */
+function createdIdsFrom(ids: QuickStartSavedIds | undefined): CreatedIds {
+  return {
+    projectId: savedId<"projects">(ids?.projectId),
+    tradePackageId: savedId<"tradePackages">(ids?.tradePackageId),
+    vendorId: savedId<"vendors">(ids?.vendorId),
+    contractorId: savedId<"contractors">(ids?.contractorId),
+    bidId: savedId<"bids">(ids?.bidId),
+    agreementId: savedId<"agreements">(ids?.agreementId),
+  };
+}
+
+function savedIdsFrom(ids: CreatedIds): QuickStartSavedIds {
+  return {
+    projectId: ids.projectId,
+    tradePackageId: ids.tradePackageId,
+    vendorId: ids.vendorId,
+    contractorId: ids.contractorId,
+    bidId: ids.bidId,
+    agreementId: ids.agreementId,
+  };
+}
+
+function LockedStepNote({ children }: { children: ReactNode }) {
+  return (
+    <p role="note" className="rounded-lg border border-amber-700 bg-amber-950/40 px-3 py-2 text-sm text-amber-100">
+      {children}
+    </p>
   );
 }
 
