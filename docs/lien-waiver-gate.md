@@ -101,12 +101,19 @@ total):
 - a GC cannot mint a ticket for the sub, and a ticket cannot be minted while the gate is off or the
   payment is unapproved.
 
-Browser acceptance: `scripts/qa/lien-waiver-browser.mjs` enables the gate on the synthetic demo
-agreement, verifies the GC sees the blocked conditional waiver with no signing control, verifies the
-sub sees the panel, the signing dialog with the server-set amount and recipient, and the review step
-with the exact statement text, then backs out and cancels without signing, turns the gate off, and
-confirms the panel disappears. The run records no waiver and leaves the gate off; the review step
-does mint an expiring evidence ticket that is never redeemed.
+Browser acceptance: `scripts/qa/lien-waiver-browser.mjs` passed **26/26** checks against build `c4f9215`
+on 2026-11-06 (`evidence/lien-waiver-browser-2026-11-06T14-43-07-094Z/report.json`, no page or console
+errors). It enables the gate on the synthetic demo agreement, verifies the GC sees the blocked
+conditional waiver with no signing control, verifies the sub sees the panel and the signing dialog
+with the server-set amount and recipient, then fills the form, opens the review step and checks that
+the statement the server built (and will hash) names the amount, the recipient and the typed signer,
+keeps the disclaimer, and that the dialog states what is recorded. It backs out, cancels without
+signing, turns the gate off and confirms the panel disappears. The run records no waiver; the review
+step does mint an expiring evidence ticket that is never redeemed.
+
+The live route was also probed directly: an unknown ticket returns `409` with "This signing session is
+not recognised", an allowed `Origin` gets the CORS headers on both the POST and the `OPTIONS`
+preflight, and an unknown `/api/waivers/*` path still returns the JSON `404`.
 
 ## Limits
 

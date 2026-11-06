@@ -327,6 +327,7 @@ describe("legacy public mutations and actions are GC-only", () => {
       "addenda:acknowledgeAddendum",
       "lienWaivers:setGate",
       "lienWaivers:signWaiver",
+      "waiverEvidence:issueTicket",
     ]);
     expect(exported.filter((name) => !covered.has(name))).toEqual([]);
   });
