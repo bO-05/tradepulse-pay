@@ -89,14 +89,15 @@ async function waitForCommit(url, commit, timeoutMs = 90_000) {
  * A deploy is not finished when /version.json flips. Right after a Pages upload the edge can serve
  * the new HTML before every content-hashed asset is reachable; the SPA fallback then answers a
  * missing `.css` or `.js` with index.html, and the browser refuses it as a module/stylesheet, which
- * is a blank page for whoever loads the site in that window. Probe what index.html references.
+ * is a blank page for whoever loads the site in that window. Probe what index.html references, and
+ * read that file only after the build, because the hashes change with every build.
  */
-const assetPaths = (() => {
+function hashedAssets() {
   const html = readFileSync(resolve(ROOT, "dist", "index.html"), "utf8");
   const found = new Set();
   for (const match of html.matchAll(/(?:src|href)="\.?\/?(assets\/[^"]+)"/g)) found.add(match[1]);
   return [...found];
-})();
+}
 
 async function assetOk(base, assetPath) {
   try {
@@ -112,7 +113,7 @@ async function assetOk(base, assetPath) {
   }
 }
 
-async function waitForAssets(base, timeoutMs = 90_000) {
+async function waitForAssets(base, assetPaths, timeoutMs = 90_000) {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     const results = await Promise.all(assetPaths.map((assetPath) => assetOk(base, assetPath)));
@@ -210,11 +211,12 @@ if (canonicalOk) {
 }
 
 // 6. The commit is right; prove the page can actually load by fetching its hashed assets.
+const assetPaths = hashedAssets();
 if (assetPaths.length === 0) fail("dist/index.html references no hashed asset; refusing to trust the upload.");
 const [mirrorAssets, pagesAssets, canonicalAssets] = await Promise.all([
-  waitForAssets(mirrorUrl),
-  waitForAssets(pagesUrl),
-  canonicalOk ? waitForAssets(`${CANONICAL}/`) : Promise.resolve(true),
+  waitForAssets(mirrorUrl, assetPaths),
+  waitForAssets(pagesUrl, assetPaths),
+  canonicalOk ? waitForAssets(`${CANONICAL}/`, assetPaths) : Promise.resolve(true),
 ]);
 if (!mirrorAssets) fail(`mirror did not serve the build's assets (${assetPaths.join(", ")}) at ${mirrorUrl}`);
 if (!pagesAssets) fail(`Cloudflare Pages did not serve the build's assets (${assetPaths.join(", ")}) at ${pagesUrl}`);
