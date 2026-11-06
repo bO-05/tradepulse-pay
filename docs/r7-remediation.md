@@ -68,12 +68,14 @@ Status meanings: **Fixed** = code and regression tests in this branch. **Partial
 - Full `vitest run`: 159 files, all passing, including the new `quickStartProgress.test.ts` (19 tests) and the sign-out draft sweep in `signOutAndReset.test.ts` (4).
 - `npm run verify:guards`: 264 public functions, 201 internal, 0 problems.
 - `npm run verify:docs`: 101 relative links resolve.
-- Read-only browser acceptance:
-  - `scripts/qa/dual-host-browser.mjs`: 37/37 on the Convex site and Pages mirror, both serving the same commit, including the pinned reference run.
-  - `scripts/qa/landing-nav-inbox-browser.mjs`: 41/41 against the canonical host.
-  - `scripts/qa/owner-landing-browser.mjs`: 9/9, 0 contrast violations, signed-out hero and Owner home.
-  - `scripts/qa/quick-start-resume-browser.mjs`: 15/15 against the canonical host (`evidence/quick-start-resume-browser-2026-11-06T13-36-00-929Z/report.json`). A typed project name survives a reload, the resume banner names what exists, and **Start over** clears the form. It presses no create button, so no record was written.
-- Deployed app code: `f55d8eb` on `cheery-axolotl-689.convex.site`, `tradepulse-pay.pages.dev` and `tradepulse-pay.asynchronope.tech`; all three `/version.json` files returned that commit. Later commits in this record are documentation plus the deploy guard, so the app bundle is unchanged. `npm run deploy:all` now also probes every hashed asset that `index.html` references: one Pages deploy served the new HTML before an asset was reachable, the SPA fallback answered that asset with `index.html`, and the page could not load for about a minute.
+- Read-only browser acceptance, against `6ff5476`:
+  - `scripts/qa/dual-host-browser.mjs --url https://cheery-axolotl-689.convex.site`: **21/21**.
+  - `scripts/qa/dual-host-browser.mjs --url https://tradepulse-pay.pages.dev`: **21/21** (`evidence/dual-host-browser-2026-11-06T13-56-31-414Z/report.json`).
+  - `scripts/qa/landing-nav-inbox-browser.mjs`: **41/41** against the canonical host.
+  - `scripts/qa/owner-landing-browser.mjs`: **9/9**, 0 contrast violations, signed-out hero and Owner home.
+  - `scripts/qa/quick-start-resume-browser.mjs`: **15/15**; a typed project name survives a reload, the resume banner names what exists, and **Start over** clears the form. It presses no create button, so no record was written.
+  - The combined two-host run (no `--url`) passed 27 checks and then hit a 30 s Puppeteer navigation timeout on three attempts while the desktop Chrome held about 7 GB of RAM. The same pages answer in under a second over HTTP (`?project=...&tab=packages` in 0.77 s, the entry bundle in 2.7 s) and the per-host runs pass every assertion, so this is machine contention rather than an app fault. It is recorded here as the one check that is not green in a single process on this build.
+- Deployed app code: `f55d8eb` (the B4 fix) plus the deploy-guard fix in `6ff5476`, on `cheery-axolotl-689.convex.site`, `tradepulse-pay.pages.dev` and `tradepulse-pay.asynchronope.tech`. `/version.json` on each host reports the exact commit that is live; documentation commits after that change no app code. `npm run deploy:all` now also probes every hashed asset that `index.html` references: one Pages deploy served the new HTML before an asset was reachable, the SPA fallback answered that asset with `index.html`, and the page could not load for about a minute. The first version of that probe read the previous build's hashes, which is why it refused a deploy it had just made; that is fixed.
 
 ## Branch handoff, 6 November 2026
 
