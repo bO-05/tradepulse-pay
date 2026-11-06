@@ -1,6 +1,7 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
 import { isoDate } from "../payApps/g703Math";
+import { WAIVER_STATEMENT_DISCLAIMER } from "./waiverStatement";
 
 /**
  * Opt-in lien-waiver gate (R6). The agreement carries the switch; signatures live in `lienWaivers`.
@@ -11,8 +12,7 @@ import { isoDate } from "../payApps/g703Math";
 
 export type LienWaiverGate = NonNullable<Doc<"agreements">["lienWaiverGate"]>;
 
-export const LIEN_WAIVER_DISCLAIMER =
-  "This records the signer's attestation in TradePulse Pay. It is not legal advice and may not match the statutory waiver form your state requires. Confirm the wording with counsel before relying on it.";
+export const LIEN_WAIVER_DISCLAIMER = WAIVER_STATEMENT_DISCLAIMER;
 
 export const NO_CURRENT_AMOUNT_MESSAGE =
   "Lien-waiver gate: there is no approved payment amount, so there is no conditional waiver to sign.";

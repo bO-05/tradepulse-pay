@@ -71,6 +71,8 @@ const INLINE_ROUTES = [
   ["GET /api/sign-in-options", "Public by design; one configuration boolean, no credentials or data access"],
   ["GET /api/project-files/*", "projectFileDownload: Convex Auth bearer token + project access; 401 without a session, 404 \"Not found.\" otherwise"],
   ["GET /api/documents/*", "documents/download: Convex Auth bearer token + access to the document's source record; 401 without a session, 404 \"Not found.\" otherwise"],
+  ["POST /api/waivers/evidence", "waiverEvidenceHttp:waiverEvidencePost; the single-use signing ticket is the credential (stored only as SHA-256, bound to pay app, signer, kind and amount), the statement must match the issued text, and the route only records evidence"],
+  ["OPTIONS /api/waivers/evidence", "CORS preflight only, no data access"],
   ["GET /specs/*, /drawings/*, /quotes/*, /insurance/*, /files/*, /api/files/*", "Public demo PDFs bundled in code; no data access"],
   ["GET/POST /api/*, /agentmail/* (unknown paths)", "JSON 404, no data access"],
   ["/api/auth/* (auth.addHttpRoutes)", "Convex Auth routes; exempt"],
@@ -152,6 +154,14 @@ for (const file of walk(ROOT).sort()) {
       if (identityAt === -1 || authorizeAt < identityAt || fetchAt < authorizeAt || /runMutation|runAction/.test(body)) {
         problems.push(`${fnName}: model call is not behind the session and company check`);
       }
+    } else if (fnName === "waiverEvidenceHttp:waiverEvidencePost") {
+      const hashAt = body.search(/sha256Hex\(statementText\)/);
+      const writeAt = body.search(/runMutation\(internal\.waiverEvidence\.recordEvidence/);
+      guardText = "Single-use signing ticket: hashed before the only write, which refuses unknown, used, expired or swapped statements";
+      if (hashAt === -1 || writeAt === -1 || writeAt < hashAt) problems.push(`${fnName}: evidence is not hashed before the write`);
+    } else if (fnName === "waiverEvidenceHttp:waiverEvidencePreflight") {
+      guardText = "CORS preflight only, no data access";
+      if (access || /\bfetch\(/.test(body)) problems.push(`${fnName}: preflight touches data`);
     } else if (TOKEN_GATED.has(fnName)) {
       const hashed = body.match(TOKEN_GATED.get(fnName));
       guardText = "Invite token (sha256 lookup) before any read; read-only";
@@ -177,6 +187,10 @@ for (const file of walk(ROOT).sort()) {
     else if (fnName === "dashboard/studioProxy:studioProxy") {
       tenancyText = "requireCompanyMember() via authorizeStudioCaller; reads no app data itself";
     }
+    else if (fnName === "waiverEvidenceHttp:waiverEvidencePost") {
+      tenancyText = "the ticket row already fixes the pay app, signer, kind and amount; the route chooses none of them";
+    }
+    else if (fnName === "waiverEvidenceHttp:waiverEvidencePreflight") tenancyText = "CORS preflight only, no data access";
     else if (tenancy) tenancyText = `${tenancy[1]}()`;
     else if (NO_PROJECT_DATA.has(fnName)) tenancyText = `none needed: ${NO_PROJECT_DATA.get(fnName)}`;
     else {

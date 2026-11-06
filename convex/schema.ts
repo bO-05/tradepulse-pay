@@ -759,10 +759,40 @@ export default defineSchema({
     // longer satisfies the gate, and the sub can sign a replacement for the current amount.
     supersededAt: v.optional(v.number()),
     supersededByWaiverId: v.optional(v.id("lienWaivers")),
+    // B10: the evidence row this signature was attested against (statement hash, IP, user agent).
+    evidenceId: v.optional(v.id("waiverEvidence")),
   })
     .index("by_payAppId_and_kind", ["payAppId", "kind"])
     .index("by_agreementId", ["agreementId"])
     .index("by_coversPayAppId_and_kind", ["coversPayAppId", "kind"]),
+
+  // B10 signing evidence. A row starts as a ticket (expires, single use, stored as a hash) and
+  // becomes the evidence record once the HTTP action observes the statement and request headers.
+  waiverEvidence: defineTable({
+    payAppId: v.id("payApplications"),
+    agreementId: v.id("agreements"),
+    kind: v.union(v.literal("conditional"), v.literal("unconditional")),
+    signedByUserId: v.id("users"),
+    signedByName: v.string(),
+    signerTitle: v.optional(v.string()),
+    amountCents: v.number(),
+    throughDate: v.string(),
+    /** The exact text shown to the signer, so the hash can be re-derived years later. */
+    statementText: v.string(),
+    statementHash: v.string(),
+    statementVersion: v.string(),
+    ticketHash: v.string(),
+    issuedAt: v.number(),
+    expiresAt: v.number(),
+    // Set by the HTTP action: request-observed, not client-asserted.
+    observedAt: v.optional(v.number()),
+    ipAddress: v.optional(v.string()),
+    ipSource: v.optional(v.string()),
+    userAgent: v.optional(v.string()),
+    usedByWaiverId: v.optional(v.id("lienWaivers")),
+  })
+    .index("by_ticketHash", ["ticketHash"])
+    .index("by_payAppId", ["payAppId"]),
 
   agentProposals: defineTable({
     payAppId: v.optional(v.id("payApplications")),

@@ -13,6 +13,7 @@ import {
 } from "./lib/lienWaivers";
 import { formatCents } from "./lib/money";
 import { notify } from "./lib/notify";
+import { EVIDENCE_MAX_AGE_MS } from "./lib/waiverEvidence";
 import { payAppHash } from "./payApps/g703";
 
 const SIGNER_TITLE_MAX = 120;
@@ -214,6 +215,8 @@ export const signWaiver = mutation({
     signerTitle: v.optional(v.string()),
     note: v.optional(v.string()),
     acknowledged: v.boolean(),
+    /** B10: the evidence row recorded by the HTTP action for this exact statement. */
+    evidenceId: v.id("waiverEvidence"),
   },
   handler: async (ctx, args) => {
     const scope = await requireDocScope(ctx, "payApplications", args.payAppId, { roles: ["sub"], write: true });
@@ -264,6 +267,32 @@ export const signWaiver = mutation({
       return { waiverId: existing._id, alreadySigned: true, signedAt: existing.signedAt };
     }
     if (amountCents <= 0) throw invalid("The waiver amount is not available.");
+
+    // B10: a signature is only recorded against evidence that was observed for this signer, this
+    // pay app, this kind and this amount. The evidence row cannot be reused for another signature.
+    const evidence = await ctx.db.get(args.evidenceId);
+    if (evidence === null) throw invalid("The signing evidence is missing. Review the statement and sign again.");
+    if (evidence.signedByUserId !== scope.viewer.userId) {
+      throw invalid("The signing evidence was recorded for a different signer. Sign again.");
+    }
+    if (evidence.payAppId !== payApp._id || evidence.kind !== args.kind) {
+      throw invalid("The signing evidence was recorded for a different waiver. Sign again.");
+    }
+    if (evidence.usedByWaiverId !== undefined) {
+      throw invalid("The signing evidence was already used. Review the statement and sign again.");
+    }
+    if (evidence.observedAt === undefined) {
+      throw invalid("The signing evidence was not recorded. Review the statement and sign again.");
+    }
+    if (evidence.amountCents !== amountCents || evidence.throughDate !== throughDate) {
+      throw invalid("The amount or through date changed after the statement was issued. Review the new statement and sign again.");
+    }
+    if (evidence.signedByName !== name) {
+      throw invalid("The signer name changed after the statement was issued. Review the statement and sign again.");
+    }
+    if (evidence.observedAt + EVIDENCE_MAX_AGE_MS < Date.now()) {
+      throw invalid("The signing evidence expired. Review the statement and sign again.");
+    }
     const now = Date.now();
     const waiverId = await ctx.db.insert("lienWaivers", {
       projectId: agreement.projectId,
@@ -279,8 +308,10 @@ export const signWaiver = mutation({
       signedByUserId: scope.viewer.userId,
       signedAt: now,
       gateEnabledAt: agreement.lienWaiverGate.enabledAt,
+      evidenceId: evidence._id,
       ...(note !== undefined ? { note } : {}),
     });
+    await ctx.db.patch(evidence._id, { usedByWaiverId: waiverId });
     // A signature for a superseded amount is kept as evidence but can never be mistaken for the
     // live one; the replacement above is what the gate reads.
     if (existing !== null && existing.amountCents !== amountCents) {
@@ -297,7 +328,11 @@ export const signWaiver = mutation({
         existing !== null
           ? ` This replaces the earlier signature for ${formatCents(existing.amountCents)}, which is kept as superseded.`
           : ""
-      }`,
+      } Evidence: SHA-256 ${evidence.statementHash.slice(0, 16)}… over ${evidence.statementText.length} characters (${
+        evidence.statementVersion
+      }), recorded ${new Date(evidence.observedAt).toISOString()} from ${
+        evidence.ipAddress !== undefined && evidence.ipAddress !== "" ? evidence.ipAddress : "an unavailable address"
+      } (${evidence.ipSource ?? "unavailable"}), browser ${evidence.userAgent ?? "unknown"}.`,
       ...auditActor(scope),
       timestamp: now,
     });

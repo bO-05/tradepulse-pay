@@ -615,7 +615,7 @@ describe("static guard sweep over convex/**", () => {
     }
   });
 
-  test("exported httpActions are the PayPal and AgentMail webhooks, the auth-gated Studio AI proxy and the authenticated file and document downloads", () => {
+  test("exported httpActions are the webhooks, the auth-gated Studio proxy, the authenticated downloads and the waiver-evidence route", () => {
     const http = publicExports().filter((f) => f.kind === "httpAction");
     expect(http.map((f) => f.name).sort()).toEqual([
       "agentmailWebhook:agentmailWebhook",
@@ -626,6 +626,8 @@ describe("static guard sweep over convex/**", () => {
       "payments/webhook:paypalWebhook",
       "projectFileDownload:projectFileDownload",
       "projectFileDownload:projectFilePreflight",
+      "waiverEvidenceHttp:waiverEvidencePost",
+      "waiverEvidenceHttp:waiverEvidencePreflight",
     ]);
     const byName = new Map(http.map((f) => [f.name, f.body]));
 

@@ -8,6 +8,7 @@ import { seedCompliantAgreement } from "../lib/testCompliance";
 import { buildTenancyFixture } from "../lib/tenancyFixtures";
 import { ensureSovAndMilestones } from "../payments/sov";
 import { clearPayPalTokenCache } from "../payments/paypalClient";
+import { sha256Hex } from "../lib/waiverStatement";
 
 const modules = import.meta.glob("/convex/**/*.ts");
 
@@ -779,6 +780,29 @@ async function reviewAndApprove(s: Setup, payAppId: Id<"payApplications">) {
   await s.f.gcA.admin.as.mutation(api.payApps.decisions.decidePayApp, { payAppId, decision: "approve" });
 }
 
+/**
+ * B10: sign the way the browser does. The statement ticket and the evidence record exist before the
+ * signature, and the signature spends the evidence.
+ */
+async function evidenceFor(
+  s: Awaited<ReturnType<typeof setup>>,
+  payAppId: Id<"payApplications">,
+  kind: "conditional" | "unconditional",
+  signedByName = "Kim Alvarez",
+): Promise<Id<"waiverEvidence">> {
+  const kim = s.f.sub.admin.as;
+  const issued = await kim.mutation(api.waiverEvidence.issueTicket, { payAppId, kind, signedByName });
+  const recorded = await s.t.mutation(internal.waiverEvidence.recordEvidence, {
+    ticket: issued.ticket,
+    statementText: issued.statementText,
+    statementHash: await sha256Hex(issued.statementText),
+    ipAddress: "203.0.113.7",
+    ipSource: "x-forwarded-for",
+    userAgent: "Mozilla/5.0 (convex-test)",
+  });
+  return recorded.evidenceId;
+}
+
 describe("opt-in lien-waiver gate", () => {
   test("off by default; enabling it blocks the payout until the sub signs the conditional waiver", async () => {
     const s = await setup();
@@ -816,6 +840,7 @@ describe("opt-in lien-waiver gate", () => {
       kind: "conditional",
       signedByName: "Dana GC",
       acknowledged: true,
+      evidenceId: await evidenceFor(s, payAppId, "conditional", "Dana GC"),
     }))).toBe("Not found.");
 
     const signed = await kim.mutation(api.lienWaivers.signWaiver, {
@@ -824,6 +849,7 @@ describe("opt-in lien-waiver gate", () => {
       signedByName: "Kim Alvarez",
       signerTitle: "Project manager",
       acknowledged: true,
+      evidenceId: await evidenceFor(s, payAppId, "conditional"),
     });
     expect(signed.alreadySigned).toBe(false);
     const again = await kim.mutation(api.lienWaivers.signWaiver, {
@@ -831,6 +857,7 @@ describe("opt-in lien-waiver gate", () => {
       kind: "conditional",
       signedByName: "Someone Else",
       acknowledged: true,
+      evidenceId: await evidenceFor(s, payAppId, "conditional", "Someone Else"),
     });
     expect(again).toMatchObject({ waiverId: signed.waiverId, alreadySigned: true });
 
@@ -858,7 +885,7 @@ describe("opt-in lien-waiver gate", () => {
 
     const first = await reviewedPayApp1(s);
     await approvePayApp1(s, first);
-    await kim.mutation(api.lienWaivers.signWaiver, { payAppId: first, kind: "conditional", signedByName: "Kim Alvarez", acknowledged: true });
+    await kim.mutation(api.lienWaivers.signWaiver, { payAppId: first, kind: "conditional", signedByName: "Kim Alvarez", acknowledged: true, evidenceId: await evidenceFor(s, first, "conditional") });
     await s.t.run(async (ctx) => ctx.db.patch(first, { status: "paid" }));
 
     const { payAppId: second } = await kim.mutation(api.payApps.g703.startPayApp, { agreementId: s.agreementId });
@@ -872,14 +899,14 @@ describe("opt-in lien-waiver gate", () => {
     expect(state.prior).toMatchObject({ amountCents: 4_341_260, signed: null });
     expect(state.canSignPrior).toBe(true);
 
-    await kim.mutation(api.lienWaivers.signWaiver, { payAppId: second, kind: "conditional", signedByName: "Kim Alvarez", acknowledged: true });
+    await kim.mutation(api.lienWaivers.signWaiver, { payAppId: second, kind: "conditional", signedByName: "Kim Alvarez", acknowledged: true, evidenceId: await evidenceFor(s, second, "conditional") });
     expect((await dana.query(api.billing.canPay.canPay, { payAppId: second })).reasons).toEqual([
       {
         code: "LIEN_WAIVER_MISSING",
         message: "Lien waiver: the sub has not signed the unconditional waiver for the prior payment (pay app #1, $43,412.60).",
       },
     ]);
-    await kim.mutation(api.lienWaivers.signWaiver, { payAppId: second, kind: "unconditional", signedByName: "Kim Alvarez", acknowledged: true });
+    await kim.mutation(api.lienWaivers.signWaiver, { payAppId: second, kind: "unconditional", signedByName: "Kim Alvarez", acknowledged: true, evidenceId: await evidenceFor(s, second, "unconditional") });
     expect((await dana.query(api.billing.canPay.canPay, { payAppId: second })).ok).toBe(true);
     const cleared = (await kim.query(api.lienWaivers.payAppState, { payAppId: second }))!;
     expect(cleared.prior!.signed).toMatchObject({ signedByName: "Kim Alvarez", amountCents: 4_341_260 });
@@ -897,7 +924,7 @@ describe("opt-in lien-waiver gate", () => {
     const dana = s.f.gcA.admin.as;
     const kim = s.f.sub.admin.as;
     await dana.mutation(api.lienWaivers.setGate, { agreementId: s.agreementId, enabled: true });
-    const first = await kim.mutation(api.lienWaivers.signWaiver, { payAppId, kind: "conditional", signedByName: "Kim Alvarez", acknowledged: true });
+    const first = await kim.mutation(api.lienWaivers.signWaiver, { payAppId, kind: "conditional", signedByName: "Kim Alvarez", acknowledged: true, evidenceId: await evidenceFor(s, payAppId, "conditional") });
     await s.t.run(async (ctx) => {
       const p = (await ctx.db.get(payAppId))!;
       await ctx.db.patch(payAppId, { finalApproval: { ...p.finalApproval!, totalCents: p.finalApproval!.totalCents + 100 } });
@@ -914,7 +941,7 @@ describe("opt-in lien-waiver gate", () => {
     expect(state.current).toMatchObject({ amountCents: 4_341_360 });
     expect(state.current!.signed).toMatchObject({ waiverId: first.waiverId, amountCents: 4_341_260 });
     expect(state.canSignCurrent).toBe(true);
-    const replacement = await kim.mutation(api.lienWaivers.signWaiver, { payAppId, kind: "conditional", signedByName: "Kim Alvarez", acknowledged: true });
+    const replacement = await kim.mutation(api.lienWaivers.signWaiver, { payAppId, kind: "conditional", signedByName: "Kim Alvarez", acknowledged: true, evidenceId: await evidenceFor(s, payAppId, "conditional") });
     expect(replacement.alreadySigned).toBe(false);
     expect(replacement.waiverId).not.toBe(first.waiverId);
     const afterReplacement = await dana.query(api.billing.canPay.canPay, { payAppId });
@@ -1007,5 +1034,168 @@ describe("daily compliance expiry notifications", () => {
     rows = await byCompany();
     expect(rows[s.f.sub.companyId]).toHaveLength(2);
     expect(rows[s.f.gcA.companyId]).toHaveLength(4);
+  });
+});
+
+describe("signing evidence (B10)", () => {
+  async function gateOpenPayApp() {
+    const s = await setup();
+    const { t1 } = await addTranches(s);
+    await fundTranche(s, t1, 6_000_000);
+    const payAppId = await reviewedPayApp1(s);
+    await approvePayApp1(s, payAppId);
+    await s.f.gcA.admin.as.mutation(api.lienWaivers.setGate, { agreementId: s.agreementId, enabled: true });
+    return { s, payAppId };
+  }
+
+  const record = async (
+    s: Awaited<ReturnType<typeof setup>>,
+    issued: { ticket: string; statementText: string },
+    ipAddress = "203.0.113.7",
+  ) =>
+    s.t.mutation(internal.waiverEvidence.recordEvidence, {
+      ticket: issued.ticket,
+      statementText: issued.statementText,
+      statementHash: await sha256Hex(issued.statementText),
+      ipAddress,
+      ipSource: ipAddress === "" ? "unavailable" : "x-forwarded-for",
+      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+    });
+
+  test("records the statement hash, the observed IP and the browser, and spends the evidence", async () => {
+    const { s, payAppId } = await gateOpenPayApp();
+    const kim = s.f.sub.admin.as;
+
+    const issued = await kim.mutation(api.waiverEvidence.issueTicket, { payAppId, kind: "conditional", signedByName: "Kim Alvarez" });
+    expect(issued.statementText).toContain("CONDITIONAL LIEN WAIVER");
+    expect(issued.statementText).toContain("Amount waived: $43,412.60");
+    expect(issued.statementText).toContain("Recipient of the waiver: Fixture GC");
+    expect(issued.statementText).toContain("Signed by: Kim Alvarez");
+    expect(issued.statementText).toContain("not legal advice");
+    expect(issued.statementVersion).toBe("waiver-statement/1");
+
+    // At rest the ticket is only a hash: the raw token never hits the database.
+    const stored = await s.t.run((ctx) => ctx.db.query("waiverEvidence").withIndex("by_payAppId", (q) => q.eq("payAppId", payAppId)).collect());
+    expect(stored).toHaveLength(1);
+    expect(stored[0].ticketHash).toBe(await sha256Hex(issued.ticket));
+    expect(stored[0].ticketHash).not.toBe(issued.ticket);
+    expect(stored[0].statementHash).toBe(await sha256Hex(issued.statementText));
+    expect(stored[0].observedAt).toBeUndefined();
+
+    const recorded = await record(s, issued);
+    const observed = (await s.t.run((ctx) => ctx.db.get(recorded.evidenceId)))!;
+    expect(observed).toMatchObject({ ipAddress: "203.0.113.7", ipSource: "x-forwarded-for" });
+    expect(observed.userAgent).toContain("Macintosh");
+    expect(observed.observedAt).toBeGreaterThan(0);
+
+    const waiver = await kim.mutation(api.lienWaivers.signWaiver, {
+      payAppId,
+      kind: "conditional",
+      signedByName: "Kim Alvarez",
+      acknowledged: true,
+      evidenceId: recorded.evidenceId,
+    });
+    const spent = (await s.t.run((ctx) => ctx.db.get(recorded.evidenceId)))!;
+    expect(spent.usedByWaiverId).toBe(waiver.waiverId);
+    const signed = (await s.t.run((ctx) => ctx.db.get(waiver.waiverId)))!;
+    expect(signed.evidenceId).toBe(recorded.evidenceId);
+
+    const audit = (await s.t.run((ctx) => ctx.db.query("auditLogs").collect())).find((a) => a.eventType === "waiver_signed")!;
+    expect(audit.description).toContain("Evidence: SHA-256");
+    expect(audit.description).toContain("203.0.113.7 (x-forwarded-for)");
+    expect(audit.description).toContain("Macintosh");
+
+    // Repeating an identical signature is idempotent: it returns the existing waiver and does not
+    // need a second evidence row.
+    const repeat = await kim.mutation(api.lienWaivers.signWaiver, {
+      payAppId,
+      kind: "conditional",
+      signedByName: "Kim Alvarez",
+      acknowledged: true,
+      evidenceId: recorded.evidenceId,
+    });
+    expect(repeat).toMatchObject({ waiverId: waiver.waiverId, alreadySigned: true });
+  });
+
+  test("refuses a statement that differs from the one it issued", async () => {
+    const { s, payAppId } = await gateOpenPayApp();
+    const kim = s.f.sub.admin.as;
+    const issued = await kim.mutation(api.waiverEvidence.issueTicket, { payAppId, kind: "conditional", signedByName: "Kim Alvarez" });
+    const swapped = `${issued.statementText} (and one extra clause)`;
+    await expect(
+      s.t.mutation(internal.waiverEvidence.recordEvidence, {
+        ticket: issued.ticket,
+        statementText: swapped,
+        statementHash: await sha256Hex(swapped),
+        ipAddress: "203.0.113.7",
+        ipSource: "x-forwarded-for",
+        userAgent: "Mozilla/5.0",
+      }),
+    ).rejects.toThrow(/changed after it was issued/);
+    // Replaying a ticket that was never recorded still works once, so a transient fetch failure is recoverable.
+    await record(s, issued);
+  });
+
+  test("an expired ticket cannot be recorded, and expired evidence cannot be signed", async () => {
+    const { s, payAppId } = await gateOpenPayApp();
+    const kim = s.f.sub.admin.as;
+    const issued = await kim.mutation(api.waiverEvidence.issueTicket, { payAppId, kind: "conditional", signedByName: "Kim Alvarez" });
+    vi.setSystemTime(new Date(Date.now() + 11 * 60 * 1000));
+    await expect(record(s, issued)).rejects.toThrow(/expired/);
+
+    const fresh = await kim.mutation(api.waiverEvidence.issueTicket, { payAppId, kind: "conditional", signedByName: "Kim Alvarez" });
+    const recorded = await record(s, fresh);
+    vi.setSystemTime(new Date(Date.now() + 31 * 60 * 1000));
+    await expect(
+      kim.mutation(api.lienWaivers.signWaiver, {
+        payAppId,
+        kind: "conditional",
+        signedByName: "Kim Alvarez",
+        acknowledged: true,
+        evidenceId: recorded.evidenceId,
+      }),
+    ).rejects.toThrow(/expired/);
+  });
+
+  test("evidence for an amount that changed afterwards cannot sign the new amount", async () => {
+    const { s, payAppId } = await gateOpenPayApp();
+    const kim = s.f.sub.admin.as;
+    const issued = await kim.mutation(api.waiverEvidence.issueTicket, { payAppId, kind: "conditional", signedByName: "Kim Alvarez" });
+    const recorded = await record(s, issued);
+    await s.t.run(async (ctx) => {
+      const p = (await ctx.db.get(payAppId))!;
+      await ctx.db.patch(payAppId, { finalApproval: { ...p.finalApproval!, totalCents: p.finalApproval!.totalCents + 100 } });
+    });
+    await expect(
+      kim.mutation(api.lienWaivers.signWaiver, {
+        payAppId,
+        kind: "conditional",
+        signedByName: "Kim Alvarez",
+        acknowledged: true,
+        evidenceId: recorded.evidenceId,
+      }),
+    ).rejects.toThrow(/amount or through date changed/);
+  });
+
+  test("the GC and an unsigned app cannot mint a signing ticket", async () => {
+    const s = await setup();
+    const { t1 } = await addTranches(s);
+    await fundTranche(s, t1, 6_000_000);
+    const payAppId = await reviewedPayApp1(s);
+    const kim = s.f.sub.admin.as;
+    // Gate off: nothing to sign, so no ticket.
+    await expect(kim.mutation(api.waiverEvidence.issueTicket, { payAppId, kind: "conditional", signedByName: "Kim Alvarez" })).rejects.toThrow(
+      /has not enabled the lien-waiver gate/,
+    );
+    await s.f.gcA.admin.as.mutation(api.lienWaivers.setGate, { agreementId: s.agreementId, enabled: true });
+    // Gate on, but the payment is not approved yet, so there is no amount to waive.
+    await expect(kim.mutation(api.waiverEvidence.issueTicket, { payAppId, kind: "conditional", signedByName: "Kim Alvarez" })).rejects.toThrow(
+      /no approved payment amount/,
+    );
+    // The GC cannot sign on the sub's behalf.
+    await approvePayApp1(s, payAppId);
+    await expect(
+      s.f.gcA.admin.as.mutation(api.waiverEvidence.issueTicket, { payAppId, kind: "conditional", signedByName: "Fixture GC" }),
+    ).rejects.toThrow(/Not found\./);
   });
 });

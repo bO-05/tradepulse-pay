@@ -114,6 +114,31 @@ try {
   check("signing dialog requires the attestation", dialog.includes("I understand it is an in-app attestation"));
   check("signing dialog has a full-name field", (await sub.$('input[type="text"]')) !== null);
   await sub.screenshot({ path: path.join(evidenceDir, "signing-dialog.png"), fullPage: true });
+
+  phase = "review the exact statement as sub";
+  await sub.type('input[type="text"]', "Dana Sub");
+  await sub.evaluate(() => {
+    const box = document.querySelector('[role="dialog"] input[type="checkbox"]');
+    if (box) box.click();
+  });
+  await clickText(sub, "Review statement", '[role="dialog"]');
+  await sub.waitForSelector('[data-testid="lien-waiver-statement"]', { timeout: 30_000 });
+  const statement = await sub.evaluate(() => document.querySelector('[data-testid="lien-waiver-statement"]').textContent);
+  check(
+    "review shows the statement the server will hash",
+    statement.includes("CONDITIONAL LIEN WAIVER") && statement.includes("Amount waived: $2,000.00"),
+    statement,
+  );
+  check("review names the signer", statement.includes("Signed by: Dana Sub"), statement);
+  check("review names the recipient", statement.includes("Recipient of the waiver:"), statement);
+  check("review keeps the disclaimer", statement.includes("not legal advice"), statement);
+  const reviewText = await sub.evaluate(() => document.querySelector('[role="dialog"]').innerText);
+  check("review says the evidence is recorded", reviewText.includes("IP address") && reviewText.includes("SHA-256"), reviewText);
+  await sub.screenshot({ path: path.join(evidenceDir, "signing-review.png"), fullPage: true });
+  await clickText(sub, "Back", '[role="dialog"]');
+  await sub.waitForSelector('[data-testid="lien-waiver-statement"]', { hidden: true, timeout: 10_000 });
+  check("Back returns to the form without signing", (await sub.$('[data-testid^="lien-waiver-signed-"]')) === null);
+
   await clickText(sub, "Cancel", '[role="dialog"]');
   await sub.waitForFunction(() => document.querySelector('[role="dialog"]') === null, { timeout: 10_000 });
   check("cancelling closes the dialog without signing", (await sub.$('[data-testid^="lien-waiver-signed-"]')) === null);

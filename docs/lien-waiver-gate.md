@@ -28,10 +28,37 @@ and the recipient; the form cannot widen or narrow them.
 - **Unconditional waiver:** the approved gross of the prior paid pay app, through that pay app's
   period end.
 
-The signer types a full name, may add a title and note, and must affirm the statement. The signature
-stores the signer's user id and the server time. The same signature cannot be overwritten; a second
-attempt returns the first record. Billing agents cannot sign. The mutation enforces that the signer
-is an active, verified human member of the sub company on that project.
+The signer types a full name, may add a title and note, and must affirm the statement. The next step
+shows the **exact statement text** the server built, word for word, and only "Sign and record
+evidence" submits it. The signature stores the signer's user id and the server time. The same
+signature cannot be overwritten; a second attempt returns the first record. Billing agents cannot
+sign. The mutation enforces that the signer is an active, verified human member of the sub company
+on that project.
+
+## Signing evidence
+
+Convex mutations never see request headers, so the evidence path is split in two:
+
+1. **`api.waiverEvidence.issueTicket`** (authenticated, sub only) snapshots the amount, through-date,
+   recipient and signer, builds the statement text, and returns a 32-byte single-use ticket valid for
+   ten minutes. The database stores only the ticket's SHA-256, never the token.
+2. **`POST /api/waivers/evidence`** reads `x-forwarded-for` (falling back to `x-real-ip` and
+   `cf-connecting-ip`, and recording which header it trusted) and `user-agent`, hashes the statement
+   the browser posted back, and writes the evidence row. The route refuses a statement that differs
+   from the issued one, a used ticket, an expired ticket and an unknown ticket.
+3. **`api.lienWaivers.signWaiver`** now requires `evidenceId` and refuses to write a waiver unless the
+   evidence belongs to this signer, this pay app, this kind and this exact amount and through-date,
+   was observed no more than 30 minutes ago, and has not already been spent. A signature whose
+   amount changed in between is refused with "the amount or through date changed", and the sub signs
+   again against a fresh statement.
+
+The waiver row stores `evidenceId`; the audit entry carries the hash prefix, the character count,
+the statement version, the observation time, the address and its source header, and the browser
+string. A signer who skips the route cannot produce a waiver at all.
+
+What this proves: the exact text attested, the server time it was attested, and the network address
+and browser that redeemed the ticket. What it does not prove: that the person at that address is the
+named signer (the authenticated session does that), or that the address was not a proxy or VPN.
 
 If the approved amount changes after a signature, the pay gate refuses the stale waiver and asks for
 a new one. The panel shows the signed record; the audit log records `waiver_signed` and the GC gets
@@ -59,30 +86,37 @@ reference run are untouched.
 
 ## Tests
 
-`convex/billing/payGate.test.ts` adds four regression tests:
+`convex/billing/payGate.test.ts` covers the gate and the evidence path (the file has 28 tests in
+total):
 
 - the gate is off by default and enabling it blocks the payout until the sub signs the conditional
   waiver;
 - a prior paid payment requires its unconditional waiver, and the gate names both missing signatures;
 - changing the approved amount invalidates the signed conditional waiver;
 - only a GC company admin can change the gate, and a GC member, another GC, the sub and the Owner are
-  refused.
+  refused;
+- the evidence path stores only the ticket's hash, records the observed IP, header source and browser,
+  writes them into the audit text, and refuses a swapped statement, an expired ticket, evidence older
+  than 30 minutes, and evidence whose amount no longer matches;
+- a GC cannot mint a ticket for the sub, and a ticket cannot be minted while the gate is off or the
+  payment is unapproved.
 
-The suite also asserts the audit text, the notification recipients, the signer fields, idempotent
-re-signing and the stale-amount wording.
-
-Browser acceptance: `scripts/qa/lien-waiver-browser.mjs` passed all 18 checks against canonical build
-`3d3d03c` on 2026-11-05. It enables the gate on the synthetic demo agreement, verifies the GC sees
-the blocked conditional waiver with no signing control, verifies the sub sees the panel and the
-signing dialog with the server-set amount and recipient, cancels without submitting, turns the gate
-off, and confirms the panel disappears. Evidence is in
-`evidence/lien-waiver-browser-2026-11-05T06-56-48-194Z/report.json`; the run created no waiver record
-and left the gate off.
+Browser acceptance: `scripts/qa/lien-waiver-browser.mjs` enables the gate on the synthetic demo
+agreement, verifies the GC sees the blocked conditional waiver with no signing control, verifies the
+sub sees the panel, the signing dialog with the server-set amount and recipient, and the review step
+with the exact statement text, then backs out and cancels without signing, turns the gate off, and
+confirms the panel disappears. The run records no waiver and leaves the gate off; the review step
+does mint an expiring evidence ticket that is never redeemed.
 
 ## Limits
 
 - One signed record per waiver slot; there is no void-and-replace flow yet.
 - No PDF rendering, notarization, certificate or statutory form selection.
 - No waiver attachment upload.
+- The signing evidence records the address and browser that redeemed the ticket. A proxy or VPN
+  changes that address, and the evidence does not replace identity verification, which comes from the
+  authenticated, email-verified session.
+- A sub who loses the network between "review" and "sign" retries; the ticket stays valid for ten
+  minutes and is spent only when the signature is written.
 - The prior unconditional requirement follows the prior pay app's `paid` status and approval time;
   it does not query every historical PayPal payment.

@@ -7,6 +7,7 @@ import { getRealDocumentPdfBytes } from "./realDocuments";
 import { auth } from "./auth";
 import { paypalWebhook } from "./payments/webhook";
 import { studioPreflight, studioProxy } from "./dashboard/studioProxy";
+import { waiverEvidencePost, waiverEvidencePreflight } from "./waiverEvidenceHttp";
 import { projectFileDownload, projectFilePreflight } from "./projectFileDownload";
 import { documentDownload, documentPreflight } from "./documents/download";
 import { buildLlmsTxt, PRODUCT_NAME } from "./lib/llmsTxt";
@@ -27,6 +28,10 @@ http.route({
 // AG Studio chat LLM proxy: requires the Convex Auth token (GC or owner); provider keys stay server-side.
 http.route({ path: "/ai/studio", method: "POST", handler: studioProxy });
 http.route({ path: "/ai/studio", method: "OPTIONS", handler: studioPreflight });
+
+// Lien-waiver signing evidence: the ticket is the credential, and the headers only exist here.
+http.route({ path: "/api/waivers/evidence", method: "POST", handler: waiverEvidencePost });
+http.route({ path: "/api/waivers/evidence", method: "OPTIONS", handler: waiverEvidencePreflight });
 
 // Inbound AgentMail webhook: public, but every delivery is Svix signature-verified before any write.
 http.route({ path: "/agentmail/webhook", method: "POST", handler: agentmailWebhook });

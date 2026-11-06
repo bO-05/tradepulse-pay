@@ -163,6 +163,8 @@ import type * as lib_vendorRead from "../lib/vendorRead.js";
 import type * as lib_vendorRules from "../lib/vendorRules.js";
 import type * as lib_vendorSearch from "../lib/vendorSearch.js";
 import type * as lib_venue from "../lib/venue.js";
+import type * as lib_waiverEvidence from "../lib/waiverEvidence.js";
+import type * as lib_waiverStatement from "../lib/waiverStatement.js";
 import type * as lienWaivers from "../lienWaivers.js";
 import type * as llmRouter from "../llmRouter.js";
 import type * as mailerDiagnostics from "../mailerDiagnostics.js";
@@ -253,6 +255,8 @@ import type * as terms from "../terms.js";
 import type * as tradePackages from "../tradePackages.js";
 import type * as validation from "../validation.js";
 import type * as vendors from "../vendors.js";
+import type * as waiverEvidence from "../waiverEvidence.js";
+import type * as waiverEvidenceHttp from "../waiverEvidenceHttp.js";
 
 import type {
   ApiFromModules,
@@ -416,6 +420,8 @@ declare const fullApi: ApiFromModules<{
   "lib/vendorRules": typeof lib_vendorRules;
   "lib/vendorSearch": typeof lib_vendorSearch;
   "lib/venue": typeof lib_venue;
+  "lib/waiverEvidence": typeof lib_waiverEvidence;
+  "lib/waiverStatement": typeof lib_waiverStatement;
   lienWaivers: typeof lienWaivers;
   llmRouter: typeof llmRouter;
   mailerDiagnostics: typeof mailerDiagnostics;
@@ -506,6 +512,8 @@ declare const fullApi: ApiFromModules<{
   tradePackages: typeof tradePackages;
   validation: typeof validation;
   vendors: typeof vendors;
+  waiverEvidence: typeof waiverEvidence;
+  waiverEvidenceHttp: typeof waiverEvidenceHttp;
 }>;
 
 /**

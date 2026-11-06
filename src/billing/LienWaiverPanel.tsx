@@ -3,8 +3,15 @@ import type { FunctionReturnType } from "convex/server";
 import { FormEvent, useState } from "react";
 import { ShieldCheck } from "lucide-react";
 import { api } from "../../convex/_generated/api";
+import type { Id } from "../../convex/_generated/dataModel";
 import { getErrorMessage } from "../lib/errors";
+import { convexSiteUrl } from "../lib/storedFile";
 import { Button, Card, Dialog, TextInput, formatCents, formatDate, formatDateTime, useToast } from "../ui";
+
+const CONVEX_ENV = {
+  VITE_CONVEX_SITE_URL: import.meta.env.VITE_CONVEX_SITE_URL as string | undefined,
+  VITE_CONVEX_URL: import.meta.env.VITE_CONVEX_URL as string | undefined,
+};
 
 type Kind = "conditional" | "unconditional";
 type WaiverState = NonNullable<FunctionReturnType<typeof api.lienWaivers.payAppState>>;
@@ -59,6 +66,7 @@ function SlotRows({ slot, recipientName }: { slot: Slot; recipientName: string }
 export function LienWaiverPanel({ payAppId }: { payAppId: string }) {
   const data = useQuery(api.lienWaivers.payAppState, { payAppId });
   const sign = useMutation(api.lienWaivers.signWaiver);
+  const issueTicket = useMutation(api.waiverEvidence.issueTicket);
   const toast = useToast();
   const [kind, setKind] = useState<Kind | null>(null);
   const [name, setName] = useState("");
@@ -67,6 +75,8 @@ export function LienWaiverPanel({ payAppId }: { payAppId: string }) {
   const [acknowledged, setAcknowledged] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** B10: the exact statement the server will hash, held between the form and the signature. */
+  const [review, setReview] = useState<{ ticket: string; statementText: string } | null>(null);
 
   if (data === undefined || data === null) return null;
   const slot = kind === "conditional" ? data.current : kind === "unconditional" ? data.prior : null;
@@ -79,11 +89,13 @@ export function LienWaiverPanel({ payAppId }: { payAppId: string }) {
     setNote("");
     setAcknowledged(false);
     setError(null);
+    setReview(null);
   };
 
   const close = () => {
     if (busy) return;
     setKind(null);
+    setReview(null);
     setError(null);
   };
 
@@ -101,16 +113,55 @@ export function LienWaiverPanel({ payAppId }: { payAppId: string }) {
     setBusy(true);
     setError(null);
     try {
+      // The amount and through date come from the pay app on the server, so the statement cannot
+      // be widened here. The text returned below is shown verbatim before anything is signed.
+      const issued = await issueTicket({
+        payAppId,
+        kind,
+        signedByName: name.trim(),
+        ...(title.trim() ? { signerTitle: title.trim() } : {}),
+      });
+      setReview({ ticket: issued.ticket, statementText: issued.statementText });
+    } catch (err) {
+      setError(getErrorMessage(err, "The waiver statement could not be prepared. Try again."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const confirm = async () => {
+    if (kind === null || review === null || busy) return;
+    const site = convexSiteUrl(CONVEX_ENV);
+    if (!site) {
+      setError("Signing evidence is not configured for this build, so the waiver cannot be recorded.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      // The IP address and user agent are observed by the server on this request; the browser only
+      // sends back the statement it was given.
+      const response = await fetch(`${site}/api/waivers/evidence`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticket: review.ticket, statementText: review.statementText }),
+      });
+      const payload = (await response.json().catch(() => null)) as { evidenceId?: string; error?: string } | null;
+      if (!response.ok || typeof payload?.evidenceId !== "string") {
+        throw new Error(payload?.error ?? "The signing evidence could not be recorded.");
+      }
       await sign({
         payAppId,
         kind,
-        signedByName: name,
+        signedByName: name.trim(),
         ...(title.trim() ? { signerTitle: title.trim() } : {}),
         ...(note.trim() ? { note: note.trim() } : {}),
         acknowledged,
+        evidenceId: payload.evidenceId as Id<"waiverEvidence">,
       });
       toast.success(kind === "conditional" ? "Conditional waiver signed." : "Unconditional waiver signed.");
       setKind(null);
+      setReview(null);
     } catch (err) {
       setError(getErrorMessage(err, "The waiver could not be signed. Try again."));
     } finally {
@@ -202,17 +253,36 @@ export function LienWaiverPanel({ payAppId }: { payAppId: string }) {
         }
         onClose={close}
         footer={
-          <>
-            <Button variant="secondary" onClick={close} disabled={busy}>
-              Cancel
-            </Button>
-            <Button type="submit" form="lien-waiver-form" loading={busy} loadingLabel="Signing…" disabled={!canSignKind}>
-              Sign waiver
-            </Button>
-          </>
+          review === null ? (
+            <>
+              <Button variant="secondary" onClick={close} disabled={busy}>
+                Cancel
+              </Button>
+              <Button type="submit" form="lien-waiver-form" loading={busy} loadingLabel="Preparing…" disabled={!canSignKind}>
+                Review statement
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setReview(null);
+                  setError(null);
+                }}
+                disabled={busy}
+              >
+                Back
+              </Button>
+              <Button onClick={confirm} loading={busy} loadingLabel="Signing…" data-testid="lien-waiver-confirm">
+                Sign and record evidence
+              </Button>
+            </>
+          )
         }
       >
-        <form id="lien-waiver-form" className="space-y-4" onSubmit={submit}>
+        {review === null ? (
+          <form id="lien-waiver-form" className="space-y-4" onSubmit={submit}>
           <TextInput label="Full name of signer" required value={name} maxLength={120} onChange={setName} />
           <TextInput label="Title (optional)" value={title} maxLength={120} onChange={setTitle} />
           <TextInput label="Note (optional)" value={note} maxLength={500} onChange={setNote} />
@@ -234,6 +304,28 @@ export function LienWaiverPanel({ payAppId }: { payAppId: string }) {
             </p>
           ) : null}
         </form>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm text-ink-muted">
+              This is the exact statement that will be hashed and stored with your signature. It cannot be edited here.
+            </p>
+            <pre
+              className="max-h-72 overflow-auto whitespace-pre-wrap rounded-lg border border-line p-3 text-xs leading-relaxed text-ink"
+              data-testid="lien-waiver-statement"
+            >
+              {review.statementText}
+            </pre>
+            <p className="text-xs text-ink-subtle">
+              Signing records the SHA-256 hash of this text, the time, your IP address and your browser with the signature. The
+              amount and through date come from the pay app.
+            </p>
+            {error ? (
+              <p role="alert" className="text-sm text-danger">
+                {error}
+              </p>
+            ) : null}
+          </div>
+        )}
       </Dialog>
     </Card>
   );
