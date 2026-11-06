@@ -13,7 +13,7 @@ const CONVEX_ENV = {
   VITE_CONVEX_URL: import.meta.env.VITE_CONVEX_URL as string | undefined,
 };
 
-type Kind = "conditional" | "unconditional";
+type Kind = "conditional" | "unconditional" | "retainage";
 type WaiverState = NonNullable<FunctionReturnType<typeof api.lienWaivers.payAppState>>;
 type Slot = NonNullable<WaiverState["current"]>;
 
@@ -79,8 +79,22 @@ export function LienWaiverPanel({ payAppId }: { payAppId: string }) {
   const [review, setReview] = useState<{ ticket: string; statementText: string } | null>(null);
 
   if (data === undefined || data === null) return null;
-  const slot = kind === "conditional" ? data.current : kind === "unconditional" ? data.prior : null;
-  const canSignKind = kind === "conditional" ? data.canSignCurrent : kind === "unconditional" ? data.canSignPrior : false;
+  const slot =
+    kind === "conditional"
+      ? data.current
+      : kind === "unconditional"
+        ? data.prior
+        : kind === "retainage"
+          ? data.retainage
+          : null;
+  const canSignKind =
+    kind === "conditional"
+      ? data.canSignCurrent
+      : kind === "unconditional"
+        ? data.canSignPrior
+        : kind === "retainage"
+          ? data.canSignRetainage
+          : false;
 
   const open = (next: Kind) => {
     setKind(next);
@@ -159,7 +173,13 @@ export function LienWaiverPanel({ payAppId }: { payAppId: string }) {
         acknowledged,
         evidenceId: payload.evidenceId as Id<"waiverEvidence">,
       });
-      toast.success(kind === "conditional" ? "Conditional waiver signed." : "Unconditional waiver signed.");
+      toast.success(
+        kind === "conditional"
+          ? "Conditional waiver signed."
+          : kind === "unconditional"
+            ? "Unconditional waiver signed."
+            : "Retainage release waiver signed.",
+      );
       setKind(null);
       setReview(null);
     } catch (err) {
@@ -240,12 +260,52 @@ export function LienWaiverPanel({ payAppId }: { payAppId: string }) {
           </section>
         ) : null}
 
+        {data.retainage ? (
+          <section aria-labelledby="waiver-retainage" className="space-y-2 border-t border-line pt-4" data-testid="lien-waiver-retainage">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h3 id="waiver-retainage" className="text-sm font-semibold text-ink">
+                Retainage release waiver
+              </h3>
+              <span className="text-xs font-semibold uppercase tracking-wide text-ink-subtle">
+                {statusLabel(data.retainage, false)}
+              </span>
+            </div>
+            <p className="text-xs text-ink-muted">
+              The final payment is paid and this subcontract still holds retainage. A retainage release waits for
+              the sub&apos;s signature for the balance shown.
+            </p>
+            <SlotRows slot={data.retainage} recipientName={data.recipientName} />
+            <SignedLine slot={data.retainage} />
+            {data.canSignRetainage ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                leadingIcon={<ShieldCheck className="h-4 w-4" aria-hidden="true" />}
+                onClick={() => open("retainage")}
+                data-testid="lien-waiver-sign-retainage"
+              >
+                {data.retainage.signed === null ? "Sign retainage waiver" : "Sign a new retainage waiver"}
+              </Button>
+            ) : data.retainage.signed !== null && data.retainage.signed.amountCents !== data.retainage.amountCents ? (
+              <p className="text-xs text-ink-subtle">Waiting for the sub to sign a waiver for the current retainage balance.</p>
+            ) : data.retainage.signed === null && data.viewerRole === "sub" ? null : (
+              <p className="text-xs text-ink-subtle">Waiting for the sub to sign.</p>
+            )}
+          </section>
+        ) : null}
+
         <p className="text-xs text-ink-subtle">{data.disclaimer}</p>
       </div>
 
       <Dialog
         open={kind !== null}
-        title={kind === "conditional" ? "Sign the conditional waiver" : "Sign the unconditional waiver"}
+        title={
+          kind === "conditional"
+            ? "Sign the conditional waiver"
+            : kind === "unconditional"
+              ? "Sign the unconditional waiver"
+              : "Sign the retainage release waiver"
+        }
         description={
           slot
             ? `${formatCents(slot.amountCents)} through ${formatDate(slot.throughDate)}, recipient ${data.recipientName}. The amount and date come from the pay app; this form cannot change them.`

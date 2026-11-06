@@ -105,7 +105,7 @@ export const payAppStatusValidator = v.union(
   v.literal("paid"),
 );
 
-export const lienWaiverKindValidator = v.union(v.literal("conditional"), v.literal("unconditional"));
+export const lienWaiverKindValidator = v.union(v.literal("conditional"), v.literal("unconditional"), v.literal("retainage"));
 
 export const g702FiguresValidator = v.object({
   originalContractSumCents: v.number(),
@@ -771,7 +771,7 @@ export default defineSchema({
   waiverEvidence: defineTable({
     payAppId: v.id("payApplications"),
     agreementId: v.id("agreements"),
-    kind: v.union(v.literal("conditional"), v.literal("unconditional")),
+    kind: lienWaiverKindValidator,
     signedByUserId: v.id("users"),
     signedByName: v.string(),
     signerTitle: v.optional(v.string()),

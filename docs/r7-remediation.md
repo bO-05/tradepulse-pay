@@ -23,6 +23,7 @@ Fixed in code with regression tests:
 - **Sub visibility.** The sub sees the review's suggested gross (`reviewSuggestedTotalCents`) and the approval-history bullet even though per-line review notes stay GC-only.
 - **N-10 (new runs only, approved by the owner).** The guided demo's edit reason names line 2 and the excluded seismic bracing, and promises no lien waiver or resubmit path. Existing runs are unchanged.
 - **Landing and accessibility.** Signed-out `/` now shows the residential hero beside/above the sign-in card with a link to `#/demo`. The Owner home has zero text-contrast violations in the new measurement. `#/company-settings` resolves to the real company page instead of Not found.
+- **B2.** The opt-in gate now covers the closeout retainage release: the sub signs a retainage waiver from the same panel, the release refuses with `LIEN_WAIVER_MISSING` until the balance is covered, and a changed balance asks for a new signature. Gate-off behaviour is unchanged.
 - **B10.** A lien-waiver signature now carries real evidence: the statement is built and hashed by the server, shown verbatim in a review step, redeemed once through an HTTP route that records the IP, the trusted header and the browser, and the signing mutation refuses to write a waiver without it.
 - **B13.** The 24-case suite is now labelled as what it is: agreement with this app's rules. `docs/pay-app-review-eval.md` adds a rules-only baseline section, the scorecard markdown and console output print that baseline and rename the headline metric to line agreement, and the diagnostics panel says it on screen. The score still cannot prove the rules are right; it reports whether the reviewer reproduces them on hand-picked cases.
 - **Copy.** PayPal's sandbox fee note uses the card/wallet rates instead of "3.5% + $0.49"; the sub retainage tile distinguishes this period's withhold from what is still held; the signup wall no longer prints the environment-variable name.
@@ -43,7 +44,7 @@ Status meanings: **Fixed** = code and regression tests in this branch. **Partial
 | ID | Sev | Finding | Status | What changed / why it remains |
 | --- | --- | --- | --- | --- |
 | B1 | P1 | Inbox net/retainage ignores the edited amount | Fixed | `convex/payApps/proposals.ts` adds `pendingPayoutSplit` using `finalAllocation` and `approvedG702Figures`, cached per amount in `listInbox`. `convex/agent/payAgent.test.ts` edits to 90%, checks the 10% retainage parts sum to gross, then approves and asserts `payFiguresFor` equals the inbox split. `convex/payApps/g703.test.ts` covers the 50%-reduced rate. |
-| B2 | P2 | Gate does not cover retainage release or final payout | Deferred | `convex/payments/retainageDb.ts` still releases without a waiver check. A correct fix needs a release waiver kind/slot and a sub signing surface; see the short result. |
+| B2 | P2 | Gate does not cover retainage release or final payout | Fixed (retainage release) | `convex/lib/lienWaivers.ts` adds a retainage slot on the latest paid pay app, computed with the same `availableRetainageCents` math the release uses; `convex/payments/retainageDb.ts` refuses `beginRetainageRelease` with `LIEN_WAIVER_MISSING` while the gate is on and no live retainage waiver covers the balance; `api.lienWaivers.signWaiver` and `api.waiverEvidence.issueTicket` accept the `retainage` kind through the same statement and evidence path; `src/billing/LienWaiverPanel.tsx` renders the signing slot, so the blocker is always clearable; `convex/billing/payGate.test.ts` covers the refusal, the signature, the release going through and a changed balance. The final-payout path outside retainage is unchanged. |
 | B3 | P2 | A changed approved amount makes the signed waiver a dead end | Fixed | `convex/schema.ts` adds `supersededAt`/`supersededByWaiverId`; `convex/lib/lienWaivers.ts` reads the latest live signature; `convex/lienWaivers.ts` inserts a replacement and supersedes the old row; `src/billing/LienWaiverPanel.tsx` shows "Amount changed" and "Sign a new waiver". `convex/billing/payGate.test.ts` asserts the replacement, the superseded row and the cleared reason codes. |
 | B4 | P2 | Quick start partial failure orphans ids; edits after failure are ignored | Fixed | `src/projects/gc/quickStartProgress.ts` persists the draft (fields, SOV rows, created ids, finished steps) for 12 h under `tradepulse.quickStart.v1.<companyId>`; `QuickStartWizard.tsx` restores it, skips the approved SOV, execution and invite on retry, locks a step whose record exists, and offers **Start over**; `src/auth/signOutAndReset.ts` sweeps every draft on sign-out. `quickStartProgress.test.ts` (19) and `signOutAndReset.test.ts` (4) cover corrupt, expired and foreign drafts, the locks and the sweep; `scripts/qa/quick-start-resume-browser.mjs` proves the reload without creating a record. |
 | B5 | P2 | Quick start marks the subcontract executed before the sub accepts | Partial | The step reads "Record the GC's execution" and the note says the sub's signature and acceptance happen outside the app and are not replaced by the record. No in-app acceptance exists. |
@@ -81,7 +82,7 @@ Status meanings: **Fixed** = code and regression tests in this branch. **Partial
 
 ## Verification after B10 and B13 (6 November 2026)
 
-- `npx vitest run`: **159 files, 2083 tests, 0 failures**, including five new signing-evidence tests in `convex/billing/payGate.test.ts`.
+- `npx vitest run`: **159 files, 2085 tests, 0 failures**, including five signing-evidence tests and two retainage-release tests in `convex/billing/payGate.test.ts`.
 - `node scripts/tools/guard-audit.mjs`: **267 public functions, 202 internal, 0 problems**; the new evidence route is listed as ticket-gated in the audit.
 - `npm run verify:docs`: **102** relative links resolve.
 - `node scripts/qa/lien-waiver-browser.mjs --url https://tradepulse-pay.asynchronope.tech`: **26/26**, no page or console errors; the review step rendered the server-built statement naming the amount, the recipient and the typed signer.
@@ -103,6 +104,5 @@ This changes no deployed backend or financial data. It moves the public default 
 ## Not done
 
 - Block 1 residential reference job, owner milestone draw and the GC collected/paid/owed strip.
-- B2.
 - Statutory California waiver forms, PayPal multiparty, QuickBooks.
 - Production deployment, YouTube upload, Devpost submission, a new guided run, PayPal popup, live Owner-invoice retry and any financial write on a new run. Those remain owner decisions.

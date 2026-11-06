@@ -20,6 +20,18 @@ async function ledgerRows(ctx: MutationCtx, agreementId: Id<"agreements">) {
     .take(1000);
 }
 
+/** The amount covered by the live retainage-release waiver, or -1 when there is none. */
+async function signedRetainageWaiverCents(ctx: MutationCtx, agreementId: Id<"agreements">): Promise<number> {
+  const rows = await ctx.db
+    .query("lienWaivers")
+    .withIndex("by_agreementId", (q) => q.eq("agreementId", agreementId))
+    .take(100);
+  const live = rows
+    .filter((w) => w.kind === "retainage" && w.supersededAt === undefined)
+    .sort((a, b) => b.signedAt - a.signedAt)[0];
+  return live?.amountCents ?? -1;
+}
+
 const beginRetainageResult = v.union(
   v.object({ state: v.literal("nothing_to_release"), balanceCents: v.number() }),
   v.object({ state: v.literal("in_flight"), paymentId: v.id("payments"), amountCents: v.number() }),
@@ -53,6 +65,18 @@ export const beginRetainageRelease = internalMutation({
         code: "AMOUNT_CHANGED",
         message: `The releasable retainage changed from ${formatCents(expectedCents)} to ${formatCents(balanceCents)}. Review the new amount and confirm the release again.`,
       });
+    }
+
+    // B2: with the opt-in lien-waiver gate on, retainage release needs its own signature for this exact
+    // balance. The signing surface lives on the same pay-app panel, so the blocker is always clearable.
+    if (agreement.lienWaiverGate?.enabled === true) {
+      const waivedCents = await signedRetainageWaiverCents(ctx, agreementId);
+      if (waivedCents !== balanceCents) {
+        throw new ConvexError({
+          code: "LIEN_WAIVER_MISSING",
+          message: `Lien waiver: the sub has not signed the retainage release waiver for ${formatCents(balanceCents)}.`,
+        });
+      }
     }
 
     const receiver = await payoutReceiverForContractor(ctx, agreement.contractorId);

@@ -787,7 +787,7 @@ async function reviewAndApprove(s: Setup, payAppId: Id<"payApplications">) {
 async function evidenceFor(
   s: Awaited<ReturnType<typeof setup>>,
   payAppId: Id<"payApplications">,
-  kind: "conditional" | "unconditional",
+  kind: "conditional" | "unconditional" | "retainage",
   signedByName = "Kim Alvarez",
 ): Promise<Id<"waiverEvidence">> {
   const kim = s.f.sub.admin.as;
@@ -1034,6 +1034,112 @@ describe("daily compliance expiry notifications", () => {
     rows = await byCompany();
     expect(rows[s.f.sub.companyId]).toHaveLength(2);
     expect(rows[s.f.gcA.companyId]).toHaveLength(4);
+  });
+});
+
+describe("retainage release waiver (B2)", () => {
+  /** A fully paid pay app that withheld $50.00 of retainage, with the gate still off. */
+  async function closedOutAgreement() {
+    const s = await setup();
+    const { t1 } = await addTranches(s);
+    await fundTranche(s, t1, 6_000_000);
+    const payAppId = await reviewedPayApp1(s);
+    await approvePayApp1(s, payAppId);
+    await s.t.run(async (ctx) => {
+      await ctx.db.patch(payAppId, { status: "paid" });
+      const payoutId = await ctx.db.insert("payments", {
+        agreementId: s.agreementId,
+        kind: "payout",
+        status: "success",
+        grossCents: 4_341_260,
+        retainageCents: 5_000,
+        netCents: 4_336_260,
+        idempotencyKey: "test_retainage_payout_1",
+        createdAt: Date.now(),
+      });
+      await ctx.db.insert("retainageLedger", {
+        agreementId: s.agreementId,
+        paymentId: payoutId,
+        deltaCents: 5_000,
+        reason: "Retainage withheld from the progress payout.",
+        createdAt: Date.now(),
+      });
+    });
+    return { s, payAppId };
+  }
+
+  test("a gate-enabled release waits for the sub's retainage waiver, and the panel is where they sign it", async () => {
+    const { s, payAppId } = await closedOutAgreement();
+    const dana = s.f.gcA.admin.as;
+    const kim = s.f.sub.admin.as;
+
+    // Gate off: there is no waiver panel and no waiver blocker at all.
+    expect(await kim.query(api.lienWaivers.payAppState, { payAppId })).toBeNull();
+
+    await dana.mutation(api.lienWaivers.setGate, { agreementId: s.agreementId, enabled: true });
+
+    const state = (await kim.query(api.lienWaivers.payAppState, { payAppId }))!;
+    expect(state.retainage).toMatchObject({ amountCents: 5_000, signed: null });
+    expect(state.canSignRetainage).toBe(true);
+
+    const blocked = await errorOf(
+      s.t.mutation(internal.payments.retainageDb.beginRetainageRelease, { agreementId: s.agreementId, expectedCents: 5_000 }),
+    );
+    expect(blocked).toMatch(/Lien waiver: the sub has not signed the retainage release waiver for \$50\.00\./);
+
+    // The sub signs from the same panel, through the same evidence path as the other waivers.
+    const signed = await kim.mutation(api.lienWaivers.signWaiver, {
+      payAppId,
+      kind: "retainage",
+      signedByName: "Kim Alvarez",
+      acknowledged: true,
+      evidenceId: await evidenceFor(s, payAppId, "retainage"),
+    });
+    expect(signed.alreadySigned).toBe(false);
+
+    const after = (await dana.query(api.lienWaivers.payAppState, { payAppId }))!;
+    expect(after.retainage!.signed).toMatchObject({ amountCents: 5_000, signedByName: "Kim Alvarez" });
+    expect(after.canSignRetainage).toBe(false);
+
+    const audit = (await s.t.run(async (ctx) => (await ctx.db.query("auditLogs").collect()).find((a) => a.eventType === "waiver_signed")))!;
+    expect(audit.description).toContain("retainage release on pay app");
+
+    // The waiver blocker is gone: the release now goes through.
+    const released = await s.t.mutation(internal.payments.retainageDb.beginRetainageRelease, {
+      agreementId: s.agreementId,
+      expectedCents: 5_000,
+    });
+    expect(released.state).toBe("new");
+  });
+
+  test("a changed retainage balance invalidates the signature and asks for a new one", async () => {
+    const { s, payAppId } = await closedOutAgreement();
+    const kim = s.f.sub.admin.as;
+    await s.f.gcA.admin.as.mutation(api.lienWaivers.setGate, { agreementId: s.agreementId, enabled: true });
+    await kim.mutation(api.lienWaivers.signWaiver, {
+      payAppId,
+      kind: "retainage",
+      signedByName: "Kim Alvarez",
+      acknowledged: true,
+      evidenceId: await evidenceFor(s, payAppId, "retainage"),
+    });
+    // A later correction adds $10.00 to the held retainage: the old signature no longer matches.
+    await s.t.run(async (ctx) => {
+      await ctx.db.insert("retainageLedger", {
+        agreementId: s.agreementId,
+        deltaCents: 1_000,
+        reason: "Correction: retainage withheld from a late invoice.",
+        createdAt: Date.now(),
+      });
+    });
+    const state = (await kim.query(api.lienWaivers.payAppState, { payAppId }))!;
+    expect(state.retainage).toMatchObject({ amountCents: 6_000 });
+    expect(state.retainage!.signed).toMatchObject({ amountCents: 5_000 });
+    expect(state.canSignRetainage).toBe(true);
+    const blocked = await errorOf(
+      s.t.mutation(internal.payments.retainageDb.beginRetainageRelease, { agreementId: s.agreementId, expectedCents: 6_000 }),
+    );
+    expect(blocked).toMatch(/retainage release waiver for \$60\.00/);
   });
 });
 

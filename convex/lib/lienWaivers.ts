@@ -1,6 +1,7 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
 import { isoDate } from "../payApps/g703Math";
+import { availableRetainageCents } from "../payments/retainageMath";
 import { WAIVER_STATEMENT_DISCLAIMER } from "./waiverStatement";
 
 /**
@@ -93,7 +94,52 @@ export type WaiverGateState = {
   current: WaiverSlot | null;
   prior: WaiverSlot | null;
   requirePriorUnconditional: boolean;
+  /**
+   * B2: closeout retainage. There is one release per agreement and it happens after the final payment,
+   * so the slot hangs off the latest paid pay app and exists only while retainage is held.
+   */
+  retainage: WaiverSlot | null;
 };
+
+async function isLatestPaidPayApp(ctx: QueryCtx, agreement: Doc<"agreements">, payApp: Doc<"payApplications">): Promise<boolean> {
+  const rows = await ctx.db
+    .query("payApplications")
+    .withIndex("by_agreementId", (q) => q.eq("agreementId", agreement._id))
+    .take(500);
+  const mine = payApp.applicationNo ?? Number.MAX_SAFE_INTEGER;
+  return !rows.some((row) => row._id !== payApp._id && row.status === "paid" && (row.applicationNo ?? 0) > mine);
+}
+
+/** Retainage this agreement may release now, using the same math the release itself uses. */
+export async function retainageHeldCents(ctx: QueryCtx, agreementId: Id<"agreements">): Promise<number> {
+  const payments = await ctx.db
+    .query("payments")
+    .withIndex("by_agreementId", (q) => q.eq("agreementId", agreementId))
+    .take(500);
+  const rows = await ctx.db
+    .query("retainageLedger")
+    .withIndex("by_agreementId", (q) => q.eq("agreementId", agreementId))
+    .take(1000);
+  return availableRetainageCents(payments, rows);
+}
+
+async function retainageSlot(
+  ctx: QueryCtx,
+  agreement: Doc<"agreements">,
+  payApp: Doc<"payApplications">,
+): Promise<WaiverSlot | null> {
+  if (payApp.status !== "paid") return null;
+  if (!(await isLatestPaidPayApp(ctx, agreement, payApp))) return null;
+  const amountCents = await retainageHeldCents(ctx, agreement._id);
+  if (amountCents <= 0) return null;
+  return {
+    payAppId: payApp._id,
+    label: "Retainage release",
+    amountCents,
+    throughDate: waiverThroughDate(payApp),
+    signed: await signedWaiver(ctx, payApp._id, "retainage", payApp._id),
+  };
+}
 
 /** Gate state shared by the pay gate, the signing mutation and the pay-app panel query. */
 export async function loadWaiverGateState(
@@ -125,5 +171,5 @@ export async function loadWaiverGateState(
           throughDate: waiverThroughDate(priorPayApp),
           signed: await signedWaiver(ctx, payApp._id, "unconditional", priorPayApp._id),
         };
-  return { gate, current, prior, requirePriorUnconditional: gate.requirePriorUnconditional };
+  return { gate, current, prior, requirePriorUnconditional: gate.requirePriorUnconditional, retainage: await retainageSlot(ctx, agreement, payApp) };
 }

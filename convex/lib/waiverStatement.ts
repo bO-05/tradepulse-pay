@@ -12,7 +12,7 @@ export const WAIVER_STATEMENT_VERSION = "waiver-statement/1";
 export const WAIVER_STATEMENT_DISCLAIMER =
   "This records the signer's attestation in TradePulse Pay. It is not legal advice and may not match the statutory waiver form your state requires. Confirm the wording with counsel before relying on it.";
 
-export type WaiverStatementKind = "conditional" | "unconditional";
+export type WaiverStatementKind = "conditional" | "unconditional" | "retainage";
 
 export type WaiverStatementInput = {
   kind: WaiverStatementKind;
@@ -34,23 +34,34 @@ export function formatStatementMoney(cents: number): string {
 }
 
 export function waiverStatementText(input: WaiverStatementInput): string {
-  const label = input.kind === "conditional" ? "CONDITIONAL LIEN WAIVER" : "UNCONDITIONAL LIEN WAIVER";
+  const label =
+    input.kind === "conditional"
+      ? "CONDITIONAL LIEN WAIVER"
+      : input.kind === "unconditional"
+        ? "UNCONDITIONAL LIEN WAIVER"
+        : "RETAINAGE RELEASE WAIVER";
   const period =
     input.kind === "conditional"
       ? "Progress payment described below"
-      : "Prior payment described below";
+      : input.kind === "unconditional"
+        ? "Prior payment described below"
+        : "Closeout retainage described below";
   const signedBy = input.signerTitle ? `${input.signedByName}, ${input.signerTitle}` : input.signedByName;
+  const release =
+    input.kind === "retainage"
+      ? "The undersigned, on behalf of the subcontractor, waives and releases any mechanic's lien, claim or right of lien against the project for retainage withheld from progress payments, up to the amount released above."
+      : "The undersigned, on behalf of the subcontractor, waives and releases any mechanic's lien, claim or right of lien against the project for labour, services or materials furnished through the through date, up to the amount waived above.";
   return [
     `${label} — ${period}`,
     "",
     `Project: ${input.projectTitle}`,
     `Subcontract: ${input.agreementNumber}`,
     `Recipient of the waiver: ${input.recipientName}`,
-    `Amount waived: ${formatStatementMoney(input.amountCents)}`,
+    `Amount ${input.kind === "retainage" ? "released" : "waived"}: ${formatStatementMoney(input.amountCents)}`,
     `Through date: ${input.throughDate}`,
     `Signed by: ${signedBy}`,
     "",
-    "The undersigned, on behalf of the subcontractor, waives and releases any mechanic's lien, claim or right of lien against the project for labour, services or materials furnished through the through date, up to the amount waived above.",
+    release,
     "",
     WAIVER_STATEMENT_DISCLAIMER,
   ].join("\n");

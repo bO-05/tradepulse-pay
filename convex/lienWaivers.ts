@@ -185,6 +185,7 @@ export const payAppState = query({
       viewerRole: scope.partyRole,
       current: state.current === null ? null : slotView(state.current),
       prior: state.prior === null ? null : slotView(state.prior),
+      retainage: state.retainage === null ? null : slotView(state.retainage),
       canSignCurrent:
         writable &&
         signableStatus &&
@@ -195,6 +196,8 @@ export const payAppState = query({
         state.requirePriorUnconditional &&
         state.prior !== null &&
         !waiverMatches(state.prior.signed, state.prior.amountCents),
+      canSignRetainage:
+        writable && state.retainage !== null && !waiverMatches(state.retainage.signed, state.retainage.amountCents),
       waitingForApproval: state.current === null,
       noAmountMessage: NO_CURRENT_AMOUNT_MESSAGE,
       disclaimer: LIEN_WAIVER_DISCLAIMER,
@@ -210,7 +213,7 @@ export const payAppState = query({
 export const signWaiver = mutation({
   args: {
     payAppId: v.string(),
-    kind: v.union(v.literal("conditional"), v.literal("unconditional")),
+    kind: v.union(v.literal("conditional"), v.literal("unconditional"), v.literal("retainage")),
     signedByName: v.string(),
     signerTitle: v.optional(v.string()),
     note: v.optional(v.string()),
@@ -252,6 +255,14 @@ export const signWaiver = mutation({
       amountCents = state.current.amountCents;
       throughDate = state.current.throughDate;
       existing = state.current.signed;
+    } else if (args.kind === "retainage") {
+      if (state.retainage === null) {
+        throw invalid("There is no retainage to release yet: the final payment must be paid and retainage must still be held.");
+      }
+      covers = payApp;
+      amountCents = state.retainage.amountCents;
+      throughDate = state.retainage.throughDate;
+      existing = state.retainage.signed;
     } else {
       if (!state.requirePriorUnconditional || state.prior === null) {
         throw invalid("There is no prior paid payment that needs an unconditional waiver.");
@@ -321,9 +332,18 @@ export const signWaiver = mutation({
       projectId: agreement.projectId,
       agreementId: agreement._id,
       eventType: "waiver_signed",
-      title: args.kind === "conditional" ? "Conditional lien waiver signed" : "Unconditional lien waiver signed",
+      title:
+        args.kind === "conditional"
+          ? "Conditional lien waiver signed"
+          : args.kind === "retainage"
+            ? "Retainage release waiver signed"
+            : "Unconditional lien waiver signed",
       description: `${name} signed the ${args.kind} waiver for ${formatCents(amountCents)} through ${throughDate} (${
-        args.kind === "conditional" ? `pay app ${payAppLabel(covers)}` : `prior pay app ${payAppLabel(covers)}`
+        args.kind === "conditional"
+          ? `pay app ${payAppLabel(covers)}`
+          : args.kind === "retainage"
+            ? `retainage release on pay app ${payAppLabel(covers)}`
+            : `prior pay app ${payAppLabel(covers)}`
       }), recipient ${agreement.generalContractorName}.${
         existing !== null
           ? ` This replaces the earlier signature for ${formatCents(existing.amountCents)}, which is kept as superseded.`

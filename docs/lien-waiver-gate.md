@@ -64,6 +64,18 @@ If the approved amount changes after a signature, the pay gate refuses the stale
 a new one. The panel shows the signed record; the audit log records `waiver_signed` and the GC gets
 an in-app notification.
 
+## Retainage release
+
+The gate also covers the closeout retainage release. When the final payment is paid and the
+subcontract still holds retainage, the same panel shows a third slot: **Retainage release waiver**,
+for the releasable balance, through the last period end. It is anchored to the latest paid pay app so
+there is exactly one place to sign, and it uses the same evidence path as the other two waivers.
+
+`beginRetainageRelease` refuses with `LIEN_WAIVER_MISSING` while the gate is on and no live retainage
+waiver covers the current balance. If a correction changes the balance, the old signature no longer
+matches, the panel offers a replacement, and the release waits for it. With the gate off, retainage
+release behaves exactly as before.
+
 ## What this is not
 
 This is an in-app attestation, not a state-specific statutory form and not a qualified electronic
@@ -86,8 +98,8 @@ reference run are untouched.
 
 ## Tests
 
-`convex/billing/payGate.test.ts` covers the gate and the evidence path (the file has 28 tests in
-total):
+`convex/billing/payGate.test.ts` covers the gate, the retainage release and the evidence path (the file
+has 30 tests in total):
 
 - the gate is off by default and enabling it blocks the payout until the sub signs the conditional
   waiver;
@@ -99,7 +111,10 @@ total):
   writes them into the audit text, and refuses a swapped statement, an expired ticket, evidence older
   than 30 minutes, and evidence whose amount no longer matches;
 - a GC cannot mint a ticket for the sub, and a ticket cannot be minted while the gate is off or the
-  payment is unapproved.
+  payment is unapproved;
+- the retainage release is refused with `LIEN_WAIVER_MISSING` until the sub signs the retainage
+  waiver from the same panel, and proceeds once they do; a changed balance invalidates the signature
+  and asks for a new one.
 
 Browser acceptance: `scripts/qa/lien-waiver-browser.mjs` passed **26/26** checks against build `c4f9215`
 on 2026-11-06 (`evidence/lien-waiver-browser-2026-11-06T14-43-07-094Z/report.json`, no page or console

@@ -20,7 +20,7 @@ to it.
 
 | Command | Expected |
 | :--- | :--- |
-| `npx vitest run` | 159 files, 2083 tests, 0 failures |
+| `npx vitest run` | 159 files, 2085 tests, 0 failures |
 | `node scripts/tools/guard-audit.mjs` | 267 public functions, 202 internal, 0 problems |
 | `npm run verify:docs` | 102 relative links resolve |
 | `npm run build` | clean, no type errors |
@@ -57,9 +57,9 @@ every assertion when run alone, and the failing URL answers in under a second ov
 
 ## Open items, stated plainly
 
-- **B2.** The lien-waiver gate covers pay-app payouts, not a retainage release. A correct fix needs a
-  release-specific waiver slot and a sub signing surface in the same change; a guard alone would be a
-  blocker with no way to clear it. Deferred, with that reason in the finding map.
+- **B2 (fixed).** The gate now covers the closeout retainage release: the sub signs from the same
+  panel, the release refuses until the balance is covered, and a changed balance asks for a new
+  signature. The final-payout path outside retainage is unchanged.
 - **Block 1.** There is no residential reference job with milestone draws and a GC
   collected/paid/owed strip. The demo leads with a commercial job. This writes financial records on a
   new run and is waiting on the owner's approval.

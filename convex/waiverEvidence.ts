@@ -54,7 +54,7 @@ function trimTo(value: string | undefined, max: number): string | undefined {
 export const issueTicket = mutation({
   args: {
     payAppId: v.string(),
-    kind: v.union(v.literal("conditional"), v.literal("unconditional")),
+    kind: v.union(v.literal("conditional"), v.literal("unconditional"), v.literal("retainage")),
     signedByName: v.string(),
     signerTitle: v.optional(v.string()),
   },
@@ -87,6 +87,12 @@ export const issueTicket = mutation({
       }
       amountCents = state.current.amountCents;
       throughDate = state.current.throughDate;
+    } else if (args.kind === "retainage") {
+      if (state.retainage === null) {
+        throw invalid("There is no retainage to release yet: the final payment must be paid and retainage must still be held.");
+      }
+      amountCents = state.retainage.amountCents;
+      throughDate = state.retainage.throughDate;
     } else {
       if (!state.requirePriorUnconditional || state.prior === null) {
         throw invalid("There is no prior paid payment that needs an unconditional waiver.");
