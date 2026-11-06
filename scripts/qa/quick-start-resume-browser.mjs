@@ -64,11 +64,13 @@ try {
     "a fresh wizard shows no resume banner",
     !(await page.evaluate(() => document.body.innerText)).includes("Resumed a saved quick start"),
   );
-  const draftKeys = await page.evaluate(
-    (prefix) => Object.keys(window.localStorage).filter((key) => key.startsWith(prefix)),
-    DRAFT_KEY,
-  );
-  check("a fresh wizard starts without a stored draft", draftKeys.length === 0, JSON.stringify(draftKeys));
+  // The wizard writes its draft on mount, so a first visit stores one empty, company-scoped draft.
+  const fresh = await page.evaluate((prefix) => {
+    const keys = Object.keys(window.localStorage).filter((key) => key.startsWith(prefix));
+    const raw = keys.length === 1 ? JSON.parse(window.localStorage.getItem(keys[0])) : null;
+    return { keys, title: raw?.form?.title ?? null, ids: raw?.ids ?? null };
+  }, DRAFT_KEY);
+  check("the first visit stores one empty draft for this company", fresh.keys.length === 1 && fresh.title === "" && Object.keys(fresh.ids ?? {}).length === 0, JSON.stringify(fresh));
 
   phase = "type-and-persist";
   await page.click("#quick-start-job-title");

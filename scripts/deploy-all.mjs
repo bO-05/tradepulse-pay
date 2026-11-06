@@ -85,6 +85,43 @@ async function waitForCommit(url, commit, timeoutMs = 90_000) {
   return false;
 }
 
+/**
+ * A deploy is not finished when /version.json flips. Right after a Pages upload the edge can serve
+ * the new HTML before every content-hashed asset is reachable; the SPA fallback then answers a
+ * missing `.css` or `.js` with index.html, and the browser refuses it as a module/stylesheet, which
+ * is a blank page for whoever loads the site in that window. Probe what index.html references.
+ */
+const assetPaths = (() => {
+  const html = readFileSync(resolve(ROOT, "dist", "index.html"), "utf8");
+  const found = new Set();
+  for (const match of html.matchAll(/(?:src|href)="\.?\/?(assets\/[^"]+)"/g)) found.add(match[1]);
+  return [...found];
+})();
+
+async function assetOk(base, assetPath) {
+  try {
+    const res = await fetch(`${base.replace(/\/$/, "")}/${assetPath}`, {
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache" },
+    });
+    if (!res.ok) return false;
+    const type = res.headers.get("content-type") ?? "";
+    return assetPath.endsWith(".css") ? type.includes("text/css") : type.includes("javascript");
+  } catch {
+    return false;
+  }
+}
+
+async function waitForAssets(base, timeoutMs = 90_000) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const results = await Promise.all(assetPaths.map((assetPath) => assetOk(base, assetPath)));
+    if (results.every(Boolean)) return true;
+    if (Date.now() >= deadline) return false;
+    await new Promise((resolveWait) => setTimeout(resolveWait, 3_000));
+  }
+}
+
 const fileEnv = parseEnvFile(resolve(ROOT, ".env.local"));
 const env = { ...fileEnv, ...process.env };
 const deployment = (env.CONVEX_DEPLOYMENT ?? "").replace(/\s+#.*$/, "").trim();
@@ -171,3 +208,17 @@ if (canonicalOk) {
   console.log(`\nCanonical DNS is not resolving to this build yet. The owner still needs:`);
   console.log(`  Type: CNAME   Name: tradepulse-pay   Target: ${PAGES_PROJECT}.pages.dev   Proxy: on`);
 }
+
+// 6. The commit is right; prove the page can actually load by fetching its hashed assets.
+if (assetPaths.length === 0) fail("dist/index.html references no hashed asset; refusing to trust the upload.");
+const [mirrorAssets, pagesAssets, canonicalAssets] = await Promise.all([
+  waitForAssets(mirrorUrl),
+  waitForAssets(pagesUrl),
+  canonicalOk ? waitForAssets(`${CANONICAL}/`) : Promise.resolve(true),
+]);
+if (!mirrorAssets) fail(`mirror did not serve the build's assets (${assetPaths.join(", ")}) at ${mirrorUrl}`);
+if (!pagesAssets) fail(`Cloudflare Pages did not serve the build's assets (${assetPaths.join(", ")}) at ${pagesUrl}`);
+if (!canonicalAssets) fail(`canonical domain did not serve the build's assets (${assetPaths.join(", ")}) at ${CANONICAL}/`);
+
+console.log(`\nEvery host serves the ${assetPaths.length} asset(s) index.html references:`);
+console.log(`  ${assetPaths.join(", ")}`);

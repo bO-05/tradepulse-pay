@@ -65,14 +65,15 @@ Status meanings: **Fixed** = code and regression tests in this branch. **Partial
 ## Verification
 
 - `npm run build` (tsc -b + vite) clean; Convex `dev --once --typecheck enable` on `dev:cheery-axolotl-689` clean.
-- Full `vitest run`: 158 files, 2,058 tests, all passing. Re-run on `main` after the handoff commit.
+- Full `vitest run`: 159 files, all passing, including the new `quickStartProgress.test.ts` (19 tests) and the sign-out draft sweep in `signOutAndReset.test.ts` (4).
 - `npm run verify:guards`: 264 public functions, 201 internal, 0 problems.
 - `npm run verify:docs`: 101 relative links resolve.
 - Read-only browser acceptance:
   - `scripts/qa/dual-host-browser.mjs`: 37/37 on the Convex site and Pages mirror, both serving the same commit, including the pinned reference run.
   - `scripts/qa/landing-nav-inbox-browser.mjs`: 41/41 against the canonical host.
   - `scripts/qa/owner-landing-browser.mjs`: 9/9, 0 contrast violations, signed-out hero and Owner home.
-- Deployed static build: `e4682a7` on `cheery-axolotl-689.convex.site`, `tradepulse-pay.pages.dev` and `tradepulse-pay.asynchronope.tech`; all three `/version.json` files returned that commit. That commit changed the deploy guard, the README and these docs over `4567602`, so the app bundle is identical and the code evidence above still describes what is deployed. The three browser scripts were re-run against it with the counts above. `npm run deploy:all` verifies the dev target, `CONVEX_SITE_URL` and that the checkout is `main` or the frozen recovery branch before uploading.
+  - `scripts/qa/quick-start-resume-browser.mjs`: 15/15 against the canonical host (`evidence/quick-start-resume-browser-2026-11-06T13-36-00-929Z/report.json`). A typed project name survives a reload, the resume banner names what exists, and **Start over** clears the form. It presses no create button, so no record was written.
+- Deployed app code: `f55d8eb` on `cheery-axolotl-689.convex.site`, `tradepulse-pay.pages.dev` and `tradepulse-pay.asynchronope.tech`; all three `/version.json` files returned that commit. Later commits in this record are documentation plus the deploy guard, so the app bundle is unchanged. `npm run deploy:all` now also probes every hashed asset that `index.html` references: one Pages deploy served the new HTML before an asset was reachable, the SPA fallback answered that asset with `index.html`, and the page could not load for about a minute.
 
 ## Branch handoff, 6 November 2026
 

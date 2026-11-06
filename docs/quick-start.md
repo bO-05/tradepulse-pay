@@ -74,9 +74,11 @@ invite normally.
 - Unit tests: `src/projects/gc/quickStartProgress.test.ts` (19 tests) covers the saved draft, the
   12-hour expiry, another company's draft, corrupt JSON, invalid document ids, the resume copy, the
   step locks and the sign-out sweep; `src/auth/signOutAndReset.test.ts` (4 tests) covers the sweep.
-- Browser acceptance: `scripts/qa/quick-start-resume-browser.mjs` signs in as the demo GC, types a
-  project name, reloads, and checks the restored value, the resume banner and **Start over**. It never
-  presses a create button, so it writes no record.
+- Browser acceptance: `scripts/qa/quick-start-resume-browser.mjs` passed all 15 checks against the
+  canonical build `f55d8eb` on 2026-11-06 (evidence in
+  `evidence/quick-start-resume-browser-2026-11-06T13-36-00-929Z/report.json` with screenshots). It
+  signs in as the demo GC, types a project name, reloads, and checks the restored value, the resume
+  banner and **Start over**. It never presses a create button, so it writes no record.
 - Navigation tests: `src/auth/navigation.test.ts` covers the `quick-start` route (19 navigation tests
   pass in the targeted run).
 - Backend integration: `convex/quickStart.test.ts` runs the full mutation sequence, including rate
@@ -87,8 +89,9 @@ invite normally.
   `evidence/quick-start-browser-2026-11-05T05-59-52-092Z/report.json` with screenshots alongside it.
   The run created demo project `q97evdpy3xv5842dwybgcgjjjn8hnsvp` and agreement
   `jn7eqczfmhfs8w012wxv55q4jx8hny7m`, total $49,750.00, retainage 5%, with the demo invite note shown.
-- `npx tsc -b` and the production `vite build` passed before deploy. The full test suite has not been
-  rerun since Quick start; the earlier Block 0 full-suite pass belongs to build `a083354`.
+  That script creates a real demo job, so it is not part of the routine read-only sweep.
+- `npx tsc -b`, the production `vite build` and the full suite (159 files, all passing) ran before the
+  `f55d8eb` deploy on 2026-11-06.
 
 ## Limits
 
