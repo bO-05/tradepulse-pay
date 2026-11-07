@@ -2,10 +2,11 @@
 
 Start with the [judge guide](./judge-guide.md): the shortest path through the demo, the three demo roles, and what each screen proves.
 
-Source: `main` carries the current build. `recovery/stabilize-2026-11-01` is frozen at the handoff commit as a backup, and `paypal-hackathon` keeps the pre-recovery TradePulse Pay work.
+Source: `main` is the canonical branch and carries the current build. `recovery/stabilize-2026-11-01` is frozen at the handoff commit as a backup, and `paypal-hackathon` keeps the pre-recovery TradePulse Pay work.
 
 ## For judges and reviewers
 
+- [Judging runbook](./judging-runbook.md) — the owner's checklist for the December 1–15 judging window: the mandatory video, the keys and credits that must stay funded, and the commands to re-verify.
 - [Audit entry point](./audit-entry.md) — the one-page start for an external reviewer: how to confirm the build, the commands that reproduce the evidence, and every open item.
 - [Judge guide](./judge-guide.md) — demo access, two-minute path, and a screen-by-screen inspection route.
 - [Submission draft](./submission-draft.md) — the Devpost text, testing instructions, and the separate owner publishing checklist.
@@ -26,7 +27,7 @@ Source: `main` carries the current build. `recovery/stabilize-2026-11-01` is fro
 - [External audit fixes](./external-audit-fixes.md) — sanitized retest handoffs. The raw audit folders stay private.
 - [R5 remediation](./r5-remediation.md) — finding-by-finding R5 status, including the payment and onboarding work that remains open.
 - [R6 remediation](./r6-remediation.md) — R6 Block 0 correctness fixes, what is only unit-tested, and the ICP work still deferred.
-- [R7 remediation](./r7-remediation.md) — R7 correctness and copy fixes, the new landing/contrast evidence, and the residential demo work still open.
+- [R7 remediation](./r7-remediation.md) — R7 correctness and copy fixes, the new landing/contrast evidence, and the residential reference job that now ships.
 - [Production environment names](./prod-env-names.md) — variable names only; no values.
 - [Archived September audits](./audits/README.md) — the earlier TradePulse Pro reviews.
 

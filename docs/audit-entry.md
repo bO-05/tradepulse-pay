@@ -15,6 +15,8 @@ to it.
   reachable with the right content type.
 - The dev Convex deployment is the only deployment in scope. Production deployments are out of scope
   for this review and were not touched.
+- The canonical branch is `main`. `recovery/stabilize-2026-11-01` and `paypal-hackathon` are history and
+  a backup; a reviewer does not need either of them.
 
 ## Reproduce the evidence
 
@@ -22,7 +24,7 @@ to it.
 | :--- | :--- |
 | `npx vitest run` | 160 files, 2086 tests, 0 failures |
 | `node scripts/tools/guard-audit.mjs` | 267 public functions, 203 internal, 0 problems |
-| `npm run verify:docs` | 103 relative links resolve |
+| `npm run verify:docs` | 106 relative links resolve |
 | `npm run build` | clean, no type errors |
 | `node scripts/qa/lien-waiver-browser.mjs --url <host>` | 26/26, no page or console errors. Toggles the demo gate, mints one unredeemed evidence ticket, records no waiver |
 | `node scripts/qa/quick-start-resume-browser.mjs --url <host>` | 15/15, read-only |
@@ -57,7 +59,7 @@ every assertion when run alone, and the failing URL answers in under a second ov
 | `docs/pay-app-review-eval.md` | The 24-case review suite, the rules-only baseline, and what the score cannot prove |
 | `docs/quick-start.md` | The wizard, its saved draft, and how resume is verified |
 | `docs/recovery-progress.md` | Recovery history and the branch handoff |
-| `hackathon.md` | Chronological build log |
+| `hackathon.md` | Earlier Convex All Gas hackathon log (September 2026), kept as history for the disclosure |
 | `docs/submission-draft.md` | What the submission claims, written for judges |
 
 ## Open items, stated plainly

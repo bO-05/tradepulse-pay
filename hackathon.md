@@ -1,4 +1,12 @@
-# Hackathon log
+# Convex All Gas hackathon log (September 2026)
+
+This file is the build log for the **earlier** TradePulse Pro submission to the Convex All Gas
+Hackathon: autonomous subcontractor procurement, RFQs and bid leveling. It is kept as history for the
+existing-project disclosure in the PayPal submission and is not the log for the build under review.
+
+The PayPal-era log is [docs/recovery-progress.md](./docs/recovery-progress.md); the reviewer entry
+point is [docs/audit-entry.md](./docs/audit-entry.md); the judged demo is
+<https://tradepulse-pay.asynchronope.tech/#/demo>.
 
 - **Project:** TradePulse Pro
 - **Event:** Convex All Gas Hackathon
