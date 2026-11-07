@@ -20,15 +20,20 @@ to it.
 
 | Command | Expected |
 | :--- | :--- |
-| `npx vitest run` | 159 files, 2085 tests, 0 failures |
-| `node scripts/tools/guard-audit.mjs` | 267 public functions, 202 internal, 0 problems |
-| `npm run verify:docs` | 102 relative links resolve |
+| `npx vitest run` | 160 files, 2086 tests, 0 failures |
+| `node scripts/tools/guard-audit.mjs` | 267 public functions, 203 internal, 0 problems |
+| `npm run verify:docs` | 103 relative links resolve |
 | `npm run build` | clean, no type errors |
 | `node scripts/qa/lien-waiver-browser.mjs --url <host>` | 26/26, no page or console errors. Toggles the demo gate, mints one unredeemed evidence ticket, records no waiver |
 | `node scripts/qa/quick-start-resume-browser.mjs --url <host>` | 15/15, read-only |
 | `node scripts/qa/dual-host-browser.mjs --url <host>` | 21/21 per host |
 | `node scripts/qa/owner-landing-browser.mjs` | 9/9, 0 contrast violations |
 | `node scripts/qa/quick-start-browser.mjs` | 23 checks, but it creates a real demo job. Run it only if you accept that write |
+
+Live check on 2026-11-07, GC seat: **Billing → Owner billing** lists **Lopez Kitchen Remodel** first and
+**New owner pay app** is enabled; pressing it opened owner pay app #1 for the period ending 15 Oct 2026
+with the four prime lines and `$86,500` scheduled. The draft was then deleted, so the button is live
+again for the next visitor. This is Demo-company data, not the read-only reference run.
 
 `scripts/qa/` also holds the older scenario scripts (`recovery-smoke.mjs`,
 `recovery-settlement-smoke.mjs`, `pay-app-review-scorecard.mjs`, `pay-app-thread-browser.mjs`,
