@@ -63,6 +63,11 @@ contract-scope-aware: it flags **excluded scope** and **out-of-sequence** billin
 not only arithmetic. A mid-size GC without a Textura/GCPay contract can pay an approved subcontractor through
 PayPal Payouts instead of waiting for a 30–60 day check run.
 
+The lien-waiver gate is a release control, not a form. An unconditional waiver cannot be signed while other
+pay apps are still outstanding, and releasing retainage requires a separate signed waiver for exactly the
+amount released. Each signature is tied to a server-observed record: the statement text's SHA-256, the
+timestamp, the address and the browser string that posted it.
+
 ### Potential impact
 
 On US commercial jobs, the typical trade partner waits about **50 days** from pay-app submission to payment
@@ -95,9 +100,12 @@ idempotency and evidence that names both its successes and its limits.
 
 ### What's next
 
-Recover the missing cloud-only waiver implementation before planning any original-deployment migration.
-Complete owner-approved AgentID registration, maintain service funding through judging, obtain a legitimate
-Studio license extension if demonstrating its editor, and expand real-company validation beyond synthetic fixtures.
+The largest remaining gap is demo depth, not plumbing: a residential reference job with a prime contract
+value, milestone draws and a GC "collected / paid out / owed" strip, so the residential positioning is
+visible in the data and not only in the copy. After that: an in-app subcontract acceptance step for the
+sub, and real-company validation beyond synthetic fixtures.
+Owner-side items: complete AgentID registration, keep the Mistral and KERNEL services funded through
+judging, and obtain a legitimate Studio license extension if its editor is demonstrated.
 
 ### Built with
 
