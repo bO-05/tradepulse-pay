@@ -7,6 +7,7 @@ import { DocumentDownloadButton, ProjectDocumentsList } from "../documents/Docum
 import { getErrorMessage } from "../lib/errors";
 import { Button, Card, ConfirmDialog, Dialog, EmptyState, MoneyInput, PageHeader, StatusPill, formatBps, formatCents, formatDate, useToast } from "../ui";
 import { Field, inputClass } from "../ui/Field";
+import { ownerMoneyTotals } from "./ownerMoney";
 
 export const OWNER_PAY_APPS_HASH = "#/owner-pay-apps";
 
@@ -492,6 +493,7 @@ function GcProjectOwnerBilling({ projectId }: { projectId: string }) {
   const [creating, setCreating] = useState(false);
   if (list === undefined) return <p className="text-sm text-ink-subtle" role="status">Loading owner pay apps…</p>;
   const current = pickCurrent(list.rows, selected);
+  const totals = ownerMoneyTotals(list.rows);
   return (
     <div className="space-y-4">
       <dl className="grid gap-3 text-sm sm:grid-cols-3">
@@ -506,6 +508,20 @@ function GcProjectOwnerBilling({ projectId }: { projectId: string }) {
         <div>
           <dt className="text-xs text-ink-subtle">Retainage held by owner</dt>
           <dd className="font-semibold tabular-nums">{list.primeRetainageHeldCents === null ? "None yet" : formatCents(list.primeRetainageHeldCents)}</dd>
+        </div>
+      </dl>
+      <dl className="grid gap-3 text-sm sm:grid-cols-3" data-testid="owner-money-strip">
+        <div>
+          <dt className="text-xs text-ink-subtle">Billed, awaiting the owner</dt>
+          <dd className="font-semibold tabular-nums" data-testid="owner-money-submitted">{formatCents(totals.submittedCents)}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-ink-subtle">Approved, not yet paid</dt>
+          <dd className="font-semibold tabular-nums" data-testid="owner-money-owed">{formatCents(totals.owedCents)}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-ink-subtle">Paid by the owner</dt>
+          <dd className="font-semibold tabular-nums" data-testid="owner-money-paid">{formatCents(totals.paidCents)}</dd>
         </div>
       </dl>
       {list.create ? (

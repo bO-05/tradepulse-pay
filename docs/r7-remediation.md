@@ -32,7 +32,7 @@ Fixed in code with regression tests:
 Partial or deferred in this round:
 
 - **B5 (subcontract executed before sub acceptance)** is partial. The step now says "Record the GC's execution" and states that the sub's signature and acceptance happen outside the app and are not replaced by the record. There is still no in-app sub acceptance step.
-- **Block 1 (residential reference job)** is partial. The Demo company now carries a second, ordinary project, "Lopez Kitchen Remodel": a residential kitchen with an $86,500 prime value, a 10% retainage hold, a monthly billing day and the Demo owner as a project member, seeded by `convex/demoResidential.ts`. That turns the GC's "New owner pay app" button on for a homeowner draw, which the commercial walkthrough could not do because it has no prime contract value. Still open: milestone draws on the prime side, the GC collected/paid/owed strip, and turning the waiver gate on for that job.
+- **Block 1 (residential reference job)** is partial. The Demo company now carries a second, ordinary project, "Lopez Kitchen Remodel": a residential kitchen with an $86,500 prime value, a 10% retainage hold, a monthly billing day and the Demo owner as a project member, seeded by `convex/demoResidential.ts`. That turns the GC's "New owner pay app" button on for a homeowner draw, which the commercial walkthrough could not do because it has no prime contract value. The owner-billing panel also gained a three-line running total (billed and awaiting the owner, approved but not yet paid, paid by the owner) computed from the same rows it lists, in `src/billing/ownerMoney.ts`. Still open: milestone draws on the prime side, and a GC "collected / paid out / owed" view across subcontractors.
 - **Owner "Test Store"** is a PayPal sandbox merchant setting, not app code.
 
 ## Finding map
@@ -101,7 +101,8 @@ This changes no deployed backend or financial data. It moves the public default 
 
 ## Not done
 
-- Block 1 second half: owner milestone draws and the GC collected/paid/owed strip. The residential
-  reference job itself now ships (`convex/demoResidential.ts`).
+- Block 1 second half: owner milestone draws and the GC collected/paid/owed view across subcontractors.
+  The residential reference job and the owner-billing running totals now ship (`convex/demoResidential.ts`,
+  `src/billing/ownerMoney.ts`).
 - Statutory California waiver forms, PayPal multiparty, QuickBooks.
 - Production deployment, YouTube upload, Devpost submission, a new guided run, PayPal popup, live Owner-invoice retry and any financial write on a new run. Those remain owner decisions.

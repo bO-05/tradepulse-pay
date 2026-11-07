@@ -22,7 +22,7 @@ to it.
 
 | Command | Expected |
 | :--- | :--- |
-| `npx vitest run` | 160 files, 2086 tests, 0 failures |
+| `npx vitest run` | 161 files, 2089 tests, 0 failures |
 | `node scripts/tools/guard-audit.mjs` | 267 public functions, 203 internal, 0 problems |
 | `npm run verify:docs` | 106 relative links resolve |
 | `npm run build` | clean, no type errors |
@@ -69,8 +69,10 @@ every assertion when run alone, and the failing URL answers in under a second ov
   signature. The final-payout path outside retainage is unchanged.
 - **Block 1 (partial).** The Demo company now carries a residential reference job, "Lopez Kitchen
   Remodel": an `$86,500` prime value, four prime SOV lines, a 10% retainage hold and a billing day, so
-  the GC's **New owner pay app** opens a homeowner draw with real lines. Still open: milestone draws on
-  the prime side and a GC collected/paid/owed strip. The demo still leads with the commercial run.
+  the GC's **New owner pay app** opens a homeowner draw with real lines. The owner-billing panel also
+  keeps three running totals: billed and awaiting the owner, approved but not yet paid, and paid by the
+  owner. Still open: milestone draws on the prime side, and a GC collected/paid/owed view across
+  subcontractors. The demo still leads with the commercial run.
 - **B5 (partial).** The subcontract states that the sub's signature and acceptance happen outside the
   app; there is no in-app sub acceptance step.
 - **B13 (fixed, real limit).** The review eval is self-authored. The score is now labelled as agreement

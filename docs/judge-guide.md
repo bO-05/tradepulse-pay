@@ -58,7 +58,8 @@ prime value, four prime schedule-of-values lines, a `10%` retainage hold and a m
 1. As GC, open **Billing → Owner billing**, pick **Lopez Kitchen Remodel**, and press **New owner pay app**.
    The commercial walkthrough could not do this because it has no prime contract value.
 2. The draft opens with the four prime lines and `$86,500` scheduled. Save this period's amounts and
-   submit it to the owner.
+   submit it to the owner. Above the list, the panel keeps three running totals: billed and awaiting the
+   owner, approved but not yet paid, and paid by the owner.
 3. As Owner, open the same job to approve it or request changes.
 
 Milestone draws and a GC collected/paid/owed strip are not built; [the R7 record](./r7-remediation.md)

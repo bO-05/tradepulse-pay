@@ -41,10 +41,9 @@ node scripts/qa/owner-landing-browser.mjs
 node scripts/qa/lien-waiver-browser.mjs --url https://tradepulse-pay.asynchronope.tech
 ```
 
-Expected on 2026-11-07 at commit `d2c2d5e`: 160 test files and 2,086 tests with 0 failures; 267 public
-functions, 203 internal, 0 guard problems; 106 documentation links; and the three browser sweeps green
-with no page or console errors. Those numbers move with commits, so compare against the table in
-[the audit entry](./audit-entry.md) rather than this paragraph.
+Compare against the table in [the audit entry](./audit-entry.md), which carries the counts for the build
+under review (161 test files and 2,089 tests at the time of writing). The three browser sweeps must report
+`ok: true` with empty `pageErrors` and `consoleErrors`.
 
 Do **not** run `scripts/qa/quick-start-browser.mjs` during judging unless you accept it creating a real
 demo job, and do not run the combined two-host sweep (`dual-host-browser.mjs` with no `--url`) on a
