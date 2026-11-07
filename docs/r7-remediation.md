@@ -3,7 +3,7 @@
 Date: 2026-11-05
 Audit: external R7 retest and usefulness verdict (kept in the ignored `docs/external-audit/` folder)
 Branch: `main` since 2026-11-06, when `recovery/stabilize-2026-11-01` was fast-forwarded onto it; the recovery branch is frozen at `e4682a7` as a backup.
-First deployed code commit: `991b865`. Final deployed build (canonical, mirror and Pages): `4567602`. Documentation-only commits after that build do not change the app.
+First deployed code commit: `991b865`. Every code commit after that has been deployed to all three hosts; `docs/audit-entry.md` explains how to confirm which commit a host is serving.
 
 This file maps every R7 finding to code, tests and what is still open. It does not turn the R7 verdict into a pass. The product is a tested PayPal-sandbox build, not a real-money production service, and the residential/ICP gaps the audit ranked as the biggest score lever are only partly addressed.
 
@@ -27,14 +27,12 @@ Fixed in code with regression tests:
 - **B10.** A lien-waiver signature now carries real evidence: the statement is built and hashed by the server, shown verbatim in a review step, redeemed once through an HTTP route that records the IP, the trusted header and the browser, and the signing mutation refuses to write a waiver without it.
 - **B13.** The 24-case suite is now labelled as what it is: agreement with this app's rules. `docs/pay-app-review-eval.md` adds a rules-only baseline section, the scorecard markdown and console output print that baseline and rename the headline metric to line agreement, and the diagnostics panel says it on screen. The score still cannot prove the rules are right; it reports whether the reviewer reproduces them on hand-picked cases.
 - **Copy.** PayPal's sandbox fee note uses the card/wallet rates instead of "3.5% + $0.49"; the sub retainage tile distinguishes this period's withhold from what is still held; the signup wall no longer prints the environment-variable name.
+- **Block 1, first half.** `convex/demoResidential.ts` seeds a residential reference job for the Demo company with an `$86,500` prime value, four prime SOV lines, a 10% retainage hold and a billing day, so the GC can open a homeowner pay app with real lines. `convex/demoResidential.test.ts` proves the project is created once, is visible to the Demo GC and owner, and that the pay app opens at `$86,500` with a `10%` hold.
 
 Partial or deferred in this round:
 
-- **B2 (gate retainage release)** is deferred. A correct fix needs a release-specific waiver slot and a sub signing surface; a partial guard would create a new dead end like B3. Not shipped before 12 Nov.
 - **B5 (subcontract executed before sub acceptance)** is partial. The step now says "Record the GC's execution" and states that the sub's signature and acceptance happen outside the app and are not replaced by the record. There is still no in-app sub acceptance step.
-- **B10 (waiver evidence)** is fixed. The waiver statement is now built by the server at issue time and shown verbatim before signing; the browser posts it back with a single-use ticket, and the HTTP route at `/api/waivers/evidence` records the SHA-256, `x-forwarded-for` (with the trusted header name), the user agent and the observation time. `signWaiver` refuses to write a signature without matching evidence. Details in `docs/lien-waiver-gate.md`. **Design settled, not built:** the HTTP action cannot use `ctx.auth` (Convex Auth identity is only available to queries, mutations and actions), so the route must not trust a user id in the body. The flow is a short-lived, single-use **signing ticket**: the authenticated `signWaiver` mutation mints a 32-byte token, stores only its SHA-256 with the waiver id, signer id and a two-minute expiry, and returns the raw token; the client POSTs the token plus the signed fields to `POST /api/waivers/sign`; the HTTP action reads `x-forwarded-for` and `user-agent`, hashes the canonical rendered statement text, and consumes the ticket in an internal mutation that is the only writer of the evidence block. Anything less (client-asserted IP, or a user id in the request body) would record evidence that can be forged by the signer, which is worse than recording none.
-- **B13 (eval honesty)** is fixed as a framing and baseline change; see the short result and the finding map.
-- **Block 1 (residential reference job)** is deferred. The demo still leads with the commercial Austin/Rosendin job. A residential seeded job with a prime value, milestone draws and the waiver gate on is the largest remaining score lever, but it needs a new seed path plus financial writes that were not authorised in this session.
+- **Block 1 (residential reference job)** is partial. The Demo company now carries a second, ordinary project, "Lopez Kitchen Remodel": a residential kitchen with an $86,500 prime value, a 10% retainage hold, a monthly billing day and the Demo owner as a project member, seeded by `convex/demoResidential.ts`. That turns the GC's "New owner pay app" button on for a homeowner draw, which the commercial walkthrough could not do because it has no prime contract value. Still open: milestone draws on the prime side, the GC collected/paid/owed strip, and turning the waiver gate on for that job.
 - **Owner "Test Store"** is a PayPal sandbox merchant setting, not app code.
 
 ## Finding map
@@ -103,6 +101,7 @@ This changes no deployed backend or financial data. It moves the public default 
 
 ## Not done
 
-- Block 1 residential reference job, owner milestone draw and the GC collected/paid/owed strip.
+- Block 1 second half: owner milestone draws and the GC collected/paid/owed strip. The residential
+  reference job itself now ships (`convex/demoResidential.ts`).
 - Statutory California waiver forms, PayPal multiparty, QuickBooks.
 - Production deployment, YouTube upload, Devpost submission, a new guided run, PayPal popup, live Owner-invoice retry and any financial write on a new run. Those remain owner decisions.

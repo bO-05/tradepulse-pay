@@ -65,6 +65,7 @@ import type * as dashboard_studioAnthropic from "../dashboard/studioAnthropic.js
 import type * as dashboard_studioMistral from "../dashboard/studioMistral.js";
 import type * as dashboard_studioProxy from "../dashboard/studioProxy.js";
 import type * as demoAccounts from "../demoAccounts.js";
+import type * as demoResidential from "../demoResidential.js";
 import type * as devFixtures from "../devFixtures.js";
 import type * as documents_access from "../documents/access.js";
 import type * as documents_csvExports from "../documents/csvExports.js";
@@ -322,6 +323,7 @@ declare const fullApi: ApiFromModules<{
   "dashboard/studioMistral": typeof dashboard_studioMistral;
   "dashboard/studioProxy": typeof dashboard_studioProxy;
   demoAccounts: typeof demoAccounts;
+  demoResidential: typeof demoResidential;
   devFixtures: typeof devFixtures;
   "documents/access": typeof documents_access;
   "documents/csvExports": typeof documents_csvExports;

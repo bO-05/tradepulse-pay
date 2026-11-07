@@ -60,9 +60,10 @@ every assertion when run alone, and the failing URL answers in under a second ov
 - **B2 (fixed).** The gate now covers the closeout retainage release: the sub signs from the same
   panel, the release refuses until the balance is covered, and a changed balance asks for a new
   signature. The final-payout path outside retainage is unchanged.
-- **Block 1.** There is no residential reference job with milestone draws and a GC
-  collected/paid/owed strip. The demo leads with a commercial job. This writes financial records on a
-  new run and is waiting on the owner's approval.
+- **Block 1 (partial).** The Demo company now carries a residential reference job, "Lopez Kitchen
+  Remodel": an `$86,500` prime value, four prime SOV lines, a 10% retainage hold and a billing day, so
+  the GC's **New owner pay app** opens a homeowner draw with real lines. Still open: milestone draws on
+  the prime side and a GC collected/paid/owed strip. The demo still leads with the commercial run.
 - **B5 (partial).** The subcontract states that the sub's signature and acceptance happen outside the
   app; there is no in-app sub acceptance step.
 - **B13 (fixed, real limit).** The review eval is self-authored. The score is now labelled as agreement

@@ -50,6 +50,20 @@ This is a real sandbox settlement of **partial progress**, not completion of the
 The `$1,850` Owner revenue is separate from the subcontract sum. Historical proof and limitations are in
 [recovery progress](./recovery-progress.md). Live state can change when public demo users act.
 
+## Residential reference job
+
+The Demo company also carries an ordinary residential job, **Lopez Kitchen Remodel**: an `$86,500`
+prime value, four prime schedule-of-values lines, a `10%` retainage hold and a monthly billing day.
+
+1. As GC, open **Billing → Owner billing**, pick **Lopez Kitchen Remodel**, and press **New owner pay app**.
+   The commercial walkthrough could not do this because it has no prime contract value.
+2. The draft opens with the four prime lines and `$86,500` scheduled. Save this period's amounts and
+   submit it to the owner.
+3. As Owner, open the same job to approve it or request changes.
+
+Milestone draws and a GC collected/paid/owed strip are not built; [the R7 record](./r7-remediation.md)
+lists them as open.
+
 ## Hands-on run, approximately 5–10 minutes
 
 1. GC → **Guided demo** → **Run TradePulse Pay demo**. This creates a fresh, labeled project and `$55,000` award.

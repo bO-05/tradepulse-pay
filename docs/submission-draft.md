@@ -100,10 +100,10 @@ idempotency and evidence that names both its successes and its limits.
 
 ### What's next
 
-The largest remaining gap is demo depth, not plumbing: a residential reference job with a prime contract
-value, milestone draws and a GC "collected / paid out / owed" strip, so the residential positioning is
-visible in the data and not only in the copy. After that: an in-app subcontract acceptance step for the
-sub, and real-company validation beyond synthetic fixtures.
+The largest remaining gap is demo depth, not plumbing: the residential reference job now ships with a
+prime value and four schedule-of-values lines, but it has no milestone draws and no GC "collected /
+paid out / owed" strip. After that: an in-app subcontract acceptance step for the sub, and real-company
+validation beyond synthetic fixtures.
 Owner-side items: complete AgentID registration, keep the Mistral and KERNEL services funded through
 judging, and obtain a legitimate Studio license extension if its editor is demonstrated.
 
