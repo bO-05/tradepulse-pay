@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { projectKindValidator } from "../lib/projectKind";
 import { actorTypeValidator, g702FiguresValidator, payAppDecisionValidator, payAppReviewValidator, payAppStatusValidator, roleValidator } from "../schema";
 
 const ns = v.union(v.string(), v.null());
@@ -24,6 +25,7 @@ const decision = v.union(v.null(), v.object({
 }));
 export const g703ViewValidator = v.object({
   _id: v.id("payApplications"), format: v.union(v.literal("g703"), v.literal("legacy")), viewerRole: roleValidator,
+  projectKind: projectKindValidator,
   status: payAppStatusValidator, applicationNo: nn, periodLabel: v.string(), periodStart: ns, periodEnd: ns, dueDate: ns,
   savedAt: nn, submittedAt: nn, notes: v.string(), submittedBy: v.object({ actorType: actorTypeValidator, isCaller: v.boolean() }),
   rejectionReason: ns, withdrawnAt: nn,
@@ -74,7 +76,7 @@ const listRow = v.object({
   status: payAppStatusValidator, currentPaymentDueCents: nn, requestedTotalCents: v.number(), submittedAt: nn,
 });
 export const subPayAppAgreementsValidator = v.array(v.object({
-  agreementId: v.id("agreements"), agreementNumber: v.string(), projectTitle: v.string(), tradeName: v.string(),
+  agreementId: v.id("agreements"), agreementNumber: v.string(), projectTitle: v.string(), projectKind: projectKindValidator, tradeName: v.string(),
   contractSumCents: v.number(), sovApproved: v.boolean(), blockedReason: ns, openPayApp: v.union(listRow, v.null()),
   nextApplication: v.union(v.null(), v.object({ applicationNo: v.number(), periodStart: v.string(), periodEnd: v.string(), dueDate: v.string() })),
   payApps: v.array(listRow),

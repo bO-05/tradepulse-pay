@@ -6,6 +6,7 @@ import { notify } from "../lib/notify";
 import { auditActor, callerProjects, requireDocScope, requireProjectScope } from "../lib/projectScope";
 import { requireRole } from "../lib/roles";
 import { notFound, requireProjectAccess, type ProjectAccess } from "../lib/tenancy";
+import { projectKindOf } from "../lib/projectKind";
 import { formatIsoDate, isoDate, nextBillingPeriod, percentHundredths } from "../payApps/g703Math";
 import { invoiceRecipientForProject } from "../payments/changeOrderRecipient";
 import { CO_APPROVED_STATUSES, changeOrderLabel, isDirectlyInvoiced, type ChangeOrderStatus } from "../payments/changeOrderMath";
@@ -178,6 +179,7 @@ async function detailView(ctx: QueryCtx, app: Doc<"ownerPayApps">, project: Doc<
     ...summaryView(app),
     projectId: project._id,
     projectTitle: project.title,
+    projectKind: projectKindOf(project),
     party,
     retainageBps: app.retainageBps,
     figures: app.figures,
@@ -220,7 +222,7 @@ export const ownerBillingProjects = query({
     for (const project of (await callerProjects(ctx)).slice(0, 100)) {
       const access = await requireProjectAccess(ctx, project._id).catch(() => null);
       if (access === null || (access.partyRole !== "gc" && access.partyRole !== "owner")) continue;
-      out.push({ _id: project._id, title: project.title, partyRole: access.partyRole });
+      out.push({ _id: project._id, title: project.title, projectKind: projectKindOf(project), partyRole: access.partyRole });
     }
     return out;
   },
@@ -240,6 +242,7 @@ export const listOwnerPayApps = query({
     return {
       projectId: project._id,
       projectTitle: project.title,
+      projectKind: projectKindOf(project),
       party,
       retainageBps: ownerRetainageBps(project),
       contractValueCents: project.contractValueCents ?? null,

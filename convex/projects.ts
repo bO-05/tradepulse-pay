@@ -13,6 +13,7 @@ import { v, ConvexError } from "convex/values";
 import { classifyUnflaggedDrafts, refreshAgreementDocument } from "./lib/agreementDocument";
 import { getRealDocumentPdfBytes } from "./realDocuments";
 import { agreementHasFinancialHistory, deleteAgreementCascade, deleteContractorCascade, moneyHistoryRefusal } from "./payments/cascade";
+import { projectKindOf } from "./lib/projectKind";
 
 /**
  * Seed metadata must equal the bytes actually served by the document endpoints,
@@ -42,7 +43,9 @@ export const listProjects = query({
   args: { includeArchived: v.optional(v.boolean()) },
   handler: async (ctx, args) => {
     await requireRole(ctx, ["gc", "owner", "sub"]);
-    return await callerProjects(ctx, { includeArchived: args.includeArchived === true });
+    const projects = await callerProjects(ctx, { includeArchived: args.includeArchived === true });
+    // Every row names its kind; an unset field reads commercial (lib/projectKind).
+    return projects.map((project) => ({ ...project, projectKind: projectKindOf(project) }));
   },
 });
 
@@ -51,7 +54,7 @@ export const getProject = query({
   args: { projectId: v.string() },
   handler: async (ctx, args) => {
     const { project } = await requireProjectScope(ctx, args.projectId, { roles: ["gc", "owner", "sub"] });
-    return project;
+    return { ...project, projectKind: projectKindOf(project) };
   },
 });
 

@@ -1,6 +1,7 @@
 import type { Id } from "./_generated/dataModel";
 import { internalMutation, type MutationCtx } from "./_generated/server";
 import { attachProjectToDemo, ensureDemoCompanies } from "./lib/demoTenancy";
+import { projectKindOf } from "./lib/projectKind";
 
 /**
  * The residential reference job.
@@ -27,6 +28,7 @@ export type ResidentialReferenceSummary = {
   projectId: Id<"projects">;
   created: boolean;
   title: string | null;
+  projectKind: "residential" | "commercial";
   contractValueCents: number | null;
   retainageBps: number | null;
   primeLineCount: number;
@@ -46,6 +48,9 @@ export async function ensureResidentialReferenceRows(ctx: MutationCtx): Promise<
   let created = false;
   if (existing !== undefined) {
     projectId = existing._id;
+    // A re-seed keeps the job residential even if an older database was created before the field
+    // existed. Only this reference row is patched; its money rows are never rewritten.
+    if (existing.projectKind !== "residential") await ctx.db.patch(projectId, { projectKind: "residential" });
     await attachProjectToDemo(ctx, projectId, demoIds);
   } else {
     const company = await ctx.db.get(demoIds.gc);
@@ -53,6 +58,7 @@ export async function ensureResidentialReferenceRows(ctx: MutationCtx): Promise<
       title: RESIDENTIAL_REFERENCE_TITLE,
       location: "El Cerrito, CA",
       projectType: "Residential kitchen remodel",
+      projectKind: "residential",
       estBudget: 86_500,
       targetCompletionWeeks: 8,
       specDocumentText: `RESIDENTIAL REMODEL SCOPE
@@ -99,6 +105,7 @@ Work is performed in an occupied home: daily cleanup and dust control are part o
     projectId,
     created,
     title: project?.title ?? null,
+    projectKind: projectKindOf(project),
     contractValueCents: project?.contractValueCents ?? null,
     retainageBps: project?.retainageBps ?? null,
     primeLineCount: lines.length,

@@ -36,6 +36,34 @@ describe("residential reference job", () => {
     });
   });
 
+  test("seeds Lopez as residential and a re-seed keeps the kind", async () => {
+    const t = convexTest(schema, modules);
+    await t.mutation(internal.projects.seedInitialDataInternal, { force: false });
+
+    const first = await t.mutation(internal.demoResidential.ensureResidentialReference, {});
+    expect(first.title).toBe("Lopez Kitchen Remodel");
+    expect(first.projectKind).toBe("residential");
+    expect(first.created).toBe(false);
+
+    const seeded = await t.run(async (ctx) => (await ctx.db.get(first.projectId))?.projectKind);
+    expect(seeded).toBe("residential");
+
+    // A database that predates the field (or was mis-marked) is repaired by the re-seed, and the
+    // money rows are not rewritten.
+    await t.run(async (ctx) => {
+      await ctx.db.patch(first.projectId, { projectKind: "commercial" });
+    });
+    const second = await t.mutation(internal.demoResidential.ensureResidentialReference, {});
+    expect(second.projectId).toBe(first.projectId);
+    expect(second.created).toBe(false);
+    expect(second.projectKind).toBe("residential");
+    expect(second.primeLineCount).toBe(first.primeLineCount);
+    expect(second.primeLinesCents).toBe(first.primeLinesCents);
+
+    const stored = await t.run(async (ctx) => (await ctx.db.get(first.projectId))?.projectKind);
+    expect(stored).toBe("residential");
+  });
+
   test("creates one prime-valued residential project that the GC and the owner can bill", async () => {
     const t = convexTest(schema, modules);
     await t.mutation(internal.projects.seedInitialDataInternal, { force: false });

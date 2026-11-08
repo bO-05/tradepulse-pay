@@ -9,6 +9,7 @@ import { loadSovRows } from "../lib/sovLines";
 import { SOV_CAPACITY_MESSAGE, SOV_MAX_TOTAL_LINES } from "../lib/sovRules";
 import { notFound, type ProjectAccess } from "../lib/tenancy";
 import { isReadOnlyReference } from "../lib/demoReference";
+import { projectKindOf } from "../lib/projectKind";
 import { agreementChangeOrdersValidator, changeOrderDetailValidator, projectChangeOrdersValidator } from "./changeOrderValidators";
 import { g703Context } from "../payApps/g703";
 import {
@@ -197,6 +198,7 @@ export const listForProject = query({
     return {
       projectId: project._id,
       projectTitle: project.title,
+      projectKind: projectKindOf(project),
       party,
       invoicing:
         recipient === null
@@ -223,7 +225,7 @@ export const myChangeOrderProjects = query({
         .query("changeOrders")
         .withIndex("by_projectId_and_scope_and_number", (q) => q.eq("projectId", p._id).eq("scope", "prime"))
         .first();
-      rows.push({ _id: p._id, title: p.title, hasPrimeChangeOrders: prime !== null });
+      rows.push({ _id: p._id, title: p.title, projectKind: projectKindOf(p), hasPrimeChangeOrders: prime !== null });
     }
     return rows;
   },
@@ -242,6 +244,7 @@ export const listForAgreement = query({
     return {
       agreementId: scope.doc._id,
       projectId: scope.doc.projectId,
+      projectKind: projectKindOf(scope.project),
       party,
       contractSum: sum,
       breakdownText: breakdownText(sum),
@@ -271,7 +274,7 @@ export const getChangeOrder = query({
       const agreement = await ctx.db.get(co.agreementId);
       if (agreement !== null) approvalPreview = await approvalPreviewFor(ctx, agreement, co);
     }
-    return { ...view, approvalPreview };
+    return { ...view, projectKind: projectKindOf(scope.project), approvalPreview };
   },
 });
 

@@ -5,6 +5,7 @@ import { scopedAgreements } from "../lib/agreementScope";
 import { callerProjects } from "../lib/projectScope";
 import { requireRole } from "../lib/roles";
 import { requireProjectAccess } from "../lib/tenancy";
+import { projectKindOf, type ProjectKind } from "../lib/projectKind";
 import { retainageOf } from "../payApps/g703Math";
 import { primeRetainageHeld, projectOwnerPayApps } from "./ownerRollup";
 
@@ -30,6 +31,7 @@ export const projectRetainage = query({
       {
         projectId: Id<"projects">;
         projectTitle: string;
+        projectKind: ProjectKind;
         subHeldCents: number;
         agreements: {
           agreementId: Id<"agreements">;
@@ -56,7 +58,13 @@ export const projectRetainage = query({
       }
       const heldCents = ledger.reduce((acc, r) => acc + r.deltaCents, 0);
       const project = access.project;
-      const entry = projects.get(project._id) ?? { projectId: project._id, projectTitle: project.title, subHeldCents: 0, agreements: [] };
+      const entry = projects.get(project._id) ?? {
+        projectId: project._id,
+        projectTitle: project.title,
+        projectKind: projectKindOf(project),
+        subHeldCents: 0,
+        agreements: [],
+      };
       entry.agreements.push({
         agreementId: agreement._id,
         agreementNumber: agreement.agreementNumber,
@@ -75,7 +83,13 @@ export const projectRetainage = query({
       const access = await requireProjectAccess(ctx, project._id).catch(() => null);
       if (access === null || access.partyRole !== "gc") continue;
       if (primeRetainageHeld(await projectOwnerPayApps(ctx, project._id)) === null) continue;
-      projects.set(project._id, { projectId: project._id, projectTitle: project.title, subHeldCents: 0, agreements: [] });
+      projects.set(project._id, {
+        projectId: project._id,
+        projectTitle: project.title,
+        projectKind: projectKindOf(project),
+        subHeldCents: 0,
+        agreements: [],
+      });
     }
     const out = [];
     for (const p of projects.values()) {

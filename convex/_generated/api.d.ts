@@ -138,6 +138,7 @@ import type * as lib_packageContractors from "../lib/packageContractors.js";
 import type * as lib_passwordPolicy from "../lib/passwordPolicy.js";
 import type * as lib_payAppReviewMetrics from "../lib/payAppReviewMetrics.js";
 import type * as lib_payee from "../lib/payee.js";
+import type * as lib_projectKind from "../lib/projectKind.js";
 import type * as lib_projectScope from "../lib/projectScope.js";
 import type * as lib_projectSetup from "../lib/projectSetup.js";
 import type * as lib_projectSetupFixture from "../lib/projectSetupFixture.js";
@@ -396,6 +397,7 @@ declare const fullApi: ApiFromModules<{
   "lib/passwordPolicy": typeof lib_passwordPolicy;
   "lib/payAppReviewMetrics": typeof lib_payAppReviewMetrics;
   "lib/payee": typeof lib_payee;
+  "lib/projectKind": typeof lib_projectKind;
   "lib/projectScope": typeof lib_projectScope;
   "lib/projectSetup": typeof lib_projectSetup;
   "lib/projectSetupFixture": typeof lib_projectSetupFixture;

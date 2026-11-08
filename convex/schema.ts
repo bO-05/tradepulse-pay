@@ -19,6 +19,7 @@ import {
   w9FieldsValidator,
 } from "./compliance/validators";
 import { payAppReviewMetricsValidator } from "./lib/payAppReviewMetrics";
+import { projectKindValidator } from "./lib/projectKind";
 
 export const roleValidator = v.union(v.literal("gc"), v.literal("sub"), v.literal("owner"));
 export const actorTypeValidator = v.union(v.literal("human"), v.literal("agent"));
@@ -1124,6 +1125,9 @@ export default defineSchema({
     title: v.string(), // e.g. "The Domain Tower B - Commercial MEP"
     location: v.string(), // "Austin, TX"
     projectType: v.string(), // "Class-A Commercial Mixed-Use"
+    // Residential or commercial job; the only switch for vocabulary. Absent means commercial, so
+    // every existing project and test keeps today's labels (architecture §3.1).
+    projectKind: v.optional(projectKindValidator),
     estBudget: v.number(),
     targetCompletionWeeks: v.number(),
     specDocumentText: v.string(),

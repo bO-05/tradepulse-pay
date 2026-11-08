@@ -10,13 +10,15 @@ import { primeRetainageHeld, projectOwnerPayApps } from "./billing/ownerRollup";
 import { loadMilestoneFunding } from "./payments/milestoneFundingState";
 import { agreementContractSumCents } from "./payments/sov";
 import { WITHDRAWABLE_PAY_APP_STATUSES } from "./payApps/validation";
+import { DEFAULT_PROJECT_KIND, projectKindById, projectKindOf, type ProjectKind } from "./lib/projectKind";
 
-function agreementSummary(a: Doc<"agreements">) {
+function agreementSummary(a: Doc<"agreements">, projectKind: ProjectKind) {
   return {
     _id: a._id,
     agreementNumber: a.agreementNumber,
     projectId: a.projectId,
     projectTitle: a.projectTitle,
+    projectKind,
     subcontractorName: a.subcontractorName,
     contractorId: a.contractorId,
     csiDivision: a.csiDivision,
@@ -28,6 +30,30 @@ function agreementSummary(a: Doc<"agreements">) {
     executedAt: a.executedAt ?? null,
     createdAt: a.createdAt,
   };
+}
+
+/**
+ * The project kind of every agreement, read once per project. A missing project reads commercial
+ * (lib/projectKind), so a portal view never guesses and never throws.
+ */
+async function projectKindsFor(
+  ctx: QueryCtx,
+  agreements: readonly Doc<"agreements">[],
+): Promise<Map<Id<"projects">, ProjectKind>> {
+  const kinds = new Map<Id<"projects">, ProjectKind>();
+  for (const agreement of agreements) {
+    if (!kinds.has(agreement.projectId)) {
+      kinds.set(agreement.projectId, await projectKindById(ctx, agreement.projectId));
+    }
+  }
+  return kinds;
+}
+
+function agreementSummaries(
+  agreements: readonly Doc<"agreements">[],
+  kinds: ReadonlyMap<Id<"projects">, ProjectKind>,
+) {
+  return agreements.map((a) => agreementSummary(a, kinds.get(a.projectId) ?? DEFAULT_PROJECT_KIND));
 }
 
 /**
@@ -95,36 +121,55 @@ async function subPayoutEmail(ctx: QueryCtx, companyId: Id<"companies"> | undefi
   return company?.payoutPaypalEmail ?? null;
 }
 
+/** Shared body of the sub portal overview; the caller has already passed subContractorScope. */
+async function subPortalView(ctx: QueryCtx, scope: Awaited<ReturnType<typeof subContractorScope>>) {
+  const viewer = scope.viewer;
+  const contractorId = scope.contractorIds.includes(viewer.profile.contractorId as Id<"contractors">)
+    ? viewer.profile.contractorId
+    : scope.contractorIds[0];
+  const contractor = contractorId ? await ctx.db.get(contractorId) : null;
+  const visible = await subAgreements(ctx, scope);
+  const kinds = await projectKindsFor(ctx, visible);
+  const milestoneFunding = [];
+  const executedNewestFirst = visible
+    .filter((a) => a.status === "executed")
+    .sort((x, y) => (y.executedAt ?? y.createdAt) - (x.executedAt ?? x.createdAt));
+  for (const a of executedNewestFirst) {
+    milestoneFunding.push({
+      agreementId: a._id,
+      agreementNumber: a.agreementNumber,
+      projectTitle: a.projectTitle,
+      projectKind: kinds.get(a.projectId) ?? DEFAULT_PROJECT_KIND,
+      milestones: await loadMilestoneFunding(ctx, a._id),
+    });
+  }
+  return {
+    displayName: viewer.profile.displayName,
+    contractorName: contractor?.companyName ?? null,
+    paypalEmail: await subPayoutEmail(ctx, viewer.profile.companyId),
+    agreements: agreementSummaries(visible, kinds),
+    milestoneFunding,
+  };
+}
+
 /** Sub portal: the caller's own contractor and agreements. Pay apps are paged by mySubPayApps. */
 export const mySubPortal = query({
   args: {},
   handler: async (ctx) => {
     const scope = await subContractorScope(ctx, { includeArchived: true });
-    const viewer = scope.viewer;
-    const contractorId = scope.contractorIds.includes(viewer.profile.contractorId as Id<"contractors">)
-      ? viewer.profile.contractorId
-      : scope.contractorIds[0];
-    const contractor = contractorId ? await ctx.db.get(contractorId) : null;
-    const visible = await subAgreements(ctx, scope);
-    const milestoneFunding = [];
-    const executedNewestFirst = visible
-      .filter((a) => a.status === "executed")
-      .sort((x, y) => (y.executedAt ?? y.createdAt) - (x.executedAt ?? x.createdAt));
-    for (const a of executedNewestFirst) {
-      milestoneFunding.push({
-        agreementId: a._id,
-        agreementNumber: a.agreementNumber,
-        projectTitle: a.projectTitle,
-        milestones: await loadMilestoneFunding(ctx, a._id),
-      });
-    }
-    return {
-      displayName: viewer.profile.displayName,
-      contractorName: contractor?.companyName ?? null,
-      paypalEmail: await subPayoutEmail(ctx, viewer.profile.companyId),
-      agreements: visible.map(agreementSummary),
-      milestoneFunding,
-    };
+    return await subPortalView(ctx, scope);
+  },
+});
+
+/**
+ * The same sub portal overview under the name the mission's job-scoped query contract uses.
+ * Additive alias of `mySubPortal`: both return `projectKind` for every job they expose.
+ */
+export const subOverview = query({
+  args: {},
+  handler: async (ctx) => {
+    const scope = await subContractorScope(ctx, { includeArchived: true });
+    return await subPortalView(ctx, scope);
   },
 });
 
@@ -200,7 +245,7 @@ export const getAgreementSummary = query({
     if (scope === null) return null;
     const agreement = scope.doc;
     return {
-      ...agreementSummary(agreement),
+      ...agreementSummary(agreement, projectKindOf(scope.project)),
       contractSumCents: agreementContractSumCents(agreement),
       baseBidCents: agreement.baseBidCents ?? null,
       acceptedAlternates: agreement.acceptedAlternates ?? [],
@@ -310,10 +355,12 @@ export const ownerOverview = query({
         title: project.title,
         location: project.location,
         projectType: project.projectType,
+        // Absent reads commercial, so every project row names its vocabulary explicitly.
+        projectKind: projectKindOf(project),
         estBudget: project.estBudget,
         isDemoProject: project.isDemoProject,
         partyRole: access.partyRole,
-        agreements: agreements.map(agreementSummary),
+        agreements: agreementSummaries(agreements, await projectKindsFor(ctx, agreements)),
         primeContractSum: primeSum,
         primeRetainageHeldCents: primeRetainageHeld(ownerPayApps)?.cents ?? null,
         ownerJob: access.partyRole === "owner" ? ownerJobView(project, primeSum, ownerPayApps, changeOrders) : null,

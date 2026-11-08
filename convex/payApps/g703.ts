@@ -45,6 +45,7 @@ import {
 } from "./g703Math";
 import { loadSovRows } from "../lib/sovLines";
 import { isReadOnlyReference, READ_ONLY_REFERENCE_MESSAGE } from "../lib/demoReference";
+import { projectKindOf } from "../lib/projectKind";
 import { g703ViewValidator, subPayAppAgreementsValidator } from "./g703ViewValidators";
 
 /**
@@ -611,6 +612,8 @@ async function payAppView(ctx: QueryCtx, scope: ProjectAccess & { doc: Doc<"payA
     _id: payApp._id,
     format: payApp.g703 ? ("g703" as const) : ("legacy" as const),
     viewerRole: scope.partyRole,
+    // The job's kind travels with the pay app so the screen never has to guess its vocabulary.
+    projectKind: projectKindOf(scope.project),
     status: payApp.status,
     applicationNo: payApp.applicationNo ?? null,
     periodLabel: payApp.periodLabel,
@@ -750,6 +753,7 @@ export const mySubPayAppAgreements = query({
         agreementId: agreement._id,
         agreementNumber: agreement.agreementNumber,
         projectTitle: agreement.projectTitle,
+        projectKind: projectKindOf(access.project),
         tradeName: agreement.tradeName,
         contractSumCents: agreementContractSumCents(agreement),
         sovApproved: sovIsApproved(agreement),
@@ -1096,7 +1100,7 @@ export const gcBillingWorklist = query({
     await requireRole(ctx, ["gc"]);
     const { rows, truncated } = await scopedAgreements(ctx, { parties: ["gc"], limit: 200 });
     const out = [];
-    for (const { agreement } of rows) {
+    for (const { agreement, access } of rows) {
       if (agreement.status === "superseded") continue;
       const payApps = await ctx.db
         .query("payApplications")
@@ -1111,6 +1115,7 @@ export const gcBillingWorklist = query({
           agreementId: agreement._id,
           agreementNumber: agreement.agreementNumber,
           projectTitle: agreement.projectTitle,
+          projectKind: projectKindOf(access.project),
           subName: p.subCompanyId ? ((await ctx.db.get(p.subCompanyId))?.name ?? subName) : subName,
           awaitingReview: AWAITING_REVIEW.has(p.status),
           isG703: p.g703 !== undefined,
