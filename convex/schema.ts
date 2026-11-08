@@ -343,6 +343,9 @@ export default defineSchema({
     website: v.optional(v.string()),
     billingEmail: v.optional(v.string()),
     payoutPaypalEmail: v.optional(v.string()),
+    // Demo seed provenance: the env var name the seeded payout address came from (never its value).
+    // Cleared when a sub admin sets the payout email by hand, so the record never goes stale.
+    payoutEmailSourceEnv: v.optional(v.string()),
     defaultRetainageBps: v.optional(v.number()),
     createdByUserId: v.optional(v.id("users")),
     createdAt: v.number(),
@@ -1408,7 +1411,9 @@ export default defineSchema({
       v.object({
         enabled: v.boolean(),
         enabledAt: v.number(),
-        enabledByUserId: v.id("users"),
+        // Absent only on seeded reference rows created before any account exists; the seed sets it
+        // whenever the Demo GC user is present. Readers use `enabledAt` for the gate's start time.
+        enabledByUserId: v.optional(v.id("users")),
         enabledByName: v.string(),
         requirePriorUnconditional: v.boolean(),
       }),

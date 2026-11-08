@@ -133,6 +133,7 @@ import type * as lib_mailer from "../lib/mailer.js";
 import type * as lib_mistralRequest from "../lib/mistralRequest.js";
 import type * as lib_money from "../lib/money.js";
 import type * as lib_notify from "../lib/notify.js";
+import type * as lib_ortizSubcontract from "../lib/ortizSubcontract.js";
 import type * as lib_ownerView from "../lib/ownerView.js";
 import type * as lib_packageContractors from "../lib/packageContractors.js";
 import type * as lib_passwordPolicy from "../lib/passwordPolicy.js";
@@ -392,6 +393,7 @@ declare const fullApi: ApiFromModules<{
   "lib/mistralRequest": typeof lib_mistralRequest;
   "lib/money": typeof lib_money;
   "lib/notify": typeof lib_notify;
+  "lib/ortizSubcontract": typeof lib_ortizSubcontract;
   "lib/ownerView": typeof lib_ownerView;
   "lib/packageContractors": typeof lib_packageContractors;
   "lib/passwordPolicy": typeof lib_passwordPolicy;

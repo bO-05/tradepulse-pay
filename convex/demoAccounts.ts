@@ -12,7 +12,7 @@ import {
   findDemoGcCompanyId,
   repairDemoContractorRefs,
 } from "./lib/demoTenancy";
-import { ensureDemoPayees } from "./lib/demoPayees";
+import { ensureDemoPayees, resolveDemoPayee } from "./lib/demoPayees";
 import { attributeDemoPlugs, DEMO_GC_EMAIL, demoGcPlugActor } from "./lib/demoPlugs";
 import { approveDemoSovs } from "./lib/demoBilling";
 
@@ -27,6 +27,8 @@ type DemoAccount = {
   contractorName?: string;
   /** Convex env var holding the sandbox PayPal email. Values are never committed. */
   paypalEmailEnv?: string;
+  /** Used only when `paypalEmailEnv` is unset; the seed records which variable supplied the address. */
+  paypalEmailFallbackEnv?: string;
 };
 
 export const DEMO_ACCOUNTS: readonly DemoAccount[] = [
@@ -53,6 +55,16 @@ export const DEMO_ACCOUNTS: readonly DemoAccount[] = [
     paypalEmailEnv: "PAYPAL_SANDBOX_SUB3_EMAIL",
   },
   {
+    // The residential reference subcontractor on Lopez (architecture §3.2). A new seat, not a
+    // repoint of sub1: Rosendin keeps its company, contractor, account and payee.
+    email: "sub4@demo.tradepulse",
+    role: "sub",
+    displayName: "Demo Sub 4 (Ortiz Plumbing)",
+    contractorName: "Ortiz Plumbing",
+    paypalEmailEnv: "PAYPAL_SANDBOX_SUB4_EMAIL",
+    paypalEmailFallbackEnv: "PAYPAL_SANDBOX_SUB3_EMAIL",
+  },
+  {
     email: "owner@demo.tradepulse",
     role: "owner",
     displayName: "Demo Owner (Domain Tower B)",
@@ -60,7 +72,17 @@ export const DEMO_ACCOUNTS: readonly DemoAccount[] = [
   },
 ];
 
-/** A bidder of the Demo GC company's seeded project with this exact name; other companies are never searched. */
+/** The demo account's sandbox payee, or the documented fallback, plus the variable that supplied it. */
+export function demoAccountPayee(account: DemoAccount): { email: string; envName: string } | null {
+  if (account.paypalEmailEnv === undefined) return null;
+  return resolveDemoPayee(account.paypalEmailEnv, account.paypalEmailFallbackEnv);
+}
+
+/**
+ * A bidder of the Demo GC company's projects with this exact name; other companies are never
+ * searched. The commercial walkthrough project is searched first so its existing routing is
+ * unchanged; the residential reference job (Lopez) is searched after it.
+ */
 export async function findDemoContractorId(ctx: MutationCtx, companyName: string): Promise<Id<"contractors"> | undefined> {
   const demoGcId = await findDemoGcCompanyId(ctx);
   if (demoGcId === null) return undefined;
@@ -68,19 +90,22 @@ export async function findDemoContractorId(ctx: MutationCtx, companyName: string
     .query("projects")
     .withIndex("by_gcCompanyId", (q) => q.eq("gcCompanyId", demoGcId))
     .take(2000);
-  const demoProject = demoProjects.find((p) => p.isDemoProject === true);
-  if (!demoProject) return undefined;
-  const packages = await ctx.db
-    .query("tradePackages")
-    .withIndex("by_project", (q) => q.eq("projectId", demoProject._id))
-    .collect();
-  for (const pkg of packages) {
-    const contractors = await ctx.db
-      .query("contractors")
-      .withIndex("by_package", (q) => q.eq("tradePackageId", pkg._id))
+  const ordered = [...demoProjects].sort(
+    (a, b) => Number(b.isDemoProject === true) - Number(a.isDemoProject === true) || a._creationTime - b._creationTime,
+  );
+  for (const demoProject of ordered) {
+    const packages = await ctx.db
+      .query("tradePackages")
+      .withIndex("by_project", (q) => q.eq("projectId", demoProject._id))
       .collect();
-    const match = contractors.find((c) => c.companyName === companyName);
-    if (match) return match._id;
+    for (const pkg of packages) {
+      const contractors = await ctx.db
+        .query("contractors")
+        .withIndex("by_package", (q) => q.eq("tradePackageId", pkg._id))
+        .collect();
+      const match = contractors.find((c) => c.companyName === companyName);
+      if (match) return match._id;
+    }
   }
   return undefined;
 }
@@ -102,13 +127,13 @@ export async function linkDemoProfiles(ctx: MutationCtx) {
       continue;
     }
     const contractorId = account.contractorName ? await findDemoContractorId(ctx, account.contractorName) : undefined;
-    const paypalEmail = account.paypalEmailEnv ? process.env[account.paypalEmailEnv]?.trim() || undefined : undefined;
+    const payee = demoAccountPayee(account);
     const fields = {
       userId: user._id,
       role: account.role,
       displayName: account.displayName,
       contractorId,
-      paypalEmail,
+      paypalEmail: payee?.email,
       actorType: "human" as const,
     };
     const existing = await ctx.db
@@ -125,7 +150,7 @@ export async function linkDemoProfiles(ctx: MutationCtx) {
       role: account.role,
       linked: true,
       contractorLinked: contractorId !== undefined,
-      hasPaypalEmail: paypalEmail !== undefined,
+      hasPaypalEmail: payee !== null,
     });
   }
   const companyIds = await ensureDemoCompanies(ctx);

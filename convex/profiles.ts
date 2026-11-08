@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { internalMutation, internalQuery, query } from "./_generated/server";
-import { DEMO_ACCOUNTS } from "./demoAccounts";
+import { DEMO_ACCOUNTS, demoAccountPayee } from "./demoAccounts";
 import { roleValidator } from "./schema";
 import { getViewer, requireRole } from "./lib/roles";
 import { getLiveAuthUserId } from "./lib/session";
@@ -94,8 +94,9 @@ export const setPaypalEmailForTesting = internalMutation({
     let paypalEmail = args.paypalEmail?.trim();
     const restoredFromEnv = paypalEmail === undefined;
     if (paypalEmail === undefined) {
-      const envName = DEMO_ACCOUNTS.find((a) => a.email === args.email)?.paypalEmailEnv;
-      paypalEmail = envName ? process.env[envName]?.trim() : undefined;
+      const account = DEMO_ACCOUNTS.find((a) => a.email === args.email);
+      const resolved = account === undefined ? null : demoAccountPayee(account);
+      paypalEmail = resolved?.email;
       if (!paypalEmail) {
         throw new ConvexError({ code: "NOT_FOUND", message: `No demo PayPal email env var is set for ${args.email}.` });
       }

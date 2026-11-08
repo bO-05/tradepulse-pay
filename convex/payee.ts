@@ -55,7 +55,7 @@ export const setPayoutEmail = mutation({
     const previous = company.payoutPaypalEmail ?? null;
     if (previous === email) return { changed: false, relationships: 0 };
 
-    await ctx.db.patch(company._id, { payoutPaypalEmail: email });
+    await ctx.db.patch(company._id, { payoutPaypalEmail: email, payoutEmailSourceEnv: undefined });
     const vendors = await clearPayeeConfirmations(ctx, company._id);
     // One notification per GC company even when it lists this company on several vendor rows.
     const notifiedGcs = new Set<Id<"companies">>();

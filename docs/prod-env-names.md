@@ -59,6 +59,7 @@ No required name was missing on production, so nothing was set, redeployed or re
 | `PAYPAL_SANDBOX_SUB1_EMAIL` | set on prod | set |
 | `PAYPAL_SANDBOX_SUB2_EMAIL` | set on prod | set |
 | `PAYPAL_SANDBOX_SUB3_EMAIL` | set on prod | set |
+| `PAYPAL_SANDBOX_SUB4_EMAIL` | optional | unset (Ortiz Plumbing payee; falls back to `PAYPAL_SANDBOX_SUB3_EMAIL`) |
 | `PAYPAL_WEBHOOK_ID` | set on prod | set |
 | `SITE_URL` | set on prod | set |
 | `VERTEX_ACCESS_TOKEN` | optional | unset |

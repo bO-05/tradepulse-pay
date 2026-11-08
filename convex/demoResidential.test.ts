@@ -32,7 +32,8 @@ describe("residential reference job", () => {
       contractValueCents: 8_650_000,
       retainageBps: 1_000,
       lineCount: 4,
-      linesCents: 8_650_000,
+      // Prime lines are $77,500; the Ortiz trade line is the remaining $9,000 of the $86,500.
+      linesCents: 7_750_000,
     });
   });
 
@@ -77,8 +78,8 @@ describe("residential reference job", () => {
     expect(first.contractValueCents).toBe(8_650_000);
     expect(first.retainageBps).toBe(1_000);
     expect(first.primeLineCount).toBe(4);
-    expect(first.primeLinesCents).toBe(8_650_000);
-    expect(second.primeLinesCents).toBe(8_650_000);
+    expect(first.primeLinesCents).toBe(7_750_000);
+    expect(second.primeLinesCents).toBe(7_750_000);
 
     const project = await t.run(async (ctx) => {
       const doc = await ctx.db.get(first.projectId as Id<"projects">);
@@ -122,12 +123,22 @@ describe("residential reference job", () => {
         .collect(),
     );
     expect(primeLines.map((l) => l.lineNo)).toEqual([1, 2, 3, 4]);
-    expect(primeLines.reduce((sum, l) => sum + l.scheduledValueCents, 0)).toBe(8_650_000);
+    expect(primeLines.reduce((sum, l) => sum + l.scheduledValueCents, 0)).toBe(7_750_000);
+    // Line 3 no longer includes the plumbing scope Ortiz bills separately.
+    expect(primeLines.find((l) => l.lineNo === 3)).toMatchObject({
+      description: "Electrical and appliance set",
+      scheduledValueCents: 830_000,
+    });
 
     const opened = await gc.mutation(api.billing.ownerPayApps.createOwnerPayApp, { projectId: first.projectId });
     const app = await t.run(async (ctx) => await ctx.db.get(opened.ownerPayAppId));
-    expect(app?.lines).toHaveLength(4);
+    // Four GC lines + the Ortiz trade line; the scheduled values still total the prime contract.
+    expect(app?.lines).toHaveLength(5);
     expect(app?.retainageBps).toBe(1_000);
     expect(app?.lines.reduce((sum, l) => sum + l.scheduledValueCents, 0)).toBe(8_650_000);
+    expect(app?.lines.find((l) => l.kind === "trade")).toMatchObject({
+      kind: "trade",
+      scheduledValueCents: 900_000,
+    });
   });
 });

@@ -8,13 +8,16 @@ import { stampPayAppsSubCompany } from "../payApps/backfill";
  * The seeded Demo companies (isDemo: true). Seeds and migrations find them by `demoKey` through
  * the by_isDemo index, never by name, and only ever touch rows that belong to them.
  */
-export type DemoCompanyKey = "gc" | "sub:rosendin" | "sub:tdindustries" | "sub:clarke-kent" | "owner";
+export type DemoCompanyKey = "gc" | "sub:rosendin" | "sub:tdindustries" | "sub:clarke-kent" | "sub:ortiz" | "owner";
 
 export const DEMO_COMPANIES: readonly { key: DemoCompanyKey; name: string; kind: Role }[] = [
   { key: "gc", name: "Demo GC (TradePulse Pay demo)", kind: "gc" },
   { key: "sub:rosendin", name: "Rosendin Electric (demo)", kind: "sub" },
   { key: "sub:tdindustries", name: "TDIndustries (demo)", kind: "sub" },
   { key: "sub:clarke-kent", name: "Clarke Kent Plumbing (demo)", kind: "sub" },
+  // The residential reference subcontractor on Lopez. Additive: the three commercial demo subs above
+  // keep their companies, contractors, accounts and payees.
+  { key: "sub:ortiz", name: "Ortiz Plumbing (demo)", kind: "sub" },
   { key: "owner", name: "Demo Owner", kind: "owner" },
 ];
 
@@ -24,6 +27,7 @@ export const DEMO_ACCOUNT_COMPANY: Readonly<Record<string, DemoCompanyKey>> = {
   "sub1@demo.tradepulse": "sub:rosendin",
   "sub2@demo.tradepulse": "sub:tdindustries",
   "sub3@demo.tradepulse": "sub:clarke-kent",
+  "sub4@demo.tradepulse": "sub:ortiz",
   "owner@demo.tradepulse": "owner",
 };
 

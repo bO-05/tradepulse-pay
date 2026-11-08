@@ -202,7 +202,7 @@ describe("demo profile linking", () => {
     expect(first.filter((r) => r.role === "sub").every((r) => r.contractorLinked && r.hasPaypalEmail)).toBe(true);
     const profiles = await t.run((ctx) => ctx.db.query("userProfiles").collect());
     expect(profiles).toHaveLength(DEMO_ACCOUNTS.length);
-    expect(profiles.map((p) => p.role).sort()).toEqual(["gc", "owner", "sub", "sub", "sub"]);
+    expect(profiles.map((p) => p.role).sort()).toEqual(["gc", "owner", "sub", "sub", "sub", "sub"]);
     const owner = profiles.find((p) => p.role === "owner");
     expect(owner?.paypalEmail).toBe("owner@paypal.test");
     expect(owner?.contractorId).toBeUndefined();

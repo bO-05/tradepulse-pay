@@ -1,4 +1,4 @@
-import type { Id } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { normalizeInviteEmail } from "./inviteRules";
 import type { DemoCompanyIds, DemoCompanyKey } from "./demoTenancy";
@@ -6,10 +6,21 @@ import { attachBidderVendor, backfillVendorsForCompany } from "./vendorDirectory
 import { liveVendor } from "./vendorRead";
 
 /** Demo sub company → Convex env var with its PayPal sandbox personal account (values never committed). */
-export const DEMO_SUB_PAYEE_ENV: ReadonlyArray<{ key: DemoCompanyKey; env: string }> = [
+export type DemoSubPayeeEnv = {
+  key: DemoCompanyKey;
+  env: string;
+  /** Used only when `env` is unset; the resolution records which variable actually supplied the address. */
+  fallbackEnv?: string;
+};
+
+export const DEMO_SUB_PAYEE_ENV: ReadonlyArray<DemoSubPayeeEnv> = [
   { key: "sub:rosendin", env: "PAYPAL_SANDBOX_SUB1_EMAIL" },
   { key: "sub:tdindustries", env: "PAYPAL_SANDBOX_SUB2_EMAIL" },
   { key: "sub:clarke-kent", env: "PAYPAL_SANDBOX_SUB3_EMAIL" },
+  // Ortiz ships with the mission and may not have its own sandbox payee yet. Falling back to the
+  // sandbox SUB3 address keeps the payout path executable; the company row records which variable
+  // was used, so the fallback is visible instead of being an invented address.
+  { key: "sub:ortiz", env: "PAYPAL_SANDBOX_SUB4_EMAIL", fallbackEnv: "PAYPAL_SANDBOX_SUB3_EMAIL" },
 ];
 export const DEMO_OWNER_BILLING_ENV = "PAYPAL_SANDBOX_OWNER_EMAIL";
 
@@ -18,6 +29,18 @@ export type DemoPayeeCounts = { payeesConfirmed: number; companiesUpdated: numbe
 function envEmail(name: string): string | null {
   const raw = process.env[name];
   return raw ? normalizeInviteEmail(raw) : null;
+}
+
+export type ResolvedDemoPayee = { email: string; envName: string };
+
+/** The first set variable in [env, fallbackEnv] that holds a usable address, with the name used. */
+export function resolveDemoPayee(envName: string, fallbackEnvName?: string): ResolvedDemoPayee | null {
+  for (const name of [envName, fallbackEnvName]) {
+    if (!name) continue;
+    const email = envEmail(name);
+    if (email !== null) return { email, envName: name };
+  }
+  return null;
 }
 
 /**
@@ -38,12 +61,16 @@ export async function ensureDemoPayees(ctx: MutationCtx, ids: DemoCompanyIds, de
   if (demoGcUserId === null) return counts;
   await backfillVendorsForCompany(ctx, ids.gc);
 
-  for (const { key, env } of DEMO_SUB_PAYEE_ENV) {
-    const email = envEmail(env);
+  for (const { key, env, fallbackEnv } of DEMO_SUB_PAYEE_ENV) {
+    const resolved = resolveDemoPayee(env, fallbackEnv);
     const sub = await ctx.db.get(ids[key]);
-    if (email === null || sub === null) continue;
-    if (sub.payoutPaypalEmail !== email) {
-      await ctx.db.patch(sub._id, { payoutPaypalEmail: email });
+    if (resolved === null || sub === null) continue;
+    const email = resolved.email;
+    const companyPatch: Partial<Doc<"companies">> = {};
+    if (sub.payoutPaypalEmail !== email) companyPatch.payoutPaypalEmail = email;
+    if (sub.payoutEmailSourceEnv !== resolved.envName) companyPatch.payoutEmailSourceEnv = resolved.envName;
+    if (Object.keys(companyPatch).length > 0) {
+      await ctx.db.patch(sub._id, companyPatch);
       counts.companiesUpdated++;
     }
     // Demo bidder rows linked to this company point their vendor at it too.
@@ -70,7 +97,7 @@ export async function ensureDemoPayees(ctx: MutationCtx, ids: DemoCompanyIds, de
       await ctx.db.insert("auditLogs", {
         eventType: "payee_confirmed",
         title: `Payee confirmed for ${vendor.name}`,
-        description: `The demo seed confirmed ${sub.name}'s PayPal sandbox payout email (from ${env}) for vendor ${vendor.name} (${vendor._id}) on behalf of the Demo GC; previously confirmed: ${vendor.payoutEmailConfirmed ? "a different email" : "(none)"}.`,
+        description: `The demo seed confirmed ${sub.name}'s PayPal sandbox payout email (from ${resolved.envName}) for vendor ${vendor.name} (${vendor._id}) on behalf of the Demo GC; previously confirmed: ${vendor.payoutEmailConfirmed ? "a different email" : "(none)"}.`,
         actor: "system:demo-seed",
         actorUserId: demoGcUserId,
         actorCompanyId: ids.gc,
