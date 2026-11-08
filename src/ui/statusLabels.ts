@@ -2,7 +2,12 @@
  * The single status-code -> human label + color map. Screens never render a raw status code; they
  * pass it to <StatusPill> or `statusLabel()`. `statusLabels.test.ts` fails when convex/schema.ts
  * gains a status literal that is missing here.
+ *
+ * Status *codes* never change with the project kind. Only a few display labels do, through
+ * `statusLabelFor(code, kind)` / `statusMetaFor(code, kind)`: on a residential job an executed
+ * agreement reads "Signed", while commercial output stays byte-identical.
  */
+import type { ProjectKind } from "../lib/terms";
 
 export type StatusTone = "neutral" | "info" | "progress" | "success" | "warning" | "danger" | "muted";
 
@@ -194,6 +199,23 @@ export function statusMeta(code: string | null | undefined): StatusMeta {
 
 export function statusLabel(code: string | null | undefined): string {
   return statusMeta(code).label;
+}
+
+/** Residential-only label overrides. Codes are never renamed; only these visible words differ. */
+const RESIDENTIAL_LABEL_OVERRIDES: Partial<Record<string, string>> = {
+  executed: "Signed",
+};
+
+/** Kind-aware status metadata. Missing kind (or an unknown kind) keeps the commercial label. */
+export function statusMetaFor(code: string | null | undefined, kind?: ProjectKind | null): StatusMeta {
+  const meta = statusMeta(code);
+  const override = kind === "residential" && code ? RESIDENTIAL_LABEL_OVERRIDES[code] : undefined;
+  return override === undefined ? meta : { ...meta, label: override };
+}
+
+/** Kind-aware label: `statusLabelFor("executed", "residential")` is "Signed"; commercial is unchanged. */
+export function statusLabelFor(code: string | null | undefined, kind?: ProjectKind | null): string {
+  return statusMetaFor(code, kind).label;
 }
 
 /** Background/text/border classes per tone; each pair meets 4.5:1 on the dark surfaces. */

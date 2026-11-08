@@ -1,0 +1,45 @@
+Skip to main content
+TradePulse Pay
+DEMO
+2
+Demo Owner
+Home
+Projects
+Applications to owner
+Change orders
+Reports
+Demo Owner (Domain Tower B) · owner@demo.tradepulseOWNER
+Company settings
+Sign out
+PayPal sandbox · no real money. Shared demo accounts: use synthetic data only. Demo guide
+Back to change orders
+PCO #1 · Add under-cabinet lighting
+
+$1,200.00 · Paid · Contract
+
+Owner-requested under-cabinet lighting circuits and LED fixtures in the kitchen.
+
+Associated agreement
+Project-level change order
+Schedule impact
+Not specified
+Created
+Nov 8, 2026, 4:42 PM UTC
+Submitted
+Nov 8, 2026, 4:42 PM UTC
+Approved
+Nov 8, 2026, 4:44 PM UTC
+Invoiced
+Nov 8, 2026, 4:44 PM UTC
+Payment recorded
+Nov 8, 2026, 4:47 PM UTC
+PayPal invoice ID
+INV2-RCJ4-Z8GD-4A33-TDJC
+Copy
+
+PayPal invoice status: PAID
+
+Payment recorded is when this app first observed the paid invoice, not PayPal's transaction timestamp.
+
+View sandbox invoice
+PayPal sandbox build · no real money moves.

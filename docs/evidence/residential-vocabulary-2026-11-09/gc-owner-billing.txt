@@ -1,0 +1,114 @@
+Skip to main content
+TradePulse Pay
+DEMO
+29
+Demo GC (TradePulse Pay demo)
+Approvals
+Billing
+Projects
+Change orders
+Payments
+Guided demo
+DEMO
+More
+▼
+Demo GC (Austin Commercial, LP) · gc@demo.tradepulseGENERAL CONTRACTOR
+Company settings
+Sign out
+PayPal sandbox · no real money. Shared demo accounts: use synthetic data only. Demo guide
+Billing
+
+Sub pay applications, owner billing, the retainage held on each project and billing documents.
+
+Pay apps
+Owner billing
+Retainage
+Documents
+Project
+Demo · TradePulse Pay judge demo 20261108-13
+Lopez Kitchen Remodel
+Demo · TradePulse Pay judge demo 20261107-12
+Demo · TradePulse Pay judge demo 20261106-11
+Demo · TradePulse Pay judge demo 20261106-10
+Demo · TradePulse Pay judge demo 20261106-09
+Demo · TradePulse Pay judge demo 20261105-08
+Demo · TradePulse Pay judge demo 20261105-07
+Demo · TradePulse Pay judge demo 20261105-06
+Demo · TradePulse Pay judge demo 20261104-05
+Demo · TradePulse Pay judge demo 20261104-04
+Demo · TradePulse Pay judge demo 20261101-03
+Demo · TradePulse Pay judge demo 20261101-02
+Demo · TradePulse Pay judge demo 20261101-01
+Demo · Pay-app review scenario
+The Domain Tower B - Commercial MEP
+Preserved reference job · read-only. Financial and workflow changes are locked on the server. Inspect the settled receipts here, or start a fresh guided run to try sandbox actions.
+Contract value
+$86,500.00
+Owner retainage
+10%
+Retainage held by owner
+$400.00
+Billed, awaiting the owner
+$0.00
+Approved, not yet paid
+$0.00
+Paid by the owner
+$3,600.00
+New draw
+This is a preserved, read-only demo fixture. Start a fresh guided run to try approvals and sandbox payments.
+Draw #1 · Oct 15, 2026
+$3,600.00
+Paid
+Draw #1 · period ending Oct 15, 2026
+Paid
+4.62% complete
+Download PDF
+Preserved reference job · read-only. Financial and workflow changes are locked on the server. Inspect the settled receipts here, or start a fresh guided run to try sandbox actions.
+Draw summary
+1. Original contract sum
+$86,500.00
+2. Net change by change orders
+$0.00
+3. Contract sum to date
+$86,500.00
+4. Total work completed to date
+$4,000.00
+5. Retainage (10% on each line)
+$400.00
+6. Total earned less retainage
+$3,600.00
+7. Previously paid
+$0.00
+8. This draw
+$3,600.00
+9. Balance to finish, including retainage
+$82,900.00
+Draw breakdown
+Draw breakdown
+#	Description of work	Scheduled value	Work completed	Previously paid	This draw	Retainage
+1	Plumbing (22 00 00) – Ortiz Plumbing
+From approved sub pay apps
+	$9,000.00	$4,000.00	$0.00	$4,000.00	$400.00
+Sub pay apps: $200.00
+
+2	Demolition, rough-in and permits	$21,600.00	$0.00	$0.00	$0.00	$0.00
+3	Cabinetry, countertops and backsplash	$34,600.00	$0.00	$0.00	$0.00	$0.00
+4	Electrical and appliance set	$8,300.00	$0.00	$0.00	$0.00	$0.00
+5	Paint, punch list and closeout	$13,000.00	$0.00	$0.00	$0.00	$0.00
+
+Change orders invoiced separately
+
+These approved change orders were billed with their own PayPal invoice, so this draw leaves them off.
+
+PCO #1 – Add under-cabinet lighting
++$1,200.00
+
+PayPal invoice
+
+Invoice INV2-5ZNS-USY8-KBFD-L3B9 · PayPal status PAID · sent to owner-q97f6pmh2d5qn733jmh5pg4c3x8hr9sn@example.com
+
+Open the invoice in PayPal (sandbox)
+Draft Nov 8, 2026 by Demo GC (Austin Commercial, LP)
+Submitted to owner Nov 8, 2026 by Demo GC (Austin Commercial, LP)
+Approved Nov 8, 2026 by Demo Owner (Domain Tower B)
+PayPal sandbox build · no real money moves.

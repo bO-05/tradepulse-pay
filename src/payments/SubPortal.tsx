@@ -6,6 +6,7 @@ import { subPayoutStatusLabel } from "./payoutStatusLabel";
 import { WithdrawPayAppButton } from "./WithdrawPayAppButton";
 import { submissionAttribution } from "./SubmissionAttribution";
 import { MilestoneFundingTable } from "./MilestoneFundingSummary";
+import { statusLabelFor } from "../ui/statusLabels";
 
 const PAY_APP_PAGE_SIZE = 25;
 
@@ -16,6 +17,7 @@ export function SubPortal() {
   if (portal === undefined) {
     return <p className="text-sm text-slate-400" role="status">Loading your agreements…</p>;
   }
+  const residential = portal.agreements.length > 0 && portal.agreements.every((a) => a.projectKind === "residential");
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -75,7 +77,7 @@ export function SubPortal() {
                   <td className="py-2 pr-3">{a.subcontractorName}</td>
                   <td className="py-2 pr-3">{a.projectTitle}</td>
                   <td className="py-2 pr-3 text-right">{formatDollars(a.contractSum)}</td>
-                  <td className="py-2 pr-3">{a.status}</td>
+                  <td className="py-2 pr-3">{statusLabelFor(a.status, a.projectKind)}</td>
                   <td className="py-2 pr-3">
                     <a href={sovHash(a._id)} className="text-emerald-400 hover:text-emerald-300">
                       Schedule of values
@@ -98,7 +100,7 @@ export function SubPortal() {
           </p>
         </div>
         {portal.milestoneFunding.length === 0 ? (
-          <p className="text-sm text-slate-400">No executed agreements yet.</p>
+          <p className="text-sm text-slate-400">{residential ? "No signed agreements yet." : "No executed agreements yet."}</p>
         ) : (
           portal.milestoneFunding.map((a) => (
             <div key={a.agreementId} data-testid="sub-milestone-funding-agreement">
@@ -116,7 +118,9 @@ export function SubPortal() {
           Submit pay application
         </h2>
         <p className="text-sm text-slate-300">
-          Pay applications are filed per billing period on the G702/G703 continuation sheet.{" "}
+          {residential
+            ? "Pay applications are filed per billing period on the pay app breakdown and summary."
+            : "Pay applications are filed per billing period on the G702/G703 continuation sheet."}{" "}
           <a href="#/pay-apps" className="text-emerald-400 hover:text-emerald-300">
             Open Pay apps
           </a>{" "}

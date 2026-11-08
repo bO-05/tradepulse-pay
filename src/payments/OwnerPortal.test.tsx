@@ -27,6 +27,10 @@ const job = {
   substantialCompletionDate: "2027-02-01",
 };
 
+function visibleText(html: string): string {
+  return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
+}
+
 function project() {
   return {
     _id: "project_1",
@@ -72,5 +76,32 @@ describe("Owner job so far card", () => {
     const html = renderToStaticMarkup(<OwnerPortal role="gc" />);
     expect(html).toContain("Project summaries");
     expect(html).not.toContain("Job so far");
+  });
+
+  test("a residential job uses draw, trade and funded-milestone words with no commercial wording", () => {
+    vi.mocked(useQuery).mockReturnValue([
+      { ...project(), projectKind: "residential", title: "Lopez Kitchen Remodel" },
+    ] as never);
+    const html = renderToStaticMarkup(<OwnerPortal role="owner" />);
+    const rendered = visibleText(html);
+    expect(rendered).toContain("Draw #3 is waiting for your review");
+    expect(rendered).toContain("Approved through draw #2");
+    expect(rendered).toContain("in paid draws");
+    expect(rendered).toContain("Retainage you hold on the contract");
+    expect(rendered).toContain("Contract sum to date");
+    expect(rendered).toContain("No change orders on this project yet.");
+    expect(rendered).toContain("Funded milestones");
+    expect(rendered).not.toContain("Owner pay app");
+    expect(rendered).not.toContain("Prime");
+    expect(rendered).not.toContain("tranche");
+    expect(rendered).not.toContain("Commercial reference job");
+  });
+
+  test("a commercial job keeps the pinned pay-app wording and shows the reference badge", () => {
+    const html = renderToStaticMarkup(<OwnerPortal role="owner" />);
+    expect(html).toContain("Pay app #3 is waiting for your review");
+    expect(html).toContain("Prime contract sum to date");
+    expect(html).toContain("Retainage you hold on the prime contract");
+    expect(html).toContain("Commercial reference job");
   });
 });

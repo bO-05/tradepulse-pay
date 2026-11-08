@@ -1,5 +1,8 @@
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import { termsForKind } from "../lib/terms";
+import { CommercialReferenceBadge } from "../ui";
+import { statusLabelFor } from "../ui/statusLabels";
 import { formatCents } from "./format";
 import { ReceiptId } from "./ReceiptId";
 import { formatDateTime } from "../ui/format";
@@ -17,12 +20,15 @@ export function ChangeOrderDetail({ changeOrderId }: { changeOrderId: string }) 
       </div>
     );
   }
+  const terms = termsForKind(co.projectKind);
+  const scopeLabel = co.scope === "prime" ? (terms.kind === "residential" ? "Contract" : "Prime contract") : "Subcontract";
   return (
     <article className="mx-auto max-w-3xl space-y-4">
       <a href="#/change-orders" className="text-sm text-emerald-300 underline">Back to change orders</a>
-      <header>
+      <header className="space-y-2">
+        <CommercialReferenceBadge kind={co.projectKind} />
         <h1 className="text-xl font-semibold">{co.label} · {co.title}</h1>
-        <p className="text-slate-300">{formatCents(co.amountCents)} · {co.status} · {co.scope}</p>
+        <p className="text-slate-300">{formatCents(co.amountCents)} · {statusLabelFor(co.status, co.projectKind)} · {scopeLabel}</p>
       </header>
       {co.description && <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{co.description}</p>}
       <dl className="grid gap-3 rounded-xl border border-slate-700 bg-slate-900 p-4 sm:grid-cols-2">

@@ -7,13 +7,13 @@ import { ProjectPage } from "./ProjectPage";
 
 vi.mock("convex/react", () => ({ useQuery: vi.fn(), useMutation: vi.fn() }));
 
-function project(readOnlyReference: boolean) {
+function project(readOnlyReference: boolean, projectKind: "residential" | "commercial" = "residential") {
   return {
     _id: "project_lopez",
     title: "Lopez Kitchen Remodel",
     ownerName: "Dana Lopez",
     projectType: "Residential kitchen remodel",
-    projectKind: "residential",
+    projectKind,
     location: "El Cerrito, CA",
     address: { line1: "1420 Elm Street", city: "El Cerrito", state: "CA", zip: "94530" },
     state: "CA",
@@ -28,9 +28,9 @@ function project(readOnlyReference: boolean) {
   };
 }
 
-function render(readOnlyReference: boolean) {
+function render(readOnlyReference: boolean, projectKind?: "residential" | "commercial") {
   vi.mocked(useQuery)
-    .mockReturnValueOnce(project(readOnlyReference) as never)
+    .mockReturnValueOnce(project(readOnlyReference, projectKind) as never)
     .mockReturnValueOnce({ company: null, invoicing: { enabled: true } } as never)
     .mockReturnValue([] as never);
   return renderToStaticMarkup(
@@ -63,5 +63,23 @@ describe("a preserved reference job on the project page", () => {
     expect(html).toContain(">Project settings<");
     expect(html).toContain(">People<");
     expect(html).not.toContain('data-testid="read-only-reference"');
+  });
+
+  test("a residential job calls the section Trades and never shows CSI wording", () => {
+    const html = render(false, "residential");
+    expect(html).toContain(">Trades<");
+    expect(html).toContain("No trades yet");
+    expect(html).toContain("Add trade<");
+    expect(html).not.toContain("Trade packages");
+    expect(html).not.toContain("CSI");
+    expect(html).not.toContain("Commercial reference job");
+  });
+
+  test("a commercial job keeps Trade packages, CSI and the reference badge", () => {
+    const html = render(false, "commercial");
+    expect(html).toContain(">Trade packages<");
+    expect(html).toContain("No trade packages yet");
+    expect(html).toContain("CSI MasterFormat");
+    expect(html).toContain("Commercial reference job");
   });
 });

@@ -14,8 +14,9 @@ import {
 } from "../../convex/payApps/g703Math";
 import { ledgerHash } from "../auth/navigation";
 import { getErrorMessage } from "../lib/errors";
+import { termsForKind, type Terms } from "../lib/terms";
 import { DocumentDownloadButton } from "../documents/DocumentDownload";
-import { Button, Card, ConfirmDialog, MoneyInput, PageHeader, StatusPill, TextInput, formatCents, formatDate, formatDateTime } from "../ui";
+import { Button, Card, CommercialReferenceBadge, ConfirmDialog, MoneyInput, PageHeader, StatusPill, TextInput, formatCents, formatDate, formatDateTime } from "../ui";
 import { DecisionCard, GcReviewPanel, VersionHistory } from "./PayAppDecision";
 import { LienWaiverPanel } from "./LienWaiverPanel";
 import { PaymentPanel } from "./PaymentPanel";
@@ -60,6 +61,7 @@ function entriesFrom(lines: readonly SheetLine[]): Record<string, Entry> {
 }
 
 function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHash: string; backLabel: string }) {
+  const terms = termsForKind(view.projectKind);
   const saveDraft = useMutation(api.payApps.g703.saveDraft);
   const submit = useMutation(api.payApps.g703.submitPayApp);
   const withdraw = useMutation(api.payApps.submit.withdrawPayApplication);
@@ -176,7 +178,12 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
         back={{ href: backHash, label: backLabel }}
         title={title}
         description={`${view.agreement.subcontractorName} · ${view.agreement.projectTitle} · ${view.agreement.agreementNumber}`}
-        meta={<StatusPill status={view.status} />}
+        meta={
+          <>
+            <StatusPill status={view.status} />
+            <CommercialReferenceBadge kind={view.projectKind} />
+          </>
+        }
         actions={
           <div className="flex flex-wrap items-start gap-2">
             <DocumentDownloadButton kind="sub_pay_app_pdf" relatedId={view._id} label="Download PDF" testId="payapp-download-pdf" />
@@ -263,7 +270,7 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
         ) : null}
       </Card>
 
-      {view.status !== "draft" ? <MoneyTrail view={view} /> : null}
+      {view.status !== "draft" ? <MoneyTrail view={view} terms={terms} /> : null}
 
       {view.approvalHistory && view.status !== "draft" && (
         <Card title="Submission and GC approval history" padded>
@@ -295,7 +302,7 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
         <DecisionCard decision={view.decision} />
       ) : null}
       {view.viewerRole === "gc" ? <GcReviewPanel key={view.review?.reviewedAt ?? 0} view={view} /> : null}
-      {view.status !== "draft" ? <PaymentPanel payAppId={view._id} /> : null}
+      {view.status !== "draft" ? <PaymentPanel payAppId={view._id} projectKind={view.projectKind} /> : null}
       {view.status !== "draft" ? <LienWaiverPanel payAppId={view._id} /> : null}
       {view.status !== "draft" ? <PayAppThread payAppId={view._id} /> : null}
 
@@ -306,8 +313,9 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
         onChange={update}
         summary={summary}
         gcReasons={gcReasons(view)}
+        terms={terms}
       />
-      <G702Card summary={summary} retainageBps={view.retainageBps} agreementId={view.agreement._id} />
+      <G702Card summary={summary} retainageBps={view.retainageBps} agreementId={view.agreement._id} terms={terms} />
       {view.changeOrders.length > 0 ? (
         <Card title="Change orders on this application" padded>
           <ul className="divide-y divide-line text-sm" data-testid="pay-app-change-orders">
@@ -401,13 +409,14 @@ function gcReasons(view: PayAppView): Map<string, string> {
   return out;
 }
 
-function ContinuationSheet({
+export function ContinuationSheet({
   lines,
   editable,
   errors,
   onChange,
   summary,
   gcReasons,
+  terms,
 }: {
   lines: SheetLine[];
   editable: boolean;
@@ -415,24 +424,36 @@ function ContinuationSheet({
   onChange: (sovLineId: string, patch: Partial<Entry>) => void;
   summary: G702Summary;
   gcReasons: Map<string, string>;
+  terms: Terms;
 }) {
   const th = "px-2 py-2 font-medium align-bottom";
   const num = "px-2 py-2 text-right tabular-nums align-top whitespace-nowrap";
+  const showStored = terms.kind === "commercial";
   return (
-    <Card title="Continuation sheet (G703)" padded>
+    <Card title={terms.payAppBreakdown} padded>
       <div className="overflow-x-auto" data-testid="g703-sheet">
         <table className="w-full min-w-[960px] text-sm">
-          <caption className="sr-only">G703 continuation sheet, columns A to I</caption>
+          <caption className="sr-only">
+            {terms.kind === "residential" ? "Pay app breakdown, columns A to E and G to I" : "G703 continuation sheet, columns A to I"}
+          </caption>
           <thead className="text-left text-xs text-ink-subtle">
             <tr>
               <th className={th} scope="col">A · Item</th>
               <th className={th} scope="col">B · Description</th>
               <th className={`${th} text-right`} scope="col">C · Scheduled value</th>
-              <th className={`${th} text-right`} scope="col">D · From previous applications</th>
-              <th className={`${th} text-right`} scope="col">E · This period</th>
-              <th className={`${th} text-right`} scope="col">F · Materials presently stored</th>
-              <th className={`${th} text-right`} scope="col">G · Completed &amp; stored to date</th>
-              <th className={`${th} text-right`} scope="col">% (G ÷ C)</th>
+              <th className={`${th} text-right`} scope="col">
+                D · {terms.kind === "residential" ? terms.drawColumns.previouslyPaid : "From previous applications"}
+              </th>
+              <th className={`${th} text-right`} scope="col">
+                E · {terms.kind === "residential" ? terms.drawColumns.thisDraw : "This period"}
+              </th>
+              {showStored ? <th className={`${th} text-right`} scope="col">F · Materials presently stored</th> : null}
+              <th className={`${th} text-right`} scope="col">
+                G · {terms.kind === "residential" ? `${terms.drawColumns.workCompleted} to date` : "Completed & stored to date"}
+              </th>
+              <th className={`${th} text-right`} scope="col">
+                {terms.kind === "residential" ? "% complete" : "% (G ÷ C)"}
+              </th>
               <th className={`${th} text-right`} scope="col">H · Balance to finish</th>
               <th className={`${th} text-right`} scope="col">I · Retainage</th>
             </tr>
@@ -447,10 +468,14 @@ function ContinuationSheet({
                   <td className="px-2 py-2 align-top">
                     <span className="block">{l.description}</span>
                     {l.csiCode ? <span className="block text-xs text-ink-subtle">{l.csiCode}</span> : null}
-                    {editable && (l.workThisPeriodCents !== 0 || l.storedCents > 0) ? (
+                    {editable && (l.workThisPeriodCents !== 0 || (showStored && l.storedCents > 0)) ? (
                       <TextInput
                         className="mt-2"
-                        label={<span className="text-xs">Note: work this period or stored material (line {l.lineNo})</span>}
+                        label={
+                          <span className="text-xs">
+                            {terms.kind === "residential" ? `Note (line ${l.lineNo})` : `Note: work this period or stored material (line ${l.lineNo})`}
+                          </span>
+                        }
                         value={l.note ?? ""}
                         maxLength={500}
                         onChange={(note) => onChange(l.sovLineId, { note })}
@@ -475,7 +500,7 @@ function ContinuationSheet({
                     {editable ? (
                       <MoneyInput
                         className="min-w-[8.5rem]"
-                        label={<span className="sr-only">Line {l.lineNo} work this period (E)</span>}
+                        label={<span className="sr-only">Line {l.lineNo} {terms.kind === "residential" ? terms.drawColumns.thisDraw.toLowerCase() : "work this period"} (E)</span>}
                         value={l.workThisPeriodCents}
                         allowNegative={l.scheduledValueCents < 0}
                         hint={
@@ -492,19 +517,21 @@ function ContinuationSheet({
                       <Requested value={l.workThisPeriodCents} requested={l.requestedWorkCents} />
                     )}
                   </td>
-                  <td className={num}>
-                    {editable ? (
-                      <MoneyInput
-                        className="min-w-[8.5rem]"
-                        label={<span className="sr-only">Line {l.lineNo} materials presently stored (F)</span>}
-                        value={l.storedCents}
-                        error={error ? " " : undefined}
-                        onChange={(cents) => onChange(l.sovLineId, { storedCents: cents ?? 0 })}
-                      />
-                    ) : (
-                      <Requested value={l.storedCents} requested={l.requestedStoredCents} />
-                    )}
-                  </td>
+                  {showStored ? (
+                    <td className={num}>
+                      {editable ? (
+                        <MoneyInput
+                          className="min-w-[8.5rem]"
+                          label={<span className="sr-only">Line {l.lineNo} materials presently stored (F)</span>}
+                          value={l.storedCents}
+                          error={error ? " " : undefined}
+                          onChange={(cents) => onChange(l.sovLineId, { storedCents: cents ?? 0 })}
+                        />
+                      ) : (
+                        <Requested value={l.storedCents} requested={l.requestedStoredCents} />
+                      )}
+                    </td>
+                  ) : null}
                   <td className={num}>{formatCents(f.totalCents)}</td>
                   <td className={num}>{f.totalCents === 0 ? "" : formatPercentHundredths(f.percentHundredths)}</td>
                   <td className={num}>{formatCents(f.balanceCents)}</td>
@@ -521,7 +548,7 @@ function ContinuationSheet({
               <td className={num}>{formatCents(summary.scheduledValueCents)}</td>
               <td className={num}>{formatCents(summary.previousWorkCents)}</td>
               <td className={num}>{formatCents(summary.workThisPeriodCents)}</td>
-              <td className={num}>{formatCents(summary.storedCents)}</td>
+              {showStored ? <td className={num}>{formatCents(summary.storedCents)}</td> : null}
               <td className={num}>{formatCents(summary.completedAndStoredCents)}</td>
               <td className={num}>{formatPercentHundredths(percentHundredths(summary.completedAndStoredCents, summary.scheduledValueCents))}</td>
               <td className={num}>{formatCents(summary.balanceToFinishCents)}</td>
@@ -543,7 +570,7 @@ function Requested({ value, requested }: { value: number; requested: number | nu
   );
 }
 
-function MoneyTrail({ view }: { view: PayAppView }) {
+function MoneyTrail({ view, terms }: { view: PayAppView; terms: Terms }) {
   const claimed = view.approvalHistory.requestedGrossCents;
   const ai = view.reviewSuggestedTotalCents;
   const approved = view.approvalHistory.approvedGrossCents;
@@ -556,9 +583,13 @@ function MoneyTrail({ view }: { view: PayAppView }) {
     ...(ai !== null ? [{ label: "Review suggests", value: ai }] : []),
     { label: "GC approves", value: approved },
     periodRetainage !== null
-      ? { label: "Retainage this app", value: periodRetainage, tone: periodRetainage > 0 ? "text-amber-200" : undefined }
+      ? {
+          label: terms.kind === "residential" ? "Retainage this draw" : "Retainage this app",
+          value: periodRetainage,
+          tone: periodRetainage > 0 ? "text-amber-200" : undefined,
+        }
       : { label: "Total retainage held", value: retainage, tone: retainage > 0 ? "text-amber-200" : undefined },
-    { label: "Net this app", value: net },
+    { label: terms.kind === "residential" ? "Net this draw" : "Net this app", value: net },
   ];
   return (
     <Card
@@ -579,8 +610,9 @@ function MoneyTrail({ view }: { view: PayAppView }) {
         ))}
       </ol>
       <p className="mt-3 text-xs text-ink-subtle" data-testid="payapp-retainage-total">
-        Total retainage held to date: {formatCents(retainage)} (G702 line 5).
-        {periodRetainage !== null ? ` This application withheld ${formatCents(periodRetainage)}.` : ""}
+        Total retainage held to date: {formatCents(retainage)}
+        {terms.kind === "residential" ? "." : " (G702 line 5)."}
+        {periodRetainage !== null ? ` This ${terms.kind === "residential" ? "draw" : "application"} withheld ${formatCents(periodRetainage)}.` : ""}
       </p>
       {ai !== null && approved !== null && ai !== approved ? (
         <p className="mt-3 text-xs text-ink-subtle" data-testid="payapp-money-trail-edit">
@@ -592,22 +624,28 @@ function MoneyTrail({ view }: { view: PayAppView }) {
   );
 }
 
-function G702Card({ summary, retainageBps, agreementId }: { summary: G702Summary; retainageBps: number; agreementId: string }) {
+export function G702Card({ summary, retainageBps, agreementId, terms }: { summary: G702Summary; retainageBps: number; agreementId: string; terms: Terms }) {
   const rows: [string, string, string?][] = [
     ["1", "Original contract sum", formatCents(summary.originalContractSumCents)],
     ["2", "Net change by change orders", formatCents(summary.netChangeOrdersCents, { showPlus: true })],
     ["3", "Contract sum to date", formatCents(summary.contractSumToDateCents)],
-    ["4", "Total completed & stored to date", formatCents(summary.completedAndStoredCents)],
+    [
+      "4",
+      terms.kind === "residential" ? "Total work completed to date" : "Total completed & stored to date",
+      formatCents(summary.completedAndStoredCents),
+    ],
     ["5", `Retainage (${retainageBps / 100}% by line, rounded per line)`, formatCents(summary.retainageCents)],
     ["5a", "On completed work", formatCents(summary.retainageWorkCents)],
-    ["5b", "On stored material", formatCents(summary.retainageStoredCents)],
+    ...(terms.kind === "commercial"
+      ? ([["5b", "On stored material", formatCents(summary.retainageStoredCents)]] as [string, string, string][])
+      : []),
     ["6", "Total earned less retainage", formatCents(summary.earnedLessRetainageCents)],
-    ["7", "Less previous certificates for payment", formatCents(summary.previousCertificatesCents)],
-    ["8", "Current payment due", formatCents(summary.currentPaymentDueCents)],
+    ["7", terms.previousCertificates, formatCents(summary.previousCertificatesCents)],
+    ["8", terms.drawColumns.thisDraw, formatCents(summary.currentPaymentDueCents)],
     ["9", "Balance to finish, including retainage", formatCents(summary.balanceToFinishInclRetainageCents)],
   ];
   return (
-    <Card title="Application summary (G702)" padded>
+    <Card title={terms.payAppSummary} padded>
       <dl className="divide-y divide-line text-sm" data-testid="g702-summary">
         {rows.map(([no, label, value]) => (
           <div key={no} className={`flex items-baseline justify-between gap-4 py-2 ${no.length > 1 ? "pl-6 text-ink-muted" : ""}`} data-g702-line={no}>
@@ -620,8 +658,13 @@ function G702Card({ summary, retainageBps, agreementId }: { summary: G702Summary
         ))}
       </dl>
       <p className="mt-3 text-xs text-ink-subtle" data-testid="g702-retainage-note">
-        Line 5a is this application's retainage snapshot. Retainage released later is recorded in the{" "}
-        <a href={ledgerHash(agreementId)} className="underline">agreement ledger</a>; a later release does not rewrite this historical G702.
+        {terms.kind === "residential"
+          ? "Line 5a is this draw's retainage snapshot. Retainage released later is recorded in the "
+          : "Line 5a is this application's retainage snapshot. Retainage released later is recorded in the "}
+        <a href={ledgerHash(agreementId)} className="underline">agreement ledger</a>;
+        {terms.kind === "residential"
+          ? " a later release does not rewrite this summary."
+          : " a later release does not rewrite this historical G702."}
       </p>
     </Card>
   );

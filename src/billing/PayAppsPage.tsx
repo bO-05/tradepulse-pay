@@ -24,7 +24,11 @@ export function PayAppsPage() {
     <div className="max-w-5xl space-y-4">
       <PageHeader
         title="Pay apps"
-        description="Bill each billing period on the G702/G703 continuation sheet. A new period opens as soon as the previous pay app is approved."
+        description={
+          rows.length > 0 && rows.every((r) => r.projectKind === "residential")
+            ? "Bill each billing period on the pay app breakdown and summary. A new period opens as soon as the previous pay app is approved."
+            : "Bill each billing period on the G702/G703 continuation sheet. A new period opens as soon as the previous pay app is approved."
+        }
       />
       {rows.length === 0 ? (
         <EmptyState title="No agreements yet" description="Pay apps open once the GC executes your subcontract and approves its schedule of values." />

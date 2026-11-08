@@ -22,7 +22,8 @@ export {
   type NotFoundStateProps,
 } from "./NotFoundState";
 export { ToastProvider, useToast, type ToastApi } from "./Toast";
-export { STATUS_LABELS, statusLabel, statusMeta, type StatusTone } from "./statusLabels";
+export { STATUS_LABELS, statusLabel, statusLabelFor, statusMeta, statusMetaFor, type StatusTone } from "./statusLabels";
+export { CommercialReferenceBadge, type CommercialReferenceBadgeProps } from "./CommercialReferenceBadge";
 export { formatCents, formatDate, formatDateTime, formatBps } from "./format";
 export { parseMoneyToCents, parsePercentToBps } from "./masks";
 export { cx, focusRing } from "./cx";

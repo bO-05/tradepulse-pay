@@ -4,6 +4,7 @@ import { api } from "../../convex/_generated/api";
 import type { FunctionReturnType } from "convex/server";
 import type { Id } from "../../convex/_generated/dataModel";
 import { getErrorMessage } from "../lib/errors";
+import { termsForKind, type ProjectKind } from "../lib/terms";
 import { Button, Card, ConfirmDialog, StatusPill, formatCents, formatDateTime } from "../ui";
 import { GcComplianceHold, SubComplianceHold } from "./ComplianceHold";
 import { ReceiptId } from "../payments/ReceiptId";
@@ -31,10 +32,14 @@ function PaymentStatus({ payment }: { payment: Payment }) {
  * Payment on an approved pay app. The GC sees every unmet canPay condition at once and pays through a
  * ConfirmDialog; the sub sees what was paid and the retainage held. The server re-checks canPay.
  */
-export function PaymentPanel({ payAppId }: { payAppId: string }) {
+export function PaymentPanel({ payAppId, projectKind }: { payAppId: string; projectKind?: ProjectKind | null }) {
   const panel = useQuery(api.billing.canPay.paymentPanel, { payAppId });
   if (panel === undefined || panel === null) return null;
-  return panel.viewerRole === "gc" ? <GcPaymentPanel panel={panel} payAppId={payAppId} /> : <SubPaymentPanel panel={panel} />;
+  return panel.viewerRole === "gc" ? (
+    <GcPaymentPanel panel={panel} payAppId={payAppId} projectKind={projectKind} />
+  ) : (
+    <SubPaymentPanel panel={panel} />
+  );
 }
 
 /** What a payout of this payment pays: the approved split when it is still to be sent, else what was sent. */
@@ -88,7 +93,7 @@ function PaymentDetail({ payment }: { payment: Payment }) {
   );
 }
 
-function GcPaymentPanel({ panel, payAppId }: { panel: Panel; payAppId: string }) {
+function GcPaymentPanel({ panel, payAppId, projectKind }: { panel: Panel; payAppId: string; projectKind?: ProjectKind | null }) {
   const pay = useAction(api.billing.pay.payPayApp);
   const refresh = useAction(api.payments.release.refreshPayoutStatus);
   const retry = useAction(api.payments.payoutRetry.retryPayout);
@@ -119,8 +124,13 @@ function GcPaymentPanel({ panel, payAppId }: { panel: Panel; payAppId: string })
     }
   }
 
+  const terms = termsForKind(projectKind);
   return (
-    <Card title="Payment" description="Pays the sub's confirmed PayPal payee the approved current payment due, captured from a funded tranche." data-testid="payment-panel">
+    <Card
+      title="Payment"
+      description={`Pays the sub's confirmed PayPal payee the approved current payment due, captured from a ${terms.kind === "residential" ? "funded milestone" : "funded tranche"}.`}
+      data-testid="payment-panel"
+    >
       <div className="space-y-4">
         <Figures panel={panel} />
         {paid ? (

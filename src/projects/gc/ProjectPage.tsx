@@ -4,7 +4,7 @@ import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
 import { formatRetainagePercent } from "../../../convex/lib/retainageRules";
 import { GC_PROJECTS_HASH, gcProjectSettingsHash, peopleHash } from "../../auth/navigation";
-import { Button, Card, DateText, Money, PageHeader, StatusPill, useToast } from "../../ui";
+import { Button, Card, CommercialReferenceBadge, DateText, Money, PageHeader, StatusPill, useToast } from "../../ui";
 import { ReferenceNotice } from "../../payments/ReferenceNotice";
 import { ownerDetailRows } from "./ownerDetails";
 import { openProcurementPackages } from "./specBreakdownRequest";
@@ -46,7 +46,12 @@ export function ProjectPage({ projectId }: { projectId: string }) {
       {readOnlyReference && <ReferenceNotice title="Preserved reference job · read-only." />}
       <ProjectDetailsCard project={project} />
       <OwnerCompanyCard projectId={project._id} />
-      <TradePackagesSection projectId={project._id} projectTitle={project.title} readOnly={archived || readOnlyReference} />
+      <TradePackagesSection
+        projectId={project._id}
+        projectTitle={project.title}
+        projectKind={project.projectKind}
+        readOnly={archived || readOnlyReference}
+      />
     </div>
   );
 }
@@ -62,6 +67,7 @@ export function ProjectHeader({ project, actions }: { project: Doc<"projects">; 
       meta={
         <>
           <StatusPill status={archived ? "archived" : (project.status ?? "active")} />
+          <CommercialReferenceBadge kind={project.projectKind} />
           <span>
             Contract value: {project.contractValueCents !== undefined ? <Money cents={project.contractValueCents} /> : "—"}
           </span>

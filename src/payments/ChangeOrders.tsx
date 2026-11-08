@@ -8,6 +8,7 @@ import type { ContractSumBreakdown } from "../../convex/payments/changeOrderMath
 import { changeOrderFieldErrors, type ChangeOrderFieldErrors } from "../../convex/payments/changeOrderMath";
 import { getErrorMessage } from "../lib/errors";
 import { maskSharedEmail } from "../lib/demoPrivacy";
+import { termsForKind, type ProjectKind, type Terms } from "../lib/terms";
 import { Button, ConfirmDialog, Dialog, EmptyState, MoneyInput, PageHeader, StatusPill, Tabs, TextInput, formatCents, formatDate, useToast } from "../ui";
 import { Field, focusFirstInvalid, inputClass } from "../ui/Field";
 
@@ -186,16 +187,27 @@ function ChangeOrderForm({
   );
 }
 
-/** Approve: the dialog states the effect the server computed (SOV line and new contract sum, or the prime change). */
-function ApproveDialog({ co, open, onClose }: { co: ChangeOrderRowView; open: boolean; onClose: () => void }) {
+/** Approve: the dialog states the effect the server computed (SOV line and new contract sum, or the contract change). */
+function ApproveDialog({
+  co,
+  open,
+  onClose,
+  projectKind,
+}: {
+  co: ChangeOrderRowView;
+  open: boolean;
+  onClose: () => void;
+  projectKind?: ProjectKind | null;
+}) {
   const detail = useQuery(api.billing.changeOrders.getChangeOrder, open ? { changeOrderId: co._id } : "skip");
   const approve = useMutation(api.billing.changeOrders.approveChangeOrder);
   const toast = useToast();
+  const terms = termsForKind(projectKind);
   const preview = detail?.approvalPreview ?? null;
   const blocked = preview?.floorProblem ?? preview?.sovProblem ?? null;
   const effect =
     co.scope === "prime"
-      ? `Approves ${co.label} and changes the prime contract sum by ${signedCents(co.amountCents)}. Decided change orders cannot be changed.`
+      ? `Approves ${co.label} and changes the ${terms.kind === "residential" ? "contract" : "prime contract"} sum by ${signedCents(co.amountCents)}. Decided change orders cannot be changed.`
       : preview === null
         ? "Loading the effect of this approval…"
         : blocked ?? `${preview.message}. Decided change orders cannot be changed.`;
@@ -283,7 +295,17 @@ function RejectDialog({ co, open, onClose }: { co: ChangeOrderRowView; open: boo
 type Pending = "approve" | "reject" | "delete" | "invoice" | null;
 
 /** One change order with the caller's controls (the server decides which ones the caller has). */
-function ChangeOrderRow({ co, showAgreement, recipientEmail }: { co: ChangeOrderRowView; showAgreement: boolean; recipientEmail: string | null }) {
+function ChangeOrderRow({
+  co,
+  showAgreement,
+  recipientEmail,
+  projectKind,
+}: {
+  co: ChangeOrderRowView;
+  showAgreement: boolean;
+  recipientEmail: string | null;
+  projectKind?: ProjectKind | null;
+}) {
   const update = useMutation(api.billing.changeOrders.updateChangeOrder);
   const remove = useMutation(api.billing.changeOrders.deleteChangeOrder);
   const submit = useMutation(api.billing.changeOrders.submitChangeOrder);
@@ -451,7 +473,7 @@ function ChangeOrderRow({ co, showAgreement, recipientEmail }: { co: ChangeOrder
         <p className="text-xs text-ink-subtle">{co.editBlockedReason}</p>
       ) : null}
 
-      <ApproveDialog co={co} open={pending === "approve"} onClose={() => setPending(null)} />
+      <ApproveDialog co={co} open={pending === "approve"} onClose={() => setPending(null)} projectKind={projectKind} />
       <RejectDialog co={co} open={pending === "reject"} onClose={() => setPending(null)} />
       <ConfirmDialog
         open={pending === "delete"}
@@ -490,11 +512,13 @@ export function ChangeOrderRows({
   emptyText,
   showAgreement = false,
   recipientEmail = null,
+  projectKind,
 }: {
   rows: ChangeOrderRowView[];
   emptyText: string;
   showAgreement?: boolean;
   recipientEmail?: string | null;
+  projectKind?: ProjectKind | null;
 }) {
   if (rows.length === 0) {
     return (
@@ -506,7 +530,7 @@ export function ChangeOrderRows({
   return (
     <ul className="divide-y divide-line" data-testid="change-order-list">
       {rows.map((co) => (
-        <ChangeOrderRow key={co._id} co={co} showAgreement={showAgreement} recipientEmail={recipientEmail} />
+        <ChangeOrderRow key={co._id} co={co} showAgreement={showAgreement} recipientEmail={recipientEmail} projectKind={projectKind} />
       ))}
     </ul>
   );
@@ -583,22 +607,27 @@ function SubcontractSection({ agreement }: { agreement: ProjectList["agreements"
   );
 }
 
-function PrimeSection({ data }: { data: ProjectList }) {
+function PrimeSection({ data, terms }: { data: ProjectList; terms: Terms }) {
   const create = useMutation(api.billing.changeOrders.createChangeOrder);
   const prime = data.prime!;
+  const residential = terms.kind === "residential";
   const linkOptions = data.agreements.flatMap((a) =>
     a.changeOrders.filter((c) => c.status !== "draft").map((c) => ({ id: c._id as string, label: `${c.label} – ${c.title} (${a.subcontractorName})` })),
   );
   return (
-    <section className="space-y-3 rounded-2xl border border-line bg-surface p-5" data-testid="prime-change-orders" aria-label="Prime change orders">
+    <section
+      className="space-y-3 rounded-2xl border border-line bg-surface p-5"
+      data-testid="prime-change-orders"
+      aria-label={residential ? "Change orders" : "Prime change orders"}
+    >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h3 className="text-base font-semibold">Prime change orders</h3>
+          <h3 className="text-base font-semibold">{residential ? "Change orders" : "Prime change orders"}</h3>
           <p className="text-xs text-ink-subtle">Between the GC and the owner. The owner approves or rejects each one.</p>
         </div>
         {prime.canCreate ? (
           <NewChangeOrder
-            label="New prime change order"
+            label={residential ? "New change order" : "New prime change order"}
             linkOptions={linkOptions}
             create={(v) =>
               create({
@@ -615,16 +644,23 @@ function PrimeSection({ data }: { data: ProjectList }) {
         ) : null}
       </div>
       {prime.contractSum ? (
-        <ContractSumSummary sum={prime.contractSum} label="prime contract sum" testId="prime-contract-sum" />
+        <ContractSumSummary sum={prime.contractSum} label={residential ? "contract sum" : "prime contract sum"} testId="prime-contract-sum" />
       ) : prime.canCreate ? (
-        <p className="text-xs text-ink-subtle">Set the project's contract value in Project settings to see the prime contract sum.</p>
+        <p className="text-xs text-ink-subtle">
+          Set the project's contract value in Project settings to see the {residential ? "contract sum" : "prime contract sum"}.
+        </p>
       ) : null}
       {data.invoicing?.recipientEmail ? (
         <p className="text-xs text-ink-subtle" data-testid="change-order-recipient">
-          "Invoice now" sends approved prime change orders to the owner at {maskSharedEmail(data.invoicing.recipientEmail)}.
+          "Invoice now" sends approved {residential ? "change orders" : "prime change orders"} to the owner at {maskSharedEmail(data.invoicing.recipientEmail)}.
         </p>
       ) : null}
-      <ChangeOrderRows rows={prime.changeOrders} emptyText="No prime change orders yet." recipientEmail={data.invoicing?.recipientEmail ?? null} />
+      <ChangeOrderRows
+        rows={prime.changeOrders}
+        emptyText={residential ? "No change orders yet." : "No prime change orders yet."}
+        recipientEmail={data.invoicing?.recipientEmail ?? null}
+        projectKind={data.projectKind}
+      />
     </section>
   );
 }
@@ -638,6 +674,7 @@ function ProjectChangeOrders({ projectId }: { projectId: string }) {
       </p>
     );
   }
+  const terms = termsForKind(data.projectKind);
   const subcontract =
     data.agreements.length === 0 ? (
       <p className="text-sm text-ink-subtle">No subcontract agreements on this project yet.</p>
@@ -649,19 +686,19 @@ function ProjectChangeOrders({ projectId }: { projectId: string }) {
       </div>
     );
   if (data.party === "sub") return subcontract;
-  if (data.party === "owner") return <PrimeSection data={data} />;
+  if (data.party === "owner") return <PrimeSection data={data} terms={terms} />;
   return (
     <Tabs
       label="Change order type"
       tabs={[
         { id: "subcontract", label: "Subcontract", content: subcontract },
-        { id: "prime", label: "Prime", content: <PrimeSection data={data} /> },
+        { id: "prime", label: terms.kind === "residential" ? "Contract" : "Prime", content: <PrimeSection data={data} terms={terms} /> },
       ]}
     />
   );
 }
 
-/** Change orders page: subcontract COs (GC and that sub) and prime COs (GC and the owner) per project. */
+/** Change orders page: subcontract COs (GC and that sub) and project change orders (GC and the owner) per project. */
 export function ChangeOrdersPage() {
   const projects = useQuery(api.billing.changeOrders.myChangeOrderProjects, {});
   const [projectId, setProjectId] = useState<string | null>(null);
@@ -675,11 +712,17 @@ export function ChangeOrdersPage() {
       </p>
     );
   }
+  const selectedKind = projects.find((p) => p._id === selected)?.projectKind;
+  const residential = termsForKind(selectedKind).kind === "residential";
   return (
     <div className="max-w-5xl space-y-5">
       <PageHeader
         title="Change orders"
-        description="Subcontract change orders add a line to the agreement's schedule of values once the GC approves them. Prime change orders change the owner contract once the owner approves them."
+        description={
+          residential
+            ? "Subcontract change orders add a line to the agreement's schedule of values once the GC approves them. Contract change orders change the owner contract once the owner approves them."
+            : "Subcontract change orders add a line to the agreement's schedule of values once the GC approves them. Prime change orders change the owner contract once the owner approves them."
+        }
       />
       {projects.length === 0 ? (
         <EmptyState title="No projects yet" description="Change orders appear here once you are on a project." />
@@ -692,7 +735,7 @@ export function ChangeOrdersPage() {
                   {projects.map((p) => (
                     <option key={p._id} value={p._id}>
                       {p.title}
-                      {p.hasPrimeChangeOrders ? "" : " · no prime change orders yet"}
+                      {p.hasPrimeChangeOrders ? "" : ` · no ${termsForKind(p.projectKind).kind === "residential" ? "change orders" : "prime change orders"} yet`}
                     </option>
                   ))}
                 </select>

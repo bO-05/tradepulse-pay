@@ -4,6 +4,7 @@ import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { getErrorMessage } from "../../lib/errors";
 import { localDateInDays } from "../../lib/localDate";
+import { termsForKind, type ProjectKind } from "../../lib/terms";
 import { Button, Card, DateInput, EmptyState, MoneyInput, StatusPill, TextInput, TimeInput, useToast } from "../../ui";
 import { PackageBidders } from "../../vendors/PackageBidders";
 import { BID_DUE_TIME_HINT, BidDueEditor } from "./BidDueEditor";
@@ -15,16 +16,20 @@ const CSI_FORMAT = /^\d{2} \d{2} \d{2}$/;
 export function AddTradePackageForm({
   projectId,
   projectTitle,
+  projectKind,
   onDone,
   onCancel,
 }: {
   projectId: Id<"projects">;
   projectTitle: string;
+  projectKind?: ProjectKind | null;
   onDone?: () => void;
   onCancel?: () => void;
 }) {
   const create = useMutation(api.tradePackages.createTradePackage);
   const toast = useToast();
+  const terms = termsForKind(projectKind);
+  const commercial = terms.kind === "commercial";
   const [csiDivision, setCsiDivision] = useState("");
   const [tradeName, setTradeName] = useState("");
   const [budgetCents, setBudgetCents] = useState<number | null>(null);
@@ -40,7 +45,7 @@ export function AddTradePackageForm({
     if (saving) return;
     const csi = csiDivision.trim().replace(/\s+/g, " ");
     const next: Record<string, string> = {};
-    if (!CSI_FORMAT.test(csi)) next.csiDivision = "Use the CSI format NN NN NN, for example 26 00 00.";
+    if (!CSI_FORMAT.test(csi)) next.csiDivision = commercial ? "Use the CSI format NN NN NN, for example 26 00 00." : "Use the format NN NN NN, for example 26 00 00.";
     if (!tradeName.trim()) next.tradeName = "Enter the trade name.";
     if (budgetCents === null || budgetCents <= 0) next.budget = "Enter a budget estimate greater than $0.00.";
     if (!bidDeadline) next.bidDeadline = "Choose the bid due date.";
@@ -59,7 +64,7 @@ export function AddTradePackageForm({
         bidDeadline,
         ...(bidDueTime ? { bidDueTime } : {}),
       });
-      toast.success(`Trade package ${csi} ${tradeName.trim()} added.`);
+      toast.success(`${terms.trade} ${csi} ${tradeName.trim()} added.`);
       setCsiDivision("");
       setTradeName("");
       setBudgetCents(null);
@@ -74,11 +79,11 @@ export function AddTradePackageForm({
   };
 
   return (
-    <form onSubmit={onSubmit} noValidate aria-label="Add a trade package manually" className="space-y-4">
+    <form onSubmit={onSubmit} noValidate aria-label={commercial ? "Add a trade package manually" : "Add a trade manually"} className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-[1fr_2fr]">
         <TextInput
           id="pkg-csi"
-          label="CSI division"
+          label={commercial ? "CSI division" : "Division"}
           required
           value={csiDivision}
           onChange={setCsiDivision}
@@ -117,7 +122,7 @@ export function AddTradePackageForm({
       )}
       <div className="flex flex-wrap gap-2">
         <Button type="submit" loading={saving} loadingLabel="Adding…">
-          Add package
+          {commercial ? "Add package" : "Add trade"}
         </Button>
         {onCancel && (
           <Button type="button" variant="secondary" onClick={onCancel}>
@@ -133,18 +138,21 @@ export function AddTradePackageForm({
 export function TradePackagesSection({
   projectId,
   projectTitle,
+  projectKind,
   readOnly,
 }: {
   projectId: Id<"projects">;
   projectTitle: string;
+  projectKind?: ProjectKind | null;
   readOnly?: boolean;
 }) {
   const packages = useQuery(api.tradePackages.listByProject, { projectId });
+  const terms = termsForKind(projectKind);
   const [adding, setAdding] = useState(false);
   const [biddersOf, setBiddersOf] = useState<string | null>(null);
   const addButtons = readOnly ? null : (
     <>
-      <Button onClick={() => setAdding(true)}>Add trade package</Button>
+      <Button onClick={() => setAdding(true)}>Add {terms.trade.toLowerCase()}</Button>
       <Button variant="secondary" onClick={() => openSpecBreakdown(projectId)}>
         AI spec breakdown
       </Button>
@@ -153,23 +161,33 @@ export function TradePackagesSection({
 
   return (
     <Card
-      title="Trade packages"
+      title={terms.trades}
       actions={packages && packages.length > 0 && !adding ? addButtons : undefined}
     >
       {packages === undefined ? (
         <p role="status" className="text-sm text-ink-subtle">
-          Loading trade packages…
+          Loading {terms.trades.toLowerCase()}…
         </p>
       ) : (
         <div className="space-y-4">
           {adding && (
-            <AddTradePackageForm projectId={projectId} projectTitle={projectTitle} onDone={() => setAdding(false)} onCancel={() => setAdding(false)} />
+            <AddTradePackageForm
+              projectId={projectId}
+              projectTitle={projectTitle}
+              projectKind={projectKind}
+              onDone={() => setAdding(false)}
+              onCancel={() => setAdding(false)}
+            />
           )}
           {packages.length === 0 && !adding && (
             <EmptyState
               headingLevel={3}
-              title="No trade packages yet"
-              description="Add packages manually, or let AI break the project specification into CSI MasterFormat packages."
+              title={`No ${terms.trades.toLowerCase()} yet`}
+              description={
+                terms.kind === "residential"
+                  ? "Add trades manually, or let AI break the project specification into scopes."
+                  : "Add packages manually, or let AI break the project specification into CSI MasterFormat packages."
+              }
               action={addButtons}
             />
           )}

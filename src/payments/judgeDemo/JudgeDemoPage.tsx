@@ -12,7 +12,7 @@ import { deriveSteps, JUDGE_DEMO_AUTOSTART_KEY, type DemoInboxItem, type StepSta
 import { useJudgeDemoDriver } from "./useJudgeDemoDriver";
 import { NotFoundState } from "../../ui/NotFoundState";
 import { ReferenceNotice } from "../ReferenceNotice";
-import { ConfirmDialog, formatDateTime } from "../../ui";
+import { CommercialReferenceBadge, ConfirmDialog, formatDateTime } from "../../ui";
 
 const STATUS_STYLE: Record<StepStatus, { label: string; style: string }> = {
   todo: { label: "Waiting", style: "border-slate-700 bg-slate-800 text-slate-300" },
@@ -122,6 +122,7 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
           explanations and the CSLB license check, cut the flagged line by its own dollars, capture and pay with 10% retainage, and invoice a change
           order to the Owner.
         </p>
+        {run?.readOnlyReference && <CommercialReferenceBadge kind="commercial" />}
         {run?.readOnlyReference && <ReferenceNotice />}
         <p className="text-xs text-amber-200">
           The two pay apps explicitly identify the guided demo driver and demo stand-ins. PayPal approval

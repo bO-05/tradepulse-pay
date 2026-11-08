@@ -5,7 +5,9 @@ import { api } from "../../convex/_generated/api";
 import { agreementHash, type Role } from "../auth/navigation";
 import { OWNER_PAY_APPS_HASH } from "../billing/OwnerBilling";
 import { requestNewProject } from "../projects/newProjectRequest";
-import { Button, EmptyState, formatCents, formatDate } from "../ui";
+import { Button, CommercialReferenceBadge, EmptyState, formatCents, formatDate } from "../ui";
+import { statusLabelFor } from "../ui/statusLabels";
+import { termsForKind, type Terms } from "../lib/terms";
 import { CHANGE_ORDERS_PAGE_HASH, ChangeOrderRows } from "./ChangeOrders";
 import { formatDollars } from "./format";
 
@@ -13,30 +15,34 @@ type OwnerOverview = NonNullable<FunctionReturnType<typeof api.portal.ownerOverv
 type OwnerJob = NonNullable<OwnerOverview[number]["ownerJob"]>;
 
 /** The owner's read-only “job so far”: approved progress and money, never a payment control. */
-function OwnerJobSoFar({ job }: { job: OwnerJob }) {
+function OwnerJobSoFar({ job, terms }: { job: OwnerJob; terms: Terms }) {
   const headingId = useId();
   const percent = job.completionBps === null ? null : job.completionBps / 100;
-  const paidApps = `${job.paidApplicationCount} pay app${job.paidApplicationCount === 1 ? "" : "s"}`;
-  const latest = job.latestApplicationNo === null ? null : `pay app #${job.latestApplicationNo}`;
-  const latestSentence = job.latestApplicationNo === null ? "A pay app" : `Pay app #${job.latestApplicationNo}`;
+  const paidApps = `${job.paidApplicationCount} ${terms.ownerBillLower}${job.paidApplicationCount === 1 ? "" : "s"}`;
+  const latest = job.latestApplicationNo === null ? null : `${terms.ownerBillLower} #${job.latestApplicationNo}`;
+  const billSentence = terms.kind === "residential" ? terms.ownerBill : "Pay app";
+  const latestSentence = job.latestApplicationNo === null ? (terms.kind === "residential" ? "A draw" : "A pay app") : `${billSentence} #${job.latestApplicationNo}`;
+  const latestFallback = `the latest ${terms.ownerBillLower}`;
   const status =
     job.latestStatus === "submitted_to_owner"
       ? `${latestSentence} is waiting for your review${job.paymentDueCents === null ? "" : ` · ${formatCents(job.paymentDueCents)} current payment due`}.`
       : job.latestStatus === "changes_requested"
-        ? `You asked the GC for changes on ${latest ?? "the latest pay app"}.`
+        ? `You asked the GC for changes on ${latest ?? latestFallback}.`
         : job.latestStatus === "approved"
-          ? `You approved ${latest ?? "the latest pay app"}; the GC has not invoiced it yet.`
+          ? `You approved ${latest ?? latestFallback}; the GC has not invoiced it yet.`
           : job.latestStatus === "approved_invoiced"
-            ? `${latest ?? "The latest pay app"} is approved and invoiced; payment is pending.`
+            ? `${latest ?? (terms.kind === "residential" ? "The latest draw" : "The latest pay app")} is approved and invoiced; payment is pending.`
             : job.latestStatus === "paid"
-              ? `Paid through ${latest ?? "the latest pay app"}. ${paidApps} paid.`
-              : "No owner pay app yet. The GC's progress will appear here after the first pay app.";
+              ? `Paid through ${latest ?? latestFallback}. ${paidApps} paid.`
+              : terms.kind === "residential"
+                ? "No draw yet. The GC's progress will appear here after the first draw."
+                : "No owner pay app yet. The GC's progress will appear here after the first pay app.";
   const basis =
     job.basis === "approved"
-      ? `Approved through ${job.approvedApplicationNo === null ? "the latest pay app" : `pay app #${job.approvedApplicationNo}`}.`
+      ? `Approved through ${job.approvedApplicationNo === null ? latestFallback : `${terms.ownerBillLower} #${job.approvedApplicationNo}`}.`
       : job.basis === "submitted"
-        ? `The GC reports this on ${latest ?? "the latest pay app"}; it is waiting for your review.`
-        : "No approved or submitted owner pay app yet.";
+        ? `The GC reports this on ${latest ?? latestFallback}; it is waiting for your review.`
+        : `No approved or submitted ${terms.ownerBill.toLowerCase()} yet.`;
   const dates = [
     job.startDate === null ? null : `Started ${formatDate(job.startDate)}`,
     job.substantialCompletionDate === null ? null : `Target completion ${formatDate(job.substantialCompletionDate)}`,
@@ -53,7 +59,9 @@ function OwnerJobSoFar({ job }: { job: OwnerJob }) {
           <h3 id={headingId} className="text-sm font-semibold text-emerald-100">
             Job so far
           </h3>
-          <p className="text-xs text-slate-400">Approved progress and money on the prime contract. Read-only.</p>
+          <p className="text-xs text-slate-400">
+            {terms.kind === "residential" ? "Approved progress and money on the contract." : "Approved progress and money on the prime contract."} Read-only.
+          </p>
         </div>
         <span className="rounded-full border border-emerald-800 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-200">
           {job.basis === "approved" ? "Approved" : job.basis === "submitted" ? "Awaiting your review" : "Not started"}
@@ -90,7 +98,11 @@ function OwnerJobSoFar({ job }: { job: OwnerJob }) {
 
         <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
           <JobMetric label="Contract to date" value={formatCents(job.contractSumToDateCents)} testId="owner-job-contract" />
-          <JobMetric label="Completed & stored" value={formatCents(job.completedAndStoredCents)} testId="owner-job-completed" />
+          <JobMetric
+            label={terms.kind === "residential" ? terms.drawColumns.workCompleted : "Completed & stored"}
+            value={formatCents(job.completedAndStoredCents)}
+            testId="owner-job-completed"
+          />
           <JobMetric label="Paid to date" value={formatCents(job.paidToDateCents)} testId="owner-job-paid" />
           <JobMetric label="Retainage held" value={formatCents(job.retainageHeldCents)} testId="owner-job-retainage" />
           <JobMetric label="Balance to finish" value={formatCents(job.balanceToFinishCents)} testId="owner-job-balance" />
@@ -107,8 +119,8 @@ function OwnerJobSoFar({ job }: { job: OwnerJob }) {
         {status}
       </p>
       <p className="mt-1 text-[11px] text-slate-400">
-        Paid to date = {formatCents(job.paidOwnerPayAppsCents)} in paid pay apps + {formatCents(job.paidChangeOrdersCents)} in paid change
-        orders. Figures come from owner pay apps and paid prime change orders; they do not move money.
+        Paid to date = {formatCents(job.paidOwnerPayAppsCents)} in paid {terms.ownerBillsLower} + {formatCents(job.paidChangeOrdersCents)} in paid change
+        orders. Figures come from {terms.kind === "residential" ? "draws and paid change orders" : "owner pay apps and paid prime change orders"}; they do not move money.
       </p>
     </section>
   );
@@ -147,17 +159,22 @@ export function OwnerPortal({ role }: { role?: Role }) {
   return (
     <div className="space-y-6 max-w-5xl">
       <h1 className="text-xl font-semibold">{role === "gc" ? "Project summaries" : "Owner home"}</h1>
-      {projects.map((project) => (
-        <section key={project._id} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+      {projects.map((project) => {
+        const terms = termsForKind(project.projectKind);
+        return (
+        <section key={project._id} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4" data-project-kind={terms.kind}>
           <div>
-            <h2 className="text-base font-semibold">{project.title}</h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-base font-semibold">{project.title}</h2>
+              <CommercialReferenceBadge kind={project.projectKind} />
+            </div>
             <p className="text-xs text-slate-400">
               {project.location} · {project.projectType} · Budget {formatDollars(project.estBudget)}
               {project.isDemoProject ? " · demo project" : ""}
             </p>
           </div>
 
-          {project.partyRole === "owner" && project.ownerJob !== null && <OwnerJobSoFar job={project.ownerJob} />}
+          {project.partyRole === "owner" && project.ownerJob !== null && <OwnerJobSoFar job={project.ownerJob} terms={terms} />}
 
           {project.partyRole === "gc" && (
           <div>
@@ -186,7 +203,7 @@ export function OwnerPortal({ role }: { role?: Role }) {
                       <td className="py-2 pr-3">{a.subcontractorName}</td>
                       <td className="py-2 pr-3">{a.tradeName}</td>
                       <td className="py-2 pr-3 text-right">{formatDollars(a.contractSum)}</td>
-                      <td className="py-2 pr-3">{a.status}</td>
+                      <td className="py-2 pr-3">{statusLabelFor(a.status, terms.kind)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -198,18 +215,18 @@ export function OwnerPortal({ role }: { role?: Role }) {
           {project.partyRole === "owner" && (
             <div className="flex flex-wrap items-center justify-between gap-2 text-sm" data-testid="portal-prime-retainage">
               <p>
-                Retainage you hold on the prime contract:{" "}
+                Retainage you hold on the {terms.kind === "residential" ? "contract" : "prime contract"}:{" "}
                 <span className="font-semibold tabular-nums">
                   {project.primeRetainageHeldCents === null ? "None yet" : formatCents(project.primeRetainageHeldCents)}
                 </span>
               </p>
               <a href={OWNER_PAY_APPS_HASH} className="text-xs text-emerald-400 hover:text-emerald-300">
-                Owner pay apps
+                {terms.ownerBills}
               </a>
             </div>
           )}
 
-          {project.partyRole === "owner" && <OwnerTrancheStatus projectId={project._id} />}
+          {project.partyRole === "owner" && <OwnerTrancheStatus projectId={project._id} terms={terms} />}
 
           <div data-testid="portal-change-orders">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
@@ -220,16 +237,22 @@ export function OwnerPortal({ role }: { role?: Role }) {
             </div>
             {project.primeContractSum ? (
               <p className="text-sm text-slate-300 mb-2" data-testid="portal-prime-contract-sum">
-                Prime contract sum to date <span className="font-semibold tabular-nums">{formatCents(project.primeContractSum.toDateCents)}</span>
+                {terms.kind === "residential" ? "Contract sum to date" : "Prime contract sum to date"}{" "}
+                <span className="font-semibold tabular-nums">{formatCents(project.primeContractSum.toDateCents)}</span>
                 {" "}(original {formatCents(project.primeContractSum.originalCents)}, net change{" "}
                 {project.primeContractSum.netChangeCents > 0 ? "+" : ""}
                 {formatCents(project.primeContractSum.netChangeCents)})
               </p>
             ) : null}
-            <ChangeOrderRows rows={project.changeOrders} emptyText="No prime change orders on this project yet." />
+            <ChangeOrderRows
+              rows={project.changeOrders}
+              emptyText={terms.kind === "residential" ? "No change orders on this project yet." : "No prime change orders on this project yet."}
+              projectKind={project.projectKind}
+            />
           </div>
         </section>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -244,21 +267,27 @@ const OWNER_TRANCHE_STATUS: Record<string, string> = {
   funding_expired: "Funding expired",
 };
 
-/** Owner: funding tranche status per trade on this project, read-only. */
-function OwnerTrancheStatus({ projectId }: { projectId: string }) {
+/** Owner: funded-milestone status per trade on this project, read-only. */
+function OwnerTrancheStatus({ projectId, terms }: { projectId: string; terms: Terms }) {
   const trades = useQuery(api.billing.tranches.ownerProjectTranches, { projectId });
   if (trades === undefined) return null;
   return (
     <div data-testid="owner-tranches">
-      <h3 className="text-sm font-semibold mb-2">Funding tranches</h3>
+      <h3 className="text-sm font-semibold mb-2">{terms.fundedMilestones}</h3>
       {trades.length === 0 ? (
-        <p className="text-sm text-slate-400">No funding tranches yet.</p>
+        <p className="text-sm text-slate-400">No {terms.fundedMilestones.toLowerCase()} yet.</p>
       ) : (
-        <div className="table-scroll" role="region" aria-label="Funding tranche status" tabIndex={0}><table className="w-full text-sm">
+        <div
+          className="table-scroll"
+          role="region"
+          aria-label={terms.kind === "residential" ? `${terms.fundedMilestone} status` : "Funding tranche status"}
+          tabIndex={0}
+        >
+          <table className="w-full text-sm">
           <thead className="text-xs text-slate-400 text-left">
             <tr>
-              <th className="py-2 pr-3 font-medium">Trade</th>
-              <th className="py-2 pr-3 font-medium">Tranche</th>
+              <th className="py-2 pr-3 font-medium">{terms.kind === "residential" ? terms.trades : "Trade"}</th>
+              <th className="py-2 pr-3 font-medium">{terms.fundedMilestone}</th>
               <th className="py-2 pr-3 font-medium text-right">Amount</th>
               <th className="py-2 pr-3 font-medium">Status</th>
             </tr>

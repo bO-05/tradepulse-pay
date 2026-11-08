@@ -1,0 +1,41 @@
+My agreements & pay applications
+Subcontractor profile
+Contractor
+Ortiz Plumbing
+PayPal payout email
+sb-ll43ii53793068@personal.example.com
+Account
+Demo Sub 4 (Ortiz Plumbing)
+My agreements
+Agreement	Subcontractor	Project	Contract sum	Status	
+Schedule of values
+
+SC-22-ORTIZ-0001	Ortiz Plumbing	Lopez Kitchen Remodel	$9,000.00	Signed	Schedule of values
+Milestone funding
+
+Whether the GC has funded each milestone of your executed agreements, newest first. Funding is handled by the GC.
+
+SC-22-ORTIZ-0001 · Lopez Kitchen Remodel
+Milestone	Amount	Funding
+Rough-in	$4,000.00	Paid
+Fixtures set	$3,500.00	Not funded
+Final	$1,500.00	Not funded
+Submit pay application
+
+Pay applications are filed per billing period on the pay app breakdown and summary. Open Pay apps to start or continue one.
+
+Pay applications
+Period	Agreement	Requested	Status	Outcome	Submitted	Submitted by	
+Actions
+
+Pay app #1 – period ending Oct 15, 2026	SC-22-ORTIZ-0001	$5,400.00	paid	
+
+Paid
+
+Approved gross
+$4,000.00
+Retainage held
+$200.00
+Net paid
+$3,800.00
+	Nov 8, 2026	Submitted by the subcontractor (subcontractor, human).	
