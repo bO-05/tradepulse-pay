@@ -40,6 +40,7 @@ import type * as billing_payGate from "../billing/payGate.js";
 import type * as billing_payGateDb from "../billing/payGateDb.js";
 import type * as billing_payGateHooks from "../billing/payGateHooks.js";
 import type * as billing_primeLines from "../billing/primeLines.js";
+import type * as billing_projectMoney from "../billing/projectMoney.js";
 import type * as billing_retainage from "../billing/retainage.js";
 import type * as billing_sov from "../billing/sov.js";
 import type * as billing_sovMigration from "../billing/sovMigration.js";
@@ -300,6 +301,7 @@ declare const fullApi: ApiFromModules<{
   "billing/payGateDb": typeof billing_payGateDb;
   "billing/payGateHooks": typeof billing_payGateHooks;
   "billing/primeLines": typeof billing_primeLines;
+  "billing/projectMoney": typeof billing_projectMoney;
   "billing/retainage": typeof billing_retainage;
   "billing/sov": typeof billing_sov;
   "billing/sovMigration": typeof billing_sovMigration;
