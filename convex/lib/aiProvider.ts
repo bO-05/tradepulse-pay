@@ -33,6 +33,18 @@ export function getAIConfiguration(values: AIEnvironment = {
     : { provider, apiKey: values.ANTHROPIC_API_KEY?.trim() || undefined, modelId: values.ANTHROPIC_MODEL?.trim() || undefined };
 }
 
+/**
+ * Same read, but it never throws. A mistyped AI_PROVIDER (or any other invalid value) must degrade
+ * to the caller's deterministic fallback instead of taking down an endpoint that has one.
+ */
+export function readAIConfigurationSafe(values?: AIEnvironment): AIConfiguration | null {
+  try {
+    return values === undefined ? getAIConfiguration() : getAIConfiguration(values);
+  } catch {
+    return null;
+  }
+}
+
 export function aiProviderLabel(provider: AIProvider): string {
   return provider === "mistral" ? "Mistral" : "Anthropic";
 }

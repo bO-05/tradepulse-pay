@@ -7,7 +7,7 @@ import { internal } from "./_generated/api";
 import { COI_DEFICIENCY_PENALTY, leadTimePenaltyFor, targetWeeksForDivision } from "./terms";
 import { roundDollarsToCents } from "./lib/money";
 import { OFFLINE_RULES_ENGINE } from "./lib/aiLabels";
-import { DEFAULT_MISTRAL_MODEL, getAIConfiguration } from "./lib/aiProvider";
+import { DEFAULT_MISTRAL_MODEL, readAIConfigurationSafe } from "./lib/aiProvider";
 import { withMistralTaskReasoning } from "./lib/mistralRequest";
 import type OpenAI from "openai";
 
@@ -1305,7 +1305,9 @@ export const executeReasoning = internalAction({
     const openaiKey = process.env.OPENAI_API_KEY;
     const geminiKey = process.env.GEMINI_API_KEY;
     const anthropicKey = process.env.ANTHROPIC_API_KEY;
-    const aiConfiguration = getAIConfiguration();
+    // A mistyped AI_PROVIDER must not crash the endpoint: null means "no provider", which falls
+    // through to the deterministic engine the same way a missing key does.
+    const aiConfiguration = readAIConfigurationSafe();
     const mistralKey = process.env.MISTRAL_API_KEY?.trim();
 
     const persona = args.companyName
@@ -1420,7 +1422,7 @@ Ensure all cost numbers are pure numeric primitives.`
       providerOrder = ["gemini", "claude", "openai"];
     } else if (args.preferredProvider === "openai") {
       providerOrder = ["openai", "claude", "gemini"];
-    } else if (aiConfiguration.provider === "mistral") {
+    } else if (aiConfiguration?.provider === "mistral") {
       providerOrder = ["mistral"];
     } else if (process.env.AI_PROVIDER?.trim()) {
       providerOrder = ["claude"];
@@ -2867,7 +2869,7 @@ export const getProviderAvailability = query({
       claude: Boolean(process.env.ANTHROPIC_API_KEY),
       mistral: Boolean(process.env.MISTRAL_API_KEY?.trim()),
       mistralModel: process.env.MISTRAL_MODEL?.trim() || DEFAULT_MISTRAL_MODEL,
-      primaryProvider: getAIConfiguration().provider,
+      primaryProvider: readAIConfigurationSafe()?.provider ?? "anthropic",
       openaiModel: process.env.OPENAI_MODEL || "gpt-4o",
       geminiModel: process.env.GEMINI_MODEL || "gemini-3.8-flash",
       anthropicModel: process.env.ANTHROPIC_MODEL || "claude-sonnet-5",

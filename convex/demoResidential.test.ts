@@ -9,13 +9,41 @@ import { signInAs } from "./lib/testIdentity";
 const modules = import.meta.glob("/convex/**/*.ts");
 
 describe("residential reference job", () => {
+  test("the demo seed creates the job, so a fresh database is not missing it", async () => {
+    const t = convexTest(schema, modules);
+    await t.mutation(internal.projects.seedInitialDataInternal, { force: false });
+
+    const found = await t.run(async (ctx) => {
+      const projects = await ctx.db.query("projects").collect();
+      const project = projects.find((p) => p.title === "Lopez Kitchen Remodel");
+      if (project === undefined) return null;
+      const lines = await ctx.db
+        .query("primeLines")
+        .withIndex("by_projectId_and_lineNo", (q) => q.eq("projectId", project._id))
+        .collect();
+      return {
+        contractValueCents: project.contractValueCents ?? null,
+        retainageBps: project.retainageBps ?? null,
+        lineCount: lines.length,
+        linesCents: lines.reduce((sum, l) => sum + l.scheduledValueCents, 0),
+      };
+    });
+    expect(found).toEqual({
+      contractValueCents: 8_650_000,
+      retainageBps: 1_000,
+      lineCount: 4,
+      linesCents: 8_650_000,
+    });
+  });
+
   test("creates one prime-valued residential project that the GC and the owner can bill", async () => {
     const t = convexTest(schema, modules);
     await t.mutation(internal.projects.seedInitialDataInternal, { force: false });
 
     const first = await t.mutation(internal.demoResidential.ensureResidentialReference, {});
     const second = await t.mutation(internal.demoResidential.ensureResidentialReference, {});
-    expect(first.created).toBe(true);
+    // The demo seed run above already creates the job, so the explicit call is a no-op.
+    expect(first.created).toBe(false);
     expect(second.created).toBe(false);
     expect(second.projectId).toBe(first.projectId);
     expect(first.contractValueCents).toBe(8_650_000);

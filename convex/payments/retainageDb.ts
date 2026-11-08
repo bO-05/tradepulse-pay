@@ -1,5 +1,5 @@
 import { ConvexError, v, type Infer } from "convex/values";
-import type { Id } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
 import { payoutBlockedMessage, payoutReceiverForContractor } from "../lib/payee";
 import { formatCents } from "../lib/money";
@@ -20,14 +20,36 @@ async function ledgerRows(ctx: MutationCtx, agreementId: Id<"agreements">) {
     .take(1000);
 }
 
-/** The amount covered by the live retainage-release waiver, or -1 when there is none. */
-async function signedRetainageWaiverCents(ctx: MutationCtx, agreementId: Id<"agreements">): Promise<number> {
+/**
+ * The pay app the retainage slot hangs off: the agreement's latest paid application. A retainage
+ * waiver is signed against that app, so the release must read a signature bound to the same one.
+ */
+async function latestPaidPayAppId(ctx: MutationCtx, agreementId: Id<"agreements">): Promise<Id<"payApplications"> | null> {
+  const rows = await ctx.db
+    .query("payApplications")
+    .withIndex("by_agreementId", (q) => q.eq("agreementId", agreementId))
+    .take(500);
+  let best: Doc<"payApplications"> | null = null;
+  for (const row of rows) {
+    if (row.status !== "paid") continue;
+    if (best === null || (row.applicationNo ?? 0) > (best.applicationNo ?? 0)) best = row;
+  }
+  return best?._id ?? null;
+}
+
+/** The amount covered by the live retainage-release waiver for this pay app, or -1 when there is none. */
+async function signedRetainageWaiverCents(
+  ctx: MutationCtx,
+  agreementId: Id<"agreements">,
+  payAppId: Id<"payApplications"> | null,
+): Promise<number> {
+  if (payAppId === null) return -1;
   const rows = await ctx.db
     .query("lienWaivers")
     .withIndex("by_agreementId", (q) => q.eq("agreementId", agreementId))
     .take(100);
   const live = rows
-    .filter((w) => w.kind === "retainage" && w.supersededAt === undefined)
+    .filter((w) => w.kind === "retainage" && w.supersededAt === undefined && w.payAppId === payAppId)
     .sort((a, b) => b.signedAt - a.signedAt)[0];
   return live?.amountCents ?? -1;
 }
@@ -70,7 +92,7 @@ export const beginRetainageRelease = internalMutation({
     // B2: with the opt-in lien-waiver gate on, retainage release needs its own signature for this exact
     // balance. The signing surface lives on the same pay-app panel, so the blocker is always clearable.
     if (agreement.lienWaiverGate?.enabled === true) {
-      const waivedCents = await signedRetainageWaiverCents(ctx, agreementId);
+      const waivedCents = await signedRetainageWaiverCents(ctx, agreementId, await latestPaidPayAppId(ctx, agreementId));
       if (waivedCents !== balanceCents) {
         throw new ConvexError({
           code: "LIEN_WAIVER_MISSING",

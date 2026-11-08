@@ -54,6 +54,8 @@ The `$1,850` Owner revenue is separate from the subcontract sum. Historical proo
 
 The Demo company also carries an ordinary residential job, **Lopez Kitchen Remodel**: an `$86,500`
 prime value, four prime schedule-of-values lines, a `10%` retainage hold and a monthly billing day.
+It is created by the demo seed itself, so a reseed or a fresh database has it without a manual
+command.
 
 1. As GC, open **Billing → Owner billing**, pick **Lopez Kitchen Remodel**, and press **New owner pay app**.
    The commercial walkthrough could not do this because it has no prime contract value.

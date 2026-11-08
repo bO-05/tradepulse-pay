@@ -14,7 +14,7 @@ import type { ReviewContext } from "./reviewMath";
 import { runPayAppReview, type ReviewRun } from "./reviewModel";
 import { loadSovRows } from "../lib/sovLines";
 import { loadTranches } from "../lib/trancheRows";
-import { getAIConfiguration } from "../lib/aiProvider";
+import { readAIConfigurationSafe } from "../lib/aiProvider";
 import { payAppViewValidator } from "./viewValidators";
 
 type ReviewInputs = {
@@ -190,7 +190,7 @@ async function performReview(
       await ctx.runMutation(internal.payApps.review.abandonReview, { payAppId, reviewRunId });
       return { reviewed: false, reason: "Pay application not found, or a newer submission or review replaced this review." };
     }
-    const run = await runPayAppReview(inputs.context, getAIConfiguration());
+    const run = await runPayAppReview(inputs.context, readAIConfigurationSafe() ?? {});
     const traceRunId = `payapp_review_${payAppId}_${Date.now()}`;
     const review = reviewRecord(run, traceRunId);
     const { stored }: { stored: boolean } = await ctx.runMutation(internal.payApps.review.storeReview, {

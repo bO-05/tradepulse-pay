@@ -72,7 +72,9 @@ for the releasable balance, through the last period end. It is anchored to the l
 there is exactly one place to sign, and it uses the same evidence path as the other two waivers.
 
 `beginRetainageRelease` refuses with `LIEN_WAIVER_MISSING` while the gate is on and no live retainage
-waiver covers the current balance. If a correction changes the balance, the old signature no longer
+waiver covers the current balance. The signature must also be bound to the pay app the slot hangs off:
+an older live signature for the same amount does not carry over after a later payment makes a different
+pay app the latest paid one. If a correction changes the balance, the old signature no longer
 matches, the panel offers a replacement, and the release waits for it. With the gate off, retainage
 release behaves exactly as before.
 

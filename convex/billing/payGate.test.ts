@@ -1141,6 +1141,35 @@ describe("retainage release waiver (B2)", () => {
     );
     expect(blocked).toMatch(/retainage release waiver for \$60\.00/);
   });
+
+  test("a waiver signed before a later payment does not unlock the release", async () => {
+    const { s, payAppId } = await closedOutAgreement();
+    const kim = s.f.sub.admin.as;
+    await s.f.gcA.admin.as.mutation(api.lienWaivers.setGate, { agreementId: s.agreementId, enabled: true });
+    await kim.mutation(api.lienWaivers.signWaiver, {
+      payAppId,
+      kind: "retainage",
+      signedByName: "Kim Alvarez",
+      acknowledged: true,
+      evidenceId: await evidenceFor(s, payAppId, "retainage"),
+    });
+
+    // A later paid pay app becomes the app the retainage slot hangs off. The signature still names the
+    // earlier app, so it must not satisfy the release even though the amount is unchanged.
+    await s.t.run(async (ctx) => {
+      const doc = await ctx.db.get(payAppId);
+      if (doc === null) throw new Error("pay app missing");
+      const { _id: ignoredId, _creationTime: ignoredCreatedAt, ...rest } = doc;
+      void ignoredId;
+      void ignoredCreatedAt;
+      await ctx.db.insert("payApplications", { ...rest, applicationNo: (doc.applicationNo ?? 0) + 1 });
+    });
+
+    const blocked = await errorOf(
+      s.t.mutation(internal.payments.retainageDb.beginRetainageRelease, { agreementId: s.agreementId, expectedCents: 5_000 }),
+    );
+    expect(blocked).toMatch(/has not signed the retainage release waiver/);
+  });
 });
 
 describe("signing evidence (B10)", () => {

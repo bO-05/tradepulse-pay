@@ -4,6 +4,7 @@ import { requireCompanyMember } from "./lib/tenancy";
 import { auditActor, callerProjects, requireDemoCompany, requireProjectScope } from "./lib/projectScope";
 import type { Doc } from "./_generated/dataModel";
 import { linkDemoProfiles } from "./demoAccounts";
+import { ensureResidentialReferenceRows } from "./demoResidential";
 import { attachProjectToDemo, ensureDemoCompanies, findDemoGcCompanyId, type DemoCompanyIds } from "./lib/demoTenancy";
 import { backfillVendorsForCompany } from "./lib/vendorDirectory";
 import { applyDemoLicenseNumbers } from "./kernel/demoLicenses";
@@ -1022,6 +1023,8 @@ Furnish and install 1600A main service switchboard, 480/277V step-down distribut
 async function reseedAndRelink(ctx: MutationCtx, args: { force?: boolean }) {
   const links = await snapshotActiveAgentLinks(ctx);
   const result = await seedDemoProject(ctx, args);
+  // The residential reference job ships with the demo seed, so a fresh database is not missing it.
+  await ensureResidentialReferenceRows(ctx);
   await applyDemoLicenseNumbers(ctx);
   await linkDemoProfiles(ctx);
   await remapAgentLinks(ctx, links);

@@ -42,7 +42,7 @@ node scripts/qa/lien-waiver-browser.mjs --url https://tradepulse-pay.asynchronop
 ```
 
 Compare against the table in [the audit entry](./audit-entry.md), which carries the counts for the build
-under review (161 test files and 2,089 tests at the time of writing). The three browser sweeps must report
+under review (161 test files and 2,092 tests at the time of writing). The three browser sweeps must report
 `ok: true` with empty `pageErrors` and `consoleErrors`.
 
 Do **not** run `scripts/qa/quick-start-browser.mjs` during judging unless you accept it creating a real

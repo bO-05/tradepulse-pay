@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { generateText } from "ai";
-import { aiProviderLabel, createAIModel, DEFAULT_MISTRAL_MODEL, getAIConfiguration } from "./aiProvider";
+import { aiProviderLabel, createAIModel, DEFAULT_MISTRAL_MODEL, getAIConfiguration, readAIConfigurationSafe } from "./aiProvider";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -28,6 +28,11 @@ describe("AI provider configuration", () => {
   test("refuses unknown providers without echoing the configured value", () => {
     expect(() => getAIConfiguration({ AI_PROVIDER: "unexpected-sensitive-value" }))
       .toThrow("AI_PROVIDER must be anthropic or mistral.");
+  });
+
+  test("the safe read degrades an invalid provider to null so callers can fall back", () => {
+    expect(readAIConfigurationSafe({ AI_PROVIDER: "unexpected-sensitive-value" })).toBeNull();
+    expect(readAIConfigurationSafe({ MISTRAL_API_KEY: "dummy-mistral" })).toMatchObject({ provider: "mistral" });
   });
 
   test("model adapters retain honest provider identity without any API request", () => {
