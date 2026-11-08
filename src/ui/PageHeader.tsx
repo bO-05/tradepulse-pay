@@ -18,7 +18,7 @@ export function PageHeader({ title, description, actions, back, meta, className 
       {back && (
         <a
           href={back.href}
-          className={cx("inline-flex w-fit items-center gap-1.5 rounded text-sm text-ink-subtle hover:text-ink", focusRing)}
+          className={cx("inline-flex min-h-6 w-fit items-center gap-1.5 rounded text-sm text-ink-subtle hover:text-ink", focusRing)}
         >
           <ArrowLeft aria-hidden="true" className="h-4 w-4" />
           {back.label}

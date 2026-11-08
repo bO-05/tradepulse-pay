@@ -1,0 +1,11 @@
+GC design capture - console and network state
+Origin: http://localhost:3150
+Captured: 2026-11-09 (local)
+
+pageErrors: []
+consoleErrors: []
+failedRequests:
+  GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED
+  GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED
+
+Every failed request is the unauthenticated demo page's optional sign-in-options probe; the browser aborts it and neither screen uses the response. No page error and no console error was raised. The inbox browser sweep also recorded zero unexpected page/console errors.

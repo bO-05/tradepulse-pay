@@ -3,16 +3,19 @@ import { useState } from "react";
 import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
 import { formatRetainagePercent } from "../../../convex/lib/retainageRules";
-import { GC_PROJECTS_HASH, gcProjectSettingsHash, peopleHash } from "../../auth/navigation";
+import { billingTabHash, GC_PROJECTS_HASH, gcProjectSettingsHash, peopleHash } from "../../auth/navigation";
 import { Button, Card, CommercialReferenceBadge, DateText, Money, PageHeader, StatusPill, useToast } from "../../ui";
 import { ReferenceNotice } from "../../payments/ReferenceNotice";
 import { ProjectMoneyStrip } from "../../billing/ProjectMoneyStrip";
 import { ownerDetailRows } from "./ownerDetails";
 import { openProcurementPackages } from "./specBreakdownRequest";
 import { TradePackagesSection } from "./TradePackagesSection";
+import { ProjectMoneyTrail } from "./ProjectMoneyTrail";
 
 const secondaryLink =
   "inline-flex min-h-touch items-center rounded-lg border border-line-strong px-4 text-sm font-semibold text-ink hover:bg-surface-raised";
+const primaryLink =
+  "inline-flex min-h-touch items-center rounded-lg bg-accent px-4 text-sm font-semibold text-accent-fg hover:bg-accent-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus";
 
 export function ProjectPage({ projectId }: { projectId: string }) {
   const project = useQuery(api.projects.getProject, { projectId });
@@ -25,6 +28,10 @@ export function ProjectPage({ projectId }: { projectId: string }) {
         project={project}
         actions={
           <>
+            {/* The job's one primary decision: open billing to review pay apps and draws. */}
+            <a href={billingTabHash("pay-apps")} className={primaryLink}>
+              Open billing
+            </a>
             {!readOnlyReference && (
               <a href={gcProjectSettingsHash(project._id)} className={secondaryLink}>
                 Project settings
@@ -46,6 +53,12 @@ export function ProjectPage({ projectId }: { projectId: string }) {
       {archived && <ArchivedBanner projectId={project._id} />}
       {readOnlyReference && <ReferenceNotice title="Preserved reference job · read-only." />}
       <ProjectMoneyStrip projectId={project._id} />
+      <ProjectMoneyTrail
+        projectId={project._id}
+        projectTitle={project.title}
+        projectKind={project.projectKind}
+        contractValueCents={project.contractValueCents}
+      />
       <ProjectDetailsCard project={project} />
       <OwnerCompanyCard projectId={project._id} />
       <TradePackagesSection
@@ -64,14 +77,19 @@ export function ProjectHeader({ project, actions }: { project: Doc<"projects">; 
     <PageHeader
       title={project.title}
       back={{ href: GC_PROJECTS_HASH, label: "All projects" }}
-      description={[project.ownerName, project.location].filter(Boolean).join(" · ") || undefined}
+      description={
+        [project.generalContractorName?.trim(), project.ownerName, project.location].filter(Boolean).join(" · ") || undefined
+      }
       actions={actions}
       meta={
         <>
           <StatusPill status={archived ? "archived" : (project.status ?? "active")} />
           <CommercialReferenceBadge kind={project.projectKind} />
-          <span>
-            Contract value: {project.contractValueCents !== undefined ? <Money cents={project.contractValueCents} /> : "—"}
+          <span className="flex flex-col">
+            <span className="text-xs text-ink-subtle">Contract value</span>
+            <span className="text-2xl font-semibold leading-tight">
+              {project.contractValueCents !== undefined ? <Money cents={project.contractValueCents} /> : "—"}
+            </span>
           </span>
           <span>Retainage: {project.retainageBps !== undefined ? formatRetainagePercent(project.retainageBps) : "—"}</span>
           <span>Billing day: {project.billingDay ?? "—"}</span>

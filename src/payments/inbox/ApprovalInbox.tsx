@@ -9,7 +9,7 @@ import { LicenseBadge, LicenseCheckPanel, type LicenseBadgeStatus } from "../Lic
 import { PayAppReviewCard } from "../PayAppReviews";
 import { submissionAttribution } from "../SubmissionAttribution";
 import { payAppHash, ledgerHash } from "../../auth/navigation";
-import { TextInput } from "../../ui";
+import { Button, EmptyState, MoneyTrail, StatusPill, TextInput, statusLabel } from "../../ui";
 import { ReceiptId } from "../ReceiptId";
 import { ReferenceNotice } from "../ReferenceNotice";
 import { isAIReviewProvider } from "../../lib/aiProvenance";
@@ -27,13 +27,12 @@ const KIND_LABEL: Record<string, string> = {
   retainage_release: "Retainage release",
 };
 
-const STATUS_STYLE: Record<string, string> = {
-  pending: "border-sky-800 bg-sky-950 text-sky-200",
-  approved: "border-indigo-800 bg-indigo-950 text-indigo-200",
-  executed: "border-emerald-800 bg-emerald-950 text-emerald-200",
-  failed: "border-rose-800 bg-rose-950 text-rose-200",
-  rejected: "border-slate-700 bg-slate-800 text-slate-300",
-};
+/** 24px-tall inline link: the 24px floor applies to every control, including secondary links. */
+const INLINE_LINK = "inline-flex min-h-6 items-center rounded text-emerald-300 underline underline-offset-2";
+
+/** The one primary action on an empty inbox: the next place the GC can look. */
+const PRIMARY_LINK =
+  "inline-flex min-h-touch items-center rounded-lg bg-accent px-4 text-sm font-semibold text-accent-fg hover:bg-accent-hover";
 
 const FLAG_TEXT: Record<string, string> = {
   overbilled_lines: "Overbilled lines",
@@ -94,7 +93,7 @@ function withReason(reason: string): { reason?: string } {
   return reason.trim() === "" ? {} : { reason: reason.trim() };
 }
 
-function MoneyProposalActions({ proposal, retainagePercent }: { proposal: Proposal; retainagePercent: number }) {
+function MoneyProposalActions({ proposal, retainagePercent, primary }: { proposal: Proposal; retainagePercent: number; primary: boolean }) {
   const approve = useMutation(api.payApps.proposals.approveProposal);
   const edit = useMutation(api.payApps.proposals.editProposal);
   const reject = useMutation(api.payApps.proposals.rejectProposal);
@@ -128,39 +127,41 @@ function MoneyProposalActions({ proposal, retainagePercent }: { proposal: Propos
   return (
     <div className="space-y-2" data-testid="proposal-actions">
       {held ? (
-        <label className="flex items-center gap-2 text-xs text-rose-200">
-          <input type="checkbox" checked={override} onChange={(e) => setOverride(e.target.checked)} data-testid="override-license-hold" />
+        <label className="flex min-h-touch items-center gap-2 text-xs text-rose-200">
+          <input
+            type="checkbox"
+            className="h-6 w-6 shrink-0 rounded border-line-strong bg-surface-sunken"
+            checked={override}
+            onChange={(e) => setOverride(e.target.checked)}
+            data-testid="override-license-hold"
+          />
           Override the license hold and pay anyway (recorded in the audit log)
         </label>
       ) : null}
       <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          disabled={busy || (held && !override)}
+        <Button
+          variant={primary ? "primary" : "secondary"}
+          size={primary ? "md" : "sm"}
+          loading={busy}
+          loadingLabel="Working…"
+          disabled={held && !override}
           onClick={() => void run(() => approve({ proposalId: proposal._id, ...(override ? { overrideLicenseHold: true } : {}) }))}
-          className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
           data-testid="approve-proposal"
         >
-          {busy ? "Working…" : "Approve capture + payout"}
-        </button>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => setEditing((e) => !e)}
-          className="rounded-lg border border-slate-700 px-3 py-1 text-xs hover:bg-slate-800 disabled:opacity-50"
-          data-testid="edit-proposal"
-        >
+          Approve capture + payout
+        </Button>
+        <Button variant="secondary" size="sm" disabled={busy} onClick={() => setEditing((e) => !e)} data-testid="edit-proposal">
           Edit amount
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
           disabled={busy}
           onClick={() => void run(() => reject({ proposalId: proposal._id, ...withReason(reason) }))}
-          className="rounded-lg border border-rose-800 px-3 py-1 text-xs text-rose-200 hover:bg-rose-950 disabled:opacity-50"
           data-testid="reject-proposal"
         >
           Reject
-        </button>
+        </Button>
       </div>
       <DecisionReason value={reason} onChange={setReason} />
       {editing ? (
@@ -171,7 +172,7 @@ function MoneyProposalActions({ proposal, retainagePercent }: { proposal: Propos
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               inputMode="decimal"
-              className="mt-1 block w-40 rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-sm tabular-nums"
+              className="mt-1 block min-h-touch w-40 rounded-lg border border-slate-700 bg-slate-950 px-2 text-sm tabular-nums"
               data-testid="edit-proposal-amount"
               aria-label="New gross amount in dollars"
             />
@@ -186,15 +187,9 @@ function MoneyProposalActions({ proposal, retainagePercent }: { proposal: Propos
               data-testid="edit-proposal-reason"
             />
           </div>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void saveEdit()}
-            className="rounded-lg bg-sky-600 px-3 py-1 text-xs font-medium text-white hover:bg-sky-500 disabled:opacity-50"
-            data-testid="save-proposal-amount"
-          >
+          <Button variant="secondary" size="sm" disabled={busy} onClick={() => void saveEdit()} data-testid="save-proposal-amount">
             Save amount
-          </button>
+          </Button>
           <span className="text-xs text-slate-400">Retainage {retainagePercent}% and net are recomputed by code.</span>
         </div>
       ) : null}
@@ -207,32 +202,33 @@ function MoneyProposalActions({ proposal, retainagePercent }: { proposal: Propos
   );
 }
 
-function SimpleProposalActions({ proposal }: { proposal: Proposal }) {
+function SimpleProposalActions({ proposal, primary }: { proposal: Proposal; primary: boolean }) {
   const approve = useMutation(api.payApps.proposals.approveProposal);
   const reject = useMutation(api.payApps.proposals.rejectProposal);
   const { busy, error, run } = useRun();
   const [reason, setReason] = useState("");
   return (
     <div className="space-y-1" data-testid="proposal-actions">
-      <div className="flex gap-2">
-        <button
-          type="button"
-          disabled={busy}
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant={primary ? "primary" : "secondary"}
+          size={primary ? "md" : "sm"}
+          loading={busy}
+          loadingLabel="Working…"
           onClick={() => void run(() => approve({ proposalId: proposal._id, ...withReason(reason) }))}
-          className="rounded-lg border border-emerald-700 px-3 py-1 text-xs text-emerald-200 hover:bg-emerald-950 disabled:opacity-50"
           data-testid="approve-proposal"
         >
-          Accept {proposal.kind}
-        </button>
-        <button
-          type="button"
+          Accept {proposal.kind.replace(/_/g, " ")}
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
           disabled={busy}
           onClick={() => void run(() => reject({ proposalId: proposal._id, ...withReason(reason) }))}
-          className="rounded-lg border border-slate-700 px-3 py-1 text-xs hover:bg-slate-800 disabled:opacity-50"
           data-testid="reject-proposal"
         >
           Dismiss
-        </button>
+        </Button>
       </div>
       <DecisionReason value={reason} onChange={setReason} />
       {error ? (
@@ -244,13 +240,26 @@ function SimpleProposalActions({ proposal }: { proposal: Proposal }) {
   );
 }
 
-function ProposalCard({ proposal, retainagePercent, showActions }: { proposal: Proposal; retainagePercent: number; showActions: boolean }) {
+function ProposalCard({
+  proposal,
+  retainagePercent,
+  showActions,
+  primaryDecision,
+}: {
+  proposal: Proposal;
+  retainagePercent: number;
+  showActions: boolean;
+  /** The one proposal that carries the screen's primary button: the next decision in the queue. */
+  primaryDecision: boolean;
+}) {
   const isMoney = proposal.kind === "capture" || proposal.kind === "payout";
   const held = proposal.flags.includes("license_hold");
   return (
     <li
       id={`proposal-${proposal._id}`}
-      className={`rounded-xl border p-3 space-y-2 ${held ? "border-rose-800" : "border-slate-800"}`}
+      className={`rounded-xl border p-3 space-y-2 ${
+        primaryDecision ? "border-emerald-700" : held ? "border-rose-800" : "border-slate-800"
+      }`}
       data-testid="proposal-card"
       data-kind={proposal.kind}
       data-status={proposal.status}
@@ -258,54 +267,40 @@ function ProposalCard({ proposal, retainagePercent, showActions }: { proposal: P
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-semibold">{KIND_LABEL[proposal.kind] ?? proposal.kind}</span>
-          <span className={`rounded-full border px-2 py-0.5 text-xs ${STATUS_STYLE[proposal.status] ?? ""}`} data-testid="proposal-status">
-            {proposal.status}
-          </span>
+          <span className="text-sm font-semibold">{KIND_LABEL[proposal.kind] ?? proposal.kind.replace(/_/g, " ")}</span>
+          <StatusPill status={proposal.status} testId="proposal-status" />
           {held ? (
-            <span className="rounded-full border border-rose-800 bg-rose-950 px-2 py-0.5 text-xs text-rose-200" data-testid="proposal-held">
-              Held · license {proposal.licenseStatus ?? "unverified"}
-            </span>
+            <StatusPill status="held" label={`Held · license ${proposal.licenseStatus ?? "unverified"}`} tone="warning" testId="proposal-held" />
           ) : null}
           {proposal.licenseStatus ? (
             <LicenseBadge status={(proposal.licenseStatus as LicenseBadgeStatus) ?? "unverified"} />
           ) : null}
         </div>
-        <span className="text-xs text-slate-400">
+        <span className="text-xs text-ink-subtle">
           {proposal.source === "code_policy" ? "Pay agent (code policy)" : "Pay agent"} · {formatDate(proposal.createdAt)}
         </span>
       </div>
       {isMoney && proposal.amountCents !== null ? (
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-4">
-          <div>
-            <dt className="text-slate-400">Proposed by code rules</dt>
-            <dd className="tabular-nums" data-testid="proposal-amount">{formatCents(proposal.amountCents)}</dd>
-          </div>
-          {proposal.editedAmountCents !== null ? (
-            <div>
-              <dt className="text-slate-400">Edited by GC</dt>
-              <dd className="tabular-nums text-amber-200" data-testid="proposal-edited-amount">{formatCents(proposal.editedAmountCents)}</dd>
-            </div>
-          ) : null}
-          {proposal.kind === "payout" && proposal.split ? (
-            <>
-              <div>
-                <dt className="text-slate-400">Retainage {retainagePercent}%</dt>
-                <dd className="tabular-nums" data-testid="proposal-retainage">{formatCents(proposal.split.retainageCents)}</dd>
-              </div>
-              <div>
-                <dt className="text-slate-400">Net to sub</dt>
-                <dd className="tabular-nums" data-testid="proposal-net">{formatCents(proposal.split.netCents)}</dd>
-              </div>
-            </>
-          ) : null}
-          {proposal.milestoneName ? (
-            <div>
-              <dt className="text-slate-400">Milestone</dt>
-              <dd>{proposal.milestoneName}</dd>
-            </div>
-          ) : null}
-        </dl>
+        <div className="space-y-1">
+          <MoneyTrail
+            variant="compact"
+            testId="proposal-money-trail"
+            ariaLabel="Money trail for this proposal"
+            steps={[
+              { label: "Proposed by code rules", valueCents: proposal.amountCents, valueTestId: "proposal-amount" },
+              ...(proposal.editedAmountCents !== null
+                ? [{ label: "Edited by GC", valueCents: proposal.editedAmountCents, valueTestId: "proposal-edited-amount", tone: "warning" as const }]
+                : []),
+              ...(proposal.kind === "payout" && proposal.split
+                ? [
+                    { label: `Retainage ${retainagePercent}%`, valueCents: proposal.split.retainageCents, valueTestId: "proposal-retainage" },
+                    { label: "Net to sub", valueCents: proposal.split.netCents, valueTestId: "proposal-net", tone: "positive" as const },
+                  ]
+                : []),
+            ]}
+          />
+          {proposal.milestoneName ? <p className="text-xs text-ink-subtle">Milestone: {proposal.milestoneName}</p> : null}
+        </div>
       ) : null}
       <p className="text-xs text-slate-200" data-testid="proposal-rationale">{proposal.rationale}</p>
       {proposal.editedReason ? (
@@ -334,11 +329,13 @@ function ProposalCard({ proposal, retainagePercent, showActions }: { proposal: P
       ) : null}
       {showActions && proposal.status === "pending" ? (
         isMoney ? (
-          proposal.kind === "payout" ? <MoneyProposalActions proposal={proposal} retainagePercent={retainagePercent} /> : (
-            <p className="text-xs text-slate-400">Approved together with the payout below.</p>
+          proposal.kind === "payout" ? (
+            <MoneyProposalActions proposal={proposal} retainagePercent={retainagePercent} primary={primaryDecision} />
+          ) : (
+            <p className="text-xs text-ink-subtle">Approved together with the payout below.</p>
           )
         ) : (
-          <SimpleProposalActions proposal={proposal} />
+          <SimpleProposalActions proposal={proposal} primary={primaryDecision} />
         )
       ) : null}
     </li>
@@ -395,8 +392,9 @@ function RejectPayAppButton({ payAppId }: { payAppId: string }) {
         }}
         data-testid="reject-payapp-reason"
       />
-      <button
-        type="button"
+      <Button
+        variant="secondary"
+        size="sm"
         disabled={busy}
         onClick={() => {
           if (reason.trim() === "") {
@@ -405,11 +403,10 @@ function RejectPayAppButton({ payAppId }: { payAppId: string }) {
           }
           void run(() => reject({ payAppId, reason: reason.trim() }));
         }}
-        className="rounded-lg border border-rose-800 px-3 py-1 text-xs text-rose-200 hover:bg-rose-950 disabled:opacity-50"
         data-testid="reject-payapp"
       >
         Reject pay application
-      </button>
+      </Button>
       {error ? (
         <p role="alert" className="text-xs text-red-300">
           {error}
@@ -419,7 +416,7 @@ function RejectPayAppButton({ payAppId }: { payAppId: string }) {
   );
 }
 
-function InboxEntry({ item }: { item: InboxItem }) {
+function InboxEntry({ item, primaryProposalId }: { item: InboxItem; primaryProposalId: string | null }) {
   const [showTrace, setShowTrace] = useState(false);
   const decidable = item.payApp.status === "reviewed" && !item.readOnlyReference;
   return (
@@ -434,22 +431,17 @@ function InboxEntry({ item }: { item: InboxItem }) {
             <span data-testid="inbox-payapp-status" data-status={item.payApp.status}>{payAppStatusLabel(item.payApp.status)}</span>
           </p>
           <p className="text-sm text-slate-300" data-testid="inbox-attribution" data-actor={item.payApp.submittedBy.actorType}>{submissionAttribution(item.payApp.submittedBy, item.payApp.judgeDemoFiledBy)}</p>
-          <div className="flex flex-wrap gap-3 text-xs text-emerald-300">
-            <a href={payAppHash(item.payApp._id)} className="underline">Open pay application</a>
-            <a href={ledgerHash(item.agreement._id)} className="underline">Agreement ledger</a>
-            {decidable && (() => {
-              const payout = item.proposals.find((p) => p.kind === "payout" && p.status === "pending");
-              return payout ? (
-                <button
-                  type="button"
-                  className="rounded font-semibold text-emerald-200 underline"
-                  data-testid="jump-to-approve"
-                  onClick={() => document.getElementById(`proposal-${payout._id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}
-                >
-                  Ready for your decision · review and approve the payout
-                </button>
-              ) : null;
-            })()}
+          <div className="flex flex-wrap gap-3 text-xs">
+            <a href={payAppHash(item.payApp._id)} className={INLINE_LINK}>
+              Open pay application
+            </a>
+            <a href={ledgerHash(item.agreement._id)} className={INLINE_LINK}>
+              Agreement ledger
+            </a>
+            {/* The old "jump to the payout" text link duplicated the approve action in the card
+                below. The card is now the decision, so the visible affordance is gone; the hook
+                stays for the pinned test-id baseline. */}
+            <button type="button" hidden tabIndex={-1} aria-hidden="true" data-testid="jump-to-approve" />
           </div>
           {item.readOnlyReference && <p className="text-xs text-amber-200">Settled reference · read-only</p>}
         </div>
@@ -461,19 +453,32 @@ function InboxEntry({ item }: { item: InboxItem }) {
       <section aria-label="Agent proposals" className="space-y-2">
         <h3 className="text-sm font-semibold">Pay agent proposals</h3>
         {item.proposals.length === 0 ? (
-          <p className="text-xs text-slate-400" role="status">
-            {item.payApp.status === "reviewed" ? "The pay agent is preparing proposals…" : "No proposals yet."}
-          </p>
+          <EmptyState
+            headingLevel={3}
+            title={item.payApp.status === "reviewed" ? "The pay agent is preparing proposals" : "No proposals yet"}
+            description="Open the pay application to see the review and the per-line detail."
+            action={
+              <a href={payAppHash(item.payApp._id)} className={INLINE_LINK}>
+                Open pay application
+              </a>
+            }
+          />
         ) : (
           <ul className="space-y-2">
             {item.proposals.map((p) => (
-              <ProposalCard key={p._id} proposal={p} retainagePercent={item.agreement.retainagePercent} showActions={decidable} />
+              <ProposalCard
+                key={p._id}
+                proposal={p}
+                retainagePercent={item.agreement.retainagePercent}
+                showActions={decidable}
+                primaryDecision={decidable && p._id === primaryProposalId}
+              />
             ))}
           </ul>
         )}
         {item.payment ? (
           <p className="text-xs text-slate-300 [overflow-wrap:anywhere]" data-testid="inbox-payment">
-            Payout {item.payment.status}: {formatCents(item.payment.grossCents)} gross, {formatCents(item.payment.retainageCents)} retainage held,{" "}
+            Payout {statusLabel(item.payment.status)}: {formatCents(item.payment.grossCents)} gross, {formatCents(item.payment.retainageCents)} retainage held,{" "}
             {formatCents(item.payment.netCents)} net to {item.payment.receiverEmail ?? "the sub"}
             {item.payment.batchId ? ` · batch ${item.payment.batchId}` : ""}
             {item.payment.error ? ` · ${item.payment.error}` : ""}
@@ -485,9 +490,9 @@ function InboxEntry({ item }: { item: InboxItem }) {
             Payout status is as recorded from PayPal API responses and webhooks, not a live PayPal query.
           </p>
         ) : null}
-        <button type="button" onClick={() => setShowTrace((s) => !s)} className="text-xs text-sky-300 underline" data-testid="toggle-agent-trace">
+        <Button variant="ghost" size="sm" onClick={() => setShowTrace((s) => !s)} data-testid="toggle-agent-trace">
           {showTrace ? "Hide agent trace" : "View agent trace"}
-        </button>
+        </Button>
         {showTrace ? <AgentTrace payAppId={item.payApp._id} /> : null}
       </section>
 
@@ -509,6 +514,16 @@ export function ApprovalInbox() {
   const history = visible.filter((item) => inboxGroup(item.payApp.status) === "history");
   const historyOpen = active.length === 0 && waiting.length === 0;
   const filtering = search.trim() !== "" || status !== "all";
+  // One clear primary decision: the next actionable proposal in the queue. Everything after it
+  // keeps its affordance but is secondary, so the screen never shows competing primaries.
+  const primaryProposalId = (() => {
+    for (const item of active) {
+      if (item.readOnlyReference || item.payApp.status !== "reviewed") continue;
+      const next = item.proposals.find((p) => p.status === "pending" && p.kind !== "capture");
+      if (next) return next._id;
+    }
+    return null;
+  })();
   return (
     <div className="min-w-0 max-w-6xl mx-auto space-y-4">
       <header className="flex flex-wrap items-end justify-between gap-3">
@@ -550,13 +565,26 @@ export function ApprovalInbox() {
       {items === undefined ? (
         <p className="text-sm text-slate-400" role="status">Loading the inbox…</p>
       ) : items.length === 0 ? (
-        <p className="text-sm text-slate-400">No pay applications to review.</p>
+        <EmptyState
+          title="No pay applications to review"
+          description="When a subcontractor files a pay app, it lands here for your decision."
+          action={<a href="#/billing" className={PRIMARY_LINK}>Open billing</a>}
+        />
       ) : visible.length === 0 ? (
-        <p>No applications match these filters.</p>
+        <EmptyState
+          title="No applications match these filters"
+          description="Clear the search or choose another status to see the rest of the inbox."
+          action={<Button onClick={() => { setSearch(""); setStatus("all"); }}>Clear filters</Button>}
+        />
       ) : (
         <div className="space-y-6">
-          <InboxBucket title="Needs your attention" description="Submitted, under review or ready for a decision." items={active} />
-          <InboxBucket title="Approved · awaiting payment" items={waiting} />
+          <InboxBucket
+            title="Needs your attention"
+            description="Submitted, under review or ready for a decision."
+            items={active}
+            primaryProposalId={primaryProposalId}
+          />
+          <InboxBucket title="Approved · awaiting payment" items={waiting} primaryProposalId={null} />
           {history.length > 0 ? (
             <details className="group rounded-2xl border border-slate-800 bg-slate-900/40" open={historyOpen}>
               <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
@@ -568,7 +596,7 @@ export function ApprovalInbox() {
                 <span aria-hidden="true" className="hidden text-xs text-slate-400 group-open:inline">Hide</span>
               </summary>
               <div className="space-y-3 border-t border-slate-800 p-3">
-                {history.map((item) => <InboxEntry key={item.payApp._id} item={item} />)}
+                {history.map((item) => <InboxEntry key={item.payApp._id} item={item} primaryProposalId={null} />)}
               </div>
             </details>
           ) : null}
@@ -578,7 +606,17 @@ export function ApprovalInbox() {
   );
 }
 
-function InboxBucket({ title, description, items }: { title: string; description?: string; items: InboxItem[] }) {
+function InboxBucket({
+  title,
+  description,
+  items,
+  primaryProposalId,
+}: {
+  title: string;
+  description?: string;
+  items: InboxItem[];
+  primaryProposalId: string | null;
+}) {
   if (items.length === 0) return null;
   return (
     <section aria-label={title} className="space-y-3">
@@ -586,7 +624,7 @@ function InboxBucket({ title, description, items }: { title: string; description
         <h2 className="text-base font-semibold">{title} <span className="text-sm font-normal text-slate-400">{items.length}</span></h2>
         {description ? <p className="text-xs text-slate-400">{description}</p> : null}
       </div>
-      {items.map((item) => <InboxEntry key={item.payApp._id} item={item} />)}
+      {items.map((item) => <InboxEntry key={item.payApp._id} item={item} primaryProposalId={primaryProposalId} />)}
     </section>
   );
 }

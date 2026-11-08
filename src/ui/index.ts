@@ -7,6 +7,7 @@ export { Tabs, type TabItem, type TabsProps } from "./Tabs";
 export { Table, type TableColumn, type TableProps } from "./Table";
 export { StatusPill, type StatusPillProps } from "./StatusPill";
 export { Money, type MoneyProps } from "./Money";
+export { MoneyTrail, type MoneyTrailProps, type MoneyTrailStep } from "./MoneyTrail";
 export { DateText, type DateTextProps } from "./DateText";
 export { Field, focusFirstInvalid, type FieldProps } from "./Field";
 export { TextInput, MoneyInput, PercentInput, DateInput, TimeInput } from "./Inputs";

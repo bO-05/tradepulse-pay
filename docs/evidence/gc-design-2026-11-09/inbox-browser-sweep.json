@@ -1,0 +1,213 @@
+{
+  "target": "http://localhost:3150",
+  "checks": [
+    {
+      "name": "landing leads with the residential GC job story",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "landing explains Catch overbilling early",
+      "ok": true,
+      "detail": "TradePulse Pay\nRESIDENTIAL REMODEL GCS · PAYPAL SANDBOX\n\nPAY APPS FOR OWNER-RUN REMODELS\n\nPay the right amount.\nKeep the receipt.\nChoose your seat\n\nStart with the GC seat. No signup or sponsor account is needed for the core demo. These buttons use ordinary demo-account sign-in, not an authentication bypass.\n\nGeneral contractor\n→\nReview a sub's pay app and release sandbox payment.\ngc@demo.tradepulse\nSubcontractor\n→\nSign in as Ortiz Plumbing on the settled Lopez Kitchen Remodel pay app.\nsub4@demo.tradepulse\nProject owner\n→\nSee job progress and pay a change-order invoice.\nowner@demo.tradepulse\nNormal sign-in / create a GC account\n\nThis public build uses PayPal sandbox money only. No real funds move, and every demo account is shared.\n\nManual sign-in and sandbox details\nCatch overbilling early\n\nEvery line is checked against the schedule of values, exclusions and what was already paid.\n\nDecide with the evidence\n\nSee the contract, change orders, licence status and prior payments beside the amount you are approving.\n\nKeep a clean owner trail\n\nSub pay apps, owner invoices and PayPal receipts stay tied to one job ledger for the owner or lender.\n\nBuilt for the GC running a handful of kitchens, additions and whole-home remodels — not a billion-dollar ERP. Rules compute the money. A model can explain the evidence. You make the call.\n\nJudge walkthrough: inspect a settled run or create a new one\n+\nSandbox payment\n\nFunding and invoice payment still require real sandbox browser approval. This is not a claim of full-contract completion.\n\nWhat to verify\n\nRead the rules-computed amounts and th"
+    },
+    {
+      "name": "landing explains Decide with the evidence",
+      "ok": true,
+      "detail": "TradePulse Pay\nRESIDENTIAL REMODEL GCS · PAYPAL SANDBOX\n\nPAY APPS FOR OWNER-RUN REMODELS\n\nPay the right amount.\nKeep the receipt.\nChoose your seat\n\nStart with the GC seat. No signup or sponsor account is needed for the core demo. These buttons use ordinary demo-account sign-in, not an authentication bypass.\n\nGeneral contractor\n→\nReview a sub's pay app and release sandbox payment.\ngc@demo.tradepulse\nSubcontractor\n→\nSign in as Ortiz Plumbing on the settled Lopez Kitchen Remodel pay app.\nsub4@demo.tradepulse\nProject owner\n→\nSee job progress and pay a change-order invoice.\nowner@demo.tradepulse\nNormal sign-in / create a GC account\n\nThis public build uses PayPal sandbox money only. No real funds move, and every demo account is shared.\n\nManual sign-in and sandbox details\nCatch overbilling early\n\nEvery line is checked against the schedule of values, exclusions and what was already paid.\n\nDecide with the evidence\n\nSee the contract, change orders, licence status and prior payments beside the amount you are approving.\n\nKeep a clean owner trail\n\nSub pay apps, owner invoices and PayPal receipts stay tied to one job ledger for the owner or lender.\n\nBuilt for the GC running a handful of kitchens, additions and whole-home remodels — not a billion-dollar ERP. Rules compute the money. A model can explain the evidence. You make the call.\n\nJudge walkthrough: inspect a settled run or create a new one\n+\nSandbox payment\n\nFunding and invoice payment still require real sandbox browser approval. This is not a claim of full-contract completion.\n\nWhat to verify\n\nRead the rules-computed amounts and th"
+    },
+    {
+      "name": "landing explains Keep a clean owner trail",
+      "ok": true,
+      "detail": "TradePulse Pay\nRESIDENTIAL REMODEL GCS · PAYPAL SANDBOX\n\nPAY APPS FOR OWNER-RUN REMODELS\n\nPay the right amount.\nKeep the receipt.\nChoose your seat\n\nStart with the GC seat. No signup or sponsor account is needed for the core demo. These buttons use ordinary demo-account sign-in, not an authentication bypass.\n\nGeneral contractor\n→\nReview a sub's pay app and release sandbox payment.\ngc@demo.tradepulse\nSubcontractor\n→\nSign in as Ortiz Plumbing on the settled Lopez Kitchen Remodel pay app.\nsub4@demo.tradepulse\nProject owner\n→\nSee job progress and pay a change-order invoice.\nowner@demo.tradepulse\nNormal sign-in / create a GC account\n\nThis public build uses PayPal sandbox money only. No real funds move, and every demo account is shared.\n\nManual sign-in and sandbox details\nCatch overbilling early\n\nEvery line is checked against the schedule of values, exclusions and what was already paid.\n\nDecide with the evidence\n\nSee the contract, change orders, licence status and prior payments beside the amount you are approving.\n\nKeep a clean owner trail\n\nSub pay apps, owner invoices and PayPal receipts stay tied to one job ledger for the owner or lender.\n\nBuilt for the GC running a handful of kitchens, additions and whole-home remodels — not a billion-dollar ERP. Rules compute the money. A model can explain the evidence. You make the call.\n\nJudge walkthrough: inspect a settled run or create a new one\n+\nSandbox payment\n\nFunding and invoice payment still require real sandbox browser approval. This is not a claim of full-contract completion.\n\nWhat to verify\n\nRead the rules-computed amounts and th"
+    },
+    {
+      "name": "landing explains owner or lender",
+      "ok": true,
+      "detail": "TradePulse Pay\nRESIDENTIAL REMODEL GCS · PAYPAL SANDBOX\n\nPAY APPS FOR OWNER-RUN REMODELS\n\nPay the right amount.\nKeep the receipt.\nChoose your seat\n\nStart with the GC seat. No signup or sponsor account is needed for the core demo. These buttons use ordinary demo-account sign-in, not an authentication bypass.\n\nGeneral contractor\n→\nReview a sub's pay app and release sandbox payment.\ngc@demo.tradepulse\nSubcontractor\n→\nSign in as Ortiz Plumbing on the settled Lopez Kitchen Remodel pay app.\nsub4@demo.tradepulse\nProject owner\n→\nSee job progress and pay a change-order invoice.\nowner@demo.tradepulse\nNormal sign-in / create a GC account\n\nThis public build uses PayPal sandbox money only. No real funds move, and every demo account is shared.\n\nManual sign-in and sandbox details\nCatch overbilling early\n\nEvery line is checked against the schedule of values, exclusions and what was already paid.\n\nDecide with the evidence\n\nSee the contract, change orders, licence status and prior payments beside the amount you are approving.\n\nKeep a clean owner trail\n\nSub pay apps, owner invoices and PayPal receipts stay tied to one job ledger for the owner or lender.\n\nBuilt for the GC running a handful of kitchens, additions and whole-home remodels — not a billion-dollar ERP. Rules compute the money. A model can explain the evidence. You make the call.\n\nJudge walkthrough: inspect a settled run or create a new one\n+\nSandbox payment\n\nFunding and invoice payment still require real sandbox browser approval. This is not a claim of full-contract completion.\n\nWhat to verify\n\nRead the rules-computed amounts and th"
+    },
+    {
+      "name": "landing explains PayPal sandbox money only",
+      "ok": true,
+      "detail": "TradePulse Pay\nRESIDENTIAL REMODEL GCS · PAYPAL SANDBOX\n\nPAY APPS FOR OWNER-RUN REMODELS\n\nPay the right amount.\nKeep the receipt.\nChoose your seat\n\nStart with the GC seat. No signup or sponsor account is needed for the core demo. These buttons use ordinary demo-account sign-in, not an authentication bypass.\n\nGeneral contractor\n→\nReview a sub's pay app and release sandbox payment.\ngc@demo.tradepulse\nSubcontractor\n→\nSign in as Ortiz Plumbing on the settled Lopez Kitchen Remodel pay app.\nsub4@demo.tradepulse\nProject owner\n→\nSee job progress and pay a change-order invoice.\nowner@demo.tradepulse\nNormal sign-in / create a GC account\n\nThis public build uses PayPal sandbox money only. No real funds move, and every demo account is shared.\n\nManual sign-in and sandbox details\nCatch overbilling early\n\nEvery line is checked against the schedule of values, exclusions and what was already paid.\n\nDecide with the evidence\n\nSee the contract, change orders, licence status and prior payments beside the amount you are approving.\n\nKeep a clean owner trail\n\nSub pay apps, owner invoices and PayPal receipts stay tied to one job ledger for the owner or lender.\n\nBuilt for the GC running a handful of kitchens, additions and whole-home remodels — not a billion-dollar ERP. Rules compute the money. A model can explain the evidence. You make the call.\n\nJudge walkthrough: inspect a settled run or create a new one\n+\nSandbox payment\n\nFunding and invoice payment still require real sandbox browser approval. This is not a claim of full-contract completion.\n\nWhat to verify\n\nRead the rules-computed amounts and th"
+    },
+    {
+      "name": "landing offers all three demo seats",
+      "ok": true,
+      "detail": "3"
+    },
+    {
+      "name": "landing keeps the credential-free GC entry",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "judge checklist is available but collapsed",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "test-card number is not in the first reading surface",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "manual sandbox details open on demand",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "GC primary bar is capped at the daily payment path",
+      "ok": true,
+      "detail": "[\"Approvals\",\"Billing\",\"Projects\",\"Change orders\",\"Payments\",\"Guided demoDemo\"]"
+    },
+    {
+      "name": "primary nav keeps Approvals",
+      "ok": true,
+      "detail": "[\"Approvals\",\"Billing\",\"Projects\",\"Change orders\",\"Payments\",\"Guided demoDemo\"]"
+    },
+    {
+      "name": "primary nav keeps Billing",
+      "ok": true,
+      "detail": "[\"Approvals\",\"Billing\",\"Projects\",\"Change orders\",\"Payments\",\"Guided demoDemo\"]"
+    },
+    {
+      "name": "primary nav keeps Projects",
+      "ok": true,
+      "detail": "[\"Approvals\",\"Billing\",\"Projects\",\"Change orders\",\"Payments\",\"Guided demoDemo\"]"
+    },
+    {
+      "name": "primary nav keeps Change orders",
+      "ok": true,
+      "detail": "[\"Approvals\",\"Billing\",\"Projects\",\"Change orders\",\"Payments\",\"Guided demoDemo\"]"
+    },
+    {
+      "name": "primary nav keeps Payments",
+      "ok": true,
+      "detail": "[\"Approvals\",\"Billing\",\"Projects\",\"Change orders\",\"Payments\",\"Guided demoDemo\"]"
+    },
+    {
+      "name": "primary nav keeps the guided demo for judges",
+      "ok": true,
+      "detail": "[\"Approvals\",\"Billing\",\"Projects\",\"Change orders\",\"Payments\",\"Guided demoDemo\"]"
+    },
+    {
+      "name": "back-office registers are not in the primary bar",
+      "ok": true,
+      "detail": "[\"Approvals\",\"Billing\",\"Projects\",\"Change orders\",\"Payments\",\"Guided demoDemo\"]"
+    },
+    {
+      "name": "More menu is present and collapsed",
+      "ok": true,
+      "detail": "{\"label\":\"More▼\",\"open\":false,\"links\":[{\"text\":\"Procurement\",\"href\":\"#/procurement\"},{\"text\":\"Compliance & waivers\",\"href\":\"#/compliance\"},{\"text\":\"Project summaries\",\"href\":\"#/projects\"},{\"text\":\"People\",\"href\":\"#/people\"},{\"text\":\"Vendors\",\"href\":\"#/vendors\"},{\"text\":\"Billing agents\",\"href\":\"#/billing-agents\"},{\"text\":\"Payment reports\",\"href\":\"#/dashboard\"}]}"
+    },
+    {
+      "name": "More menu keeps Procurement",
+      "ok": true,
+      "detail": "[{\"text\":\"Procurement\",\"href\":\"#/procurement\"},{\"text\":\"Compliance & waivers\",\"href\":\"#/compliance\"},{\"text\":\"Project summaries\",\"href\":\"#/projects\"},{\"text\":\"People\",\"href\":\"#/people\"},{\"text\":\"Vendors\",\"href\":\"#/vendors\"},{\"text\":\"Billing agents\",\"href\":\"#/billing-agents\"},{\"text\":\"Payment reports\",\"href\":\"#/dashboard\"}]"
+    },
+    {
+      "name": "More menu keeps Compliance & waivers",
+      "ok": true,
+      "detail": "[{\"text\":\"Procurement\",\"href\":\"#/procurement\"},{\"text\":\"Compliance & waivers\",\"href\":\"#/compliance\"},{\"text\":\"Project summaries\",\"href\":\"#/projects\"},{\"text\":\"People\",\"href\":\"#/people\"},{\"text\":\"Vendors\",\"href\":\"#/vendors\"},{\"text\":\"Billing agents\",\"href\":\"#/billing-agents\"},{\"text\":\"Payment reports\",\"href\":\"#/dashboard\"}]"
+    },
+    {
+      "name": "More menu keeps Project summaries",
+      "ok": true,
+      "detail": "[{\"text\":\"Procurement\",\"href\":\"#/procurement\"},{\"text\":\"Compliance & waivers\",\"href\":\"#/compliance\"},{\"text\":\"Project summaries\",\"href\":\"#/projects\"},{\"text\":\"People\",\"href\":\"#/people\"},{\"text\":\"Vendors\",\"href\":\"#/vendors\"},{\"text\":\"Billing agents\",\"href\":\"#/billing-agents\"},{\"text\":\"Payment reports\",\"href\":\"#/dashboard\"}]"
+    },
+    {
+      "name": "More menu keeps People",
+      "ok": true,
+      "detail": "[{\"text\":\"Procurement\",\"href\":\"#/procurement\"},{\"text\":\"Compliance & waivers\",\"href\":\"#/compliance\"},{\"text\":\"Project summaries\",\"href\":\"#/projects\"},{\"text\":\"People\",\"href\":\"#/people\"},{\"text\":\"Vendors\",\"href\":\"#/vendors\"},{\"text\":\"Billing agents\",\"href\":\"#/billing-agents\"},{\"text\":\"Payment reports\",\"href\":\"#/dashboard\"}]"
+    },
+    {
+      "name": "More menu keeps Vendors",
+      "ok": true,
+      "detail": "[{\"text\":\"Procurement\",\"href\":\"#/procurement\"},{\"text\":\"Compliance & waivers\",\"href\":\"#/compliance\"},{\"text\":\"Project summaries\",\"href\":\"#/projects\"},{\"text\":\"People\",\"href\":\"#/people\"},{\"text\":\"Vendors\",\"href\":\"#/vendors\"},{\"text\":\"Billing agents\",\"href\":\"#/billing-agents\"},{\"text\":\"Payment reports\",\"href\":\"#/dashboard\"}]"
+    },
+    {
+      "name": "More menu keeps Billing agents",
+      "ok": true,
+      "detail": "[{\"text\":\"Procurement\",\"href\":\"#/procurement\"},{\"text\":\"Compliance & waivers\",\"href\":\"#/compliance\"},{\"text\":\"Project summaries\",\"href\":\"#/projects\"},{\"text\":\"People\",\"href\":\"#/people\"},{\"text\":\"Vendors\",\"href\":\"#/vendors\"},{\"text\":\"Billing agents\",\"href\":\"#/billing-agents\"},{\"text\":\"Payment reports\",\"href\":\"#/dashboard\"}]"
+    },
+    {
+      "name": "More menu keeps Payment reports",
+      "ok": true,
+      "detail": "[{\"text\":\"Procurement\",\"href\":\"#/procurement\"},{\"text\":\"Compliance & waivers\",\"href\":\"#/compliance\"},{\"text\":\"Project summaries\",\"href\":\"#/projects\"},{\"text\":\"People\",\"href\":\"#/people\"},{\"text\":\"Vendors\",\"href\":\"#/vendors\"},{\"text\":\"Billing agents\",\"href\":\"#/billing-agents\"},{\"text\":\"Payment reports\",\"href\":\"#/dashboard\"}]"
+    },
+    {
+      "name": "More links point at the existing routes",
+      "ok": true,
+      "detail": "[\"#/procurement\",\"#/compliance\",\"#/projects\",\"#/people\",\"#/vendors\",\"#/billing-agents\",\"#/dashboard\"]"
+    },
+    {
+      "name": "inbox reports its three buckets",
+      "ok": true,
+      "detail": "5 open · 0 awaiting payment · 13 in history"
+    },
+    {
+      "name": "inbox bucket counts add up to the loaded entries",
+      "ok": true,
+      "detail": "{\"counts\":\"5 open · 0 awaiting payment · 13 in history\",\"entries\":18,\"visible\":18,\"labels\":[\"Ready for decision\",\"Ready for decision\",\"Ready for decision\",\"Ready for decision\",\"Ready for decision\",\"Paid\",\"Paid\",\"Paid\",\"Paid\",\"Paid\",\"Paid\",\"Paid\",\"Paid\",\"Paid\",\"Paid\",\"Paid\",\"Paid\",\"Paid\"],\"groups\":[\"Needs your attention 5\"],\"history\":{\"open\":false,\"label\":\"Receipts behind these numbers\"},\"chips\":[\"Approvals\",\"Money across your jobs\",\"Needs your attention 5\",\"Rosendin Electric, Inc. · Judge demo · Period 2 (billing agent)\",\"Rosendin Electric, Inc. · Judge demo · Period 1 (honest)\",\"Rosendin Electric, Inc. · Judge demo · Period 2 (billing agent)\",\"Rosendin Electric, Inc. · Judge demo · Period 1 (honest)\",\"Rosendin Electric, Inc. · Pay app #1 – period ending Nov 25, 2026\",\"Ortiz Plumbing · Pay app #1 – period ending Oct 15, 2026\",\"Rosendin Electric, Inc. · Judge demo · Period 2 (billing agent)\",\"Rosendin Electric, Inc. · Judge demo · Period 1 (honest)\",\"Rosendin Electric, Inc. · Judge demo · Period 2 (billing agent)\",\"Rosendin Electric, Inc. · Judge demo · Period 1 (honest)\",\"Rosendin Electric, Inc. · Judge demo · Period 2 (billing agent)\",\"Rosendin Electric, Inc. · Judge demo · Period 1 (honest)\",\"Rosendin Electric, Inc. · Judge demo · Period 2 (billing agent)\",\"Rosendin Electric, Inc. · Judge demo · Period 1 (honest)\",\"Rosendin Electric, Inc. · Judge demo · Period 2 (billing agent)\",\"Rosendin Electric, Inc. · Judge demo · Period 1 (honest)\",\"Rosendin Electric, Inc. · Judge demo · Period 2 (billing agent)\",\"Rosendin Electric, Inc. · Judge demo · Period 1 (honest)\"]}"
+    },
+    {
+      "name": "open work is rendered before settled history",
+      "ok": true,
+      "detail": "[\"Approvals\",\"Money across your jobs\",\"Needs your attention 5\",\"Rosendin Electric, Inc. · Judge demo · Period 2 (billing agent)\",\"Rosendin Electric, Inc. · Judge demo · Period 1 (honest)\",\"Rosendin Electric, Inc. · Judge demo · Period 2 (billing agent)\",\"Rosendin Electric, Inc. · Judge demo · Period 1 (honest)\",\"Rosendin Electric, Inc. · Pay app #1 – period ending Nov 25, 2026\",\"Ortiz Plumbing · Pay app #1 – period ending Oct 15, 2026\",\"Rosendin Electric, Inc. · Judge demo · Period 2 (billing agent)\",\"Rosendin Electric, Inc. · Judge demo · Period 1 (honest)\",\"Rosendin Electric, Inc. · Judge demo · Period 2 (billing agent)\",\"Rosendin Electric, Inc. · Judge demo · Period 1 (honest)\",\"Rosendin Electric, Inc. · Judge demo · Period 2 (billing agent)\",\"Rosendin Electric, Inc. · Judge demo · Period 1 (honest)\",\"Rosendin Electric, Inc. · Judge demo · Period 2 (billing agent)\",\"Rosendin Electric, Inc. · Judge demo · Period 1 (honest)\",\"Rosendin Electric, Inc. · Judge demo · Period 2 (billing agent)\",\"Rosendin Electric, Inc. · Judge demo · Period 1 (honest)\",\"Rosendin Electric, Inc. · Judge demo · Period 2 (billing agent)\",\"Rosendin Electric, Inc. · Judge demo · Period 1 (honest)\"]"
+    },
+    {
+      "name": "settled applications are grouped, not repeated at full height",
+      "ok": true,
+      "detail": "{\"open\":false,\"label\":\"Receipts behind these numbers\"}"
+    },
+    {
+      "name": "history is collapsed while open work exists",
+      "ok": true,
+      "detail": "{\"open\":false,\"label\":\"Receipts behind these numbers\"}"
+    },
+    {
+      "name": "status codes are shown as readable labels",
+      "ok": true,
+      "detail": "[\"Ready for decision\",\"Ready for decision\",\"Ready for decision\",\"Ready for decision\",\"Ready for decision\",\"Paid\",\"Paid\",\"Paid\",\"Paid\",\"Paid\",\"Paid\",\"Paid\",\"Paid\",\"Paid\",\"Paid\",\"Paid\",\"Paid\",\"Paid\"]"
+    },
+    {
+      "name": "search returns the two R6-A pay apps",
+      "ok": true,
+      "detail": "2"
+    },
+    {
+      "name": "filtered history becomes visible without clearing the search",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "phone layout does not overflow horizontally",
+      "ok": true,
+      "detail": "0"
+    },
+    {
+      "name": "phone menu control is visible",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "phone menu exposes the same capped primary bar",
+      "ok": true,
+      "detail": "[\"Approvals\",\"Billing\",\"Projects\",\"Change orders\",\"Payments\",\"Guided demoDemo\"]"
+    },
+    {
+      "name": "no unexpected page errors",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "no unexpected console errors",
+      "ok": true,
+      "detail": "[]"
+    }
+  ],
+  "pageErrors": [],
+  "consoleErrors": [],
+  "ok": true
+}

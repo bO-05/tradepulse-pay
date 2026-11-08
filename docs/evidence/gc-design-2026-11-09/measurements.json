@@ -1,0 +1,72 @@
+{
+  "capturedAt": "2026-11-09T06:30:00+00:00",
+  "tool": "puppeteer-core via scripts/qa/lib.mjs (evidence/gc-design/after.mjs)",
+  "origin": "http://localhost:3150",
+  "signIn": "Demo GC via #/demo -> General contractor",
+  "inbox": {
+    "viewport1440": {
+      "primaryButtons": 1,
+      "primary": "Approve capture + payout",
+      "primaryTestId": "approve-proposal",
+      "proposalStatusLabels": {
+        "Pending": 24,
+        "Executed": 25
+      },
+      "rawStatusCodesRendered": 0,
+      "moneyStripTopPx": 333,
+      "viewportHeightPx": 900,
+      "jumpToApproveVisible": false,
+      "interactiveElementsUnder24px": 0,
+      "horizontalOverflowPx": 0
+    },
+    "viewport390": {
+      "primaryButtons": 1,
+      "primary": "Approve capture + payout",
+      "moneyStripTopPx": 278,
+      "viewportHeightPx": 844,
+      "jumpToApproveVisible": false,
+      "interactiveElementsUnder24px": 0,
+      "horizontalOverflowPx": 0
+    }
+  },
+  "project": {
+    "route": "#/projects/lopez-kitchen-remodel",
+    "viewport1440": {
+      "primaryButtons": 1,
+      "primary": "Open billing",
+      "moneyStripTopPx": 505,
+      "moneyTrailTopPx": 779,
+      "contractValueFontPx": "24px",
+      "viewportHeightPx": 900,
+      "interactiveElementsUnder24px": 0,
+      "horizontalOverflowPx": 0,
+      "identity": "Bayview Remodeling · Dana Lopez · El Cerrito, CA",
+      "contractValue": "$86,500.00"
+    },
+    "viewport390": {
+      "primaryButtons": 1,
+      "primary": "Open billing",
+      "moneyStripTopPx": 542,
+      "moneyTrailTopPx": 1158,
+      "viewportHeightPx": 844,
+      "interactiveElementsUnder24px": 0,
+      "horizontalOverflowPx": 0
+    }
+  },
+  "console": {
+    "pageErrors": [],
+    "consoleErrors": [],
+    "failedRequests": [
+      "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED",
+      "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED"
+    ]
+  },
+  "before": {
+    "note": "evidence/gc-design/before-report.json (same fixture, before this feature)",
+    "rawStatusCodesRendered": "[pending, executed] as the visible pill text",
+    "jumpToApproveVisible": true,
+    "interactiveElementsUnder24px": 64,
+    "projectIdentity": "Dana Lopez · El Cerrito, CA (no GC name)",
+    "primaryButtons": 0
+  }
+}

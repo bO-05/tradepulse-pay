@@ -17,7 +17,11 @@ export function ReferenceNotice({
       {showFreshRunLink ? (
         <>
           {" "}
-          Inspect the settled receipts here, or <a href="#/judge-demo" className="underline">start a fresh guided run</a> to try sandbox actions.
+          Inspect the settled receipts here, or{" "}
+          <a href="#/judge-demo" className="inline-flex min-h-6 items-center underline">
+            start a fresh guided run
+          </a>{" "}
+          to try sandbox actions.
         </>
       ) : (
         " Inspect the settled receipts here."

@@ -12,7 +12,11 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const site = process.argv.includes("--url")
   ? process.argv[process.argv.indexOf("--url") + 1]
   : "https://tradepulse-pay.asynchronope.tech";
-if (!/^https:\/\/[a-z0-9.-]+(?::\d+)?$/i.test(site)) throw new Error("--url must be an https origin.");
+// Local dev is the fast loop for this sweep; anything else must be an https origin.
+const localDev = /^http:\/\/localhost(?::\d+)?$/i.test(site);
+if (!localDev && !/^https:\/\/[a-z0-9.-]+(?::\d+)?$/i.test(site)) {
+  throw new Error("--url must be an https origin or http://localhost:<port>.");
+}
 const stamp = new Date().toISOString().replace(/[:.]/g, "-");
 const evidenceDir = path.join(root, "evidence", `landing-nav-inbox-browser-${stamp}`);
 fs.mkdirSync(evidenceDir, { recursive: true });

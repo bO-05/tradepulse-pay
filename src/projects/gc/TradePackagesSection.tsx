@@ -204,7 +204,7 @@ export function TradePackagesSection({
                       <button
                         type="button"
                         aria-expanded={biddersOf === p._id}
-                        className="text-sm text-emerald-300 underline-offset-2 hover:underline"
+                        className="inline-flex min-h-6 items-center text-sm text-emerald-300 underline-offset-2 hover:underline"
                         onClick={() => setBiddersOf(biddersOf === p._id ? null : p._id)}
                       >
                         Bidders
@@ -212,7 +212,7 @@ export function TradePackagesSection({
                       {!readOnly && (
                         <button
                           type="button"
-                          className="text-sm text-emerald-300 underline-offset-2 hover:underline"
+                          className="inline-flex min-h-6 items-center text-sm text-emerald-300 underline-offset-2 hover:underline"
                           onClick={() => openProcurementPackages(projectId)}
                         >
                           Open in Procurement

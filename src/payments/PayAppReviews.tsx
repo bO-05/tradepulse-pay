@@ -7,6 +7,7 @@ import { formatCents, formatDate } from "./format";
 import { LicenseCheckPanel } from "./LicenseCheck";
 import { submissionAttribution } from "./SubmissionAttribution";
 import { isAIReviewProvider, reviewAttribution } from "../lib/aiProvenance";
+import { statusLabel } from "../ui";
 
 type PayAppWithReview = FunctionReturnType<typeof api.payApps.review.listAgreementPayApps>[number];
 
@@ -99,7 +100,7 @@ export function PayAppReviewCard({ payApp, canRerun, showAttribution = true }: {
           <h3 className="font-semibold">{payApp.periodLabel}</h3>
           <p className="text-xs text-slate-400 [overflow-wrap:anywhere]">
             Submitted {formatDate(payApp.createdAt)}{showAttribution ? ` · ${submissionAttribution(payApp.submittedBy, payApp.judgeDemoFiledBy)}` : ""}
-            {" · "}status <span data-testid="payapp-review-status">{payApp.status}</span>
+            {" · "}status <span data-testid="payapp-review-status" data-status={payApp.status}>{statusLabel(payApp.status)}</span>
           </p>
         </div>
         <dl className="grid w-full gap-3 text-sm sm:w-auto sm:grid-cols-3">

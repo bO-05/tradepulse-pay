@@ -274,7 +274,9 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
       {isDemo && (
         <aside className="border-b border-amber-900/50 bg-amber-950/20 px-4 py-2 text-xs text-amber-100" data-testid="demo-badge">
           <strong>PayPal sandbox · no real money.</strong> Shared demo accounts: use synthetic data only.{" "}
-          <a href="#/demo" className="underline underline-offset-2">Demo guide</a>
+          <a href="#/demo" className="inline-flex min-h-6 items-center underline underline-offset-2">
+            Demo guide
+          </a>
         </aside>
       )}
       {isLegacyFullPage ? (

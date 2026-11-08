@@ -9,13 +9,16 @@ export interface StatusPillProps {
   /** Kind-aware label overrides (for example "Signed" for an executed agreement on a residential job). */
   kind?: ProjectKind | null;
   tone?: StatusTone;
+  /** Pinned hook for screens whose existing markup already carries a test id on the pill. */
+  testId?: string;
   className?: string;
 }
 
-export function StatusPill({ status, label, kind, tone, className }: StatusPillProps) {
+export function StatusPill({ status, label, kind, tone, testId, className }: StatusPillProps) {
   const meta = statusMetaFor(status, kind);
   return (
     <span
+      data-testid={testId}
       data-status={status ?? undefined}
       className={cx(
         "inline-flex items-center whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-medium",
