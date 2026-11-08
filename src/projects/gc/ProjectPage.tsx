@@ -6,6 +6,7 @@ import { formatRetainagePercent } from "../../../convex/lib/retainageRules";
 import { GC_PROJECTS_HASH, gcProjectSettingsHash, peopleHash } from "../../auth/navigation";
 import { Button, Card, CommercialReferenceBadge, DateText, Money, PageHeader, StatusPill, useToast } from "../../ui";
 import { ReferenceNotice } from "../../payments/ReferenceNotice";
+import { ProjectMoneyStrip } from "../../billing/ProjectMoneyStrip";
 import { ownerDetailRows } from "./ownerDetails";
 import { openProcurementPackages } from "./specBreakdownRequest";
 import { TradePackagesSection } from "./TradePackagesSection";
@@ -44,6 +45,7 @@ export function ProjectPage({ projectId }: { projectId: string }) {
       />
       {archived && <ArchivedBanner projectId={project._id} />}
       {readOnlyReference && <ReferenceNotice title="Preserved reference job · read-only." />}
+      <ProjectMoneyStrip projectId={project._id} />
       <ProjectDetailsCard project={project} />
       <OwnerCompanyCard projectId={project._id} />
       <TradePackagesSection

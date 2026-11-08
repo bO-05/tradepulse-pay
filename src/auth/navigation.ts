@@ -288,6 +288,9 @@ export function resolveRoute(role: Role, hash: string, isDemo = false, search = 
   if (DEMO_ONLY_AREAS.has(parsed.area) && !isDemo) return { area: "not-found" };
   if (parsed.area === "agreement" || parsed.area === "ledger" || parsed.area === "company" || parsed.area === "notifications") return parsed;
   if (parsed.area === "pay-app") return role === "owner" ? { area: "not-found" } : parsed;
+  // The GC money strip links "Collected from owner" to the owner pay apps route; a GC gets its own
+  // owner-billing screen there (RoleShell), so the receipt link never lands on Not found.
+  if (parsed.area === "owner-pay-apps" && role === "gc") return parsed;
   if (nav.some((item) => item.area === parsed.area)) return parsed;
   return { area: "not-found" };
 }

@@ -102,7 +102,7 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
   else if (route.area === "payments") content = <PaymentsWorkspace />;
   else if (route.area === "billing-agents") content = <BillingAgentsView />;
   else if (route.area === "billing") content = <BillingWorklist tab={route.tab} />;
-  else if (route.area === "owner-pay-apps") content = <OwnerPayAppsPage />;
+  else if (route.area === "owner-pay-apps") content = me.role === "gc" ? <BillingWorklist tab="owner-billing" /> : <OwnerPayAppsPage />;
   else if (route.area === "pay-apps") content = <PayAppsPage />;
   else if (route.area === "change-orders") content = route.changeOrderId ? <ChangeOrderDetail changeOrderId={route.changeOrderId} /> : <ChangeOrdersPage />;
   else if (route.area === "compliance") content = <CompliancePage role={me.role} focusItemId={route.complianceItemId} />;

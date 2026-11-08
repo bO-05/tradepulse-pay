@@ -10,6 +10,7 @@ import { Button, Card, CommercialReferenceBadge, ConfirmDialog, Dialog, EmptySta
 import { Field, inputClass } from "../ui/Field";
 import { ReferenceNotice } from "../payments/ReferenceNotice";
 import { ownerMoneyTotals } from "./ownerMoney";
+import { ProjectMoneyStrip } from "./ProjectMoneyStrip";
 
 export const OWNER_PAY_APPS_HASH = "#/owner-pay-apps";
 
@@ -599,6 +600,7 @@ function GcProjectOwnerBilling({ projectId }: { projectId: string }) {
     <div className="space-y-4">
       {list.readOnlyReference ? <ReferenceNotice title="Preserved reference job · read-only." /> : null}
       <CommercialReferenceBadge kind={list.projectKind} />
+      <ProjectMoneyStrip projectId={projectId} />
       <dl className="grid gap-3 text-sm sm:grid-cols-3">
         <div>
           <dt className="text-xs text-ink-subtle">{terms.kind === "residential" ? "Contract value" : "Prime contract value"}</dt>

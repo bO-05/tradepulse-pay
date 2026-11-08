@@ -13,6 +13,7 @@ import { TextInput } from "../../ui";
 import { ReceiptId } from "../ReceiptId";
 import { ReferenceNotice } from "../ReferenceNotice";
 import { isAIReviewProvider } from "../../lib/aiProvenance";
+import { ProjectMoneyStrip } from "../../billing/ProjectMoneyStrip";
 import { inboxGroup, payAppStatusLabel } from "./inboxBuckets";
 
 type InboxItem = FunctionReturnType<typeof api.payApps.proposals.listInbox>[number];
@@ -523,6 +524,7 @@ export function ApprovalInbox() {
           </p>
         ) : null}
       </header>
+      <ProjectMoneyStrip />
       {items?.some((item) => item.readOnlyReference) ? <ReferenceNotice title="Preserved reference jobs · read-only." /> : null}
       <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_14rem_auto]">
         <label className="text-sm">Search loaded applications

@@ -2,6 +2,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { useMutation, useQuery } from "convex/react";
+import { getFunctionName } from "convex/server";
+import { api } from "../../../convex/_generated/api";
 import { ToastProvider } from "../../ui";
 import { ProjectPage } from "./ProjectPage";
 
@@ -28,11 +30,42 @@ function project(readOnlyReference: boolean, projectKind: "residential" | "comme
   };
 }
 
-function render(readOnlyReference: boolean, projectKind?: "residential" | "commercial") {
-  vi.mocked(useQuery)
-    .mockReturnValueOnce(project(readOnlyReference, projectKind) as never)
-    .mockReturnValueOnce({ company: null, invoicing: { enabled: true } } as never)
-    .mockReturnValue([] as never);
+function money(kind: "residential" | "commercial") {
+  return {
+    scope: {
+      kind: "project" as const,
+      projectId: "project_lopez",
+      projectTitle: "Lopez Kitchen Remodel",
+      projectKind: kind,
+      projects: [{ projectId: "project_lopez", projectTitle: "Lopez Kitchen Remodel", projectKind: kind }],
+    },
+    collectedFromOwnerCents: 0,
+    paidToSubsCents: 0,
+    retainageHeldCents: 0,
+    ownerRetainageHeldCents: 0,
+    owedThisWeekCents: 0,
+    receipts: { ownerPayApps: [], payouts: [], retainage: [], owed: [] },
+    asOf: 0,
+    weekEnd: "2026-11-15",
+    truncated: false,
+  };
+}
+
+function render(readOnlyReference: boolean, projectKind: "residential" | "commercial" = "residential") {
+  const row = project(readOnlyReference, projectKind);
+  const projectQuery = getFunctionName(api.projects.getProject);
+  const moneyQuery = getFunctionName(api.billing.projectMoney.getProjectMoney);
+  const ownerQuery = getFunctionName(api.partyProfiles.getProjectOwner);
+  const tradesQuery = getFunctionName(api.tradePackages.listByProject);
+  // Answer by query name: the page adds the money strip, an owner-company read and the trades list.
+  vi.mocked(useQuery).mockImplementation(((fn: unknown) => {
+    const name = getFunctionName(fn as never);
+    if (name === projectQuery) return row;
+    if (name === moneyQuery) return money(projectKind);
+    if (name === ownerQuery) return { company: null, invoicing: { enabled: true } };
+    if (name === tradesQuery) return [];
+    return undefined;
+  }) as never);
   return renderToStaticMarkup(
     <ToastProvider>
       <ProjectPage projectId="project_lopez" />
@@ -54,6 +87,14 @@ describe("a preserved reference job on the project page", () => {
     expect(html).not.toContain(">Project settings<");
     expect(html).not.toContain(">People<");
     expect(html).not.toContain("Open in Procurement");
+  });
+
+  test("mounts the job-scoped money strip above the project details", () => {
+    const html = render(true);
+    expect(html).toContain('data-testid="project-money-strip"');
+    expect(html).toContain('data-testid="project-money-collected"');
+    expect(html).toContain("Money on this job");
+    expect(html.indexOf('data-testid="project-money-strip"')).toBeLessThan(html.indexOf("Project details"));
   });
 
   test("an ordinary project keeps the settings and People links without the notice", () => {

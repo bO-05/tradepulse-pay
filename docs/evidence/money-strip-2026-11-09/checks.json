@@ -1,0 +1,1225 @@
+{
+  "screens": {
+    "inboxPortfolio1440": {
+      "text": "Money across your jobs\n\nAcross every job where you are the general contractor: collected from owners, paid to subs, retainage held and owed this week.\n\nCollected from owners\n$3,600.00\n\nFrom 1 paid owner pay app.\n\nPaid to subs\n$17,070.40\n\nNet of retainage, from 17 successful payouts.\n\nRetainage held\n$657.60\n\nHeld on 7 subcontracts.\n\nOwed this week\n$0.00\n\nNo approved pay app is due this week. Open billing\n\nReceipts behind these numbers",
+      "title": "Money across your jobs",
+      "labels": [
+        "Collected from owners",
+        "Paid to subs",
+        "Retainage held",
+        "Owed this week"
+      ],
+      "cells": [
+        {
+          "testId": "project-money-collected",
+          "value": "$3,600.00",
+          "href": "#/owner-pay-apps",
+          "fontSize": "24px",
+          "fontVariantNumeric": "tabular-nums",
+          "box": {
+            "x": 58,
+            "y": 439,
+            "width": 302.5,
+            "height": 32,
+            "top": 439,
+            "right": 360.5,
+            "bottom": 471,
+            "left": 58
+          }
+        },
+        {
+          "testId": "project-money-paid-subs",
+          "value": "$17,070.40",
+          "href": "#/payments",
+          "fontSize": "24px",
+          "fontVariantNumeric": "tabular-nums",
+          "box": {
+            "x": 398.5,
+            "y": 439,
+            "width": 302.5,
+            "height": 32,
+            "top": 439,
+            "right": 701,
+            "bottom": 471,
+            "left": 398.5
+          }
+        },
+        {
+          "testId": "project-money-retainage",
+          "value": "$657.60",
+          "href": "#/billing/retainage",
+          "fontSize": "24px",
+          "fontVariantNumeric": "tabular-nums",
+          "box": {
+            "x": 739,
+            "y": 439,
+            "width": 302.5,
+            "height": 32,
+            "top": 439,
+            "right": 1041.5,
+            "bottom": 471,
+            "left": 739
+          }
+        },
+        {
+          "testId": "project-money-owed",
+          "value": "$0.00",
+          "href": "#/billing",
+          "fontSize": "24px",
+          "fontVariantNumeric": "tabular-nums",
+          "box": {
+            "x": 1079.5,
+            "y": 439,
+            "width": 302.5,
+            "height": 32,
+            "top": 439,
+            "right": 1382,
+            "bottom": 471,
+            "left": 1079.5
+          }
+        }
+      ],
+      "receiptLinks": [
+        {
+          "text": "Lopez Kitchen Remodel · Owner pay app #1",
+          "href": "#/billing/owner-billing"
+        },
+        {
+          "text": "Demo · TradePulse Pay judge demo 20261101-02 · A401-DEMO-PAY-20261101-02",
+          "href": "#/payments/jn78x0j5xeh7q9gb55p26r7pdh8hdmjx"
+        },
+        {
+          "text": "Demo · TradePulse Pay judge demo 20261101-02 · A401-DEMO-PAY-20261101-02",
+          "href": "#/payments/jn78x0j5xeh7q9gb55p26r7pdh8hdmjx"
+        },
+        {
+          "text": "Demo · TradePulse Pay judge demo 20261101-02 · A401-DEMO-PAY-20261101-02",
+          "href": "#/payments/jn78x0j5xeh7q9gb55p26r7pdh8hdmjx"
+        },
+        {
+          "text": "Demo · TradePulse Pay judge demo 20261104-04 · A401-DEMO-PAY-20261104-04",
+          "href": "#/payments/jn758gfqzbbma3b83tj64qswrh8hksxa"
+        },
+        {
+          "text": "View all payouts in Payments",
+          "href": "#/payments"
+        },
+        {
+          "text": "Demo · TradePulse Pay judge demo 20261101-02 · A401-DEMO-PAY-20261101-02",
+          "href": "#/billing/retainage"
+        },
+        {
+          "text": "Demo · TradePulse Pay judge demo 20261101-02 · A401-DEMO-PAY-20261101-02",
+          "href": "#/billing/retainage"
+        },
+        {
+          "text": "Demo · TradePulse Pay judge demo 20261101-02 · A401-DEMO-PAY-20261101-02",
+          "href": "#/billing/retainage"
+        },
+        {
+          "text": "Demo · TradePulse Pay judge demo 20261104-04 · A401-DEMO-PAY-20261104-04",
+          "href": "#/billing/retainage"
+        },
+        {
+          "text": "View all retainage rows",
+          "href": "#/billing/retainage"
+        }
+      ],
+      "measure": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "stripHeight": 254,
+        "smallLinks": [
+          {
+            "text": "$3,600.00",
+            "height": 32
+          },
+          {
+            "text": "$17,070.40",
+            "height": 32
+          },
+          {
+            "text": "$657.60",
+            "height": 32
+          },
+          {
+            "text": "$0.00",
+            "height": 32
+          },
+          {
+            "text": "Open billing",
+            "height": 24
+          },
+          {
+            "text": "Receipts behind these numbers",
+            "height": 32
+          },
+          {
+            "text": "Lopez Kitchen Remodel · Owner pay app #1",
+            "height": 24
+          },
+          {
+            "text": "Demo · TradePulse Pay judge demo 20261101-02 · A401-DEMO-PAY",
+            "height": 24
+          },
+          {
+            "text": "Demo · TradePulse Pay judge demo 20261101-02 · A401-DEMO-PAY",
+            "height": 24
+          },
+          {
+            "text": "Demo · TradePulse Pay judge demo 20261101-02 · A401-DEMO-PAY",
+            "height": 24
+          },
+          {
+            "text": "Demo · TradePulse Pay judge demo 20261104-04 · A401-DEMO-PAY",
+            "height": 24
+          },
+          {
+            "text": "View all payouts in Payments",
+            "height": 24
+          },
+          {
+            "text": "Demo · TradePulse Pay judge demo 20261101-02 · A401-DEMO-PAY",
+            "height": 24
+          },
+          {
+            "text": "Demo · TradePulse Pay judge demo 20261101-02 · A401-DEMO-PAY",
+            "height": 24
+          },
+          {
+            "text": "Demo · TradePulse Pay judge demo 20261101-02 · A401-DEMO-PAY",
+            "height": 24
+          },
+          {
+            "text": "Demo · TradePulse Pay judge demo 20261104-04 · A401-DEMO-PAY",
+            "height": 24
+          },
+          {
+            "text": "View all retainage rows",
+            "height": 24
+          }
+        ]
+      }
+    },
+    "lopezProject1440": {
+      "text": "Money on this job\n\nCollected from the homeowner, paid to subs, retainage held and owed this week.\n\nCollected from homeowner\n$3,600.00\n\nFrom 1 paid draw.\n\nPaid to subs\n$3,800.00\n\nNet of retainage, from 1 successful payout.\n\nRetainage held\n$200.00\n\nHeld on 1 subcontract.\n\nOwed this week\n$0.00\n\nNo approved pay app is due this week. Open billing\n\nReceipts behind these numbers",
+      "title": "Money on this job",
+      "labels": [
+        "Collected from homeowner",
+        "Paid to subs",
+        "Retainage held",
+        "Owed this week"
+      ],
+      "cells": [
+        {
+          "testId": "project-money-collected",
+          "value": "$3,600.00",
+          "href": "#/owner-pay-apps",
+          "fontSize": "24px",
+          "fontVariantNumeric": "tabular-nums",
+          "box": {
+            "x": 58,
+            "y": 579,
+            "width": 302.5,
+            "height": 32,
+            "top": 579,
+            "right": 360.5,
+            "bottom": 611,
+            "left": 58
+          }
+        },
+        {
+          "testId": "project-money-paid-subs",
+          "value": "$3,800.00",
+          "href": "#/payments/jn77jrsvkvmwzj69tpyx7gj2f98htcnv",
+          "fontSize": "24px",
+          "fontVariantNumeric": "tabular-nums",
+          "box": {
+            "x": 398.5,
+            "y": 579,
+            "width": 302.5,
+            "height": 32,
+            "top": 579,
+            "right": 701,
+            "bottom": 611,
+            "left": 398.5
+          }
+        },
+        {
+          "testId": "project-money-retainage",
+          "value": "$200.00",
+          "href": "#/billing/retainage",
+          "fontSize": "24px",
+          "fontVariantNumeric": "tabular-nums",
+          "box": {
+            "x": 739,
+            "y": 579,
+            "width": 302.5,
+            "height": 32,
+            "top": 579,
+            "right": 1041.5,
+            "bottom": 611,
+            "left": 739
+          }
+        },
+        {
+          "testId": "project-money-owed",
+          "value": "$0.00",
+          "href": "#/billing",
+          "fontSize": "24px",
+          "fontVariantNumeric": "tabular-nums",
+          "box": {
+            "x": 1079.5,
+            "y": 579,
+            "width": 302.5,
+            "height": 32,
+            "top": 579,
+            "right": 1382,
+            "bottom": 611,
+            "left": 1079.5
+          }
+        }
+      ],
+      "receiptLinks": [
+        {
+          "text": "Draw #1",
+          "href": "#/billing/owner-billing"
+        },
+        {
+          "text": "SC-22-ORTIZ-0001",
+          "href": "#/payments/jn77jrsvkvmwzj69tpyx7gj2f98htcnv"
+        },
+        {
+          "text": "SC-22-ORTIZ-0001",
+          "href": "#/billing/retainage"
+        }
+      ],
+      "measure": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "stripHeight": 254,
+        "smallLinks": [
+          {
+            "text": "$3,600.00",
+            "height": 32
+          },
+          {
+            "text": "$3,800.00",
+            "height": 32
+          },
+          {
+            "text": "$200.00",
+            "height": 32
+          },
+          {
+            "text": "$0.00",
+            "height": 32
+          },
+          {
+            "text": "Open billing",
+            "height": 24
+          },
+          {
+            "text": "Receipts behind these numbers",
+            "height": 32
+          },
+          {
+            "text": "Draw #1",
+            "height": 24
+          },
+          {
+            "text": "SC-22-ORTIZ-0001",
+            "height": 24
+          },
+          {
+            "text": "SC-22-ORTIZ-0001",
+            "height": 24
+          }
+        ]
+      }
+    },
+    "lopezProjectReceipts1440": {
+      "text": "Money on this job\n\nCollected from the homeowner, paid to subs, retainage held and owed this week.\n\nCollected from homeowner\n$3,600.00\n\nFrom 1 paid draw.\n\nPaid to subs\n$3,800.00\n\nNet of retainage, from 1 successful payout.\n\nRetainage held\n$200.00\n\nHeld on 1 subcontract.\n\nOwed this week\n$0.00\n\nNo approved pay app is due this week. Open billing\n\nReceipts behind these numbers\nPaid draws\nDraw #1 · $3,600.00 · paid Nov 8, 2026 · invoice INV2-5ZNS-USY8-KBFD-L3B9\nSub payouts\nSC-22-ORTIZ-0001 · $3,800.00 net payout · Nov 8, 2026\nRetainage ledger\nSC-22-ORTIZ-0001 · $200.00 held",
+      "title": "Money on this job",
+      "labels": [
+        "Collected from homeowner",
+        "Paid to subs",
+        "Retainage held",
+        "Owed this week"
+      ],
+      "cells": [
+        {
+          "testId": "project-money-collected",
+          "value": "$3,600.00",
+          "href": "#/owner-pay-apps",
+          "fontSize": "24px",
+          "fontVariantNumeric": "tabular-nums",
+          "box": {
+            "x": 58,
+            "y": 579,
+            "width": 302.5,
+            "height": 32,
+            "top": 579,
+            "right": 360.5,
+            "bottom": 611,
+            "left": 58
+          }
+        },
+        {
+          "testId": "project-money-paid-subs",
+          "value": "$3,800.00",
+          "href": "#/payments/jn77jrsvkvmwzj69tpyx7gj2f98htcnv",
+          "fontSize": "24px",
+          "fontVariantNumeric": "tabular-nums",
+          "box": {
+            "x": 398.5,
+            "y": 579,
+            "width": 302.5,
+            "height": 32,
+            "top": 579,
+            "right": 701,
+            "bottom": 611,
+            "left": 398.5
+          }
+        },
+        {
+          "testId": "project-money-retainage",
+          "value": "$200.00",
+          "href": "#/billing/retainage",
+          "fontSize": "24px",
+          "fontVariantNumeric": "tabular-nums",
+          "box": {
+            "x": 739,
+            "y": 579,
+            "width": 302.5,
+            "height": 32,
+            "top": 579,
+            "right": 1041.5,
+            "bottom": 611,
+            "left": 739
+          }
+        },
+        {
+          "testId": "project-money-owed",
+          "value": "$0.00",
+          "href": "#/billing",
+          "fontSize": "24px",
+          "fontVariantNumeric": "tabular-nums",
+          "box": {
+            "x": 1079.5,
+            "y": 579,
+            "width": 302.5,
+            "height": 32,
+            "top": 579,
+            "right": 1382,
+            "bottom": 611,
+            "left": 1079.5
+          }
+        }
+      ],
+      "receiptLinks": [
+        {
+          "text": "Draw #1",
+          "href": "#/billing/owner-billing"
+        },
+        {
+          "text": "SC-22-ORTIZ-0001",
+          "href": "#/payments/jn77jrsvkvmwzj69tpyx7gj2f98htcnv"
+        },
+        {
+          "text": "SC-22-ORTIZ-0001",
+          "href": "#/billing/retainage"
+        }
+      ]
+    },
+    "ownerBillingLopez1440": {
+      "text": "Money on this job\n\nCollected from the homeowner, paid to subs, retainage held and owed this week.\n\nCollected from homeowner\n$3,600.00\n\nFrom 1 paid draw.\n\nPaid to subs\n$3,800.00\n\nNet of retainage, from 1 successful payout.\n\nRetainage held\n$200.00\n\nHeld on 1 subcontract.\n\nOwed this week\n$0.00\n\nNo approved pay app is due this week. Open billing\n\nReceipts behind these numbers",
+      "title": "Money on this job",
+      "labels": [
+        "Collected from homeowner",
+        "Paid to subs",
+        "Retainage held",
+        "Owed this week"
+      ],
+      "cells": [
+        {
+          "testId": "project-money-collected",
+          "value": "$3,600.00",
+          "href": "#/owner-pay-apps",
+          "fontSize": "24px",
+          "fontVariantNumeric": "tabular-nums",
+          "box": {
+            "x": 58,
+            "y": 659,
+            "width": 302.5,
+            "height": 32,
+            "top": 659,
+            "right": 360.5,
+            "bottom": 691,
+            "left": 58
+          }
+        },
+        {
+          "testId": "project-money-paid-subs",
+          "value": "$3,800.00",
+          "href": "#/payments/jn77jrsvkvmwzj69tpyx7gj2f98htcnv",
+          "fontSize": "24px",
+          "fontVariantNumeric": "tabular-nums",
+          "box": {
+            "x": 398.5,
+            "y": 659,
+            "width": 302.5,
+            "height": 32,
+            "top": 659,
+            "right": 701,
+            "bottom": 691,
+            "left": 398.5
+          }
+        },
+        {
+          "testId": "project-money-retainage",
+          "value": "$200.00",
+          "href": "#/billing/retainage",
+          "fontSize": "24px",
+          "fontVariantNumeric": "tabular-nums",
+          "box": {
+            "x": 739,
+            "y": 659,
+            "width": 302.5,
+            "height": 32,
+            "top": 659,
+            "right": 1041.5,
+            "bottom": 691,
+            "left": 739
+          }
+        },
+        {
+          "testId": "project-money-owed",
+          "value": "$0.00",
+          "href": "#/billing",
+          "fontSize": "24px",
+          "fontVariantNumeric": "tabular-nums",
+          "box": {
+            "x": 1079.5,
+            "y": 659,
+            "width": 302.5,
+            "height": 32,
+            "top": 659,
+            "right": 1382,
+            "bottom": 691,
+            "left": 1079.5
+          }
+        }
+      ],
+      "receiptLinks": [
+        {
+          "text": "Draw #1",
+          "href": "#/billing/owner-billing"
+        },
+        {
+          "text": "SC-22-ORTIZ-0001",
+          "href": "#/payments/jn77jrsvkvmwzj69tpyx7gj2f98htcnv"
+        },
+        {
+          "text": "SC-22-ORTIZ-0001",
+          "href": "#/billing/retainage"
+        }
+      ],
+      "measure": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "stripHeight": 254,
+        "smallLinks": [
+          {
+            "text": "$3,600.00",
+            "height": 32
+          },
+          {
+            "text": "$3,800.00",
+            "height": 32
+          },
+          {
+            "text": "$200.00",
+            "height": 32
+          },
+          {
+            "text": "$0.00",
+            "height": 32
+          },
+          {
+            "text": "Open billing",
+            "height": 24
+          },
+          {
+            "text": "Receipts behind these numbers",
+            "height": 32
+          },
+          {
+            "text": "Draw #1",
+            "height": 24
+          },
+          {
+            "text": "SC-22-ORTIZ-0001",
+            "height": 24
+          },
+          {
+            "text": "SC-22-ORTIZ-0001",
+            "height": 24
+          }
+        ]
+      }
+    },
+    "commercialProject1440": {
+      "text": "Money on this job\n\nCollected from the owner, paid to subs, retainage held and owed this week.\n\nCollected from owner\n$0.00\n\nNo pay app has been paid yet. Open owner pay apps\n\nPaid to subs\n$0.00\n\nNo subcontractor payout has succeeded yet. Open payments\n\nRetainage held\n$0.00\n\nNo subcontract retainage is held yet. Open retainage\n\nOwed this week\n$0.00\n\nNo approved pay app is due this week. Open billing",
+      "title": "Money on this job",
+      "labels": [
+        "Collected from owner",
+        "Paid to subs",
+        "Retainage held",
+        "Owed this week"
+      ],
+      "cells": [
+        {
+          "testId": "project-money-collected",
+          "value": "$0.00",
+          "href": "#/owner-pay-apps",
+          "fontSize": "24px",
+          "fontVariantNumeric": "tabular-nums",
+          "box": {
+            "x": 58,
+            "y": 513,
+            "width": 302.5,
+            "height": 32,
+            "top": 513,
+            "right": 360.5,
+            "bottom": 545,
+            "left": 58
+          }
+        },
+        {
+          "testId": "project-money-paid-subs",
+          "value": "$0.00",
+          "href": "#/payments",
+          "fontSize": "24px",
+          "fontVariantNumeric": "tabular-nums",
+          "box": {
+            "x": 398.5,
+            "y": 513,
+            "width": 302.5,
+            "height": 32,
+            "top": 513,
+            "right": 701,
+            "bottom": 545,
+            "left": 398.5
+          }
+        },
+        {
+          "testId": "project-money-retainage",
+          "value": "$0.00",
+          "href": "#/billing/retainage",
+          "fontSize": "24px",
+          "fontVariantNumeric": "tabular-nums",
+          "box": {
+            "x": 739,
+            "y": 513,
+            "width": 302.5,
+            "height": 32,
+            "top": 513,
+            "right": 1041.5,
+            "bottom": 545,
+            "left": 739
+          }
+        },
+        {
+          "testId": "project-money-owed",
+          "value": "$0.00",
+          "href": "#/billing",
+          "fontSize": "24px",
+          "fontVariantNumeric": "tabular-nums",
+          "box": {
+            "x": 1079.5,
+            "y": 513,
+            "width": 302.5,
+            "height": 32,
+            "top": 513,
+            "right": 1382,
+            "bottom": 545,
+            "left": 1079.5
+          }
+        }
+      ],
+      "receiptLinks": [],
+      "measure": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "stripHeight": 227.5,
+        "smallLinks": [
+          {
+            "text": "$0.00",
+            "height": 32
+          },
+          {
+            "text": "Open owner pay apps",
+            "height": 24
+          },
+          {
+            "text": "$0.00",
+            "height": 32
+          },
+          {
+            "text": "Open payments",
+            "height": 24
+          },
+          {
+            "text": "$0.00",
+            "height": 32
+          },
+          {
+            "text": "Open retainage",
+            "height": 24
+          },
+          {
+            "text": "$0.00",
+            "height": 32
+          },
+          {
+            "text": "Open billing",
+            "height": 24
+          }
+        ]
+      }
+    },
+    "inboxPortfolio390": {
+      "text": "Money across your jobs\n\nAcross every job where you are the general contractor: collected from owners, paid to subs, retainage held and owed this week.\n\nCollected from owners\n$3,600.00\n\nFrom 1 paid owner pay app.\n\nPaid to subs\n$17,070.40\n\nNet of retainage, from 17 successful payouts.\n\nRetainage held\n$657.60\n\nHeld on 7 subcontracts.\n\nOwed this week\n$0.00\n\nNo approved pay app is due this week. Open billing\n\nReceipts behind these numbers",
+      "title": "Money across your jobs",
+      "labels": [
+        "Collected from owners",
+        "Paid to subs",
+        "Retainage held",
+        "Owed this week"
+      ],
+      "cells": [
+        {
+          "testId": "project-money-collected",
+          "value": "$3,600.00",
+          "href": "#/owner-pay-apps",
+          "fontSize": "24px",
+          "fontVariantNumeric": "tabular-nums",
+          "box": {
+            "x": 46,
+            "y": 420,
+            "width": 298,
+            "height": 32,
+            "top": 420,
+            "right": 344,
+            "bottom": 452,
+            "left": 46
+          }
+        },
+        {
+          "testId": "project-money-paid-subs",
+          "value": "$17,070.40",
+          "href": "#/payments",
+          "fontSize": "24px",
+          "fontVariantNumeric": "tabular-nums",
+          "box": {
+            "x": 46,
+            "y": 530,
+            "width": 298,
+            "height": 32,
+            "top": 530,
+            "right": 344,
+            "bottom": 562,
+            "left": 46
+          }
+        },
+        {
+          "testId": "project-money-retainage",
+          "value": "$657.60",
+          "href": "#/billing/retainage",
+          "fontSize": "24px",
+          "fontVariantNumeric": "tabular-nums",
+          "box": {
+            "x": 46,
+            "y": 640,
+            "width": 298,
+            "height": 32,
+            "top": 640,
+            "right": 344,
+            "bottom": 672,
+            "left": 46
+          }
+        },
+        {
+          "testId": "project-money-owed",
+          "value": "$0.00",
+          "href": "#/billing",
+          "fontSize": "24px",
+          "fontVariantNumeric": "tabular-nums",
+          "box": {
+            "x": 46,
+            "y": 750,
+            "width": 298,
+            "height": 32,
+            "top": 750,
+            "right": 344,
+            "bottom": 782,
+            "left": 46
+          }
+        }
+      ],
+      "receiptLinks": [
+        {
+          "text": "Lopez Kitchen Remodel · Owner pay app #1",
+          "href": "#/billing/owner-billing"
+        },
+        {
+          "text": "Demo · TradePulse Pay judge demo 20261101-02 · A401-DEMO-PAY-20261101-02",
+          "href": "#/payments/jn78x0j5xeh7q9gb55p26r7pdh8hdmjx"
+        },
+        {
+          "text": "Demo · TradePulse Pay judge demo 20261101-02 · A401-DEMO-PAY-20261101-02",
+          "href": "#/payments/jn78x0j5xeh7q9gb55p26r7pdh8hdmjx"
+        },
+        {
+          "text": "Demo · TradePulse Pay judge demo 20261101-02 · A401-DEMO-PAY-20261101-02",
+          "href": "#/payments/jn78x0j5xeh7q9gb55p26r7pdh8hdmjx"
+        },
+        {
+          "text": "Demo · TradePulse Pay judge demo 20261104-04 · A401-DEMO-PAY-20261104-04",
+          "href": "#/payments/jn758gfqzbbma3b83tj64qswrh8hksxa"
+        },
+        {
+          "text": "View all payouts in Payments",
+          "href": "#/payments"
+        },
+        {
+          "text": "Demo · TradePulse Pay judge demo 20261101-02 · A401-DEMO-PAY-20261101-02",
+          "href": "#/billing/retainage"
+        },
+        {
+          "text": "Demo · TradePulse Pay judge demo 20261101-02 · A401-DEMO-PAY-20261101-02",
+          "href": "#/billing/retainage"
+        },
+        {
+          "text": "Demo · TradePulse Pay judge demo 20261101-02 · A401-DEMO-PAY-20261101-02",
+          "href": "#/billing/retainage"
+        },
+        {
+          "text": "Demo · TradePulse Pay judge demo 20261104-04 · A401-DEMO-PAY-20261104-04",
+          "href": "#/billing/retainage"
+        },
+        {
+          "text": "View all retainage rows",
+          "href": "#/billing/retainage"
+        }
+      ],
+      "measure": {
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "stripHeight": 616,
+        "smallLinks": [
+          {
+            "text": "$3,600.00",
+            "height": 32
+          },
+          {
+            "text": "$17,070.40",
+            "height": 32
+          },
+          {
+            "text": "$657.60",
+            "height": 32
+          },
+          {
+            "text": "$0.00",
+            "height": 32
+          },
+          {
+            "text": "Open billing",
+            "height": 24
+          },
+          {
+            "text": "Receipts behind these numbers",
+            "height": 32
+          },
+          {
+            "text": "Lopez Kitchen Remodel · Owner pay app #1",
+            "height": 24
+          },
+          {
+            "text": "Demo · TradePulse Pay judge demo 20261101-02 · A401-DEMO-PAY",
+            "height": 32
+          },
+          {
+            "text": "Demo · TradePulse Pay judge demo 20261101-02 · A401-DEMO-PAY",
+            "height": 32
+          },
+          {
+            "text": "Demo · TradePulse Pay judge demo 20261101-02 · A401-DEMO-PAY",
+            "height": 32
+          },
+          {
+            "text": "Demo · TradePulse Pay judge demo 20261104-04 · A401-DEMO-PAY",
+            "height": 32
+          },
+          {
+            "text": "View all payouts in Payments",
+            "height": 24
+          },
+          {
+            "text": "Demo · TradePulse Pay judge demo 20261101-02 · A401-DEMO-PAY",
+            "height": 32
+          },
+          {
+            "text": "Demo · TradePulse Pay judge demo 20261101-02 · A401-DEMO-PAY",
+            "height": 32
+          },
+          {
+            "text": "Demo · TradePulse Pay judge demo 20261101-02 · A401-DEMO-PAY",
+            "height": 32
+          },
+          {
+            "text": "Demo · TradePulse Pay judge demo 20261104-04 · A401-DEMO-PAY",
+            "height": 32
+          },
+          {
+            "text": "View all retainage rows",
+            "height": 24
+          }
+        ]
+      }
+    },
+    "lopezProject390": {
+      "text": "Money on this job\n\nCollected from the homeowner, paid to subs, retainage held and owed this week.\n\nCollected from homeowner\n$3,600.00\n\nFrom 1 paid draw.\n\nPaid to subs\n$3,800.00\n\nNet of retainage, from 1 successful payout.\n\nRetainage held\n$200.00\n\nHeld on 1 subcontract.\n\nOwed this week\n$0.00\n\nNo approved pay app is due this week. Open billing\n\nReceipts behind these numbers",
+      "title": "Money on this job",
+      "labels": [
+        "Collected from homeowner",
+        "Paid to subs",
+        "Retainage held",
+        "Owed this week"
+      ],
+      "cells": [
+        {
+          "testId": "project-money-collected",
+          "value": "$3,600.00",
+          "href": "#/owner-pay-apps",
+          "fontSize": "24px",
+          "fontVariantNumeric": "tabular-nums",
+          "box": {
+            "x": 46,
+            "y": 588,
+            "width": 298,
+            "height": 32,
+            "top": 588,
+            "right": 344,
+            "bottom": 620,
+            "left": 46
+          }
+        },
+        {
+          "testId": "project-money-paid-subs",
+          "value": "$3,800.00",
+          "href": "#/payments/jn77jrsvkvmwzj69tpyx7gj2f98htcnv",
+          "fontSize": "24px",
+          "fontVariantNumeric": "tabular-nums",
+          "box": {
+            "x": 46,
+            "y": 698,
+            "width": 298,
+            "height": 32,
+            "top": 698,
+            "right": 344,
+            "bottom": 730,
+            "left": 46
+          }
+        },
+        {
+          "testId": "project-money-retainage",
+          "value": "$200.00",
+          "href": "#/billing/retainage",
+          "fontSize": "24px",
+          "fontVariantNumeric": "tabular-nums",
+          "box": {
+            "x": 46,
+            "y": 808,
+            "width": 298,
+            "height": 32,
+            "top": 808,
+            "right": 344,
+            "bottom": 840,
+            "left": 46
+          }
+        },
+        {
+          "testId": "project-money-owed",
+          "value": "$0.00",
+          "href": "#/billing",
+          "fontSize": "24px",
+          "fontVariantNumeric": "tabular-nums",
+          "box": {
+            "x": 46,
+            "y": 918,
+            "width": 298,
+            "height": 32,
+            "top": 918,
+            "right": 344,
+            "bottom": 950,
+            "left": 46
+          }
+        }
+      ],
+      "receiptLinks": [
+        {
+          "text": "Draw #1",
+          "href": "#/billing/owner-billing"
+        },
+        {
+          "text": "SC-22-ORTIZ-0001",
+          "href": "#/payments/jn77jrsvkvmwzj69tpyx7gj2f98htcnv"
+        },
+        {
+          "text": "SC-22-ORTIZ-0001",
+          "href": "#/billing/retainage"
+        }
+      ],
+      "measure": {
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "stripHeight": 596,
+        "smallLinks": [
+          {
+            "text": "$3,600.00",
+            "height": 32
+          },
+          {
+            "text": "$3,800.00",
+            "height": 32
+          },
+          {
+            "text": "$200.00",
+            "height": 32
+          },
+          {
+            "text": "$0.00",
+            "height": 32
+          },
+          {
+            "text": "Open billing",
+            "height": 24
+          },
+          {
+            "text": "Receipts behind these numbers",
+            "height": 32
+          },
+          {
+            "text": "Draw #1",
+            "height": 24
+          },
+          {
+            "text": "SC-22-ORTIZ-0001",
+            "height": 24
+          },
+          {
+            "text": "SC-22-ORTIZ-0001",
+            "height": 24
+          }
+        ]
+      }
+    },
+    "ownerBillingLopez390": {
+      "text": "Money on this job\n\nCollected from the homeowner, paid to subs, retainage held and owed this week.\n\nCollected from homeowner\n$3,600.00\n\nFrom 1 paid draw.\n\nPaid to subs\n$3,800.00\n\nNet of retainage, from 1 successful payout.\n\nRetainage held\n$200.00\n\nHeld on 1 subcontract.\n\nOwed this week\n$0.00\n\nNo approved pay app is due this week. Open billing\n\nReceipts behind these numbers",
+      "title": "Money on this job",
+      "labels": [
+        "Collected from homeowner",
+        "Paid to subs",
+        "Retainage held",
+        "Owed this week"
+      ],
+      "cells": [
+        {
+          "testId": "project-money-collected",
+          "value": "$3,600.00",
+          "href": "#/owner-pay-apps",
+          "fontSize": "24px",
+          "fontVariantNumeric": "tabular-nums",
+          "box": {
+            "x": 46,
+            "y": 648,
+            "width": 298,
+            "height": 32,
+            "top": 648,
+            "right": 344,
+            "bottom": 680,
+            "left": 46
+          }
+        },
+        {
+          "testId": "project-money-paid-subs",
+          "value": "$3,800.00",
+          "href": "#/payments/jn77jrsvkvmwzj69tpyx7gj2f98htcnv",
+          "fontSize": "24px",
+          "fontVariantNumeric": "tabular-nums",
+          "box": {
+            "x": 46,
+            "y": 758,
+            "width": 298,
+            "height": 32,
+            "top": 758,
+            "right": 344,
+            "bottom": 790,
+            "left": 46
+          }
+        },
+        {
+          "testId": "project-money-retainage",
+          "value": "$200.00",
+          "href": "#/billing/retainage",
+          "fontSize": "24px",
+          "fontVariantNumeric": "tabular-nums",
+          "box": {
+            "x": 46,
+            "y": 868,
+            "width": 298,
+            "height": 32,
+            "top": 868,
+            "right": 344,
+            "bottom": 900,
+            "left": 46
+          }
+        },
+        {
+          "testId": "project-money-owed",
+          "value": "$0.00",
+          "href": "#/billing",
+          "fontSize": "24px",
+          "fontVariantNumeric": "tabular-nums",
+          "box": {
+            "x": 46,
+            "y": 978,
+            "width": 298,
+            "height": 32,
+            "top": 978,
+            "right": 344,
+            "bottom": 1010,
+            "left": 46
+          }
+        }
+      ],
+      "receiptLinks": [
+        {
+          "text": "Draw #1",
+          "href": "#/billing/owner-billing"
+        },
+        {
+          "text": "SC-22-ORTIZ-0001",
+          "href": "#/payments/jn77jrsvkvmwzj69tpyx7gj2f98htcnv"
+        },
+        {
+          "text": "SC-22-ORTIZ-0001",
+          "href": "#/billing/retainage"
+        }
+      ],
+      "measure": {
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "stripHeight": 596,
+        "smallLinks": [
+          {
+            "text": "$3,600.00",
+            "height": 32
+          },
+          {
+            "text": "$3,800.00",
+            "height": 32
+          },
+          {
+            "text": "$200.00",
+            "height": 32
+          },
+          {
+            "text": "$0.00",
+            "height": 32
+          },
+          {
+            "text": "Open billing",
+            "height": 24
+          },
+          {
+            "text": "Receipts behind these numbers",
+            "height": 32
+          },
+          {
+            "text": "Draw #1",
+            "height": 24
+          },
+          {
+            "text": "SC-22-ORTIZ-0001",
+            "height": 24
+          },
+          {
+            "text": "SC-22-ORTIZ-0001",
+            "height": 24
+          }
+        ]
+      }
+    }
+  },
+  "linkTargets": [
+    {
+      "hash": "#/owner-pay-apps",
+      "file": "target-owner-pay-apps-1440.png",
+      "notFound": false,
+      "heading": "Billing | Sub pay applications, owner billing, the retainage held on each project and billing documents. | Pay apps"
+    },
+    {
+      "hash": "#/payments",
+      "file": "target-payments-1440.png",
+      "notFound": false,
+      "heading": "Payments — agreement ledgers | Executing an agreement creates its schedule of values and milestones. Open a ledger to see them. | Agreement\tSubcontractor\tTrade\tContract sum to date\tStatus\tExecuted"
+    },
+    {
+      "hash": "#/billing/retainage",
+      "file": "target-retainage-1440.png",
+      "notFound": false,
+      "heading": "Billing | Sub pay applications, owner billing, the retainage held on each project and billing documents. | Pay apps"
+    },
+    {
+      "hash": "#/billing",
+      "file": "target-billing-1440.png",
+      "notFound": false,
+      "heading": "Billing | Sub pay applications, owner billing, the retainage held on each project and billing documents. | Pay apps"
+    },
+    {
+      "hash": "#/payments/jn77jrsvkvmwzj69tpyx7gj2f98htcnv",
+      "file": "target-ortiz-ledger-1440.png",
+      "notFound": false,
+      "heading": "Preserved demo run · read-only. Financial and workflow changes are locked on the server. Inspect the settled receipts here, or start a fresh guided run to try sandbox actions. | ← Payments | SC-22-ORTIZ-0001"
+    },
+    {
+      "hash": "#/pay-apps/ph7434a59sqck3nysgt6teqh0h8hvx1h",
+      "file": "target-ortiz-pay-app-1440.png",
+      "notFound": false,
+      "heading": "Billing | Pay app #1 | Ortiz Plumbing (demo) · Lopez Kitchen Remodel · SC-22-ORTIZ-0001"
+    }
+  ],
+  "consoleLogs": [
+    {
+      "type": "debug",
+      "text": "[vite] connecting..."
+    },
+    {
+      "type": "debug",
+      "text": "[vite] connected."
+    },
+    {
+      "type": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold"
+    }
+  ],
+  "pageErrors": [],
+  "failedRequests": [
+    "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED",
+    "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED"
+  ]
+}

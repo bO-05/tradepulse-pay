@@ -190,6 +190,8 @@ describe("billing routes", () => {
     expect(resolveRoute("gc", "#/billing/documents")).toEqual({ area: "billing", tab: "documents" });
     expect(resolveRoute("gc", "#/billing/forged")).toEqual({ area: "not-found" });
     expect(resolveRoute("owner", "#/owner-pay-apps")).toEqual({ area: "owner-pay-apps" });
+    // The GC money strip's collected receipt link lands on the GC's owner-billing screen.
+    expect(resolveRoute("gc", "#/owner-pay-apps")).toEqual({ area: "owner-pay-apps" });
     for (const hash of ["#/owner-pay-apps", "#/billing/owner-billing"]) {
       expect(resolveRoute("sub", hash)).toEqual({ area: "not-found" });
       expect(resolveRoute("sub", hash, false, "", "agent")).toEqual({ area: "not-found" });
