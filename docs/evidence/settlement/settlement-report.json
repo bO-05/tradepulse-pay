@@ -1,0 +1,612 @@
+{
+  "settlement": "residential-settlement-live",
+  "referenceJob": {
+    "projectId": "q97f6pmh2d5qn733jmh5pg4c3x8hr9sn",
+    "projectTitle": "Lopez Kitchen Remodel",
+    "projectKind": "residential",
+    "contractValueCents": 8650000,
+    "retainageBps": 1000,
+    "generalContractorName": "Bayview Remodeling",
+    "ownerName": "Dana Lopez",
+    "agreementId": "jn77jrsvkvmwzj69tpyx7gj2f98htcnv",
+    "agreementNumber": "SC-22-ORTIZ-0001",
+    "subcontractorName": "Ortiz Plumbing (demo)",
+    "subcontractCents": 900000,
+    "subcontractRetainageBps": 500,
+    "lienWaiverGateEnabled": true
+  },
+  "run": {
+    "deployment": "dev:cheery-axolotl-689",
+    "app": "http://localhost:3150",
+    "paypalEnvironment": "sandbox",
+    "realMoney": false,
+    "startedAt": "2026-11-08T15:52:20.000Z",
+    "finishedAt": "2026-11-08T16:51:04.300Z",
+    "authorizedBy": "one-time sandbox settlement approved for this feature"
+  },
+  "steps": [
+    {
+      "step": 1,
+      "name": "Fund the Rough-in milestone with a real PayPal sandbox AUTHORIZE",
+      "milestoneName": "Rough-in",
+      "amountCents": 400000,
+      "funding": {
+        "paypalOrderId": "0BX9647380818900F",
+        "paypalAuthorizationId": "24P9856593499503V",
+        "statusAtFunding": "authorized",
+        "statusNow": "captured",
+        "capturedCents": 400000,
+        "milestoneStatusAtFunding": "funded",
+        "milestoneStatusNow": "paid",
+        "checkoutAmountText": "$4,000.00",
+        "uiTextAfterApproval": "Authorized $4,000.00 · honor period ends Nov 11, 2026 · expires Dec 7, 2026"
+      },
+      "evidence": [
+        "01-rough-in-funded.png"
+      ],
+      "idempotency": "The first UI click created order 0BX9647380818900F; the retried funding flow reused that open order through the same idempotency key instead of creating a second authorization.",
+      "note": "The AUTHORIZE funded the tranche (milestone status funded). The later payout captured it, which is why the stored milestone status is now paid; the authorization id remains on the funding row."
+    },
+    {
+      "step": 2,
+      "name": "Ortiz files pay app #1 and the rules review flags the Fixtures set line",
+      "payAppId": "ph7434a59sqck3nysgt6teqh0h8hvx1h",
+      "applicationNo": 1,
+      "periodStart": "2026-09-21",
+      "periodEnd": "2026-10-15",
+      "dueDate": "2026-10-15",
+      "submittedAt": "2026-11-08T15:57:44.084Z",
+      "requestedCents": 540000,
+      "requestedLines": [
+        {
+          "lineNo": 1,
+          "description": "Rough-in",
+          "sovLineId": "qs70bq85bwd0s4cqs71qvq7kbd8htg8e",
+          "workThisPeriodCents": 400000,
+          "scheduledValueCents": 400000,
+          "note": "Rough-in complete."
+        },
+        {
+          "lineNo": 2,
+          "description": "Fixtures set",
+          "sovLineId": "qs7cns3ky3dgaea7s2njzryht98ht4s3",
+          "workThisPeriodCents": 0,
+          "scheduledValueCents": 350000,
+          "note": null
+        },
+        {
+          "lineNo": 3,
+          "description": "Final",
+          "sovLineId": "qs7djb5k7ra8dd0a94xewkpf2s8htv77",
+          "workThisPeriodCents": 0,
+          "scheduledValueCents": 150000,
+          "note": null
+        }
+      ],
+      "review": {
+        "engine": "Mistral mistral-large-4",
+        "provider": "Mistral",
+        "model": "mistral-large-4",
+        "reviewedAt": "2026-11-08T15:57:51.024Z",
+        "approvedTotalCents": 200000,
+        "flags": {
+          "licenseIssue": true,
+          "licenseStatus": "not_found",
+          "lienWaiverMissing": true,
+          "notes": "Both billed lines exceed their funding-tranche ceilings: Rough-in capped at 50% (funded tranche only), Fixtures set at 0% (tranche still planned). No lien waiver provided and no active license check on file for Ortiz Plumbing, so both flags are set for the GC."
+        },
+        "lines": [
+          {
+            "approvedCents": 200000,
+            "description": "Rough-in",
+            "lineNo": 1,
+            "reason": "Line claims 100% to date (100% work in place, note 'Rough-in complete'), but the funded Rough-in tranche covering line 1 supports a ceiling of only 50% to date, so the claim exceeds the tranche ceiling and is capped at 0.5.",
+            "recommendedPctToDate": 0.5,
+            "requestedCents": 400000,
+            "sovLineId": "qs70bq85bwd0s4cqs71qvq7kbd8htg8e",
+            "verdict": "overbilled"
+          },
+          {
+            "approvedCents": 0,
+            "description": "Fixtures set",
+            "lineNo": 2,
+            "reason": "Line claims 40% to date (40% work in place), but the only tranche covering line 2 (Fixtures set) is planned, not funded, so its ceiling is 0%; the claim of 0.4 exceeds the ceiling and earns 0% this period.",
+            "recommendedPctToDate": 0,
+            "requestedCents": 140000,
+            "sovLineId": "qs7cns3ky3dgaea7s2njzryht98ht4s3",
+            "verdict": "overbilled"
+          },
+          {
+            "approvedCents": 0,
+            "description": "Final",
+            "lineNo": 3,
+            "reason": "Nothing billed on line 3 this period.",
+            "recommendedPctToDate": 0,
+            "requestedCents": 0,
+            "sovLineId": "qs7djb5k7ra8dd0a94xewkpf2s8htv77",
+            "verdict": "ok"
+          }
+        ]
+      },
+      "evidence": [
+        "02-review-flagged.png"
+      ]
+    },
+    {
+      "step": 3,
+      "name": "GC approves with line 1 at 400000 and line 2 at 0",
+      "payAppId": "ph7434a59sqck3nysgt6teqh0h8hvx1h",
+      "outcome": "approved_as_noted",
+      "decidedAt": "2026-11-08T16:01:26.983Z",
+      "decidedByName": "Demo GC (Austin Commercial, LP)",
+      "lines": [
+        {
+          "action": "override",
+          "approvedCents": 400000,
+          "description": "Rough-in",
+          "lineNo": 1,
+          "reason": "Rough-in is complete and the $4,000.00 Rough-in tranche is authorized at PayPal. The 50% tranche ceiling measures funding progress, not work in place, so the GC approves the full $4,000.00 for line 1.",
+          "recommendedCents": 200000,
+          "sovLineId": "qs70bq85bwd0s4cqs71qvq7kbd8htg8e"
+        },
+        {
+          "action": "override",
+          "approvedCents": 0,
+          "description": "Fixtures set",
+          "lineNo": 2,
+          "reason": "Fixtures set is only 40% in place and the Fixtures set milestone is still planned, so this line is cut by $1,400.00 (140,000 cents), from $1,400.00 to $0.00, until that milestone is funded and the work is complete.",
+          "recommendedCents": 0,
+          "sovLineId": "qs7cns3ky3dgaea7s2njzryht98ht4s3"
+        }
+      ],
+      "finalApproval": {
+        "totalCents": 400000,
+        "requestedCents": 540000,
+        "reductionFromRequestCents": 140000,
+        "currentPaymentDueCents": 380000,
+        "retainageCents": 20000
+      },
+      "noOtherLineReduced": {
+        "line1RequestedCents": 400000,
+        "line1ApprovedCents": 400000,
+        "line3RequestedCents": 0,
+        "line3ApprovedCents": 0
+      },
+      "evidence": [
+        "03-approved.png"
+      ]
+    },
+    {
+      "step": 4,
+      "name": "Conditional lien waiver signed with recorded evidence; the gate clears",
+      "payGateBeforeWaiver": {
+        "codes": [
+          "COMPLIANCE_HOLD",
+          "LIEN_WAIVER_MISSING"
+        ],
+        "messages": [
+          "Payment on hold: missing certificate of insurance; missing W-9; missing contractor license",
+          "Lien waiver: the sub has not signed the conditional waiver for $4,000.00."
+        ],
+        "observedIn": "GC pay app payment panel, immediately after approval and before signing",
+        "screenshot": null,
+        "screenshotNote": "The browser pane used for the in-app screenshot collapsed at this instant, so the held state is recorded here from the rendered DOM and the settlement run log rather than as a PNG. The finished gate output is in payGateAfterWaiver."
+      },
+      "waiver": {
+        "kind": "conditional",
+        "payAppId": "ph7434a59sqck3nysgt6teqh0h8hvx1h",
+        "amountCents": 400000,
+        "throughDate": "2026-10-15",
+        "signedByName": "Marisol Ortiz",
+        "signerTitle": "Project Manager",
+        "waiverId": "rh7exzfa6rbwcnreh5zqc7etnx8hvwfq",
+        "signedAt": "2026-11-08T16:09:21.955Z",
+        "evidenceId": "rs7f7wvqq1p4q9vxwegkbr9b4h8htpwe",
+        "statementVersion": "waiver-statement/1",
+        "statementHash": "b56207af5f4441d9fc29198ae642f6014915b85b2917054000d6ae38d129f2ea",
+        "statementChars": 692,
+        "evidenceHttpStatus": 200,
+        "evidenceObservedAt": "2026-11-08T16:09:21.633Z"
+      },
+      "payGateAfterWaiver": {
+        "availableCents": 400000,
+        "figures": {
+          "grossCents": 400000,
+          "netCents": 380000,
+          "retainageCents": 20000
+        },
+        "ok": false,
+        "payeeEmail": "sb-***@personal.example.com",
+        "reasons": [
+          {
+            "code": "COMPLIANCE_HOLD",
+            "message": "Payment on hold: missing certificate of insurance; missing W-9; missing contractor license"
+          }
+        ],
+        "tranche": {
+          "availableCents": 400000,
+          "name": "Rough-in",
+          "trancheId": "p5732np01qh12m5tckxvhtdrx18htqgh"
+        }
+      },
+      "complianceOverride": {
+        "at": "2026-11-08T16:10:07.380Z",
+        "by": "Demo GC (Austin Commercial, LP)",
+        "reason": "Demo Ortiz Plumbing bidder has no compliance records on file (COI, W-9, license). This is the authorized one-time PayPal sandbox settlement on the Lopez reference job; no real money moves. The lien-waiver gate and the confirmed-payee check still apply.",
+        "audited": true
+      },
+      "evidence": [
+        "05-waiver-signed.png"
+      ]
+    },
+    {
+      "step": 5,
+      "name": "Capture the authorization from the funded Rough-in tranche",
+      "paymentId": "pn73fd19tggq2s47a3kxs1d66h8htj3s",
+      "paypalCaptureId": "755909586T198313B",
+      "grossCents": 400000,
+      "captured": true,
+      "capturedAt": "2026-11-08T16:17:54.198Z",
+      "authorizationCents": 400000,
+      "note": "The capture is the full authorized amount for the approved pay app; the payout below splits gross into retainage and net."
+    },
+    {
+      "step": 6,
+      "name": "Payout net of 5% retainage",
+      "paymentId": "pn73fd19tggq2s47a3kxs1d66h8htj3s",
+      "paymentStatus": "success",
+      "paypalItemStatus": "SUCCESS",
+      "grossCents": 400000,
+      "retainageCents": 20000,
+      "netCents": 380000,
+      "paypalPayoutBatchId": "D5V7XEN5YZH4C",
+      "paypalPayoutItemId": "4QUTKPGDUN5PA",
+      "paypalCaptureId": "755909586T198313B",
+      "receiverEmail": "sb-***@personal.example.com",
+      "paidAt": "2026-11-08T16:18:23.274Z",
+      "payAppStatus": "paid",
+      "evidence": [
+        "06-payout-receipt.png",
+        "13-sub-payapp-paid.png"
+      ]
+    },
+    {
+      "step": 7,
+      "name": "Owner Draw #1 created, submitted, approved, invoiced and paid",
+      "ownerPayAppId": "pd753160qzkknhm3smyxbetxwn8ht286",
+      "applicationNo": 1,
+      "periodStart": "2026-09-21",
+      "periodEnd": "2026-10-15",
+      "status": "paid",
+      "paypalInvoiceId": "INV2-5ZNS-USY8-KBFD-L3B9",
+      "paypalInvoiceStatus": "PAID",
+      "payerViewUrl": "https://www.sandbox.paypal.com/invoice/p/#5ZNSUSY8KBFDL3B9",
+      "paidAt": "2026-11-08T16:41:44.483Z",
+      "paypalCheckoutOrderId": "6N099338C19141452",
+      "paypalCheckoutAmountText": "$3,600.00",
+      "figures": {
+        "balanceToFinishInclRetainageCents": 8290000,
+        "completedAndStoredCents": 400000,
+        "contractSumToDateCents": 8650000,
+        "currentPaymentDueCents": 360000,
+        "earnedLessRetainageCents": 360000,
+        "netChangeOrdersCents": 0,
+        "originalContractSumCents": 8650000,
+        "previousCertificatesCents": 0,
+        "retainageCents": 40000,
+        "retainageStoredCents": 0,
+        "retainageWorkCents": 40000
+      },
+      "scheduledValues": {
+        "totalCents": 8650000,
+        "lines": [
+          {
+            "lineNo": 1,
+            "key": "trade:jn77jrsvkvmwzj69tpyx7gj2f98htcnv",
+            "kind": "trade",
+            "description": "Plumbing (22 00 00) – Ortiz Plumbing",
+            "scheduledValueCents": 900000,
+            "retainageCents": 40000
+          },
+          {
+            "lineNo": 2,
+            "key": "gc:px771rge8y94ebwp953jcph37d8hr9c4",
+            "kind": "gc",
+            "description": "Demolition, rough-in and permits",
+            "scheduledValueCents": 2160000,
+            "retainageCents": 0
+          },
+          {
+            "lineNo": 3,
+            "key": "gc:px75v6x66dfw1xefyta66z8kx58hs33d",
+            "kind": "gc",
+            "description": "Cabinetry, countertops and backsplash",
+            "scheduledValueCents": 3460000,
+            "retainageCents": 0
+          },
+          {
+            "lineNo": 4,
+            "key": "gc:px7249brr6cd3dk0ct1rgdy4k98hrxzf",
+            "kind": "gc",
+            "description": "Electrical and appliance set",
+            "scheduledValueCents": 830000,
+            "retainageCents": 0
+          },
+          {
+            "lineNo": 5,
+            "key": "gc:px7e03n4n2jqvtebz8w3wmwq3d8hsxwc",
+            "kind": "gc",
+            "description": "Paint, punch list and closeout",
+            "scheduledValueCents": 1300000,
+            "retainageCents": 0
+          }
+        ]
+      },
+      "history": [
+        {
+          "at": 1794155181008,
+          "byName": "Demo GC (Austin Commercial, LP)",
+          "comment": null,
+          "status": "draft"
+        },
+        {
+          "at": 1794155218588,
+          "byName": "Demo GC (Austin Commercial, LP)",
+          "comment": null,
+          "status": "submitted_to_owner"
+        },
+        {
+          "at": 1794155460171,
+          "byName": "Demo Owner (Domain Tower B)",
+          "comment": null,
+          "status": "approved"
+        }
+      ],
+      "evidence": [
+        "08-draw-created.png",
+        "10-draw-paid.png",
+        "15-owner-billing.png"
+      ],
+      "note": "The owner pay app row does not store a PayPal capture id for invoice payments; the PayPal order id from the guest checkout and the invoice status PAID are recorded instead."
+    },
+    {
+      "step": 8,
+      "name": "Prime change order 'Add under-cabinet lighting' approved, invoiced and paid",
+      "changeOrderId": "kx76mes3b4e7dt47qbv92tbav58httg0",
+      "label": "PCO #1",
+      "title": "Add under-cabinet lighting",
+      "scope": "prime",
+      "amountCents": 120000,
+      "status": "paid",
+      "paypalInvoiceId": "INV2-RCJ4-Z8GD-4A33-TDJC",
+      "paypalInvoiceStatus": "PAID",
+      "payerViewUrl": "https://www.sandbox.paypal.com/invoice/p/#RCJ4Z8GD4A33TDJC",
+      "paidAt": "2026-11-08T16:47:40.680Z",
+      "approvedAt": "2026-11-08T16:44:18.987Z",
+      "invoicedAt": "2026-11-08T16:44:23.507Z",
+      "paypalCheckoutOrderId": "11K78959ER774774F",
+      "paypalCheckoutAmountText": "$1,200.00",
+      "primeContractSumToDateCents": 8770000,
+      "evidence": [
+        "11-co-created.png",
+        "12-co-paid.png"
+      ],
+      "note": "Created and paid after Draw #1 so the draw's scheduled values stayed at 8,650,000."
+    },
+    {
+      "step": 9,
+      "name": "Money strip inputs recomputed from stored rows",
+      "queryStatus": "billing/projectMoney and the money strip UI are pending features; cells were recomputed per architecture §6.1 from stored rows.",
+      "project": {
+        "scope": {
+          "kind": "project",
+          "projectId": "q97f6pmh2d5qn733jmh5pg4c3x8hr9sn",
+          "projectTitle": "Lopez Kitchen Remodel"
+        },
+        "collectedFromOwnerCents": 360000,
+        "paidToSubsCents": 380000,
+        "retainageHeldCents": 20000,
+        "ownerRetainageHeldCents": 40000,
+        "owedThisWeekCents": 0,
+        "receipts": {
+          "ownerPayApps": [
+            {
+              "ownerPayAppId": "pd753160qzkknhm3smyxbetxwn8ht286",
+              "applicationNo": 1,
+              "paidAt": 1794156104483,
+              "amountCents": 360000,
+              "retainageCents": 40000
+            }
+          ],
+          "payouts": [
+            {
+              "agreementId": "jn77jrsvkvmwzj69tpyx7gj2f98htcnv",
+              "amountCents": 380000,
+              "retainageHeldCents": 20000
+            }
+          ],
+          "owed": []
+        }
+      },
+      "portfolio": {
+        "scope": {
+          "kind": "portfolio"
+        },
+        "collectedFromOwnerCents": 360000,
+        "paidToSubsCents": 1707040,
+        "retainageHeldCents": 65760,
+        "ownerRetainageHeldCents": 40000,
+        "owedThisWeekCents": 0,
+        "receipts": {
+          "paidOwnerPayApps": [
+            {
+              "projectTitle": "Lopez Kitchen Remodel",
+              "ownerPayAppId": "pd753160qzkknhm3smyxbetxwn8ht286",
+              "applicationNo": 1,
+              "paidAt": 1794156104483,
+              "amountCents": 360000
+            }
+          ],
+          "paidToSubs": [
+            {
+              "agreementNumber": "SC-22-ORTIZ-0001",
+              "paidCents": 380000,
+              "retainageHeldCents": 20000
+            },
+            {
+              "agreementNumber": "A401-DEMO-PAY-20261107-12",
+              "paidCents": 205920,
+              "retainageHeldCents": 22880
+            },
+            {
+              "agreementNumber": "A401-DEMO-PAY-20261106-11",
+              "paidCents": 0,
+              "retainageHeldCents": 0
+            },
+            {
+              "agreementNumber": "A401-DEMO-PAY-20261106-10",
+              "paidCents": 0,
+              "retainageHeldCents": 0
+            },
+            {
+              "agreementNumber": "A401-DEMO-PAY-20261106-09",
+              "paidCents": 0,
+              "retainageHeldCents": 0
+            },
+            {
+              "agreementNumber": "A401-DEMO-PAY-20261105-08",
+              "paidCents": 228800,
+              "retainageHeldCents": 0
+            },
+            {
+              "agreementNumber": "A401-DEMO-PAY-20261105-07",
+              "paidCents": 205920,
+              "retainageHeldCents": 22880
+            },
+            {
+              "agreementNumber": "A401-DEMO-PAY-20261105-06",
+              "paidCents": 0,
+              "retainageHeldCents": 0
+            },
+            {
+              "agreementNumber": "A401-DEMO-PAY-20261104-05",
+              "paidCents": 228800,
+              "retainageHeldCents": 0
+            },
+            {
+              "agreementNumber": "A401-DEMO-PAY-20261104-04",
+              "paidCents": 228800,
+              "retainageHeldCents": 0
+            },
+            {
+              "agreementNumber": "A401-DEMO-PAY-20261101-03",
+              "paidCents": 0,
+              "retainageHeldCents": 0
+            },
+            {
+              "agreementNumber": "A401-DEMO-PAY-20261101-02",
+              "paidCents": 228800,
+              "retainageHeldCents": 0
+            },
+            {
+              "agreementNumber": "A401-DEMO-PAY-20261101-01",
+              "paidCents": 0,
+              "retainageHeldCents": 0
+            },
+            {
+              "agreementNumber": "A401-DEMO-PAYREVIEW-MISTRAL1",
+              "paidCents": 0,
+              "retainageHeldCents": 0
+            },
+            {
+              "agreementNumber": "A401-2026-2601-18042",
+              "paidCents": 0,
+              "retainageHeldCents": 0
+            }
+          ],
+          "owed": []
+        }
+      },
+      "definitions": {
+        "collectedFromOwnerCents": "Sum of ownerPayApps with status paid: figures.currentPaymentDueCents. Paid change orders excluded.",
+        "paidToSubsCents": "Sum of per-agreement LedgerTotals.paidCents from successful payouts (net).",
+        "retainageHeldCents": "projectRetainage.projects[].subHeldCents (sub retainage held by the GC).",
+        "ownerRetainageHeldCents": "Prime retainage held by the owner, returned separately for the owner-side caption.",
+        "owedThisWeekCents": "Approved/approved_as_noted pay apps with dueDate ?? periodEnd on or before the end of the current week; amount = g703.approved.currentPaymentDueCents with finalApproval.totalCents fallback."
+      },
+      "asOf": "2026-11-08T16:59:59.000Z",
+      "weekEnd": "2026-11-08",
+      "evidence": [
+        "15-owner-billing.png"
+      ]
+    }
+  ],
+  "crossRoleFigures": {
+    "payAppApprovedGrossCents": 400000,
+    "paidOutGrossCents": 400000,
+    "retainageCents": 20000,
+    "netPaidCents": 380000,
+    "drawCurrentPaymentDueCents": 360000,
+    "drawTradeLineToDateCents": null,
+    "changeOrderCents": 120000,
+    "surfaces": {
+      "subPayApp": "Sub payment panel shows Paid $3,800.00 and retainage held $200.00 (13-sub-payapp-paid.png)",
+      "gcPayApp": "GC pay app shows $4,000.00 approved, $200.00 retainage, $3,800.00 net (03-approved.png, 06-payout-receipt.png)",
+      "ownerDraw": "Owner draw shows the $4,000.00 trade line to date and $3,600.00 current payment due after 10% owner retainage (10-draw-paid.png)"
+    }
+  },
+  "evidenceScreenshots": [
+    {
+      "file": "01-rough-in-funded.png",
+      "purpose": "Rough-in milestone authorized in PayPal sandbox"
+    },
+    {
+      "file": "02-review-flagged.png",
+      "purpose": "Rules review flagging the Fixtures set line before approval"
+    },
+    {
+      "file": "03-approved.png",
+      "purpose": "GC approval with line 1 at $4,000 and line 2 cut to $0 with reasons"
+    },
+    {
+      "file": "05-waiver-signed.png",
+      "purpose": "Signed conditional waiver for $4,000"
+    },
+    {
+      "file": "06-payout-receipt.png",
+      "purpose": "GC payout receipt: gross $4,000, retainage $200, net $3,800, batch id"
+    },
+    {
+      "file": "08-draw-created.png",
+      "purpose": "Owner Draw #1 submitted with $86,500 scheduled values"
+    },
+    {
+      "file": "10-draw-paid.png",
+      "purpose": "Owner Draw #1 paid"
+    },
+    {
+      "file": "11-co-created.png",
+      "purpose": "Prime change order submitted for $1,200"
+    },
+    {
+      "file": "12-co-paid.png",
+      "purpose": "Prime change order paid"
+    },
+    {
+      "file": "13-sub-payapp-paid.png",
+      "purpose": "Ortiz sub view: Paid $3,800 with $200 retainage"
+    },
+    {
+      "file": "15-owner-billing.png",
+      "purpose": "GC owner-billing view with the paid draw"
+    }
+  ],
+  "limitations": [
+    "The conditional waiver was signed by 'Marisol Ortiz' (the name entered for the Ortiz demonstration signer). The validation contract's VAL-RES-005 names 'Luis Ortiz'; the product has no path to change a recorded signature (signWaiver returns the existing signature for the same amount), so the row cannot be renamed without editing audit data.",
+    "Immediately after funding, the Rough-in milestone and its funding row were funded/authorized. The settled payout later captured the authorization, so the milestone now reads paid; the authorization id remains stored.",
+    "The pre-signing missing-waiver screenshot could not be captured because the in-app browser pane collapsed; the exact blocker code and message were read from the rendered payment panel and are recorded in step 4, together with the post-signing gate output. The runbook's sourcing clause allows the run log for the held state.",
+    "PayPal invoice payments do not surface a capture id in the owner pay app or change order rows; the PayPal checkout order id and the PAID invoice status are recorded instead.",
+    "docs/evidence is matched by the repository's 'evidence/' gitignore rule, so the PNGs stay as local mission artefacts; the JSON report is committed."
+  ],
+  "noSecrets": "No OAuth tokens, cookies, auth frames, card numbers, client secrets or unmasked payee emails are recorded in this report."
+}
