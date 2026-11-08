@@ -3,7 +3,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "../_generated/server";
 import { isReadOnlyReference, REFERENCE_RUN_ID } from "../lib/demoReference";
 import { rateLimiter } from "../authLimits";
-import { requireCompanyMember } from "../lib/tenancy";
+import { requireCompanyMember, findActiveMembership } from "../lib/tenancy";
 import { normalizeAgentEmail, syncAgentProfilesForEmail } from "../lib/agentAccess";
 import { requireRole } from "../lib/roles";
 import { requireDemoCompany, requireProjectScope } from "../lib/projectScope";
@@ -378,13 +378,33 @@ async function runView(ctx: QueryCtx, userId: Id<"users">, runId?: Id<"judgeDemo
     };
 }
 
+/**
+ * Whether a refusal is the demo sub/owner seat reading "missing" instead of "forbidden". Real
+ * companies keep the existing refusals: a real GC reads Not found and other roles read Forbidden.
+ * Guided runs belong to the demo GC, so a run id cannot probe another seat's history (VAL-CROSS-005).
+ */
+async function demoSeatReadsMissing(ctx: QueryCtx, err: unknown): Promise<boolean> {
+  const code = err instanceof ConvexError ? (err.data as { code?: unknown } | undefined)?.code : undefined;
+  if (code !== "FORBIDDEN") return false;
+  const party = await requireRole(ctx, ["gc", "sub", "owner"]).catch(() => null);
+  const membership = party === null ? null : await findActiveMembership(ctx, party.userId);
+  const company = membership === null ? null : await ctx.db.get(membership.companyId);
+  return company?.isDemo === true;
+}
+
 /** Prefer the settled reference for judge inspection; explicit selections still preserve their own run. */
 export const getRun = query({
   args: { runId: v.optional(v.id("judgeDemoRuns")) },
   returns: runViewValidator,
   handler: async (ctx, args) => {
-    await requireDemoCompany(ctx, ["gc"]);
-    const viewer = await requireRole(ctx, ["gc"]);
+    let viewer;
+    try {
+      viewer = await requireRole(ctx, ["gc"]);
+      await requireDemoCompany(ctx, ["gc"]);
+    } catch (err) {
+      if (await demoSeatReadsMissing(ctx, err)) return null;
+      throw err;
+    }
     return await runView(ctx, viewer.userId, args.runId);
   },
 });
@@ -394,8 +414,14 @@ export const getRunByPath = query({
   args: { runId: v.string() },
   returns: runViewValidator,
   handler: async (ctx, args) => {
-    await requireDemoCompany(ctx, ["gc"]);
-    const viewer = await requireRole(ctx, ["gc"]);
+    let viewer;
+    try {
+      viewer = await requireRole(ctx, ["gc"]);
+      await requireDemoCompany(ctx, ["gc"]);
+    } catch (err) {
+      if (await demoSeatReadsMissing(ctx, err)) return null;
+      throw err;
+    }
     const id = ctx.db.normalizeId("judgeDemoRuns", args.runId);
     return id ? await runView(ctx, viewer.userId, id) : null;
   },

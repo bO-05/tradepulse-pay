@@ -11,6 +11,7 @@ import { submissionAttribution } from "../SubmissionAttribution";
 import { payAppHash, ledgerHash } from "../../auth/navigation";
 import { TextInput } from "../../ui";
 import { ReceiptId } from "../ReceiptId";
+import { ReferenceNotice } from "../ReferenceNotice";
 import { isAIReviewProvider } from "../../lib/aiProvenance";
 import { inboxGroup, payAppStatusLabel } from "./inboxBuckets";
 
@@ -522,6 +523,7 @@ export function ApprovalInbox() {
           </p>
         ) : null}
       </header>
+      {items?.some((item) => item.readOnlyReference) ? <ReferenceNotice title="Preserved reference jobs · read-only." /> : null}
       <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_14rem_auto]">
         <label className="text-sm">Search loaded applications
           <input className="mt-1 block w-full rounded-lg border border-slate-600 bg-slate-900 p-2" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Agreement, project, company or pay app ID" />

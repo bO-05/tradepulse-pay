@@ -3,6 +3,7 @@ import type { Doc } from "../_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "../_generated/server";
 import { formatCents } from "../lib/money";
 import { notify } from "../lib/notify";
+import { isReadOnlyReference, READ_ONLY_REFERENCE_MESSAGE } from "../lib/demoReference";
 import { auditActor, callerProjects, requireDocScope, requireProjectScope } from "../lib/projectScope";
 import { requireRole } from "../lib/roles";
 import { notFound, requireProjectAccess, type ProjectAccess } from "../lib/tenancy";
@@ -93,6 +94,8 @@ function nextPeriodFor(project: Doc<"projects">, previous: Doc<"ownerPayApps"> |
 
 /** Why the GC cannot open the next owner pay app on this project, or null. */
 function createBlock(project: Doc<"projects">, apps: readonly Doc<"ownerPayApps">[]): string | null {
+  // A preserved reference job is readable forever but never bills again.
+  if (isReadOnlyReference(project)) return READ_ONLY_REFERENCE_MESSAGE;
   if (project.contractValueCents === undefined) return "Set the prime contract value in Project settings before billing the owner.";
   const open = apps.find((a) => !OWNER_APPROVED_STATUSES.has(a.status));
   if (open) return `Owner pay app #${open.applicationNo} is still open. The owner must approve it before the next one.`;
@@ -171,7 +174,9 @@ async function directlyInvoicedChangeOrders(ctx: QueryCtx, app: Doc<"ownerPayApp
 }
 
 async function detailView(ctx: QueryCtx, app: Doc<"ownerPayApps">, project: Doc<"projects">, party: Party) {
-  const editable = party === "gc" && OWNER_EDITABLE_STATUSES.has(app.status);
+  const readOnlyReference = isReadOnlyReference(project);
+  const writable = !readOnlyReference;
+  const editable = writable && party === "gc" && OWNER_EDITABLE_STATUSES.has(app.status);
   const refresh = editable ? await pendingRefresh(ctx, project, app) : null;
   const invoicePending = app.status === "approved" && app.figures.currentPaymentDueCents > 0;
   const recipient = await invoiceRecipientForProject(ctx, project._id);
@@ -180,6 +185,7 @@ async function detailView(ctx: QueryCtx, app: Doc<"ownerPayApps">, project: Doc<
     projectId: project._id,
     projectTitle: project.title,
     projectKind: projectKindOf(project),
+    readOnlyReference,
     party,
     retainageBps: app.retainageBps,
     figures: app.figures,
@@ -201,12 +207,12 @@ async function detailView(ctx: QueryCtx, app: Doc<"ownerPayApps">, project: Doc<
       edit: editable,
       submit: editable,
       refresh: editable && refresh !== null,
-      delete: party === "gc" && app.status === "draft" && app.history.every((h) => h.status === "draft"),
-      approve: party === "owner" && app.status === "submitted_to_owner",
-      requestChanges: party === "owner" && app.status === "submitted_to_owner",
+      delete: writable && party === "gc" && app.status === "draft" && app.history.every((h) => h.status === "draft"),
+      approve: writable && party === "owner" && app.status === "submitted_to_owner",
+      requestChanges: writable && party === "owner" && app.status === "submitted_to_owner",
       // Resumes an invoice whose create or send did not finish after the owner approved.
-      sendInvoice: invoicePending,
-      refreshStatus: app.paypalInvoiceId !== undefined && app.status === "approved_invoiced",
+      sendInvoice: writable && invoicePending,
+      refreshStatus: writable && app.paypalInvoiceId !== undefined && app.status === "approved_invoiced",
     },
   };
 }
@@ -243,6 +249,7 @@ export const listOwnerPayApps = query({
       projectId: project._id,
       projectTitle: project.title,
       projectKind: projectKindOf(project),
+      readOnlyReference: isReadOnlyReference(project),
       party,
       retainageBps: ownerRetainageBps(project),
       contractValueCents: project.contractValueCents ?? null,

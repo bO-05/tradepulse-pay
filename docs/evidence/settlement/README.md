@@ -44,4 +44,5 @@ order was invoiced and paid (invoice `INV2-RCJ4-Z8GD-4A33-TDJC`).
 - The money strip query/UI are pending features, so the four cells were recomputed from stored rows per
   architecture §6.1.
 
-The repository's `evidence/` ignore rule matches `docs/evidence/`, so these PNGs are not committed.
+The repository ignore rule is anchored to the scratch directory (`/evidence/`), so the PNGs above are
+committed alongside this report and ship with the tree.

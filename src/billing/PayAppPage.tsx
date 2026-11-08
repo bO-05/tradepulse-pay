@@ -20,6 +20,7 @@ import { DecisionCard, GcReviewPanel, VersionHistory } from "./PayAppDecision";
 import { LienWaiverPanel } from "./LienWaiverPanel";
 import { PaymentPanel } from "./PaymentPanel";
 import { PayAppThread } from "./PayAppThread";
+import { ReferenceNotice } from "../payments/ReferenceNotice";
 
 type PayAppView = NonNullable<FunctionReturnType<typeof api.payApps.g703.getPayApp>>;
 type SheetLine = PayAppView["lines"][number];
@@ -197,6 +198,10 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
           </div>
         }
       />
+
+      {view.readOnlyReference ? (
+        <ReferenceNotice title="Preserved reference job · read-only." showFreshRunLink={view.viewerRole !== "sub"} />
+      ) : null}
 
       <Card padded>
         <dl className="grid gap-3 text-sm sm:grid-cols-4">

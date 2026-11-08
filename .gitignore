@@ -52,7 +52,9 @@ tests/temp/
 test-temp/
 *.scratch
 *.scratch.*
-evidence/
+# Scratch browser/QA output only. Anchored so the tracked judge-facing evidence under
+# docs/evidence/ is never caught by this rule.
+/evidence/
 docs/external-audit/
 downloads/
 test-results/

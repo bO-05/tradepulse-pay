@@ -1,0 +1,70 @@
+{
+  "screens": {
+    "subPayApp": {
+      "url": "#/pay-apps/ph7434a59sqck3nysgt6teqh0h8hvx1h",
+      "noticeText": "Preserved reference job · read-only. Financial and workflow changes are locked on the server. Inspect the settled receipts here.",
+      "hasNoticeLink": false,
+      "submitButton": false,
+      "reviseButton": false,
+      "withdrawButton": false,
+      "discardButton": false,
+      "numberInputs": 0,
+      "statusText": "Paid",
+      "moneyTrail": true
+    },
+    "gcInbox": {
+      "url": "#/inbox",
+      "noticeText": "Preserved reference jobs · read-only. Financial and workflow changes are locked on the server. Inspect the settled receipts here, or start a fresh guided run to try sandbox actions.",
+      "referenceEntryText": "Ortiz Plumbing · Pay app #1 – period ending Oct 15, 2026SC-22-ORTIZ-0001 · Lopez Kitchen Remodel · status PaidSubmitted by sub4@demo.tradepulse (shared demo account, human; not the real subcontractor).Open pay applicationAgreement ledgerSettled reference · read-onlyCalifornia contractor license (CSLB)California registr",
+      "referenceEntryHasReadOnlyLine": true,
+      "referenceEntryHasReject": false,
+      "referenceEntryHasJumpToApprove": false,
+      "entryCount": 18
+    },
+    "projectPage": {
+      "url": "#/all-projects/q97f6pmh2d5qn733jmh5pg4c3x8hr9sn",
+      "heading": "Lopez Kitchen Remodel",
+      "noticeText": "Preserved reference job · read-only. Financial and workflow changes are locked on the server. Inspect the settled receipts here, or start a fresh guided run to try sandbox actions.",
+      "hasAddTradePackage": false,
+      "hasSpecBreakdown": false,
+      "hasOpenInProcurement": false,
+      "showsOwner": true,
+      "showsRetainage": true
+    },
+    "guidedDemo": {
+      "url": "#/judge-demo/nx74k1sdcnsmqzvkr97kf0ts598hch6p",
+      "noticeText": "Preserved demo run · read-only. Financial and workflow changes are locked on the server. Inspect the settled receipts here, or start a fresh guided run to try sandbox actions.",
+      "startButtonText": "Run TradePulse Pay demo",
+      "startButtonDisabled": false,
+      "continueButton": false,
+      "runSelectorOptions": 12
+    },
+    "guidedDemoConfirm": {
+      "confirmDialogText": "Start a new sandbox demo run?New synthetic subcontract$55,000.00Funding$5,500 PayPal sandbox authorization, requiring your checkout approvalRecipientsExisting demo subcontractor's configured sandbox payee; $1,850 invoice to the demo OwnerProvider callsModel-written review explanation, hosted CSLB license lookup and PayPal sandbox; these use provider creditsShared account limitUp to 3 new guided ru",
+      "confirmButtons": [
+        "",
+        "Cancel",
+        "Create sandbox run"
+      ],
+      "optionCountWhileOpen": 12
+    },
+    "guidedDemoAfterCancel": {
+      "dialogClosed": true,
+      "runSelectorOptions": 12,
+      "url": "#/judge-demo/nx74k1sdcnsmqzvkr97kf0ts598hch6p"
+    },
+    "ownerBilling": {
+      "url": "#/billing/owner-billing",
+      "hasNotice": true,
+      "newDrawDisabled": true,
+      "newDrawDisabledReason": "New owner pay appThis is a preserved, read-only demo fixture. Start a fresh guided run to try approvals and sandbox payments.",
+      "selectedProject": "Lopez Kitchen Remodel"
+    }
+  },
+  "consoleErrors": [],
+  "pageErrors": [],
+  "failedRequests": [
+    "GET https://cheery-axolotl-689.convex.site/api/sign-in-options",
+    "GET https://cheery-axolotl-689.convex.site/api/sign-in-options"
+  ]
+}

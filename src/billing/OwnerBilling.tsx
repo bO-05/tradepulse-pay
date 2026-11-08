@@ -7,6 +7,7 @@ import { DocumentDownloadButton, ProjectDocumentsList } from "../documents/Docum
 import { getErrorMessage } from "../lib/errors";
 import { Button, Card, ConfirmDialog, Dialog, EmptyState, MoneyInput, PageHeader, StatusPill, formatBps, formatCents, formatDate, useToast } from "../ui";
 import { Field, inputClass } from "../ui/Field";
+import { ReferenceNotice } from "../payments/ReferenceNotice";
 import { ownerMoneyTotals } from "./ownerMoney";
 
 export const OWNER_PAY_APPS_HASH = "#/owner-pay-apps";
@@ -378,6 +379,7 @@ function GcOwnerPayApp({ ownerPayAppId }: { ownerPayAppId: string }) {
   return (
     <div className="space-y-4" data-testid="owner-pay-app">
       <AppHeader app={app} />
+      {app.readOnlyReference ? <ReferenceNotice title="Preserved reference job · read-only." /> : null}
       {app.pendingNote ? (
         <p className="rounded-lg border border-amber-700 bg-amber-950/40 px-3 py-2 text-sm text-amber-100" data-testid="owner-pending-note">
           {app.pendingNote} – it contributes $0.00 until you approve it.
@@ -496,6 +498,7 @@ function GcProjectOwnerBilling({ projectId }: { projectId: string }) {
   const totals = ownerMoneyTotals(list.rows);
   return (
     <div className="space-y-4">
+      {list.readOnlyReference ? <ReferenceNotice title="Preserved reference job · read-only." /> : null}
       <dl className="grid gap-3 text-sm sm:grid-cols-3">
         <div>
           <dt className="text-xs text-ink-subtle">Prime contract value</dt>
@@ -667,6 +670,7 @@ function OwnerPayAppView({ ownerPayAppId }: { ownerPayAppId: string }) {
   return (
     <div className="space-y-4" data-testid="owner-pay-app">
       <AppHeader app={app} />
+      {app.readOnlyReference ? <ReferenceNotice title="Preserved reference job · read-only." /> : null}
       <G702Summary app={app} />
       <PrimeSheet app={app} amounts={{}} errors={{}} />
       <DirectlyInvoicedNote app={app} />
@@ -714,6 +718,7 @@ function OwnerProjectPayApps({ projectId }: { projectId: string }) {
   const current = pickCurrent(list.rows, selected);
   return (
     <div className="space-y-4">
+      {list.readOnlyReference ? <ReferenceNotice title="Preserved reference job · read-only." /> : null}
       <p className="text-sm" data-testid="owner-prime-retainage">
         Retainage you hold on this contract:{" "}
         <span className="font-semibold tabular-nums">{list.primeRetainageHeldCents === null ? "None yet" : formatCents(list.primeRetainageHeldCents)}</span>

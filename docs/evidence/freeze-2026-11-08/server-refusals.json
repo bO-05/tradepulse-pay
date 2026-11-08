@@ -1,0 +1,215 @@
+{
+  "deployment": "https://cheery-axolotl-689.convex.cloud",
+  "projectId": "q97f6pmh2d5qn733jmh5pg4c3x8hr9sn",
+  "attempts": [
+    {
+      "path": "new owner draw",
+      "role": "gc",
+      "refused": true,
+      "code": "READ_ONLY_REFERENCE",
+      "message": "This is a preserved, read-only demo fixture. Start a fresh guided run to try approvals and sandbox payments."
+    },
+    {
+      "path": "save draw",
+      "role": "gc",
+      "refused": true,
+      "code": "READ_ONLY_REFERENCE",
+      "message": "This is a preserved, read-only demo fixture. Start a fresh guided run to try approvals and sandbox payments."
+    },
+    {
+      "path": "submit draw",
+      "role": "gc",
+      "refused": true,
+      "code": "READ_ONLY_REFERENCE",
+      "message": "This is a preserved, read-only demo fixture. Start a fresh guided run to try approvals and sandbox payments."
+    },
+    {
+      "path": "sign waiver",
+      "role": "sub",
+      "refused": true,
+      "code": "READ_ONLY_REFERENCE",
+      "message": "This is a preserved, read-only demo fixture. Start a fresh guided run to try approvals and sandbox payments."
+    },
+    {
+      "path": "set waiver gate",
+      "role": "gc",
+      "refused": true,
+      "code": "READ_ONLY_REFERENCE",
+      "message": "This is a preserved, read-only demo fixture. Start a fresh guided run to try approvals and sandbox payments."
+    },
+    {
+      "path": "create change order",
+      "role": "gc",
+      "refused": true,
+      "code": "READ_ONLY_REFERENCE",
+      "message": "This is a preserved, read-only demo fixture. Start a fresh guided run to try approvals and sandbox payments."
+    },
+    {
+      "path": "file pay app",
+      "role": "sub",
+      "refused": true,
+      "code": "READ_ONLY_REFERENCE",
+      "message": "This is a preserved, read-only demo fixture. Start a fresh guided run to try approvals and sandbox payments."
+    },
+    {
+      "path": "file pay app (legacy submission)",
+      "role": "sub",
+      "refused": true,
+      "code": "READ_ONLY_REFERENCE",
+      "message": "This is a preserved, read-only demo fixture. Start a fresh guided run to try approvals and sandbox payments."
+    }
+  ],
+  "views": {
+    "project": {
+      "title": "Lopez Kitchen Remodel",
+      "projectKind": "residential",
+      "readOnlyReference": true
+    },
+    "payApp": {
+      "status": "paid",
+      "readOnlyReference": true,
+      "editable": false,
+      "canSubmit": false,
+      "canWithdraw": false,
+      "canRevise": false,
+      "canApprove": false,
+      "canDiscard": false
+    },
+    "ownerBilling": {
+      "readOnlyReference": true,
+      "create": {
+        "allowed": false,
+        "nextPeriodEnd": null,
+        "reason": "This is a preserved, read-only demo fixture. Start a fresh guided run to try approvals and sandbox payments."
+      },
+      "drawReadOnlyReference": true,
+      "drawControls": {
+        "approve": false,
+        "delete": false,
+        "edit": false,
+        "refresh": false,
+        "refreshStatus": false,
+        "requestChanges": false,
+        "sendInvoice": false,
+        "submit": false
+      }
+    },
+    "subAgreements": [
+      {
+        "agreementId": "jn77jrsvkvmwzj69tpyx7gj2f98htcnv",
+        "blockedReason": "This is a preserved, read-only demo fixture. Start a fresh guided run to try approvals and sandbox payments.",
+        "nextApplication": null
+      }
+    ],
+    "inbox": [
+      {
+        "payAppId": "ph7434a59sqck3nysgt6teqh0h8hvx1h",
+        "status": "paid",
+        "project": "Lopez Kitchen Remodel",
+        "readOnlyReference": true
+      },
+      {
+        "payAppId": "ph7ayjenxg206ybxhg384tyes18hregt",
+        "status": "paid",
+        "project": "Demo · TradePulse Pay judge demo",
+        "readOnlyReference": false
+      },
+      {
+        "payAppId": "ph700be475tytmh4ay4083y0ps8hspfc",
+        "status": "paid",
+        "project": "Demo · TradePulse Pay judge demo",
+        "readOnlyReference": false
+      },
+      {
+        "payAppId": "ph7chs95hyw8h3m6hp193pjghn8hpyg6",
+        "status": "reviewed",
+        "project": "Demo · TradePulse Pay judge demo",
+        "readOnlyReference": false
+      },
+      {
+        "payAppId": "ph77xv9jnj6vb16qdf8x97wgq58hpk3n",
+        "status": "reviewed",
+        "project": "Demo · TradePulse Pay judge demo",
+        "readOnlyReference": false
+      },
+      {
+        "payAppId": "ph73363j955992e4sj7b9zzeah8hpv5q",
+        "status": "reviewed",
+        "project": "Demo · TradePulse Pay judge demo",
+        "readOnlyReference": false
+      },
+      {
+        "payAppId": "ph7eyyr8bjqbts7yd6gys5tqdx8hpq64",
+        "status": "reviewed",
+        "project": "Demo · TradePulse Pay judge demo",
+        "readOnlyReference": false
+      },
+      {
+        "payAppId": "ph72w1maj711z2zr7cw3zz83rs8hn63h",
+        "status": "paid",
+        "project": "Demo · TradePulse Pay judge demo",
+        "readOnlyReference": false
+      },
+      {
+        "payAppId": "ph7bhnd7383j5wj8gakzmjt22d8hnrfw",
+        "status": "paid",
+        "project": "Demo · TradePulse Pay judge demo",
+        "readOnlyReference": false
+      },
+      {
+        "payAppId": "ph761s6d1kd6ah9b0q74ph32ss8hnjtp",
+        "status": "paid",
+        "project": "Demo · TradePulse Pay judge demo",
+        "readOnlyReference": false
+      },
+      {
+        "payAppId": "ph7f5h66zqqfcr6170j1r493bd8hnwkm",
+        "status": "paid",
+        "project": "Demo · TradePulse Pay judge demo",
+        "readOnlyReference": false
+      },
+      {
+        "payAppId": "ph7b70myszz62jcwpx7kq9z9658hjn5c",
+        "status": "paid",
+        "project": "Demo · TradePulse Pay judge demo",
+        "readOnlyReference": false
+      },
+      {
+        "payAppId": "ph751jbwv6sxh282f3mpbtwdrh8hkwph",
+        "status": "paid",
+        "project": "Demo · TradePulse Pay judge demo",
+        "readOnlyReference": false
+      },
+      {
+        "payAppId": "ph728x8x8v25whds6eqtdd7ech8hj5qa",
+        "status": "paid",
+        "project": "Demo · TradePulse Pay judge demo",
+        "readOnlyReference": false
+      },
+      {
+        "payAppId": "ph7a66t9yq3k6b9hqmkwyzkexh8hjjwa",
+        "status": "paid",
+        "project": "Demo · TradePulse Pay judge demo",
+        "readOnlyReference": false
+      },
+      {
+        "payAppId": "ph7fh2dpqnx82kq1dn3gwcp8yx8hcem6",
+        "status": "paid",
+        "project": "Demo · TradePulse Pay judge demo",
+        "readOnlyReference": true
+      },
+      {
+        "payAppId": "ph72dz348hz9fdsbrj7t46qrgd8hdd3c",
+        "status": "paid",
+        "project": "Demo · TradePulse Pay judge demo",
+        "readOnlyReference": true
+      },
+      {
+        "payAppId": "ph70bynf8n2k5mdjbejb4snk398hceqx",
+        "status": "reviewed",
+        "project": "Demo · Pay-app review scenario",
+        "readOnlyReference": true
+      }
+    ]
+  }
+}

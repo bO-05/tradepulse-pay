@@ -5,6 +5,7 @@ import type { Doc, Id } from "../../../convex/_generated/dataModel";
 import { formatRetainagePercent } from "../../../convex/lib/retainageRules";
 import { GC_PROJECTS_HASH, gcProjectSettingsHash, peopleHash } from "../../auth/navigation";
 import { Button, Card, DateText, Money, PageHeader, StatusPill, useToast } from "../../ui";
+import { ReferenceNotice } from "../../payments/ReferenceNotice";
 import { ownerDetailRows } from "./ownerDetails";
 import { openProcurementPackages } from "./specBreakdownRequest";
 import { TradePackagesSection } from "./TradePackagesSection";
@@ -16,6 +17,7 @@ export function ProjectPage({ projectId }: { projectId: string }) {
   const project = useQuery(api.projects.getProject, { projectId });
   if (project === undefined) return <p role="status" className="text-sm text-ink-subtle">Loading project…</p>;
   const archived = project.archived === true;
+  const readOnlyReference = project.readOnlyReference === true;
   return (
     <div className="max-w-5xl space-y-5">
       <ProjectHeader
@@ -28,7 +30,7 @@ export function ProjectPage({ projectId }: { projectId: string }) {
             <a href={peopleHash(project._id)} className={secondaryLink}>
               People
             </a>
-            {!archived && (
+            {!archived && !readOnlyReference && (
               <button type="button" className={secondaryLink} onClick={() => openProcurementPackages(project._id)}>
                 Open in Procurement
               </button>
@@ -37,9 +39,10 @@ export function ProjectPage({ projectId }: { projectId: string }) {
         }
       />
       {archived && <ArchivedBanner projectId={project._id} />}
+      {readOnlyReference && <ReferenceNotice title="Preserved reference job · read-only." />}
       <ProjectDetailsCard project={project} />
       <OwnerCompanyCard projectId={project._id} />
-      <TradePackagesSection projectId={project._id} projectTitle={project.title} readOnly={archived} />
+      <TradePackagesSection projectId={project._id} projectTitle={project.title} readOnly={archived || readOnlyReference} />
     </div>
   );
 }

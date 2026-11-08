@@ -25,7 +25,7 @@ const decision = v.union(v.null(), v.object({
 }));
 export const g703ViewValidator = v.object({
   _id: v.id("payApplications"), format: v.union(v.literal("g703"), v.literal("legacy")), viewerRole: roleValidator,
-  projectKind: projectKindValidator,
+  projectKind: projectKindValidator, readOnlyReference: v.boolean(),
   status: payAppStatusValidator, applicationNo: nn, periodLabel: v.string(), periodStart: ns, periodEnd: ns, dueDate: ns,
   savedAt: nn, submittedAt: nn, notes: v.string(), submittedBy: v.object({ actorType: actorTypeValidator, isCaller: v.boolean() }),
   rejectionReason: ns, withdrawnAt: nn,

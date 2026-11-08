@@ -614,6 +614,8 @@ async function payAppView(ctx: QueryCtx, scope: ProjectAccess & { doc: Doc<"payA
     viewerRole: scope.partyRole,
     // The job's kind travels with the pay app so the screen never has to guess its vocabulary.
     projectKind: projectKindOf(scope.project),
+    // A preserved reference job is readable but offers no write controls (VAL-RES-009).
+    readOnlyReference: !writable,
     status: payApp.status,
     applicationNo: payApp.applicationNo ?? null,
     periodLabel: payApp.periodLabel,
