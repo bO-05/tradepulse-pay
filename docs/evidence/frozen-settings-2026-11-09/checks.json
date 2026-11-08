@@ -1,0 +1,85 @@
+{
+  "baseUrl": "http://localhost:3150",
+  "screens": {
+    "w1440": {
+      "frozenProject": {
+        "notice": true,
+        "settingsLink": false,
+        "peopleLink": false,
+        "procurement": false,
+        "heading": "Lopez Kitchen Remodel"
+      },
+      "frozenSettings": {
+        "notice": true,
+        "noticeText": "Preserved reference job · read-only. Financial and workflow changes are locked on the server. Inspect the settled receipts here, or start a fresh guided run to try sandbox actions.",
+        "save": false,
+        "archive": false,
+        "addLine": false,
+        "edit": 0,
+        "remove": 0,
+        "disabledFieldsets": 1,
+        "primeRows": 4,
+        "primeText": "1. Demolition, rough-in and permits\n$21,600.00\n2. Cabinetry, countertops and backsplash\n$34,600.00\n3. Electrical and appliance set\n$8,300.00\n4. Paint, punch list and closeout\n$13,000.00",
+        "description": true
+      },
+      "frozenSettingsOverflow": 1440,
+      "commercialSettings": {
+        "notice": false,
+        "noticeText": null,
+        "save": true,
+        "archive": true,
+        "addLine": true,
+        "edit": 0,
+        "remove": 0,
+        "disabledFieldsets": 0,
+        "primeRows": 0,
+        "primeText": null,
+        "description": false
+      },
+      "commercialOverflow": 1440
+    },
+    "w390": {
+      "frozenProject": {
+        "notice": true,
+        "settingsLink": false,
+        "peopleLink": false,
+        "procurement": false,
+        "heading": "Lopez Kitchen Remodel"
+      },
+      "frozenSettings": {
+        "notice": true,
+        "noticeText": "Preserved reference job · read-only. Financial and workflow changes are locked on the server. Inspect the settled receipts here, or start a fresh guided run to try sandbox actions.",
+        "save": false,
+        "archive": false,
+        "addLine": false,
+        "edit": 0,
+        "remove": 0,
+        "disabledFieldsets": 1,
+        "primeRows": 4,
+        "primeText": "1. Demolition, rough-in and permits\n$21,600.00\n2. Cabinetry, countertops and backsplash\n$34,600.00\n3. Electrical and appliance set\n$8,300.00\n4. Paint, punch list and closeout\n$13,000.00",
+        "description": true
+      },
+      "frozenSettingsOverflow": 390,
+      "commercialSettings": {
+        "notice": false,
+        "noticeText": null,
+        "save": true,
+        "archive": true,
+        "addLine": true,
+        "edit": 0,
+        "remove": 0,
+        "disabledFieldsets": 0,
+        "primeRows": 0,
+        "primeText": null,
+        "description": false
+      },
+      "commercialOverflow": 390
+    }
+  },
+  "consoleErrors": [],
+  "pageErrors": [],
+  "failedRequests": [
+    "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED",
+    "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED"
+  ]
+}

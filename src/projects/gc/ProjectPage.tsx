@@ -24,12 +24,16 @@ export function ProjectPage({ projectId }: { projectId: string }) {
         project={project}
         actions={
           <>
-            <a href={gcProjectSettingsHash(project._id)} className={secondaryLink}>
-              Project settings
-            </a>
-            <a href={peopleHash(project._id)} className={secondaryLink}>
-              People
-            </a>
+            {!readOnlyReference && (
+              <a href={gcProjectSettingsHash(project._id)} className={secondaryLink}>
+                Project settings
+              </a>
+            )}
+            {!readOnlyReference && (
+              <a href={peopleHash(project._id)} className={secondaryLink}>
+                People
+              </a>
+            )}
             {!archived && !readOnlyReference && (
               <button type="button" className={secondaryLink} onClick={() => openProcurementPackages(project._id)}>
                 Open in Procurement

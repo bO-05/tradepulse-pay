@@ -214,8 +214,8 @@ export const JudgeSimulationDock: React.FC<JudgeSimulationDockProps> = ({
             </div>
             <p className="text-xs text-slate-300 leading-relaxed">
               Executes a demo agreement, builds the schedule of values, files an honest pay app for sub1 and an overbilled one for
-              its billing agent, then runs the rules review with model explanations, the automated CSLB license check and pay-agent proposals. You approve one as proposed
-              and one edited down; capture and payout keep 10% retainage, and a change order is invoiced to the Owner. You approve
+              its billing agent, then runs the rules review with model explanations, the automated CSLB license check and pay-agent proposals. You approve the honest
+              pay app as proposed and cut the flagged overbilled line by its own dollars; capture and payout keep 10% retainage, and a change order is invoiced to the Owner. You approve
               the PayPal funding yourself, and the Owner pays the invoice in their own browser.
             </p>
             <button

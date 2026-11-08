@@ -6,6 +6,7 @@ import { firstProjectSetupError } from "../../../convex/lib/projectSetup";
 import { gcProjectHash, GC_PROJECTS_HASH } from "../../auth/navigation";
 import { getErrorMessage } from "../../lib/errors";
 import { Button, Card, ConfirmDialog, focusFirstInvalid, useToast } from "../../ui";
+import { ReferenceNotice } from "../../payments/ReferenceNotice";
 import { ArchivedBanner, ProjectHeader } from "./ProjectPage";
 import { PrimeLinesCard } from "./PrimeLinesCard";
 import { ProjectSetupFields } from "./ProjectSetupFields";
@@ -26,6 +27,9 @@ export function ProjectSettingsPage({ projectId }: { projectId: string }) {
     return <p role="status" className="text-sm text-ink-subtle">Loading project settings…</p>;
   }
   const archived = project.archived === true;
+  // A preserved reference job is read-only on the server; this screen must not offer the writes.
+  const readOnlyReference = project.readOnlyReference === true;
+  const readOnly = archived || readOnlyReference;
   return (
     <div className="max-w-3xl space-y-5">
       <ProjectHeader
@@ -41,9 +45,16 @@ export function ProjectSettingsPage({ projectId }: { projectId: string }) {
       />
       <h2 className="text-lg font-semibold">Project settings</h2>
       {archived && <ArchivedBanner projectId={project._id} />}
-      <SettingsForm key={project._id} project={project} companyDefaultBps={companyData.company.defaultRetainageBps} readOnly={archived} />
-      <PrimeLinesCard projectId={project._id} readOnly={archived} />
-      {!archived && <ArchiveCard project={project} />}
+      {readOnlyReference && <ReferenceNotice title="Preserved reference job · read-only." />}
+      <SettingsForm
+        key={project._id}
+        project={project}
+        companyDefaultBps={companyData.company.defaultRetainageBps}
+        readOnly={readOnly}
+        readOnlyReason={archived ? "Restore the project to edit these settings." : "This preserved reference job is read-only."}
+      />
+      <PrimeLinesCard projectId={project._id} readOnly={readOnly} />
+      {!readOnly && <ArchiveCard project={project} />}
     </div>
   );
 }
@@ -52,10 +63,13 @@ function SettingsForm({
   project,
   companyDefaultBps,
   readOnly,
+  readOnlyReason,
 }: {
   project: Doc<"projects">;
   companyDefaultBps: number;
   readOnly: boolean;
+  /** Why the fields are locked, so an archived project and a frozen reference read differently. */
+  readOnlyReason: string;
 }) {
   const update = useMutation(api.projects.updateProject);
   const toast = useToast();
@@ -103,7 +117,7 @@ function SettingsForm({
   };
 
   return (
-    <Card title="Project details" description={readOnly ? "Restore the project to edit these settings." : "Fields marked * are required."}>
+    <Card title="Project details" description={readOnly ? readOnlyReason : "Fields marked * are required."}>
       <form ref={formRef} onSubmit={onSubmit} noValidate aria-label="Project settings" className="space-y-5">
         <ProjectSetupFields
           form={form}
