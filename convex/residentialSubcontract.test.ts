@@ -222,6 +222,70 @@ describe("Ortiz Plumbing residential subcontract", () => {
     }
   });
 
+  test("the residential reference job invoices the homeowner at the reserved guest-checkout alias", async () => {
+    vi.stubEnv("PAYPAL_SANDBOX_OWNER_EMAIL", "owner-sandbox@business.example.com");
+    const t = newTest();
+    await seed(t);
+    const projectId = await lopezId(t);
+    // The demo seed stores the sandbox PayPal login as the Demo Owner's billing email; invoices must
+    // go to the alias instead, and resolving it must not rewrite the stored billing email.
+    const demoOwner = await t.run(async (ctx) => {
+      const companies = await ctx.db
+        .query("companies")
+        .withIndex("by_isDemo", (q) => q.eq("isDemo", true))
+        .collect();
+      return companies.find((c) => c.demoKey === "owner") ?? null;
+    });
+    expect(demoOwner).not.toBeNull();
+    if (demoOwner === null) return;
+    await t.run((ctx) => ctx.db.patch(demoOwner._id, { billingEmail: "owner-sandbox@business.example.com" }));
+
+    const state = await t.query(internal.demoResidential.residentialReferenceState, {});
+    expect(state.found).toBe(true);
+    if (!state.found) return;
+    expect(state.project).toMatchObject({ projectKind: "residential", isDemoProject: false });
+    expect(state.ownerInvoice).toEqual({
+      enabled: true,
+      recipientEmail: `owner-${projectId}@example.com`,
+      guestCheckoutAlias: true,
+      ownerCompanyName: "Demo Owner",
+    });
+    expect((await t.run((ctx) => ctx.db.get(demoOwner._id)))?.billingEmail).toBe("owner-sandbox@business.example.com");
+  });
+
+  test("the commercial demo project keeps the guest-checkout alias", async () => {
+    const t = newTest();
+    await seed(t);
+    const commercialId = await t.run(async (ctx) => {
+      const companies = await ctx.db
+        .query("companies")
+        .withIndex("by_isDemo", (q) => q.eq("isDemo", true))
+        .collect();
+      const demoOwner = companies.find((c) => c.demoKey === "owner");
+      const commercial = (await ctx.db.query("projects").collect()).find((p) => p.isDemoProject === true);
+      if (demoOwner === undefined || commercial === undefined) throw new Error("The demo rows were not seeded.");
+      await ctx.db.patch(demoOwner._id, { billingEmail: "owner@demo.tradepulse" });
+      await ctx.db.patch(commercial._id, { ownerCompanyId: demoOwner._id });
+      await ctx.db.insert("projectMembers", {
+        projectId: commercial._id,
+        companyId: demoOwner._id,
+        partyRole: "owner",
+        status: "active",
+        createdAt: Date.now(),
+      });
+      return commercial._id;
+    });
+
+    const state = await t.query(internal.demoResidential.residentialReferenceState, {});
+    expect(state.found).toBe(true);
+    if (!state.found) return;
+    expect(state.commercialDemoInvoice).toEqual({
+      projectTitle: "The Domain Tower B - Commercial MEP",
+      recipientEmail: `owner-${commercialId}@example.com`,
+      guestCheckoutAlias: true,
+    });
+  });
+
   test("a re-seed duplicates nothing and leaves settled milestones alone", async () => {
     const t = newTest();
     await seed(t);

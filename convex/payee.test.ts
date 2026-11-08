@@ -300,6 +300,77 @@ describe("owner billing email", () => {
     }
   });
 
+  test("a residential project bills the reserved guest-checkout address without isDemoProject", async () => {
+    const { t, fx } = await setup();
+    const projectId = fx.gcA.project.projectId;
+    await t.run(async (ctx) => {
+      await ctx.db.patch(projectId, { ownerCompanyId: fx.owner.companyId, projectKind: "residential", isDemoProject: false });
+      await ctx.db.patch(fx.owner.companyId, { billingEmail: "owner@demo.tradepulse" });
+    });
+    expect(await t.run((ctx) => ctx.db.get(projectId))).toMatchObject({ isDemoProject: false, projectKind: "residential" });
+    expect(await t.run((ctx) => invoiceRecipientForProject(ctx, projectId))).toEqual({
+      ok: true,
+      email: `owner-${projectId}@example.com`,
+      ownerCompanyId: fx.owner.companyId,
+      ownerCompanyName: "Harbor Point Dental LLC",
+    });
+  });
+
+  test("a residential project whose Owner bills the sandbox PayPal login still uses the guest-checkout address", async () => {
+    const { t, fx } = await setup();
+    const projectId = fx.gcA.project.projectId;
+    await t.run(async (ctx) => {
+      await ctx.db.patch(projectId, { ownerCompanyId: fx.owner.companyId, projectKind: "residential", isDemoProject: false });
+      await ctx.db.patch(fx.owner.companyId, { billingEmail: "owner-sandbox@business.example.com" });
+    });
+    vi.stubEnv("PAYPAL_SANDBOX_OWNER_EMAIL", "Owner-Sandbox@Business.Example.com");
+    try {
+      expect(await t.run((ctx) => invoiceRecipientForProject(ctx, projectId))).toEqual({
+        ok: true,
+        email: `owner-${projectId}@example.com`,
+        ownerCompanyId: fx.owner.companyId,
+        ownerCompanyName: "Harbor Point Dental LLC",
+      });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  test("a residential project with a real homeowner billing email is not aliased", async () => {
+    const { t, fx } = await setup();
+    const projectId = fx.gcA.project.projectId;
+    await t.run(async (ctx) => {
+      await ctx.db.patch(projectId, { ownerCompanyId: fx.owner.companyId, projectKind: "residential", isDemoProject: false });
+      await ctx.db.patch(fx.owner.companyId, { billingEmail: "dana@lopez-remodel.test" });
+    });
+    expect(await t.run((ctx) => invoiceRecipientForProject(ctx, projectId))).toEqual({
+      ok: true,
+      email: "dana@lopez-remodel.test",
+      ownerCompanyId: fx.owner.companyId,
+      ownerCompanyName: "Harbor Point Dental LLC",
+    });
+  });
+
+  test("a commercial project (no projectKind) keeps its sandbox Owner address instead of aliasing it", async () => {
+    const { t, fx } = await setup();
+    const projectId = fx.gcA.project.projectId;
+    await t.run(async (ctx) => {
+      await ctx.db.patch(projectId, { ownerCompanyId: fx.owner.companyId, isDemoProject: false });
+      await ctx.db.patch(fx.owner.companyId, { billingEmail: "owner-sandbox@business.example.com" });
+    });
+    vi.stubEnv("PAYPAL_SANDBOX_OWNER_EMAIL", "owner-sandbox@business.example.com");
+    try {
+      expect(await t.run((ctx) => invoiceRecipientForProject(ctx, projectId))).toEqual({
+        ok: true,
+        email: "owner-sandbox@business.example.com",
+        ownerCompanyId: fx.owner.companyId,
+        ownerCompanyName: "Harbor Point Dental LLC",
+      });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   test("a project without an owner company has invoicing disabled with the reason", async () => {
     const { fx } = await setup();
     const owner = await fx.gcB.admin.as.query(api.partyProfiles.getProjectOwner, { projectId: fx.gcB.project.projectId });

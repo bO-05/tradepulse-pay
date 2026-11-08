@@ -4,6 +4,7 @@ import { buildOwnerSheet } from "./billing/ownerRollup";
 import { attachProjectToDemo, ensureDemoCompanies, findDemoGcCompanyId } from "./lib/demoTenancy";
 import { ensureOrtizSubcontract, ORTIZ_COMPANY_NAME, type OrtizSubcontractSummary } from "./lib/ortizSubcontract";
 import { projectKindOf } from "./lib/projectKind";
+import { demoInvoiceEmailFor, invoiceRecipientForProject } from "./payments/changeOrderRecipient";
 
 /**
  * The residential reference job.
@@ -188,6 +189,15 @@ export const residentialReferenceState = internalQuery({
     const project = owned.find((p) => p.title === RESIDENTIAL_REFERENCE_TITLE);
     if (project === undefined) return { found: false as const };
 
+    // The recipient the owner-billing and change-order paths will use (VAL-RES-011). On this
+    // residential reference job it must be the reserved guest-checkout alias, not the sandbox
+    // Owner login the demo seed stores as the Demo Owner's billing email.
+    const ownerInvoice = await invoiceRecipientForProject(ctx, project._id);
+    // The commercial demo path must keep resolving to the same alias: its project uses
+    // `isDemoProject`, while the residential job is opted in by `projectKind`.
+    const commercialDemo = owned.find((p) => p.isDemoProject === true) ?? null;
+    const commercialInvoice = commercialDemo === null ? null : await invoiceRecipientForProject(ctx, commercialDemo._id);
+
     const primeLines = await ctx.db
       .query("primeLines")
       .withIndex("by_projectId_and_lineNo", (q) => q.eq("projectId", project._id))
@@ -269,6 +279,34 @@ export const residentialReferenceState = internalQuery({
         isDemoProject: project.isDemoProject,
         readOnlyReference: project.readOnlyReference === true,
       },
+      ownerInvoice: ownerInvoice.ok
+        ? {
+            enabled: true as const,
+            recipientEmail: ownerInvoice.email,
+            guestCheckoutAlias: ownerInvoice.email === demoInvoiceEmailFor(project._id),
+            ownerCompanyName: ownerInvoice.ownerCompanyName,
+          }
+        : {
+            enabled: false as const,
+            recipientEmail: null,
+            guestCheckoutAlias: false,
+            reason: ownerInvoice.reason,
+          },
+      commercialDemoInvoice:
+        commercialDemo === null || commercialInvoice === null
+          ? null
+          : commercialInvoice.ok
+            ? {
+                projectTitle: commercialDemo.title,
+                recipientEmail: commercialInvoice.email,
+                guestCheckoutAlias: commercialInvoice.email === demoInvoiceEmailFor(commercialDemo._id),
+              }
+            : {
+                projectTitle: commercialDemo.title,
+                recipientEmail: null,
+                guestCheckoutAlias: false,
+                reason: commercialInvoice.reason,
+              },
       primeLines: primeLines.map((line) => ({
         lineNo: line.lineNo,
         description: line.description,

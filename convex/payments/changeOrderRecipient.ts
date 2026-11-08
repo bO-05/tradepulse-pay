@@ -1,5 +1,6 @@
 import type { Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
+import { projectKindOf } from "../lib/projectKind";
 
 export const NO_PROJECT_OWNER_REASON = "No owner on this project – invite the owner to enable invoicing";
 export function noOwnerEmailReason(ownerCompanyName: string): string {
@@ -42,14 +43,18 @@ export async function invoiceRecipientForProject(ctx: QueryCtx, projectId: Id<"p
   if (!email) return { ok: false, reason: noOwnerEmailReason(company.name) };
   // Guided demo projects use demoSandbox instead of isDemoProject, and the demo seed may set the
   // Owner's billing email to the configured sandbox account rather than the @demo.tradepulse suffix.
+  //
+  // The residential reference job (Lopez) is not a demo project either: the demo reset keys off
+  // `isDemoProject`, so its `projectKind` has to opt it into the same guest-checkout alias. Only a
+  // demo/sandbox billing address is replaced; a real homeowner's email is sent to unchanged.
   const sandboxOwnerEmail = process.env.PAYPAL_SANDBOX_OWNER_EMAIL?.trim().toLowerCase();
   const demoProject = project.isDemoProject === true || project.demoSandbox === true;
+  const residentialProject = projectKindOf(project) === "residential";
   const normalizedEmail = email.toLowerCase();
-  if (
-    demoProject &&
-    (normalizedEmail.endsWith("@demo.tradepulse") ||
-      (sandboxOwnerEmail !== undefined && sandboxOwnerEmail.length > 0 && normalizedEmail === sandboxOwnerEmail))
-  ) {
+  const demoBillingEmail =
+    normalizedEmail.endsWith("@demo.tradepulse") ||
+    (sandboxOwnerEmail !== undefined && sandboxOwnerEmail.length > 0 && normalizedEmail === sandboxOwnerEmail);
+  if ((demoProject || residentialProject) && demoBillingEmail) {
     return { ok: true, email: demoInvoiceEmailFor(projectId), ownerCompanyId: company._id, ownerCompanyName: company.name };
   }
   return { ok: true, email, ownerCompanyId: company._id, ownerCompanyName: company.name };
