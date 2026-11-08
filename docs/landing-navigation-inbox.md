@@ -11,9 +11,9 @@ the long approval inbox.
   GCs, owner-run remodels and owner-funded jobs.
 - Three outcome cards explain the product in job language: catch overbilling early, decide with the
   evidence, and keep a clean owner trail.
-- The judge checklist stays available under **Judge walkthrough**, and the sandbox card details sit
-  behind **Test card and checkout details**. Neither is removed; the card number is no longer in the
-  first reading surface.
+- The judge checklist stays available under **Judge walkthrough**. The demo password, test card,
+  mirror URL, commit hash, Recovery-dev note and Studio license note now sit in one collapsed
+  **Manual sign-in and sandbox details** section, so none of them is in the first reading surface.
 - Demo access, shared-account warnings, the $55,000 / $1,850 guided-demo steps and the honest limits
   remain. The page still says sandbox money only and does not imply full-contract completion.
 - The normal signed-out shell now says **“Pay apps for residential remodel GCs. Checked before you

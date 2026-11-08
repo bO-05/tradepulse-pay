@@ -177,7 +177,7 @@ TradePulse Pay requires sign-in for workspaces. Signed-out visitors can read `#/
 
 **New accounts.** The sign-in page has **Create account** (name, email, password of at least 10 characters mixing two kinds of characters) and **Forgot password?**. Both email an 8-digit code from "TradePulse Pay" (`cleverneed464@agentmail.to`); codes are typed in and expire after 15 minutes, and a new code can be requested every 30 seconds. **Recovery dev only sends to allowlisted test inboxes**, not arbitrary personal/work addresses; judges should use the public demo roles. On your own configured deployment, after verifying, a person with no company or invite sets up their general contractor company (name, address, state, phone) and becomes its admin. Resetting a password signs the account out everywhere else. Code emails count against the deployment's daily email budget (`EMAIL_DAILY_BUDGET`); when it is used up, the screen says no code was sent.
 
-**Demo access.** Signed out, `#/demo` is the **Judge & demo access** page: one button per role signs in through ordinary password sign-in, and the page prints the shared manual password and the test-account limits. This README does not repeat that password, so it can be rotated in one place. The seeded demo accounts below are marked verified, so signing in never sends an email code.
+**Demo access.** Signed out, `#/demo` is the **Judge & demo access** page: one button per role signs in through ordinary password sign-in, and the page keeps the shared manual password, test card, mirror URL, commit hash, Recovery-dev note and Studio license note in one collapsed **Manual sign-in and sandbox details** section. This README does not repeat that password, so it can be rotated in one place. The seeded demo accounts below are marked verified, so signing in never sends an email code.
 
 | Account | Role | What it sees |
 |---|---|---|
@@ -185,6 +185,7 @@ TradePulse Pay requires sign-in for workspaces. Signed-out visitors can read `#/
 | `sub1@demo.tradepulse` | Subcontractor | Only Rosendin Electric's agreements and pay applications |
 | `sub2@demo.tradepulse` | Subcontractor | Only TDIndustries' agreements and pay applications |
 | `sub3@demo.tradepulse` | Subcontractor | Only Clarke Kent Plumbing's agreements and pay applications |
+| `sub4@demo.tradepulse` | Subcontractor (the `#/demo` Subcontractor seat) | Only Ortiz Plumbing's agreements and the settled, read-only Lopez Kitchen Remodel pay app |
 | `owner@demo.tradepulse` | Owner | Read-only projects, agreements and change-order invoices, and the read-only dashboard; no award, approve or fund controls |
 
 A sub's portal and agreement summary include a read-only **Milestone funding** section per agreement (Not funded, Funded (authorized), Captured or Paid); the GC ledger shows the same label under each milestone. On the pay-application form, each line shows the **% approved to date** (approved billing only) and any amount **pending review** from pay apps not yet approved.

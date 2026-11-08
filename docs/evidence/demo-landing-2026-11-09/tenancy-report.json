@@ -1,0 +1,58 @@
+{
+    "source":  "npx convex run tenancyMigration:report \u0027{}\u0027",
+    "capturedAt":  "2026-11-09",
+    "readOnly":  true,
+    "subSeat":  {
+                    "email":  "sub4@demo.tradepulse",
+                    "company":  "Ortiz Plumbing (demo)"
+                },
+    "rosendinUnchanged":  {
+                              "email":  "sub1@demo.tradepulse",
+                              "company":  "Rosendin Electric (demo)",
+                              "emailVerified":  true
+                          },
+    "demoAccounts":  [
+                         {
+                             "company":  "Demo GC (TradePulse Pay demo)",
+                             "email":  "gc@demo.tradepulse",
+                             "emailVerified":  true,
+                             "memberRole":  "admin"
+                         },
+                         {
+                             "company":  "Rosendin Electric (demo)",
+                             "email":  "sub1@demo.tradepulse",
+                             "emailVerified":  true,
+                             "memberRole":  "admin"
+                         },
+                         {
+                             "company":  "TDIndustries (demo)",
+                             "email":  "sub2@demo.tradepulse",
+                             "emailVerified":  true,
+                             "memberRole":  "admin"
+                         },
+                         {
+                             "company":  "Clarke Kent Plumbing (demo)",
+                             "email":  "sub3@demo.tradepulse",
+                             "emailVerified":  true,
+                             "memberRole":  "admin"
+                         },
+                         {
+                             "company":  "Demo Owner",
+                             "email":  "owner@demo.tradepulse",
+                             "emailVerified":  true,
+                             "memberRole":  "admin"
+                         },
+                         {
+                             "company":  "Ortiz Plumbing (demo)",
+                             "email":  "sub4@demo.tradepulse",
+                             "emailVerified":  true,
+                             "memberRole":  "admin"
+                         }
+                     ],
+    "counts":  {
+                   "companies":  7,
+                   "companyMembers":  7,
+                   "projectMembers":  34,
+                   "projects":  23
+               }
+}

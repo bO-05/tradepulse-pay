@@ -149,7 +149,10 @@ async function login(page, role) {
   await page.goto(`${site}/#/demo`, { waitUntil: "domcontentloaded" });
   await page.waitForSelector(`[data-testid="demo-enter-${role}"]`);
   await page.click(`[data-testid="demo-enter-${role}"]`);
+  await page.waitForSelector('[data-testid="signed-in-identity"]', { timeout: 45_000 });
+  // The Subcontractor seat lands on the settled Lopez pay app; this sweep starts at the portal.
   const home = role === "gc" ? "#/inbox" : role === "sub" ? "#/portal" : "#/projects";
+  if (role === "sub") await page.evaluate(() => { location.hash = "#/portal"; });
   await page.waitForFunction((value) => location.hash === value, { timeout: 45_000 }, home);
   await new Promise((resolve) => setTimeout(resolve, 400));
 }

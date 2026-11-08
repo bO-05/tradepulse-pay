@@ -18,28 +18,47 @@ export const RESIDENTIAL_OUTCOMES = [
   },
 ] as const;
 
-export function ResidentialHero({
+/**
+ * The eyebrow and headline. `compact` keeps only those two lines, for the `#/demo` screen where
+ * the role buttons have to be the first visible action on a 390px viewport.
+ */
+export function ResidentialHeroIntro({
   headingId = "landing-heading",
   level = 1,
-  showDemoLink = false,
+  compact = false,
 }: {
   headingId?: string;
   level?: 1 | 2;
-  showDemoLink?: boolean;
+  compact?: boolean;
 }) {
   const Heading = level === 1 ? "h1" : "h2";
   return (
-    <section aria-labelledby={headingId} className="space-y-7">
-      <div className="space-y-4">
-        <p className="font-mono text-xs uppercase tracking-[0.2em] text-emerald-300">Pay apps for owner-run remodels</p>
-        <Heading id={headingId} className="max-w-xl font-serif text-5xl leading-[1.05] sm:text-6xl">
-          Pay the right amount.<br /><span className="text-emerald-300">Keep the receipt.</span>
-        </Heading>
+    <div className={compact ? "space-y-3" : "space-y-4"}>
+      <p className="font-mono text-xs uppercase tracking-[0.2em] text-emerald-300">Pay apps for owner-run remodels</p>
+      <Heading
+        id={headingId}
+        className={
+          compact
+            ? "max-w-xl font-serif text-4xl leading-[1.05] sm:text-6xl"
+            : "max-w-xl font-serif text-5xl leading-[1.05] sm:text-6xl"
+        }
+      >
+        Pay the right amount.<br /><span className="text-emerald-300">Keep the receipt.</span>
+      </Heading>
+      {compact ? null : (
         <p className="max-w-xl text-lg leading-relaxed text-slate-300">
           A sub sends a pay app. TradePulse checks the claim against the contract and schedule of values, shows
           you the backup, and waits for your approval before PayPal moves sandbox money.
         </p>
-      </div>
+      )}
+    </div>
+  );
+}
+
+/** The three outcomes and the "who it is for" line, shared by the sign-in page and `#/demo`. */
+export function ResidentialOutcomes() {
+  return (
+    <>
       <ul className="grid gap-3 sm:grid-cols-3" aria-label="What TradePulse Pay does">
         {RESIDENTIAL_OUTCOMES.map((item) => (
           <li key={item.title} className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
@@ -52,6 +71,23 @@ export function ResidentialHero({
         Built for the GC running a handful of kitchens, additions and whole-home remodels — not a
         billion-dollar ERP. Rules compute the money. A model can explain the evidence. You make the call.
       </p>
+    </>
+  );
+}
+
+export function ResidentialHero({
+  headingId = "landing-heading",
+  level = 1,
+  showDemoLink = false,
+}: {
+  headingId?: string;
+  level?: 1 | 2;
+  showDemoLink?: boolean;
+}) {
+  return (
+    <section aria-labelledby={headingId} className="space-y-7">
+      <ResidentialHeroIntro headingId={headingId} level={level} />
+      <ResidentialOutcomes />
       {showDemoLink ? (
         <p className="text-sm">
           <a

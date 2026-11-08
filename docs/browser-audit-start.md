@@ -16,7 +16,7 @@ This is a shared recovery-development application connected to PayPal **sandbox*
 | User | Email | Password |
 | --- | --- | --- |
 | General contractor, GC | `gc@demo.tradepulse` | `TradePulseDemo!2026` |
-| Subcontractor | `sub1@demo.tradepulse` | `TradePulseDemo!2026` |
+| Subcontractor | `sub4@demo.tradepulse` | `TradePulseDemo!2026` |
 | Project Owner | `owner@demo.tradepulse` | `TradePulseDemo!2026` |
 
 These are intentional public demo credentials, not personal accounts. Use ordinary sign-in. Do not reset their

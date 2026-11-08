@@ -9,7 +9,7 @@ This is the tested recovery-dev sandbox, not production. The guide signs into or
 | Role | Email | Where to begin |
 | --- | --- | --- |
 | GC | `gc@demo.tradepulse` | Guided demo, approval inbox, agreement ledger |
-| Subcontractor | `sub1@demo.tradepulse` | My agreements & pay applications |
+| Subcontractor | `sub4@demo.tradepulse` | Settled Lopez Kitchen Remodel pay app (Ortiz Plumbing) |
 | Owner | `owner@demo.tradepulse` | Home, change orders, invoice payment |
 
 All three use `TradePulseDemo!2026`. Use isolated browser contexts/profiles for simultaneous roles;

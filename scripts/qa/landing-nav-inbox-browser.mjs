@@ -63,10 +63,10 @@ try {
   check("test-card number is not in the first reading surface", !landing.text.includes("4032031427005060"));
   await page.evaluate(() => {
     const summaries = [...document.querySelectorAll("summary")];
-    summaries.find((el) => el.textContent.includes("Test card and checkout details"))?.click();
+    summaries.find((el) => el.textContent.includes("Manual sign-in and sandbox details"))?.click();
   });
   await page.waitForFunction(() => document.body.innerText.includes("4032031427005060"));
-  check("test-card details open on demand", (await page.evaluate(() => document.body.innerText)).includes("4032031427005060"));
+  check("manual sandbox details open on demand", (await page.evaluate(() => document.body.innerText)).includes("4032031427005060"));
   await page.screenshot({ path: path.join(evidenceDir, "landing-residential.png"), fullPage: true });
 
   phase = "GC login";
