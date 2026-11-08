@@ -305,6 +305,7 @@ npx vitest run --maxWorkers=2   # unit, convex-test integration and role-guard t
 npm run build                   # tsc + Vite production build into dist/
 npm run verify:guards           # every public Convex function calls a role guard (table: docs/guard-audit.md)
 npm run verify:docs             # README and docs links resolve, hackathon log is in order
+npm run verify:agents           # AGENTS.md and CLAUDE.md commands and paths still resolve
 npm run verify:reports          # the archived audit reports render offline (needs Chrome or Edge)
 ```
 

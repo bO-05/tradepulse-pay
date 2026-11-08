@@ -1,0 +1,21 @@
+{
+  "name": "TradePulse Pay",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-22-bookworm",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "vitest.explorer",
+        "ms-vscode.vscode-typescript-next"
+      ]
+    }
+  },
+  "forwardPorts": [3150],
+  "portsAttributes": {
+    "3150": {
+      "label": "Vite dev server (Convex Auth origin)",
+      "onAutoForward": "notify"
+    }
+  },
+  "postCreateCommand": "npm ci",
+  "remoteUser": "node"
+}

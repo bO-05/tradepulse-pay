@@ -1,0 +1,85 @@
+name: Bug report
+description: Something is broken or shows the wrong result.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not paste API keys, bearer tokens, passwords or real PayPal credentials.
+        This app is sandbox-only; use synthetic demo data.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: The observed behavior, including the exact text, amount or status you saw.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Sign in as ...
+        2. Open ...
+        3. Click ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: role
+    attributes:
+      label: Role
+      options:
+        - General contractor (GC)
+        - Subcontractor
+        - Owner
+        - Billing agent
+        - Not signed in
+        - Not role-specific
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Pay applications and review
+        - Payments (authorize, capture, payout)
+        - Retainage
+        - Change orders and owner invoices
+        - Procurement (packages, bids, leveling)
+        - Documents and file download
+        - Sign-in and access
+        - Dashboard and reports
+        - Local development and tests
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: build
+    attributes:
+      label: Where it happened
+      description: Site URL and the build commit from the footer or version.json.
+      placeholder: https://tradepulse-pay.asynchronope.tech - commit abc123def456
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Screenshots, console errors or failing command output, with emails, tokens and ids redacted.
+    validations:
+      required: false
