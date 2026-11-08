@@ -107,6 +107,15 @@ validation beyond synthetic fixtures.
 Owner-side items: complete AgentID registration, keep the Mistral and KERNEL services funded through
 judging, and obtain a legitimate Studio license extension if its editor is demonstrated.
 
+### Scope for this submission
+
+The submitted loop is the residential GC's own: job setup with a prime value, a subcontract with an SOV and
+milestones, milestone funding, sub pay-app review, PayPal capture and payout, lien waivers with signing
+evidence, and owner billing per period. A milestone-style draw uses the same owner sheet: enter that draw's
+amount on the relevant prime line and submit it. Not built, and stated here as roadmap rather than claimed:
+a separate prime-milestone schedule that creates owner draws automatically, a collected/paid-out/owed view
+across subcontractors, and in-app subcontract acceptance by the sub.
+
 ### Built with
 
 PayPal Orders, Payouts, Invoicing, Webhooks and Agent Toolkit; Mistral; Convex; React; TypeScript; Vite;

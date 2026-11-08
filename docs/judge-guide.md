@@ -109,6 +109,22 @@ The public accounts above are not required for normal use:
 
 Do not use the demo fixture flags as proof of insurance, tax compliance, license validity, signature or actual work performed.
 
+## What a residential GC can do today
+
+The judged flow is the residential GC's own loop, not a commercial-only demo:
+
+1. Create the job with a prime contract value, retainage rate and billing day (Quick start does this).
+2. Invite subs, take bids, and execute a subcontract with a schedule of values and milestones.
+3. Fund a milestone, let the sub file a pay app, review it line by line, approve it, capture and pay out.
+4. Bill the owner from **Billing → Owner billing**: one owner pay app per period, with running totals for
+   billed, approved and paid. A draw-by-milestone job uses the same sheet: enter that draw's amount on the
+   relevant prime line and submit it.
+5. Sign or require lien waivers, including the closeout retainage release.
+
+Not built, and not claimed: a separate prime-milestone schedule that creates owner draws automatically, a
+collected/paid-out/owed view across subcontractors on one screen, and in-app subcontract acceptance by the
+sub. `docs/r7-remediation.md` lists all three as open.
+
 ## Integration boundaries
 
 - **PayPal sandbox + Mistral:** live settlement and real model/tool calls verified. Fallback review is labeled

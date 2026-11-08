@@ -89,6 +89,10 @@ export function CreateAccountForm({
       }
     >
       <form ref={formRef} onSubmit={onSubmit} noValidate aria-label="Create account" className="space-y-4">
+        <FormAlert tone="info">
+          This public build is a demo deployment: only allow-listed test inboxes can receive a verification
+          code. For the judged walkthrough use the shared demo seats at #/demo instead; no signup is needed.
+        </FormAlert>
         {notice && <FormAlert tone="info">{notice}</FormAlert>}
         <TextInput
           id="signup-name"
