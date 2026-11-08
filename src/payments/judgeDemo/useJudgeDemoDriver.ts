@@ -2,7 +2,7 @@ import { useAction, useMutation } from "convex/react";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
-import { demoEditedApprovalCents } from "../../../convex/judgeDemo/scenario";
+import { demoLineCut } from "../../../convex/judgeDemo/scenario";
 import { readableError } from "../FundMilestone";
 import { formatCents } from "../format";
 import { changeOrderInvoiced, ensureChangeOrderInvoiced, type DriverChangeOrder } from "./changeOrderStep";
@@ -30,7 +30,7 @@ export function useJudgeDemoDriver(snapshot: DriverSnapshot, onRunCreated: (runI
   const executeAgreement = useMutation(api.agreements.executeAgreement);
   const fileDemoPayApp = useMutation(api.judgeDemo.runs.fileDemoPayApp);
   const approveProposal = useMutation(api.payApps.proposals.approveProposal);
-  const editProposal = useMutation(api.payApps.proposals.editProposal);
+  const decidePayApp = useMutation(api.payApps.decisions.decidePayApp);
   const prepareDemoChangeOrder = useMutation(api.judgeDemo.runs.prepareDemoChangeOrder);
   const sendChangeOrderInvoice = useAction(api.payments.invoices.sendChangeOrderInvoice);
 
@@ -121,23 +121,22 @@ export function useJudgeDemoDriver(snapshot: DriverSnapshot, onRunCreated: (runI
         return proposalsReady(item) ? item : null;
       }, 5 * MINUTE, id);
       const agentPayout = moneyProposal(agent, "payout")!;
+      // N-10: cut the line the review flagged, by that line's own dollars. The reason states those
+      // dollars; the pay-app total is never scaled by a percentage and no other line is reduced.
+      const cut = demoLineCut(agent.payApp.lines);
+      if (cut !== null && agent.payApp.status === "reviewed") {
+        setPhase(`GC cuts line ${cut.lineNo} by ${formatCents(cut.cutCents)} and approves every other line at the review's amount…`);
+        await decidePayApp({
+          payAppId: agent.payApp._id,
+          decision: "approve",
+          lines: [{ sovLineId: cut.sovLineId, action: "override", amountCents: cut.approvedCents, reason: cut.reason }],
+        });
+      }
       if (agentPayout.status === "pending") {
-        const edited = agentPayout.editedAmountCents ?? demoEditedApprovalCents(agentPayout.amountCents ?? 0);
-        if (edited !== null && agentPayout.editedAmountCents === null) {
-          setPhase("GC edits the agent's proposal down…");
-          const recommended = agentPayout.amountCents ?? 0;
-          await editProposal({
-            proposalId: agentPayout._id,
-            amountCents: edited,
-            // The sub sees these numbers on the pay app. No waiver, retainage or resubmit wording:
-            // the demo agreements have the waiver gate off and nothing is rescheduled by this edit.
-            reason: `GC approved ${formatCents(edited)} of the ${formatCents(recommended)} the rules review recommended for this period. Line 2 includes seismic bracing that the agreement lists as excluded scope, so that work is not payable. The remaining ${formatCents(Math.max(0, recommended - edited))} is unapproved and stays unpaid.`,
-          });
-        }
-        setPhase("GC approves the edited amount…");
+        setPhase("GC approves the capture and payout at the line-specific approved amount…");
         await approveProposal({ proposalId: agentPayout._id });
       }
-      setPhase("Capturing and paying the edited amount…");
+      setPhase("Capturing and paying the approved amount…");
       await waitFor("the agent payout submission", (s) => (payoutFinished(checkedItem(s.agent)) ? true : null), 3 * MINUTE, id);
 
       await ensureChangeOrderInvoiced<Id<"changeOrders">>({

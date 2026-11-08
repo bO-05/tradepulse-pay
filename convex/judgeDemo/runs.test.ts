@@ -5,7 +5,8 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import schema from "../schema";
 import { signInAs } from "../lib/testIdentity";
-import { DEMO_BILLING_AGENT_EMAIL, DEMO_CONTRACT_SUM, DEMO_EXCLUSION, DEMO_LINE_ITEMS } from "./scenario";
+import { DEMO_BILLING_AGENT_EMAIL, DEMO_CONTRACT_SUM, DEMO_EXCLUSION, DEMO_LINE_ITEMS, demoLineCut } from "./scenario";
+import type { Id } from "../_generated/dataModel";
 import { buildTenancyFixture } from "../lib/tenancyFixtures";
 import { ensureDemoProjectCompliance } from "../compliance/demoSeed";
 import { complianceForAgreement } from "../compliance/status";
@@ -231,6 +232,132 @@ describe("judge demo runs", () => {
     expect(after.items.filter((r) => r.projectId === after.agreement.projectId)).toHaveLength(3);
     expect(after.items.filter((r) => r.projectId === before.agreement.projectId)).toEqual(before.items);
     expect(after.items.some((r) => r.projectId === f.demo.project.projectId || r.projectId === f.gcA.project.projectId)).toBe(false);
+  });
+
+  test("the guided driver's N-10 cut names the flagged line and leaves every other line at the review", async () => {
+    const { t, gc } = await setup();
+    const { runId, agreementId } = await gc.as.mutation(api.judgeDemo.runs.startRun, {});
+    await gc.as.mutation(api.agreements.executeAgreement, { agreementId });
+    // The driver files only after the GC funds Mobilization; the stored milestone drives the review ceiling.
+    await t.run(async (ctx) => {
+      const rows = await ctx.db
+        .query("milestones")
+        .withIndex("by_agreementId_and_order", (q) => q.eq("agreementId", agreementId))
+        .collect();
+      const mobilization = rows.find((m) => m.name === "Mobilization")!;
+      await ctx.db.patch(mobilization._id, { status: "funded" });
+    });
+    await gc.as.mutation(api.judgeDemo.runs.fileDemoPayApp, { runId, kind: "honest" });
+    const agentId = await gc.as.mutation(api.judgeDemo.runs.fileDemoPayApp, { runId, kind: "agent" });
+    const input = await t.run(async (ctx) => {
+      const agreement = (await ctx.db.get(agreementId))!;
+      const payApp = (await ctx.db.get(agentId))!;
+      const sov = await ctx.db
+        .query("scheduleOfValues")
+        .withIndex("by_agreementId_and_lineNo", (q) => q.eq("agreementId", agreementId))
+        .collect();
+      const milestones = await ctx.db
+        .query("milestones")
+        .withIndex("by_agreementId_and_order", (q) => q.eq("agreementId", agreementId))
+        .collect();
+      const agreementPayApps = await ctx.db
+        .query("payApplications")
+        .withIndex("by_agreementId", (q) => q.eq("agreementId", agreementId))
+        .collect();
+      return { agreement, payApp, sov, milestones, agreementPayApps };
+    });
+    const context = buildReviewContext({ ...input, license: null });
+    const reviewed = finalizeReview(context, rulesEngineJudgement(context));
+    expect(reviewed.approvedTotalCents).toBe(32_000);
+    const feederId = input.sov.find((line) => line.lineNo === 2)!._id;
+    expect(reviewed.lines.find((line) => line.sovLineId === feederId)).toMatchObject({
+      verdict: "excluded_scope",
+      approvedCents: 0,
+    });
+
+    // Store what the scheduled review would have stored, then the pay agent's capture/payout pair.
+    await t.run(async (ctx) => {
+      await ctx.db.patch(agentId, {
+        status: "reviewed",
+        review: {
+          engine: "Offline rules engine",
+          provider: "Offline rules engine",
+          model: "none",
+          lines: reviewed.lines.map((l) => ({ ...l, sovLineId: l.sovLineId as Id<"scheduleOfValues"> })),
+          flags: reviewed.flags,
+          approvedTotalCents: reviewed.approvedTotalCents,
+          reviewedAt: Date.now(),
+        },
+      });
+      for (const kind of ["capture", "payout"] as const) {
+        await ctx.db.insert("agentProposals", {
+          payAppId: agentId,
+          agreementId,
+          kind,
+          amountCents: reviewed.approvedTotalCents,
+          rationale: "Pay the reviewed amount.",
+          flags: [],
+          status: "pending",
+          source: "agent",
+          agentRunId: "n10-driver",
+          createdAt: Date.now(),
+        });
+      }
+    });
+
+    const lines = await t.run(async (ctx) => {
+      const payApp = (await ctx.db.get(agentId))!;
+      const sov = await ctx.db
+        .query("scheduleOfValues")
+        .withIndex("by_agreementId_and_lineNo", (q) => q.eq("agreementId", agreementId))
+        .collect();
+      const byId = new Map(sov.map((line) => [line._id as string, line]));
+      return payApp.lines.map((line) => {
+        const sovLine = byId.get(line.sovLineId);
+        return {
+          sovLineId: line.sovLineId,
+          lineNo: sovLine?.lineNo ?? 0,
+          description: sovLine?.description ?? "",
+          requestedCents: line.requestedCents,
+          review: payApp.review!.lines.find((r) => r.sovLineId === line.sovLineId) ?? null,
+        };
+      });
+    });
+    const cut = demoLineCut(lines)!;
+    expect(cut).toMatchObject({ lineNo: 2, cutCents: 468_000, approvedCents: 0 });
+    expect(cut.reason).toContain("Line 2");
+    expect(cut.reason).toContain("$4,680.00");
+
+    const result = await gc.as.mutation(api.payApps.decisions.decidePayApp, {
+      payAppId: agentId,
+      decision: "approve",
+      lines: [{ sovLineId: cut.sovLineId, action: "override", amountCents: cut.approvedCents, reason: cut.reason }],
+    });
+    expect(result.status).toBe("approved_as_noted");
+    if (result.status !== "approved" && result.status !== "approved_as_noted") throw new Error("expected the cut to be approved");
+    expect(result.approvedTotalCents).toBe(32_000);
+    // N-10: the removed flat 90% of the review total would have approved 28,800 instead of 32,000.
+    expect(result.approvedTotalCents).not.toBe(Math.floor(32_000 * 0.9));
+
+    const row = (await t.run((ctx) => ctx.db.get(agentId)))!;
+    expect(row.finalApproval?.totalCents).toBe(32_000);
+    const decision = row.gcDecision?.lines ?? [];
+    expect(decision.find((line) => line.sovLineId === cut.sovLineId)).toMatchObject({
+      action: "override",
+      recommendedCents: 0,
+      approvedCents: 0,
+      reason: cut.reason,
+    });
+    const recommended = new Map(reviewed.lines.map((line) => [line.sovLineId, line.approvedCents]));
+    for (const other of decision.filter((line) => line.sovLineId !== cut.sovLineId)) {
+      expect(other.action).toBe("accept");
+      expect(other.approvedCents).toBe(recommended.get(other.sovLineId));
+    }
+    // The pay agent's pair still covers the decided total, so its approval pays what the GC decided.
+    const payout = (await t.run((ctx) =>
+      ctx.db.query("agentProposals").withIndex("by_payAppId", (q) => q.eq("payAppId", agentId)).collect(),
+    )).find((p) => p.kind === "payout")!;
+    expect(payout).toMatchObject({ status: "pending", amountCents: row.finalApproval!.totalCents });
   });
 
   test("only the GC can start a run", async () => {

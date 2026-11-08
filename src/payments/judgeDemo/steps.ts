@@ -3,6 +3,7 @@
  * inbox and change orders), so the page shows what Convex and PayPal actually recorded.
  */
 import { formatCents } from "../../../convex/lib/money";
+import { demoLineCut } from "../../../convex/judgeDemo/scenario";
 import { changeOrderInvoiced } from "./changeOrderStep";
 import { subPayoutStatusLabel } from "../payoutStatusLabel";
 
@@ -44,7 +45,13 @@ export type DemoInboxItem = {
     status: string;
     requestedTotalCents: number;
     review: { engine: string; approvedTotalCents: number } | null;
-    lines: { review: { verdict: string } | null }[];
+    lines: {
+      sovLineId: string;
+      lineNo: number;
+      description: string;
+      requestedCents: number;
+      review: { verdict: string; approvedCents: number } | null;
+    }[];
   };
   license: { status: string; checkedAt: number } | null;
   proposals: Proposal[];
@@ -142,6 +149,7 @@ export function deriveSteps(s: DemoState): DemoStep[] {
   const license = s.agent?.license ?? s.honest?.license ?? null;
   const honestPayout = moneyProposal(s.honest, "payout");
   const agentPayout = moneyProposal(s.agent, "payout");
+  const agentCut = s.agent ? demoLineCut(s.agent.payApp.lines) : null;
   const blockers = [s.honest, s.agent].map(demoRunBlocker);
   const blocked = blockers.some(Boolean);
   const unclaimed = [s.honest, s.agent].some((item) => item?.payment?.status === "unclaimed");
@@ -221,10 +229,14 @@ export function deriveSteps(s: DemoState): DemoStep[] {
     },
     {
       id: "approve_agent",
-      label: "GC edits the agent's proposal down and approves",
+      label: "GC cuts the flagged line and approves",
       status: blockers[1] ? "error" : agentPayout && DECIDED.has(agentPayout.status) ? "done" : "todo",
       detail: blockers[1] ?? (agentPayout
-        ? `${agentPayout.editedAmountCents !== null ? `edited ${formatCents(agentPayout.amountCents ?? 0)} → ${formatCents(agentPayout.editedAmountCents)}` : "not edited yet"} · ${agentPayout.status}${
+        ? `${agentPayout.editedAmountCents !== null
+            ? `edited ${formatCents(agentPayout.amountCents ?? 0)} → ${formatCents(agentPayout.editedAmountCents)}`
+            : agentCut
+              ? `line ${agentCut.lineNo} cut ${formatCents(agentCut.cutCents)} → approved ${formatCents(agentCut.approvedCents)}`
+              : "no line cut"} · ${agentPayout.status}${
             agentPayout.error ? `: ${agentPayout.error}` : ""
           }`
         : "waiting"),

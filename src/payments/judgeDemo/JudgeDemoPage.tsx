@@ -119,7 +119,7 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
           After confirmation, the guided flow uses the real PayPal sandbox, the configured model provider and a hosted-browser CSLB lookup: execute a fresh demo
           agreement (${DEMO_CONTRACT_SUM.toLocaleString("en-US")}, seismic bracing excluded) for sub1's contractor, fund Mobilization, file an
           honest pay app for sub1 and an overbilled one for a labeled billing-agent stand-in, run the rules review with the model's
-          explanations and the CSLB license check, approve (editing the agent's amount down), capture and pay with 10% retainage, and invoice a change
+          explanations and the CSLB license check, cut the flagged line by its own dollars, capture and pay with 10% retainage, and invoice a change
           order to the Owner.
         </p>
         {run?.readOnlyReference && <ReferenceNotice />}

@@ -16,7 +16,10 @@ const item = (payoutStatus: string | null, payAppStatus = "reviewed"): DemoInbox
     status: payAppStatus,
     requestedTotalCents: 100_000,
     review: { engine: "Anthropic", approvedTotalCents: 80_000 },
-    lines: [{ review: { verdict: "ok" } }, { review: { verdict: "excluded_scope" } }],
+    lines: [
+      { sovLineId: "s1", lineNo: 1, description: "Switchgear", requestedCents: 60_000, review: { verdict: "ok", approvedCents: 60_000 } },
+      { sovLineId: "s2", lineNo: 2, description: "Feeder", requestedCents: 40_000, review: { verdict: "excluded_scope", approvedCents: 0 } },
+    ],
   },
   license: { status: "active", checkedAt: 0 },
   proposals:

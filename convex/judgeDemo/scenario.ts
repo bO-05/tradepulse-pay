@@ -2,9 +2,9 @@
  * Fixed inputs of the one-click TradePulse Pay judge demo (pure, unit tested). Figures are demo data,
  * kept small so sandbox card approvals, captures and payouts stay quick. Every dollar the demo moves is
  * still computed by the regular review, proposal and payout code; this file only decides what the
- * stand-in sub and billing agent ask for and how far the GC edits the proposal down.
+ * stand-in sub and billing agent ask for and which flagged line the GC cuts.
  */
-import { percentageOfCents } from "../lib/money";
+import { formatCents, percentageOfCents } from "../lib/money";
 
 export const DEMO_CONTRACTOR_NAME = "Rosendin Electric, Inc.";
 export const DEMO_BILLING_AGENT_EMAIL = "boldlevel182@agentmail.to";
@@ -85,14 +85,41 @@ export function demoPayAppLines(kind: DemoPayAppKind, sov: readonly DemoSovLine[
   return lines;
 }
 
+/** A billed pay-app line as the GC inbox shows it, narrowed to what the line-specific cut needs. */
+export type DemoPayAppLine = {
+  sovLineId: string;
+  lineNo: number;
+  description: string;
+  requestedCents: number;
+  review: { verdict: string; approvedCents: number } | null;
+};
+
+export type DemoLineCut = {
+  sovLineId: string;
+  lineNo: number;
+  /** What the GC removes from the named line: that line's own requested dollars. */
+  cutCents: number;
+  /** What remains approved on the line after the cut. */
+  approvedCents: number;
+  reason: string;
+};
+
 /**
- * The GC's edited amount for the billing agent's pay app: 90% of the code-computed proposal, rounded
- * down to whole dollars. Null when the proposal is too small to edit down meaningfully.
+ * The GC's decision on the billing agent's pay app (N-10). The rules review flags the line carrying
+ * excluded-scope work; the GC cuts that line by the full amount requested on it and leaves every
+ * other line at the review's recommended cents. The dollars in the reason are the named line's own
+ * dollars, never a percentage of the pay-app total. Null when nothing is flagged.
  */
-export function demoEditedApprovalCents(proposedCents: number): number | null {
-  if (!Number.isSafeInteger(proposedCents) || proposedCents < 200) return null;
-  const edited = Math.floor((proposedCents * 9) / 1000) * 100;
-  return edited > 0 && edited < proposedCents ? edited : null;
+export function demoLineCut(lines: readonly DemoPayAppLine[]): DemoLineCut | null {
+  const line = lines.find((l) => l.review?.verdict === "excluded_scope") ?? null;
+  if (line === null || !Number.isSafeInteger(line.requestedCents) || line.requestedCents <= 0) return null;
+  const cutCents = line.requestedCents;
+  const approvedCents = line.requestedCents - cutCents;
+  const reason =
+    `Line ${line.lineNo} (${line.description}) is cut by ${formatCents(cutCents)}, the full amount this pay app requested on that line. ` +
+    "It bills seismic bracing that the subcontract lists as excluded scope, so the rules review approves none of that line. " +
+    `Line ${line.lineNo} is the only line the GC cuts; every other line stays at the rules review's recommended amount.`;
+  return { sovLineId: line.sovLineId, lineNo: line.lineNo, cutCents, approvedCents, reason };
 }
 
 /** Prime change order approved for the demo owner and invoiced to it at the end of the demo. */

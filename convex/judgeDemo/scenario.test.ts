@@ -1,10 +1,18 @@
 import { describe, expect, test } from "vitest";
-import { DEMO_CHANGE_ORDER, DEMO_CONTRACT_SUM, DEMO_EXCLUSION, DEMO_LINE_ITEMS, DEMO_PAY_APP_TEXT, demoAgreementNumber, demoEditedApprovalCents, demoPayAppLines, type DemoSovLine } from "./scenario";
+import { DEMO_CHANGE_ORDER, DEMO_CONTRACT_SUM, DEMO_EXCLUSION, DEMO_LINE_ITEMS, DEMO_PAY_APP_TEXT, demoAgreementNumber, demoLineCut, demoPayAppLines, type DemoSovLine } from "./scenario";
 
 const sov: DemoSovLine[] = [
   { _id: "a", description: "1600A main switchboard & transformers", excludedScope: false, scheduledValueCents: 2_200_000, previouslyBilledCents: 0, previousPctToDate: 0, pendingRequestedCents: 0, remainingCents: 2_200_000 },
   { _id: "b", description: "Closeout: testing, commissioning & O&M manuals", excludedScope: false, scheduledValueCents: 500_000, previouslyBilledCents: 0, previousPctToDate: 0, pendingRequestedCents: 0, remainingCents: 500_000 },
   { _id: "c", description: "Seismic bracing", excludedScope: true, scheduledValueCents: 450_000, previouslyBilledCents: 0, previousPctToDate: 0, pendingRequestedCents: 0, remainingCents: 450_000 },
+];
+
+/** The agent's stored review on a funded fresh run: line 2 is refused as excluded scope, the rest remain. */
+const AGENT_REVIEWED_LINES = [
+  { sovLineId: "a", lineNo: 1, description: "1600A main switchboard & transformers", requestedCents: 572_000, review: { verdict: "overbilled", approvedCents: 22_000 } },
+  { sovLineId: "b", lineNo: 2, description: "Branch conduit & wire feeder runs", requestedCents: 468_000, review: { verdict: "excluded_scope", approvedCents: 0 } },
+  { sovLineId: "c", lineNo: 3, description: "Grounding & bonding system", requestedCents: 260_000, review: { verdict: "overbilled", approvedCents: 10_000 } },
+  { sovLineId: "d", lineNo: 4, description: "Closeout: testing, commissioning & O&M manuals", requestedCents: 50_000, review: { verdict: "out_of_sequence", approvedCents: 0 } },
 ];
 
 describe("judge demo scenario", () => {
@@ -54,11 +62,45 @@ describe("judge demo scenario", () => {
     expect(a).toEqual({ sovLineId: "a", pctCompleteThisPeriod: 30, pctCompleteToDate: 30, requestedCents: 572_000 });
   });
 
-  test("edited approval is 90% rounded down to whole dollars", () => {
-    expect(demoEditedApprovalCents(123_456)).toBe(111_100);
-    expect(demoEditedApprovalCents(100_000)).toBe(90_000);
-    expect(demoEditedApprovalCents(150)).toBeNull();
-    expect(demoEditedApprovalCents(Number.NaN)).toBeNull();
+  test("the GC cut equals the flagged line's own dollars, not a share of the pay-app total", () => {
+    const cut = demoLineCut(AGENT_REVIEWED_LINES)!;
+    expect(cut.lineNo).toBe(2);
+    expect(cut.sovLineId).toBe("b");
+    // The named line asked for $4,680.00; the cut is that whole line, so it is approved at zero.
+    expect(cut.cutCents).toBe(468_000);
+    expect(cut.approvedCents).toBe(468_000 - cut.cutCents);
+    expect(cut.approvedCents).toBe(0);
+    expect(cut.reason).toContain("Line 2");
+    expect(cut.reason).toContain("Branch conduit & wire feeder runs");
+    expect(cut.reason).toContain("$4,680.00");
+    expect(cut.reason).toContain("$4,680.00, the full amount");
+    expect(cut.reason).not.toContain("%");
+  });
+
+  test("the cut follows the named line instead of a flat percentage of the total", () => {
+    const total = AGENT_REVIEWED_LINES.reduce((a, l) => a + l.requestedCents, 0);
+    const cut = demoLineCut(AGENT_REVIEWED_LINES)!;
+    expect(total).toBe(1_350_000);
+    expect(cut.cutCents).not.toBe(Math.floor(total * 0.1));
+    const smaller = AGENT_REVIEWED_LINES.map((l) => (l.sovLineId === "b" ? { ...l, requestedCents: 300_000 } : l));
+    expect(demoLineCut(smaller)!.cutCents).toBe(300_000);
+    const reviewTotal = AGENT_REVIEWED_LINES.reduce((a, l) => a + (l.review?.approvedCents ?? 0), 0);
+    expect(reviewTotal).toBe(32_000);
+    // N-10's removed shortcut paid 90% of the review total; the named line is the only line cut.
+    expect(cut.cutCents).not.toBe(Math.floor(reviewTotal * 0.9));
+  });
+
+  test("only the flagged line gets an override; the others stay at the review's recommended cents", () => {
+    const cut = demoLineCut(AGENT_REVIEWED_LINES)!;
+    const decisions = [{ sovLineId: cut.sovLineId, action: "override" as const, amountCents: cut.approvedCents, reason: cut.reason }];
+    expect(decisions).toHaveLength(1);
+    expect(decisions[0].amountCents).toBe(0);
+    expect(AGENT_REVIEWED_LINES.filter((l) => l.sovLineId !== cut.sovLineId).map((l) => l.review!.approvedCents)).toEqual([22_000, 10_000, 0]);
+  });
+
+  test("nothing flagged means no override rather than a flat cut", () => {
+    const allOk = AGENT_REVIEWED_LINES.map((l) => ({ ...l, review: { verdict: "ok", approvedCents: l.requestedCents } }));
+    expect(demoLineCut(allOk)).toBeNull();
   });
 
   test("change order and agreement number are fixed and labeled", () => {
