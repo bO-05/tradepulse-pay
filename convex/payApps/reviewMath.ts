@@ -6,7 +6,9 @@
  */
 
 import { formatCents } from "../lib/money";
+import type { ProjectKind } from "../lib/projectKind";
 import { excludedScopeClaims, type ExcludedScopeClaims } from "./excludedScope";
+import { reviewVocabularyFor, type ReviewReasonWords } from "./reviewVocabulary";
 
 export { OFFLINE_RULES_ENGINE } from "../lib/aiLabels";
 
@@ -84,6 +86,11 @@ export type ReviewLine = {
 export type UnbilledReviewLine = { sovLineId: string; lineNo: number; previousPctToDate: number };
 
 export type ReviewContext = {
+  /**
+   * The job's kind, copied from the project row. It switches the reviewer's words only; verdicts,
+   * percents and cents are identical. Absent means commercial, exactly like `projects.projectKind`.
+   */
+  projectKind?: ProjectKind;
   /** Company the reviewer works for; prompts fall back to "the general contractor" when absent. */
   gcCompanyName?: string | null;
   agreement: {
@@ -362,13 +369,14 @@ export function contextExcludedScopeClaims(context: ReviewContext): ExcludedScop
 /** Deterministic verdicts used when no AI provider responds. Mirrors the rules the model is given. */
 export function rulesEngineJudgement(context: ReviewContext): ReviewJudgement {
   const claims = contextExcludedScopeClaims(context);
+  const words = reviewVocabularyFor(context.projectKind).reasons;
   const lines = context.lines.map((line) => {
     if (line.excludedScope) {
       return {
         sovLineId: line.sovLineId,
         verdict: "excluded_scope" as const,
         recommendedPctToDate: 0,
-        reason: `Line ${line.lineNo} is excluded scope (from the leveled bid exclusions) and is not billable under this agreement.`,
+        reason: words.excludedScopeLine(line.lineNo),
       };
     }
     const claim = claims.byLine.get(line.sovLineId);
@@ -377,7 +385,7 @@ export function rulesEngineJudgement(context: ReviewContext): ReviewJudgement {
         sovLineId: line.sovLineId,
         verdict: "excluded_scope" as const,
         recommendedPctToDate: line.previousPctToDate,
-        reason: `Line ${line.lineNo} bills work the agreement lists as excluded scope (not in contract): "${claim}". That work is not billable under this agreement.`,
+        reason: words.excludedScopeClaim(line.lineNo, claim),
       };
     }
     if (line.closeoutWorkBeforeEarlierTranches && line.claimedPctThisPeriod > 0) {
@@ -385,7 +393,7 @@ export function rulesEngineJudgement(context: ReviewContext): ReviewJudgement {
         sovLineId: line.sovLineId,
         verdict: "out_of_sequence" as const,
         recommendedPctToDate: line.previousPctToDate,
-        reason: `Line ${line.lineNo} is closeout-phase work billed before the earlier funding tranches that cover it are complete; held at the previous ${pct(line.previousPctToDate)} to date.`,
+        reason: words.outOfSequence(line.lineNo, pct(line.previousPctToDate)),
       };
     }
     const ceiling = line.trancheCeilingPctToDate;
@@ -394,7 +402,7 @@ export function rulesEngineJudgement(context: ReviewContext): ReviewJudgement {
         sovLineId: line.sovLineId,
         verdict: "overbilled" as const,
         recommendedPctToDate: ceiling,
-        reason: `Line ${line.lineNo} claims ${pct(line.claimedPctToDate)} complete to date, but the funding-tranche statuses that cover this line support at most ${pct(ceiling)}.`,
+        reason: words.overbilled(line.lineNo, pct(line.claimedPctToDate), pct(ceiling)),
       };
     }
     if (isFrontLoaded(line)) {
@@ -404,7 +412,7 @@ export function rulesEngineJudgement(context: ReviewContext): ReviewJudgement {
         sovLineId: line.sovLineId,
         verdict: "front_loaded" as const,
         recommendedPctToDate: normalizePct(Math.min(recommended, line.claimedPctToDate)),
-        reason: `Line ${line.lineNo} claims ${pct(line.claimedWorkInPlacePctToDate)} work in place while the rest of the job is at ${pct(line.otherLinesProgressPct)}; work in place reduced to the job-wide progress.`,
+        reason: words.frontLoaded(line.lineNo, pct(line.claimedWorkInPlacePctToDate), pct(line.otherLinesProgressPct)),
       };
     }
     return {
@@ -413,17 +421,15 @@ export function rulesEngineJudgement(context: ReviewContext): ReviewJudgement {
       recommendedPctToDate: line.claimedPctToDate,
       reason:
         ceiling === null
-          ? `Line ${line.lineNo} claims ${pct(line.claimedPctToDate)}; no funding tranche covers this line, so tranche status sets no ceiling.`
-          : `Line ${line.lineNo} claims ${pct(line.claimedPctToDate)}, within the ${pct(ceiling)} the covering funding tranches support.`,
+          ? words.okWithoutCeiling(line.lineNo, pct(line.claimedPctToDate))
+          : words.okWithinCeiling(line.lineNo, pct(line.claimedPctToDate), pct(ceiling)),
     };
   });
   const licenseIssue = licenseHasIssue(context.license);
   const flagged = lines.filter((l) => l.verdict !== "ok").length;
   const notes = [
-    `${flagged} of ${lines.length} line(s) flagged by deterministic rules.`,
-    ...claims.unattributed.map(
-      (u) => `The pay-app notes mention excluded scope ("${u.note}") without naming a line; confirm before approving.`,
-    ),
+    words.flaggedSummary(flagged, lines.length, context.agreement.tradeName),
+    ...claims.unattributed.map((u) => words.excludedScopeNotice(u.note)),
     context.payApp.lienWaiver ? "" : "Lien waiver missing.",
     licenseIssue ? `License: ${licenseStatusText(reviewLicenseStatus(context.license))}.` : "",
   ]
@@ -441,13 +447,13 @@ export function isCreditLine(line: Pick<ReviewLine, "requestedCents" | "schedule
  * Credits are decided by code, not judged: the whole credit is applied, because reducing it would
  * raise the payment above what the approved change order allows.
  */
-function creditReviewLine(line: ReviewLine): FinalReviewLine {
+function creditReviewLine(line: ReviewLine, words: ReviewReasonWords): FinalReviewLine {
   return {
     sovLineId: line.sovLineId,
     verdict: "ok",
     recommendedPctToDate: line.claimedPctToDate,
     approvedCents: line.requestedCents,
-    reason: `Line ${line.lineNo} is a deductive change-order credit of ${formatCents(line.requestedCents)}; it is applied in full and reduces the payment.`,
+    reason: words.credit(line.lineNo, formatCents(line.requestedCents)),
   };
 }
 
@@ -483,9 +489,10 @@ export function finalizeReview(context: ReviewContext, judgement: ReviewJudgemen
     throw new IncompleteJudgementError(`No verdict for line(s) ${missing.map((l) => l.lineNo).join(", ")}.`);
   }
   const rules = new Map(rulesEngineJudgement(context).lines.map((l) => [l.sovLineId, l]));
+  const words = reviewVocabularyFor(context.projectKind).reasons;
   const replaced: number[] = [];
   const lines: FinalReviewLine[] = context.lines.map((line) => {
-    if (isCreditLine(line)) return creditReviewLine(line);
+    if (isCreditLine(line)) return creditReviewLine(line, words);
     const j = verdicts.get(line.sovLineId)!;
     const rule = rules.get(line.sovLineId)!;
     const verdict = rule.verdict;
@@ -533,7 +540,7 @@ export function finalizeReview(context: ReviewContext, judgement: ReviewJudgemen
       verdict: "ok",
       recommendedPctToDate: normalizePct(u.previousPctToDate),
       approvedCents: 0,
-      reason: `Nothing billed on line ${u.lineNo} this period.`,
+      reason: words.unbilled(u.lineNo),
     });
   }
   lines.sort((a, b) => (lineNo.get(a.sovLineId) ?? 0) - (lineNo.get(b.sovLineId) ?? 0));

@@ -1,6 +1,7 @@
 import type { Doc } from "../_generated/dataModel";
 import { agreementContractSumCents } from "../payments/sov";
 import { payAppRetainagePercent } from "../payments/payoutMath";
+import type { ProjectKind } from "../lib/projectKind";
 import { buildReviewLines, type ReviewContext } from "./reviewMath";
 import { APPROVED_PAY_APP_STATUSES, approvedTotalFor, sovBaselineByLine } from "./validation";
 
@@ -8,6 +9,9 @@ import { APPROVED_PAY_APP_STATUSES, approvedTotalFor, sovBaselineByLine } from "
  * Assembles what the reviewer sees from stored rows. Only pay apps created
  * before this one count as prior billing, so re-running a review gives the
  * same previously billed amounts.
+ *
+ * `projectKind` comes from the pay app's project row; a caller that omits it (or a project with no
+ * kind) keeps the commercial wording, exactly like the rest of the app.
  */
 export function buildReviewContext(input: {
   payApp: Doc<"payApplications">;
@@ -17,6 +21,7 @@ export function buildReviewContext(input: {
   agreementPayApps: readonly Doc<"payApplications">[];
   license: Doc<"licenseChecks"> | null;
   gcCompanyName?: string | null;
+  projectKind?: ProjectKind;
 }): ReviewContext {
   const { payApp, agreement } = input;
   const earlier = input.agreementPayApps.filter(
@@ -33,6 +38,7 @@ export function buildReviewContext(input: {
     return [{ sovLineId: s._id as string, lineNo: s.lineNo, previousPctToDate: (prior.get(s._id)?.previousPctToDate ?? 0) / 100 }];
   });
   return {
+    ...(input.projectKind ? { projectKind: input.projectKind } : {}),
     gcCompanyName: input.gcCompanyName ?? null,
     agreement: {
       agreementNumber: agreement.agreementNumber,

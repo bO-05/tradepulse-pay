@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import schema from "../schema";
 import { signInAs } from "../lib/testIdentity";
+import { RESIDENTIAL_REVIEW_VOCABULARY } from "./reviewVocabulary";
 // Resolve the real review/provider graph and the existing downstream test action
 // during collection, not inside the fake-timer scheduler's bounded pump loop.
 import "./review";
@@ -337,6 +338,76 @@ describe("GC review access", () => {
     const row = (await s.t.run(async (ctx) => ctx.db.get(payAppId)))!;
     expect(row.status).toBe("withdrawn");
     expect(row.review).toBeUndefined();
+  });
+});
+
+describe("reviewer vocabulary follows the project row", () => {
+  /** The demo project `setup()` creates has no projectKind until a test sets it. */
+  async function makeResidential(s: Setup) {
+    await s.t.run(async (ctx) => {
+      const project = await ctx.db
+        .query("projects")
+        .withIndex("by_demo", (q) => q.eq("isDemoProject", true))
+        .first();
+      await ctx.db.patch(project!._id, { projectKind: "residential" });
+    });
+  }
+
+  test("a residential project reviews in the job's words and stores them on the review and the trace", async () => {
+    const s = await setup();
+    await makeResidential(s);
+    const { payAppId, row, traces } = await submitAndReview(s);
+    // The project row is the switch: it reaches the reviewer context, not a title or a flag.
+    const inputs = await s.t.query(internal.payApps.review.loadReviewInputs, { payAppId });
+    expect(inputs?.context.projectKind).toBe("residential");
+    const explanation = [...row.review!.lines.map((l) => l.reason), row.review!.flags.notes].join(" ");
+    expect(explanation).toContain("funded milestone");
+    expect(explanation).toContain("trade");
+    expect(explanation).toContain("owner's draw");
+    for (const banned of ["tranche", "G702", "G703", "AIA", "CSI", "Prime", "Materials stored"]) {
+      expect(explanation.toLowerCase(), banned).not.toContain(banned.toLowerCase());
+    }
+    expect(traces[0].rawPrompt).toContain("fundedMilestones");
+    expect(traces[0].rawPrompt).not.toContain("fundingTranches");
+  });
+
+  test("a project with projectKind unset keeps the commercial instruction and the commercial reasons", async () => {
+    const s = await setup();
+    const { payAppId, row, traces } = await submitAndReview(s);
+    const inputs = await s.t.query(internal.payApps.review.loadReviewInputs, { payAppId });
+    expect(inputs?.context.projectKind).toBe("commercial");
+    const explanation = [...row.review!.lines.map((l) => l.reason), row.review!.flags.notes].join(" ");
+    expect(explanation).toContain("funding tranche");
+    expect(explanation).not.toContain("funded milestone");
+    expect(traces[0].rawPrompt).toContain("fundingTranches");
+    expect(traces[0].rawPrompt).not.toContain("fundedMilestones");
+  });
+
+  test("the residential model instruction states the vocabulary rule and drops the commercial style line", async () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "test-key-not-real");
+    vi.stubEnv("ANTHROPIC_MODEL", "claude-sonnet-5-5");
+    const s = await setup();
+    await makeResidential(s);
+    const [a, b] = s.sov;
+    generateTextMock.mockImplementationOnce(async () => ({
+      output: {
+        lines: [
+          { sovLineId: a._id, verdict: "ok", recommendedPctToDate: 0.2, reason: "Switchgear set." },
+          { sovLineId: b._id, verdict: "overbilled", recommendedPctToDate: 0.3, reason: "Above the funded milestone." },
+          { sovLineId: s.excludedLineId, verdict: "excluded_scope", recommendedPctToDate: 0, reason: "Excluded work." },
+        ],
+        lienWaiverMissing: true,
+        licenseIssue: false,
+        notes: "One line held.",
+      },
+      usage: { inputTokens: 1, outputTokens: 1 },
+      response: { modelId: "claude-sonnet-5-5" },
+    }));
+    const { row, traces } = await submitAndReview(s);
+    expect(row.review!.provider).toBe("Anthropic");
+    expect(traces[0].systemPrompt).toContain(RESIDENTIAL_REVIEW_VOCABULARY);
+    expect(traces[0].systemPrompt).not.toContain("(AIA G702/G703 style)");
+    expect(traces[0].rawPrompt).toContain("fundedMilestones");
   });
 });
 

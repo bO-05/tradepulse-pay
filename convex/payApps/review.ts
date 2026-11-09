@@ -9,6 +9,7 @@ import { payAppReviewValidator } from "../schema";
 import { latestCompletedCheck } from "../kernel/licenseChecks";
 import { billingPayAppHistory } from "./billingHistory";
 import { projectGcCompanyName } from "../lib/gcCompanyName";
+import { projectKindOf } from "../lib/projectKind";
 import { buildReviewContext } from "./reviewContext";
 import type { ReviewContext } from "./reviewMath";
 import { runPayAppReview, type ReviewRun } from "./reviewModel";
@@ -46,7 +47,17 @@ export const loadReviewInputs = internalQuery({
     const project = await ctx.db.get(agreement.projectId);
     const gcCompanyName = project ? await projectGcCompanyName(ctx, project) : null;
     return {
-      context: buildReviewContext({ payApp, agreement, sov, milestones, agreementPayApps, license, gcCompanyName }),
+      context: buildReviewContext({
+        payApp,
+        agreement,
+        sov,
+        milestones,
+        agreementPayApps,
+        license,
+        gcCompanyName,
+        // The reviewer speaks the job's vocabulary: the project row is the only switch.
+        projectKind: projectKindOf(project),
+      }),
       meta: {
         payAppId: payApp._id,
         agreementId: agreement._id,
