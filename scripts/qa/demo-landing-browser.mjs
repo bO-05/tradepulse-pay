@@ -243,6 +243,30 @@ for (const [width, height] of [[1440, 900], [390, 844]]) {
       await context.close();
     }
   }
+  // The secondary link opens the ordinary sign-in form (with create-an-account), not a dead "#".
+  {
+    const context = await browser.createBrowserContext();
+    const signInPage = await context.newPage();
+    signInPage.setDefaultTimeout(45000);
+    await signInPage.goto(`${site}/#/demo`, { waitUntil: "networkidle0", timeout: 60000 });
+    await signInPage.waitForSelector('[data-testid="demo-access-page"]');
+    await signInPage.evaluate(() => {
+      const link = [...document.querySelectorAll("a")].find((a) => a.textContent.trim() === "Normal sign-in / create a GC account");
+      if (!link) throw new Error("Normal sign-in link not found");
+      link.click();
+    });
+    await signInPage.waitForSelector('form[aria-label="Sign in"]', { timeout: 45000 });
+    const signIn = await signInPage.evaluate(() => ({
+      hash: location.hash,
+      text: document.body.innerText,
+      demoPage: document.querySelector('[data-testid="demo-access-page"]') !== null,
+      createAccount: [...document.querySelectorAll("button, a")].some((el) => /create (an )?account/i.test(el.textContent ?? "")),
+    }));
+    check(`[${width}] normal sign-in link opens the real sign-in form`, !signIn.demoPage && signIn.hash !== "#/demo", signIn.hash);
+    check(`[${width}] sign-in form offers creating an account`, signIn.createAccount, signIn.text.slice(0, 300));
+    await signInPage.screenshot({ path: path.join(outDir, `normal-signin-${width}.png`) });
+    await context.close();
+  }
   await browser.close();
 }
 
