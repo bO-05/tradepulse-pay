@@ -60,12 +60,12 @@ every write path refuses with `READ_ONLY_REFERENCE`, and the UI shows the refere
 write controls. Inspect it rather than editing it.
 
 1. As GC, open **Billing → Owner billing**, pick **Lopez Kitchen Remodel**, and inspect **Draw #1**:
-   `$5,400.00` requested, `$4,000.00` approved, `$3,600.00` paid by PayPal invoice after 10% owner
-   retainage, with `paypalInvoiceId` and `paidAt` stored. The four prime lines and the Ortiz trade line
+   `$4,000.00` completed and stored, `$400.00` owner retainage (10%), `$3,600.00` paid by PayPal
+   invoice, with `paypalInvoiceId` and `paidAt` stored. The four prime lines and the Ortiz trade line
    total `$86,500.00` in scheduled values.
-2. Open the Ortiz Plumbing pay app. The rules review flagged the Fixtures set line; the GC cut exactly
-   that `$1,400.00` line to `$0.00` and approved `$4,000.00`. The payout receipt shows `$4,000.00`
-   gross, `$200.00` retainage and `$3,800.00` net.
+2. Open the Ortiz Plumbing pay app. The sub requested `$5,400.00`; the rules review flagged the
+   Fixtures set line, and the GC cut exactly that `$1,400.00` line to `$0.00`, approving `$4,000.00`.
+   The payout receipt shows `$4,000.00` gross, `$200.00` retainage and `$3,800.00` net.
 3. Inspect the paid **"Add under-cabinet lighting"** change order (`$1,200.00`) and its PayPal invoice.
 4. On the GC home (`#/inbox`), the Lopez project page and the owner-billing tab, read the **money
    strip**: collected from owners, paid to subs, retainage held and owed this week. Each number links

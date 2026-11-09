@@ -6,9 +6,9 @@ existing-project disclosure in the PayPal submission and is not the log for the 
 
 > **Correction (2026-11-10).** Metrics in this September log that claimed perfect precision and
 > recall, or full rubric coverage, were self-reported against hand-built fixtures by the same author.
-> They are corrected below to fixture counts and are not accuracy measurements or claims about the
-> current TradePulse Pay build. Several named scripts are legacy pre-authentication scripts and are
-> not verification commands (see the README's "Legacy checks and scripts").
+> They are annotated below as self-reported fixture counts and are not accuracy measurements or claims
+> about the current TradePulse Pay build. Several named scripts are legacy pre-authentication scripts
+> and are not verification commands (see the README's "Legacy checks and scripts").
 
 The PayPal-era log is [docs/recovery-progress.md](./docs/recovery-progress.md); the reviewer entry
 point is [docs/audit-entry.md](./docs/audit-entry.md); the judged demo is
@@ -237,11 +237,14 @@ Completed enterprise LLM routing and resilient AgentMail webhook integrations:
    - Built CLI benchmark runner `scripts/run-expert-evals.mjs` and added `npm run evals` command.
    - Outputs full telemetry JSON to `evals/results/latest_trace.json` and human-readable scorecards to `evals/results/eval_scorecard.md`.
 5. Empirical Verification Results (10/10 PASS - 100% Parity):
+   - Self-reported against 10 hand-built fixtures by the same author; these are fixture counts, not
+     accuracy measurements.
    - Total Cases Evaluated: 10 / 10
    - Passed Cases: 10 / 10 (100% Parity)
    - Leveled Cost MAPE: 0.00% (Threshold: <= 0.50%)
-   - Scope Exclusion Average Recall: 100% (Threshold: >= 90.0%)
-   - Scope Exclusion Precision: 100%
+   - Scope Exclusion Average Recall: 100% (10 of 10 self-authored fixtures; a fixture count, not an
+     accuracy measurement)
+   - Scope Exclusion Precision: 100% (same 10 self-authored fixtures; not an accuracy measurement)
    - Cross-Trade Clash Recall: 100.0% ($50,500 double-buys & $46,500 voids caught)
    - AIA Document A401 Subcontract Alignment: 100.0% (6/6 statutory articles verified)
 6. Interactive In-App Evals & Architecture Inspector:
@@ -509,7 +512,7 @@ Ran an independent third audit using the new local agent stack (Browser-Use **je
 1c. New finding AUD-04 (safety, fixed): an absurd $250,000 bid against a $1,250,000 package was ranked #1 “Best Leveled Value” with no warning. Added `getSuspiciouslyLowBidIds()` (flag below 50% of package budget), an “Out-of-Band Low Bid — Verify Before Awarding” banner when the leader is flagged, and a per-card “Verify — unusually low” chip. Verified live; unit-tested (24 tests).
 1d. AUD-05 clarified (not a defect): the executed bid's control is relabelled “Leveling Locked” and disabled via `isBidAgreementExecuted`; the first pass's global regex had matched the other, non-awarded bids' controls.
 2. Agent journeys: jev switched projects via the selector, read the KPI/scoping surfaces, and **created a trade package through the real UI in 19 s / 8 actions** (4 Claude-generated values); a second journey created a full project in 5.5 s. Two-context realtime measured 1.0 s propagation for a submitted RFI. All fixtures deleted; only the demo remains.
-3. New finding AUD-01 (claims): sponsor diagnostics cards claimed OpenAI `Integrated / Active` without a key and Firecrawl `TDLR & TSBPE registry verification`, contradicting provenance-first discovery, plus a “satisfies 100% of the judging rubric” header. Fixed: cards now derive status from the live provider-availability query (“Adapter Ready / Key Required”), describe provenance-first discovery and the AgentMail free-tier fallback, and carry a neutral header. Guarded by a source honesty test.
+3. New finding AUD-01 (claims): sponsor diagnostics cards claimed OpenAI `Integrated / Active` without a key and Firecrawl `TDLR & TSBPE registry verification`, contradicting provenance-first discovery, plus a header that claimed full rubric coverage. Fixed: cards now derive status from the live provider-availability query (“Adapter Ready / Key Required”), describe provenance-first discovery and the AgentMail free-tier fallback, and carry a neutral header. Guarded by a source honesty test.
 4. New finding AUD-02 (claims): the audit stream logged “Dispatched invitations to bid … via AgentMail” even when zero emails were delivered. Fixed: the queueing event is neutral (“RFQ Invitations Recorded…”) and the dispatch action writes a separate truthful `AgentMail Delivery: N of M eligible recipient(s)` event with per-recipient reasons; verified live. Residual product call: the package badge still reads “RFQs Dispatched” after zero delivery.
 5. Tooling: jev scratch clone patched for Anthropic's compat layer (omit `response_format: json_object`) and for SPA boot (wait for actionable elements before the first decision). Verification: `tsc -b` clean, `npm test` 23/23, live re-verified after deploy.
 

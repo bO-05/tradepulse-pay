@@ -1,0 +1,81 @@
+Docs honesty fixes — claim sweep evidence (2026-11-10)
+======================================================
+
+Scope: tracked files under docs/, README.md and hackathon.md. `docs/external-audit/` is gitignored
+private reviewer material and is not part of the repository.
+
+1) Exact banned metric terms
+Command:
+terms="issue precision|issue recall|macro F1"
+git grep -n -i -E "$terms" -- docs README.md hackathon.md
+Exit: 0 (the only hits are metric definitions and a regression threshold; no result carries a percentage)
+docs/pay-app-review-eval.md:39:- **Issue precision** — flagged lines that were truly issues, over all flagged lines.
+docs/pay-app-review-eval.md:40:- **Issue recall** — truly flagged issue lines caught, over all issue lines.
+docs/pay-app-review-eval.md:41:- **Issue F1** — harmonic mean of issue precision and recall.
+docs/pay-app-review-eval.md:42:- **Macro F1** — one-vs-rest F1 averaged across the five verdict classes
+docs/pay-app-review-eval.md:105:Strict mode exits non-zero unless every case passes and issue precision and recall are each at
+
+Classification: pay-app-review-eval.md lines 31-34 already state that every metric is agreement with
+this app's rules, not accuracy, and lines 39-42 are definitions only. Line 105 describes the strict
+regression gate, not a result. No percentage is attached to any of these terms.
+
+2) Banned metric term plus a percentage on the same line
+Command (the pattern is built from variables so this evidence file cannot match itself):
+terms="issue precision|issue recall|macro F1"
+pct="100%|100\.0%"
+git grep -n -i -E "($terms).{0,100}($pct)|($pct).{0,100}($terms)" -- docs README.md hackathon.md
+Exit: 1
+Output: (no matches)
+
+3) R6 remediation record specifically
+Command: git grep -n -i -E "issue precision|issue recall|macro F1" -- docs/r6-remediation.md
+Exit: 1
+Output: (no matches)
+
+The R6 row now reads: "24/24 cases, 71 lines, 15 issue lines on live Mistral `mistral-large-4`;
+agreement with this app's own rules, not an accuracy measurement (fixtures and expected verdicts are
+self-authored)" and points at `evals/results/pay-app-review-scorecard.md`, whose correction banner
+uses the same framing.
+
+4) Stale frozen-reference write claim
+Command: git grep -n -i -E "live again for the next visitor|New owner pay app\*\* is enabled" -- docs README.md hackathon.md
+Exit: 1
+Output: (no matches)
+
+docs/audit-entry.md now says "New owner pay app" is disabled with the reference reason quoted from
+docs/evidence/freeze-2026-11-08/browser-check.json ("This is a preserved, read-only demo fixture.
+Start a fresh guided run to try approvals and sandbox payments.") and names the guided demo as the
+write sandbox.
+
+5) Remaining 100% scope-exclusion lines in hackathon.md (annotated, not quality claims)
+hackathon.md:245:- Scope Exclusion Average Recall: 100% (10 of 10 self-authored fixtures; a fixture count, not an
+hackathon.md:247:- Scope Exclusion Precision: 100% (same 10 self-authored fixtures; not an accuracy measurement)
+hackathon.md:248:- Cross-Trade Clash Recall: 100.0% ($50,500 double-buys & $46,500 voids caught)
+
+The section now opens with "Self-reported against 10 hand-built fixtures by the same author; these are
+fixture counts, not accuracy measurements," and the top correction banner says the historical metrics
+are annotated below as self-reported fixture counts.
+
+6) Historical audit reports
+`docs/audits/*.html` are saved audit reports from earlier rounds; they quote the old claims as findings
+(for example audit-3-adversarial.html:109) and are not current product claims. `docs/external-audit/`
+is gitignored and untracked.
+
+Validator outputs on the edited tree
+------------------------------------
+npm run verify:docs -> OK: 118 relative links checked, all resolve; hackathon log check
+  {ok:true, inOrder:true, hasConvention:true, hasOldConvention:false, entries:28}
+npm run verify:agents -> check-agents-md: OK (10 npm script references, 12 repository paths across 2 files)
+node scripts/tools/guard-audit.mjs -> guard-audit: 269 public functions, 205 internal, 0 problems,
+  0 without a tenancy guard
+npx tsc -b -> exit 0
+npx vitest run --maxWorkers=2 src/docs.test.ts src/submission.test.ts -> 2 files, 27 tests passed
+
+Reference figures for the corrected Draw #1 text
+------------------------------------------------
+From docs/evidence/settlement/settlement-report.json step 7:
+  completedAndStoredCents 400000, retainageCents 40000, currentPaymentDueCents 360000,
+  paypalCheckoutAmountText "$3,600.00", paypalInvoiceId INV2-5ZNS-USY8-KBFD-L3B9,
+  paidAt 2026-11-08T16:41:44.483Z
+From the same report steps 2-3 (the Ortiz pay app, now cited only in judge-guide step 2):
+  requestedCents 540000, finalApproval.totalCents 400000, retainageCents 20000, netCents 380000

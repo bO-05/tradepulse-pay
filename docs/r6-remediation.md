@@ -86,7 +86,7 @@ The first write run paid the invoice, then the QA script timed out on its final 
 | Quick start browser acceptance | 23/23 checks passed on build `2629233`; job and subcontract created, SOV approved, demo invite limitation shown | `evidence/quick-start-browser-2026-11-05T05-59-52-092Z/report.json` |
 | Lien-waiver gate backend | 22/22 tests in `convex/billing/payGate.test.ts`, including four new gate tests; `npx tsc -b` clean | local run on this branch |
 | Lien-waiver gate browser | 18/18 checks on build `3d3d03c`; GC blocked view, sub panel and signing dialog, gate off cleanup, no waiver record | `evidence/lien-waiver-browser-2026-11-05T06-56-48-194Z/report.json` |
-| Pay-app review eval | 24/24 cases, 71 lines, 15 issue lines, 100% issue precision/recall, 100% macro F1 on live Mistral `mistral-large-4` | `evals/results/pay-app-review-scorecard.md` |
+| Pay-app review eval | 24/24 cases, 71 lines, 15 issue lines on live Mistral `mistral-large-4`; agreement with this app's own rules, not an accuracy measurement (fixtures and expected verdicts are self-authored) | `evals/results/pay-app-review-scorecard.md` |
 | Pay-app question thread backend | 7/7 tests in `convex/payApps/questions.test.ts`; role, draft, agent, read-only, validation and no-financial-write cases | local run on this branch |
 | Pay-app question thread browser | 21/21 checks on build `0ba5d11`; sub question, GC reply, both views, unchanged money trail, read-only reference composer refusal | `evidence/pay-app-thread-browser-2026-11-05T08-14-04-182Z/report.json` |
 | Owner job card backend and UI | 4 backend tests in `convex/ownerJob.test.ts` and 2 static-render tests in `src/payments/OwnerPortal.test.tsx` | local run on this branch |
@@ -108,7 +108,8 @@ opt-in lien-waiver gate, the pay-app question thread and the 24-case pay-app rev
   the sub signs a server-sized conditional waiver for the payment and, where required, an
   unconditional waiver for the prior paid payment. The pay gate names every missing signature.
   See [lien-waiver-gate.md](./lien-waiver-gate.md).
-- 24-case pay-app review eval with line accuracy, issue precision/recall/F1 and per-verdict counts.
+- 24-case pay-app review eval with per-case agreement and per-verdict counts. The expected verdicts
+  come from the same author as the rules, so the score measures agreement, not accuracy.
   See [pay-app-review-eval.md](./pay-app-review-eval.md).
 - Sub “Question this amount” thread: both companies can discuss one pay app, with in-app notification,
   while the G702/G703, approval, ledger and payment stay unchanged. See
