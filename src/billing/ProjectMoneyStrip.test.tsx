@@ -191,6 +191,19 @@ describe("residential and commercial wording", () => {
   });
 });
 
+describe("receipt rows read as real records", () => {
+  test("a seeded guided-demo receipt hides the A401 number and the judge-demo title", () => {
+    const data = money({ scope: "portfolio" });
+    data.scope.projects[0].projectTitle = "Demo · TradePulse Pay judge demo 20261108-13";
+    data.receipts.payouts[0].agreementNumber = "A401-DEMO-PAY-20261101-02";
+    const html = render(data, undefined);
+    expect(plain(html)).toContain("Sandbox run 20261108-13");
+    expect(plain(html)).toContain("Sandbox subcontract");
+    expect(plain(html)).not.toContain("A401-");
+    expect(plain(html)).not.toContain("judge demo");
+  });
+});
+
 describe("each number links to its receipts", () => {
   test("collected, paid to subs, retainage and owed link to their receipt surfaces", () => {
     const html = render(money({ owed: 400_000, owedReceipt: true }), PROJECT_ID);

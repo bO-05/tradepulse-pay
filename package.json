@@ -20,6 +20,7 @@
     "evals": "node scripts/run-expert-evals.mjs",
     "eval:payapps": "node scripts/qa/pay-app-review-scorecard.mjs",
     "test": "vitest run",
+    "a11y": "node scripts/qa/a11y-six-screens.mjs",
     "verify:docs": "node scripts/tools/check-docs-links.mjs docs README.md && node scripts/tools/reorder-hackathon-log.mjs --check",
     "verify:reports": "node scripts/qa/render-audit-reports.mjs",
     "verify:guards": "node scripts/tools/guard-audit.mjs",
@@ -60,6 +61,7 @@
     "zod": "3.25.76"
   },
   "devDependencies": {
+    "@axe-core/puppeteer": "^4.14.0",
     "@edge-runtime/vm": "^5.0.0",
     "@types/node": "^22.13.4",
     "@types/papaparse": "^5.5.2",

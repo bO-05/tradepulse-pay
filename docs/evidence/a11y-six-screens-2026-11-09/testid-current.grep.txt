@@ -1,0 +1,676 @@
+src/auth/AgentNotAuthorized.tsx:14:    <div className="max-w-md text-center space-y-3 px-4" data-testid="agent-not-authorized">
+src/auth/AuthLayout.tsx:32:          <p className="mb-4 rounded-xl border border-amber-800 bg-amber-950/40 px-3 py-2 text-xs text-amber-100" data-testid="auth-sandbox-notice">
+src/auth/BillingAgentsView.tsx:125:          <div className="table-scroll" role="region" aria-label="Authorized billing-agent links" tabIndex={0}><table className="w-full text-sm" data-testid="agent-links">
+src/auth/ConnectionBanner.tsx:43:      data-testid="reconnecting-banner"
+src/auth/DemoAccessPage.test.tsx:14:  for (const role of ["gc", "sub", "owner"]) expect(html).toContain(`data-testid="demo-enter-${role}"`);
+src/auth/DemoAccessPage.test.tsx:21:  expect(DEMO_SEATS.map((seat) => seat.testId)).toEqual(["gc", "sub", "owner"]);
+src/auth/DemoAccessPage.test.tsx:22:  const gc = DEMO_SEATS.find((seat) => seat.testId === "gc");
+src/auth/DemoAccessPage.test.tsx:23:  const sub = DEMO_SEATS.find((seat) => seat.testId === "sub");
+src/auth/DemoAccessPage.test.tsx:24:  const owner = DEMO_SEATS.find((seat) => seat.testId === "owner");
+src/auth/DemoAccessPage.test.tsx:36:  expect(html.match(/data-testid="demo-enter-/g) ?? []).toHaveLength(3);
+src/auth/DemoAccessPage.test.tsx:43:  const seatIndex = html.indexOf('data-testid="demo-enter-gc"');
+src/auth/DemoAccessPage.test.tsx:48:  expect(html.match(/data-testid="demo-manual-details"/g) ?? []).toHaveLength(1);
+src/auth/DemoAccessPage.test.tsx:49:  const fromManual = html.slice(html.indexOf('data-testid="demo-manual-details"'));
+src/auth/DemoAccessPage.test.tsx:73:  expect(html).toContain('data-testid="demo-money-proof"');
+src/auth/DemoAccessPage.test.tsx:75:  expect(html.indexOf('data-testid="demo-money-proof"')).toBeLessThan(html.indexOf('data-testid="demo-enter-gc"'));
+src/auth/DemoAccessPage.test.tsx:78:  const gcTag = html.match(/<button[^>]*data-testid="demo-enter-gc"[^>]*>/)?.[0] ?? "";
+src/auth/DemoAccessPage.test.tsx:80:  const subTag = html.match(/<button[^>]*data-testid="demo-enter-sub"[^>]*>/)?.[0] ?? "";
+src/auth/DemoAccessPage.test.tsx:83:  expect(html.indexOf('data-testid="demo-defence"')).toBeGreaterThan(html.indexOf('data-testid="demo-enter-owner"'));
+src/auth/DemoAccessPage.test.tsx:91:  expect(html).not.toContain('data-testid="demo-enter-gc"');
+src/auth/DemoAccessPage.tsx:38:    <main className="min-h-screen bg-slate-950 text-slate-100 px-5 py-8 sm:px-10 sm:py-10" data-testid="demo-access-page">
+src/auth/DemoAccessPage.tsx:59:              data-testid="demo-money-proof"
+src/auth/DemoAccessPage.tsx:78:                  const primarySeat = seat.testId === "gc";
+src/auth/DemoAccessPage.tsx:85:                      data-testid={`demo-enter-${seat.testId}`}
+src/auth/DemoAccessPage.tsx:106:            <p className="max-w-xl text-xs leading-relaxed text-slate-400" data-testid="demo-defence">
+src/auth/DemoAccessPage.tsx:175:      data-testid="demo-manual-details"
+src/auth/PasswordHints.tsx:12:          data-testid={`password-hint-${check.id}`}
+src/auth/ResidentialHero.tsx:96:            data-testid="landing-open-demo"
+src/auth/RoleShell.tsx:180:          <span className="mb-2 block text-sm font-semibold text-slate-200" data-testid="active-company-name">
+src/auth/RoleShell.tsx:241:          <span className="min-w-0 [overflow-wrap:anywhere] text-xs text-slate-300" data-testid="signed-in-identity">
+src/auth/RoleShell.tsx:250:                data-testid="billing-agent-badge"
+src/auth/RoleShell.tsx:276:        <aside className="border-b border-amber-900/50 bg-amber-950/20 px-4 py-2 text-xs text-amber-100" data-testid="demo-badge">
+src/auth/SignInPage.test.tsx:17:  expect(html).not.toContain('data-testid="demo-enter-gc"');
+src/auth/VerifyEmailForm.tsx:119:        data-testid="resend-code"
+src/auth/demoSeats.ts:11:  testId: "gc" | "sub" | "owner";
+src/auth/demoSeats.ts:30:    testId: "gc",
+src/auth/demoSeats.ts:37:    testId: "sub",
+src/auth/demoSeats.ts:44:    testId: "owner",
+src/bids/BidInvitationsPage.tsx:23:        <ul className="space-y-3" data-testid="bid-invitations">
+src/bids/BidPackagePage.tsx:80:          <ul className="divide-y divide-line text-sm" data-testid="bid-documents">
+src/bids/BidPackagePage.tsx:92:            <ul className="mt-1 divide-y divide-line text-sm" data-testid="bid-addenda">
+src/bids/BidPackagePage.tsx:102:          <ol className="space-y-3 text-sm" data-testid="published-qa">
+src/bids/BidPackagePage.tsx:147:              <p className="text-sm font-semibold" data-testid="bid-revision-status">
+src/bids/BidTermsSummary.tsx:10:        <dd className="text-base font-semibold" data-testid="bid-base">
+src/bids/LevelingAwardPanel.tsx:152:          <dd className="text-sm font-medium text-ink" data-testid="apparent-low">
+src/bids/LevelingAwardPanel.tsx:164:          <dd className="text-sm font-medium text-ink" data-testid="leveled-low">
+src/bids/LevelingAwardPanel.tsx:181:            <li key={row.bidId} className="rounded-xl border border-line p-3" data-testid={`leveling-row-${row.subcontractorName}`}>
+src/bids/PackageAddendaPanel.tsx:16:        <ul className="divide-y divide-line text-sm" data-testid="package-addenda">
+src/bids/PackageBidsPanel.tsx:64:        <ul className="divide-y divide-line text-sm" data-testid="package-bids">
+src/bids/PackageBidsPanel.tsx:68:              <li key={b._id} className="space-y-2 py-2" data-testid={`package-bid-${b._id}`}>
+src/bids/PackageQuestionsPanel.tsx:47:        <ul className="divide-y divide-line text-sm" data-testid="package-questions">
+src/bids/PackageQuestionsPanel.tsx:79:    <li className="space-y-1 py-2" data-testid={`question-${q._id}`}>
+src/bids/PackageQuestionsPanel.tsx:93:        <p className="whitespace-pre-wrap break-words rounded border border-dashed border-line p-2 text-xs text-ink-subtle" data-testid="ai-draft">
+src/bids/PackageQuestionsPanel.tsx:99:        <div className="space-y-1 rounded border border-line p-2 text-xs" data-testid="rfi-answer">
+src/billing/BillingWorklist.tsx:83:            <tr key={r._id} className="border-t border-line" data-testid="billing-worklist-row">
+src/billing/ComplianceHold.tsx:22:    <ul className="space-y-1 text-sm text-amber-200" data-testid="compliance-warnings">
+src/billing/ComplianceHold.tsx:40:    <div className="space-y-2" data-testid="compliance-hold">
+src/billing/ComplianceHold.tsx:42:        <p className="text-sm text-ink" data-testid="compliance-override">
+src/billing/ComplianceHold.tsx:59:            data-testid="compliance-override-button"
+src/billing/ComplianceHold.tsx:64:            <span id={hintId} className="text-xs text-ink-subtle" data-testid="compliance-override-admin-only">
+src/billing/ComplianceHold.tsx:100:              data-testid="compliance-override-reason"
+src/billing/ComplianceHold.tsx:113:    <div className="space-y-2" data-testid="compliance-hold">
+src/billing/FundingTranches.tsx:61:    <div className="space-y-4" data-testid="funding-tranches">
+src/billing/FundingTranches.tsx:62:      <p className="text-sm text-slate-300" data-testid="tranche-totals">
+src/billing/FundingTranches.tsx:70:        <p className="text-sm text-slate-400" data-testid="tranches-empty">
+src/billing/FundingTranches.tsx:75:          <table className="w-full text-sm" data-testid="tranches-table">
+src/billing/FundingTranches.tsx:173:    <tr className="border-t border-slate-800 align-top" data-testid="tranche-row" data-locked={tranche.locked ? "true" : "false"}>
+src/billing/FundingTranches.tsx:176:          <TextInput label="Name" value={name} onChange={setName} data-testid="tranche-edit-name" />
+src/billing/FundingTranches.tsx:178:          <span data-testid="tranche-name">{tranche.name}</span>
+src/billing/FundingTranches.tsx:183:        {editing ? <DateInput label="Planned date" value={date} onChange={setDate} data-testid="tranche-edit-date" /> : utcDateLabel(tranche.plannedDate)}
+src/billing/FundingTranches.tsx:185:          <span className="block text-xs text-amber-300" data-testid="tranche-date-warning">
+src/billing/FundingTranches.tsx:195:          <MoneyInput label="Amount" value={amount} onChange={setAmount} data-testid="tranche-edit-amount" />
+src/billing/FundingTranches.tsx:197:          <span data-testid="tranche-amount">{formatCents(tranche.amountCents)}</span>
+src/billing/FundingTranches.tsx:217:                <Button size="sm" loading={busy} onClick={() => void save()} data-testid="tranche-save">
+src/billing/FundingTranches.tsx:227:                  <Button size="sm" variant="secondary" onClick={() => { setName(tranche.name); setAmount(tranche.amountCents); setDate(isoDate(tranche.plannedDate)); setEditing(true); }} data-testid="tranche-edit">
+src/billing/FundingTranches.tsx:231:                <Button size="sm" variant="ghost" disabled={first} onClick={() => void doMove("up")} aria-label={`Move ${tranche.name} up`} data-testid="tranche-up">
+src/billing/FundingTranches.tsx:234:                <Button size="sm" variant="ghost" disabled={last} onClick={() => void doMove("down")} aria-label={`Move ${tranche.name} down`} data-testid="tranche-down">
+src/billing/FundingTranches.tsx:238:                  <Button size="sm" variant="ghost" onClick={() => setConfirmDelete(true)} data-testid="tranche-delete">
+src/billing/FundingTranches.tsx:246:            <p className="mt-1 max-w-xs text-xs text-rose-300" role="alert" data-testid="tranche-error">
+src/billing/FundingTranches.tsx:316:      data-testid="add-tranche-form"
+src/billing/FundingTranches.tsx:324:        <TextInput label="Name" required value={name} onChange={setName} error={errors.name} data-testid="tranche-name-input" />
+src/billing/FundingTranches.tsx:332:          data-testid="tranche-amount-input"
+src/billing/FundingTranches.tsx:339:          data-testid="tranche-date-input"
+src/billing/FundingTranches.tsx:343:        <p className="text-xs text-amber-300" data-testid="tranche-date-warning">
+src/billing/FundingTranches.tsx:348:        <p className="text-sm text-rose-300" role="alert" data-testid="tranche-add-error">
+src/billing/FundingTranches.tsx:357:      <Button type="submit" loading={busy} data-testid="add-tranche-button">
+src/billing/FundingTranches.tsx:373:      <Button size="sm" variant="secondary" onClick={() => setOpen(true)} data-testid="close-milestone-button">
+src/billing/LienWaiverPanel.tsx:25:      <p className={`text-xs ${stale ? "text-amber-200" : "text-emerald-300"}`} data-testid={`lien-waiver-signed-${slot.signed.waiverId}`}>
+src/billing/LienWaiverPanel.tsx:31:        <p className="text-xs text-amber-200" data-testid="lien-waiver-amount-changed">
+src/billing/LienWaiverPanel.tsx:198:      data-testid="lien-waiver-panel"
+src/billing/LienWaiverPanel.tsx:201:        <section aria-labelledby="waiver-current" className="space-y-2" data-testid="lien-waiver-current">
+src/billing/LienWaiverPanel.tsx:215:                <Button size="sm" leadingIcon={<ShieldCheck className="h-4 w-4" aria-hidden="true" />} onClick={() => open("conditional")} data-testid="lien-waiver-sign-conditional">
+src/billing/LienWaiverPanel.tsx:232:          <section aria-labelledby="waiver-prior" className="space-y-2 border-t border-line pt-4" data-testid="lien-waiver-prior">
+src/billing/LienWaiverPanel.tsx:250:                  <Button size="sm" variant="secondary" leadingIcon={<ShieldCheck className="h-4 w-4" aria-hidden="true" />} onClick={() => open("unconditional")} data-testid="lien-waiver-sign-prior">
+src/billing/LienWaiverPanel.tsx:264:          <section aria-labelledby="waiver-retainage" className="space-y-2 border-t border-line pt-4" data-testid="lien-waiver-retainage">
+src/billing/LienWaiverPanel.tsx:285:                data-testid="lien-waiver-sign-retainage"
+src/billing/LienWaiverPanel.tsx:337:              <Button onClick={confirm} loading={busy} loadingLabel="Signing…" data-testid="lien-waiver-confirm">
+src/billing/LienWaiverPanel.tsx:374:              data-testid="lien-waiver-statement"
+src/billing/OwnerBilling.moneyStrip.test.tsx:83:    expect(html).toContain('data-testid="gc-owner-billing"');
+src/billing/OwnerBilling.moneyStrip.test.tsx:84:    expect(html).toContain('data-testid="project-money-strip"');
+src/billing/OwnerBilling.moneyStrip.test.tsx:90:    expect(html).toContain('data-testid="owner-money-strip"');
+src/billing/OwnerBilling.moneyStrip.test.tsx:91:    expect(html.indexOf('data-testid="project-money-strip"')).toBeLessThan(
+src/billing/OwnerBilling.moneyStrip.test.tsx:92:      html.indexOf('data-testid="owner-money-strip"'),
+src/billing/OwnerBilling.tsx:50:          <select {...control} value={selected ?? ""} onChange={(e) => setProjectId(e.target.value)} className={inputClass(false)} data-testid="owner-billing-project">
+src/billing/OwnerBilling.tsx:80:    <dl className="divide-y divide-line rounded-lg border border-line text-sm" data-testid="owner-g702">
+src/billing/OwnerBilling.tsx:82:        <div key={no} className={`flex justify-between gap-4 px-3 py-2 ${no === "8" ? "bg-emerald-950/30 font-semibold" : ""}`} data-testid={`owner-g702-${no}`}>
+src/billing/OwnerBilling.tsx:142:          <table className="w-full min-w-[720px] text-sm" data-testid="owner-g703">
+src/billing/OwnerBilling.tsx:157:                <tr key={l.key} className="border-t border-line align-top" data-testid="owner-g703-row" data-kind={l.kind}>
+src/billing/OwnerBilling.tsx:179:                        data-testid="owner-line-amount"
+src/billing/OwnerBilling.tsx:206:      <table className="w-full min-w-[900px] text-sm" data-testid="owner-g703">
+src/billing/OwnerBilling.tsx:224:            <tr key={l.key} className="border-t border-line align-top" data-testid="owner-g703-row" data-kind={l.kind}>
+src/billing/OwnerBilling.tsx:245:                    data-testid="owner-line-amount"
+src/billing/OwnerBilling.tsx:274:    <div className="rounded-lg border border-line px-3 py-2 text-sm" data-testid="owner-direct-invoiced">
+src/billing/OwnerBilling.tsx:302:    <div className="space-y-2 rounded-lg border border-sky-700 bg-sky-950/40 px-3 py-3 text-sm text-sky-100" role="status" data-testid="owner-refresh-panel">
+src/billing/OwnerBilling.tsx:306:      <ul className="space-y-0.5" data-testid="owner-refresh-changes">
+src/billing/OwnerBilling.tsx:327:          <span className="tabular-nums" data-testid="owner-refresh-due">
+src/billing/OwnerBilling.tsx:332:      <Button size="sm" loading={busy} onClick={onRefresh} data-testid="owner-pay-app-refresh">
+src/billing/OwnerBilling.tsx:341:    <ol className="space-y-1 text-xs text-ink-subtle" data-testid="owner-pay-app-history">
+src/billing/OwnerBilling.tsx:374:    <div className="space-y-2 rounded-lg border border-line p-3 text-sm" data-testid="owner-invoice-panel">
+src/billing/OwnerBilling.tsx:378:          Invoice <span className="font-mono text-xs" data-testid="owner-invoice-id">{app.paypalInvoiceId}</span>
+src/billing/OwnerBilling.tsx:395:            data-testid="owner-invoice-payer-link"
+src/billing/OwnerBilling.tsx:408:          <Button variant="secondary" size="sm" loading={busy} onClick={() => void refreshStatus()} data-testid="owner-invoice-refresh">
+src/billing/OwnerBilling.tsx:413:          <Button variant="secondary" size="sm" disabled={busy} onClick={() => setConfirmSend(true)} data-testid="owner-invoice-resume">
+src/billing/OwnerBilling.tsx:449:      <DocumentDownloadButton kind="owner_pay_app_pdf" relatedId={app._id} label="Download PDF" testId="owner-pay-app-download-pdf" />
+src/billing/OwnerBilling.tsx:513:    <div className="space-y-4" data-testid="owner-pay-app">
+src/billing/OwnerBilling.tsx:516:        <p className="rounded-lg border border-amber-700 bg-amber-950/40 px-3 py-2 text-sm text-amber-100" data-testid="owner-pending-note">
+src/billing/OwnerBilling.tsx:521:        <p className="rounded-lg border border-amber-700 bg-amber-950/40 px-3 py-2 text-sm text-amber-100" data-testid="owner-changes-comment">
+src/billing/OwnerBilling.tsx:532:          <Button variant="secondary" loading={saving} disabled={!dirty} onClick={() => void saveLines().then((ok) => ok && toast.success("Saved."))} data-testid="owner-pay-app-save">
+src/billing/OwnerBilling.tsx:541:            data-testid="owner-pay-app-submit"
+src/billing/OwnerBilling.tsx:547:          <Button variant="danger" onClick={() => setConfirm("delete")} data-testid="owner-pay-app-delete">
+src/billing/OwnerBilling.tsx:600:    <ul className="divide-y divide-line rounded-lg border border-line text-sm" data-testid="owner-pay-app-list">
+src/billing/OwnerBilling.tsx:608:            data-testid="owner-pay-app-row"
+src/billing/OwnerBilling.tsx:653:      <dl className="grid gap-3 text-sm sm:grid-cols-3" data-testid="owner-money-strip">
+src/billing/OwnerBilling.tsx:656:          <dd className="font-semibold tabular-nums" data-testid="owner-money-submitted">{formatCents(totals.submittedCents)}</dd>
+src/billing/OwnerBilling.tsx:660:          <dd className="font-semibold tabular-nums" data-testid="owner-money-owed">{formatCents(totals.owedCents)}</dd>
+src/billing/OwnerBilling.tsx:664:          <dd className="font-semibold tabular-nums" data-testid="owner-money-paid">{formatCents(totals.paidCents)}</dd>
+src/billing/OwnerBilling.tsx:684:            data-testid="owner-pay-app-new"
+src/billing/OwnerBilling.tsx:719:    <div className="space-y-4" data-testid="gc-owner-billing">
+src/billing/OwnerBilling.tsx:733:      <div className="space-y-4" data-testid="gc-billing-documents">
+src/billing/OwnerBilling.tsx:783:          <Button loading={busy} onClick={() => void send()} data-testid="owner-request-changes-confirm">
+src/billing/OwnerBilling.tsx:798:            data-testid="owner-request-changes-comment"
+src/billing/OwnerBilling.tsx:824:    <div className="space-y-4" data-testid="owner-pay-app">
+src/billing/OwnerBilling.tsx:828:          <LinkButton variant="primary" size="md" href={app.payerViewUrl} target="_blank" rel="noreferrer" data-testid="owner-invoice-payer-link">
+src/billing/OwnerBilling.tsx:834:        testId="owner-draw-money-trail"
+src/billing/OwnerBilling.tsx:839:          valueTestId: "owner-draw-payment-due",
+src/billing/OwnerBilling.tsx:860:          <Button onClick={() => setOpen("approve")} data-testid="owner-pay-app-approve">
+src/billing/OwnerBilling.tsx:865:          <Button variant="secondary" onClick={() => setOpen("changes")} data-testid="owner-pay-app-request-changes">
+src/billing/OwnerBilling.tsx:873:      <details className="rounded-lg border border-line bg-surface px-3 py-2" data-testid="owner-draw-breakdown">
+src/billing/OwnerBilling.tsx:916:      <p className="text-sm" data-testid="owner-prime-retainage">
+src/billing/OwnerBilling.tsx:933:      <section className="space-y-2" aria-labelledby="owner-documents-heading" data-testid="owner-documents">
+src/billing/OwnerBilling.tsx:945:                testId="owner-documents-download-first"
+src/billing/OwnerDrawDesign.test.tsx:155:    expect(html).toContain('data-testid="owner-draw-money-trail"');
+src/billing/OwnerDrawDesign.test.tsx:156:    expect(html).toContain('data-testid="owner-draw-payment-due"');
+src/billing/OwnerDrawDesign.test.tsx:157:    expect(html).toMatch(/data-testid="owner-draw-payment-due"[^>]*text-3xl[^>]*>?\$3,600\.00/);
+src/billing/OwnerDrawDesign.test.tsx:171:    expect(html).toContain('data-testid="owner-pay-app-approve"');
+src/billing/OwnerDrawDesign.test.tsx:172:    expect(html).toContain('data-testid="owner-pay-app-request-changes"');
+src/billing/OwnerDrawDesign.test.tsx:174:    const approveTag = html.slice(html.indexOf('data-testid="owner-pay-app-approve"') - 400, html.indexOf('data-testid="owner-pay-app-approve"'));
+src/billing/OwnerDrawDesign.test.tsx:176:    const requestTag = html.slice(html.indexOf('data-testid="owner-pay-app-request-changes"') - 400, html.indexOf('data-testid="owner-pay-app-request-changes"'));
+src/billing/OwnerDrawDesign.test.tsx:192:    expect(html).toContain('data-testid="owner-invoice-payer-link"');
+src/billing/OwnerDrawDesign.test.tsx:194:    const linkTag = html.slice(html.indexOf('data-testid="owner-invoice-payer-link"') - 500, html.indexOf('data-testid="owner-invoice-payer-link"'));
+src/billing/OwnerDrawDesign.test.tsx:200:    expect(html.indexOf('data-testid="read-only-reference"')).toBeGreaterThan(html.indexOf('data-testid="owner-draw-money-trail"'));
+src/billing/PayAppDecision.tsx:124:          <span data-testid="review-engine">
+src/billing/PayAppDecision.tsx:153:            data-testid="review-rerun"
+src/billing/PayAppDecision.tsx:159:      data-testid="gc-review-panel"
+src/billing/PayAppDecision.tsx:162:        <div className="mb-3 rounded-lg border border-line bg-surface-raised p-3 text-xs" data-testid="review-excluded-scope">
+src/billing/PayAppDecision.tsx:182:          <table className="w-full min-w-[880px] text-sm" data-testid="review-lines">
+src/billing/PayAppDecision.tsx:198:                  <tr key={l.sovLineId} className="border-t border-line align-top" data-testid="review-line" data-line-no={l.lineNo}>
+src/billing/PayAppDecision.tsx:212:                    <td className="px-2 py-2 text-right tabular-nums" data-testid="review-line-pct">
+src/billing/PayAppDecision.tsx:216:                    <td className="px-2 py-2 text-right tabular-nums" data-testid="review-line-amount">
+src/billing/PayAppDecision.tsx:221:                        <span className="text-xs text-ink-subtle" data-testid="review-line-credit">
+src/billing/PayAppDecision.tsx:255:                data-testid="decision-approve"
+src/billing/PayAppDecision.tsx:269:              <Button variant="secondary" onClick={startRevision} disabled={revising.length === 0} data-testid="decision-request-revision">
+src/billing/PayAppDecision.tsx:287:                data-testid="decision-reject-reason"
+src/billing/PayAppDecision.tsx:289:              <Button variant="danger" onClick={startReject} data-testid="decision-reject">
+src/billing/PayAppDecision.tsx:369:    <div className="min-w-[16rem] space-y-2" data-testid="line-decision">
+src/billing/PayAppDecision.tsx:393:          <div className="text-xs" data-testid="override-saved">
+src/billing/PayAppDecision.tsx:414:            <Button size="sm" variant="secondary" onClick={onSave} data-testid="override-save">
+src/billing/PayAppDecision.tsx:441:      data-testid="payapp-decision"
+src/billing/PayAppDecision.tsx:448:          <blockquote className="mb-2 border-l-2 border-line-strong pl-3 text-sm" data-recorded-history="decision-reason" data-testid="payapp-decision-reason">{decision.reason}</blockquote>
+src/billing/PayAppDecision.tsx:450:          <p className="mb-2 text-sm" data-testid="payapp-decision-reason">{reviewText(decision.reason)}</p>
+src/billing/PayAppDecision.tsx:456:            <li key={l.sovLineId} className="rounded-lg border border-line p-2" data-testid="payapp-decision-line" data-line-no={l.lineNo}>
+src/billing/PayAppDecision.tsx:486:          <li key={v.version} className="rounded-lg border border-line p-3" data-testid="payapp-version" data-version={v.version}>
+src/billing/PayAppDecision.tsx:496:              <ul className="mt-2 list-disc pl-5" data-testid="payapp-version-changes">
+src/billing/PayAppDecision.tsx:510:              <table className="mt-2 w-full text-xs" data-testid="payapp-version-lines">
+src/billing/PayAppDecision.tsx:538:    <div data-testid="payapp-versions">{body}</div>
+src/billing/PayAppDecision.tsx:540:    <Card title="Version history" data-testid="payapp-versions">
+src/billing/PayAppMoneyTrail.test.tsx:43:    expect(html).toContain('data-testid="payapp-money-trail"');
+src/billing/PayAppMoneyTrail.test.tsx:44:    expect(html).toContain('data-testid="payapp-retainage-total"');
+src/billing/PayAppMoneyTrail.test.tsx:45:    expect(html).toContain('data-testid="payapp-money-trail-edit"');
+src/billing/PayAppMoneyTrail.test.tsx:92:    expect(html).not.toContain('data-testid="payapp-money-trail-edit"');
+src/billing/PayAppMoneyTrail.tsx:57:      <p className="text-xs text-ink-subtle" data-testid="payapp-retainage-total">
+src/billing/PayAppMoneyTrail.tsx:63:        <p className="text-xs text-ink-subtle" data-testid="payapp-money-trail-edit">
+src/billing/PayAppMoneyTrail.tsx:73:      testId="payapp-money-trail"
+src/billing/PayAppPage.tsx:195:          <dd className="font-semibold" data-testid="payapp-number">
+src/billing/PayAppPage.tsx:201:          <dd className="font-semibold" data-testid="payapp-period">
+src/billing/PayAppPage.tsx:207:          <dd className="font-semibold" data-testid="payapp-due">
+src/billing/PayAppPage.tsx:216:          <dd className="font-semibold" aria-live="polite" data-testid="payapp-save-state">
+src/billing/PayAppPage.tsx:254:              <Button onClick={() => setConfirm("submit")} disabled={!canSubmit} data-testid="payapp-submit">
+src/billing/PayAppPage.tsx:258:              <Button onClick={() => setConfirm("revise")} data-testid="payapp-revise">
+src/billing/PayAppPage.tsx:262:              <Button onClick={() => setConfirm("withdraw")} data-testid="payapp-withdraw">
+src/billing/PayAppPage.tsx:268:              <a href={ledgerHash(view.agreement._id)} className={primaryLink} data-testid="payapp-view-payments">
+src/billing/PayAppPage.tsx:272:            <details className="w-auto" data-testid="payapp-more-actions">
+src/billing/PayAppPage.tsx:277:                <DocumentDownloadButton kind="sub_pay_app_pdf" relatedId={view._id} label="Download PDF" testId="payapp-download-pdf" />
+src/billing/PayAppPage.tsx:278:                <DocumentDownloadButton kind="pay_app_lines_csv" relatedId={view._id} label="Export lines CSV" testId="payapp-export-csv" />
+src/billing/PayAppPage.tsx:291:        <p className="text-sm text-amber-300" role="status" data-testid="payapp-unverified">
+src/billing/PayAppPage.tsx:296:        <p className="text-sm text-rose-300" data-testid="payapp-rejection-reason">
+src/billing/PayAppPage.tsx:336:        <Disclosure testId="payapp-breakdown" title={terms.payAppBreakdown} description="Line by line, as stored">
+src/billing/PayAppPage.tsx:349:      <Disclosure testId="payapp-summary" title={terms.payAppSummary} description="How the net payment is reached">
+src/billing/PayAppPage.tsx:353:        <Disclosure testId="payapp-approval-history" title="Submission and approval history" description="Timestamps and the recorded reasons">
+src/billing/PayAppPage.tsx:359:          <ul className="divide-y divide-line text-sm" data-testid="pay-app-change-orders">
+src/billing/PayAppPage.tsx:462:  testId,
+src/billing/PayAppPage.tsx:467:  testId?: string;
+src/billing/PayAppPage.tsx:471:    <details className="group rounded-xl border border-line bg-surface" data-testid={testId}>
+src/billing/PayAppPage.tsx:489:        <li data-testid="payapp-ai-vs-approved">
+src/billing/PayAppPage.tsx:537:        data-testid="g703-sheet"
+src/billing/PayAppPage.tsx:570:                <tr key={l.sovLineId} className="border-t border-line" data-testid="g703-line" data-line-no={l.lineNo}>
+src/billing/PayAppPage.tsx:591:                      <span className="mt-1 block text-xs text-amber-200" data-testid="g703-line-gc-reason">
+src/billing/PayAppPage.tsx:596:                      <p className="mt-1 text-xs text-rose-300" role="alert" data-testid="g703-line-error">
+src/billing/PayAppPage.tsx:612:                            <span className="text-xs" data-testid="g703-credit-hint">
+src/billing/PayAppPage.tsx:648:            <tr data-testid="g703-totals">
+src/billing/PayAppPage.tsx:713:      <dl className="divide-y divide-line text-sm" data-testid="g702-summary">
+src/billing/PayAppPage.tsx:724:      <p className="mt-3 text-xs text-ink-subtle" data-testid="g702-retainage-note">
+src/billing/PayAppThread.tsx:24:      data-testid="pay-app-thread-entry"
+src/billing/PayAppThread.tsx:50:      <p className="text-xs text-ink-subtle" data-testid="pay-app-thread-blocked">
+src/billing/PayAppThread.tsx:91:      <div className="flex flex-wrap items-center gap-3" data-testid="pay-app-thread-composer">
+src/billing/PayAppThread.tsx:97:          data-testid={isSub ? "pay-app-thread-question" : "pay-app-thread-reply"}
+src/billing/PayAppThread.tsx:109:    <form onSubmit={submit} className="rounded-xl border border-line bg-surface-raised p-3" data-testid="pay-app-thread-form">
+src/billing/PayAppThread.tsx:128:            data-testid="pay-app-thread-input"
+src/billing/PayAppThread.tsx:145:            data-testid="pay-app-thread-send"
+src/billing/PayAppThread.tsx:174:      data-testid="pay-app-thread"
+src/billing/PayAppThread.tsx:177:        <p className="text-sm text-ink-muted" data-testid="pay-app-thread-empty">
+src/billing/PayAppThread.tsx:183:        <ol className="space-y-2" aria-label="Questions and replies on this pay app" data-testid="pay-app-thread-entries">
+src/billing/PayAppsPage.tsx:75:          <Button onClick={() => setConfirmNew(true)} loading={busy} data-testid="new-pay-app">
+src/billing/PayAppsPage.tsx:79:          <Button disabled aria-describedby={reasonId} data-testid="new-pay-app">
+src/billing/PayAppsPage.tsx:95:        <p id={reasonId} className="text-sm text-amber-200" data-testid="new-pay-app-blocked-reason">
+src/billing/PayAppsPage.tsx:100:        <p className="text-sm text-ink-muted" data-testid="next-pay-app">
+src/billing/PayAppsPage.tsx:131:                <tr key={p._id} className="border-t border-line" data-testid="sub-pay-app-row">
+src/billing/PayAppsPage.tsx:152:      <div className="mt-3 flex flex-wrap items-start gap-2 border-t border-line pt-3" data-testid="sub-agreement-documents">
+src/billing/PaymentPanel.tsx:56:    <dl className="grid gap-3 text-sm sm:grid-cols-3" data-testid="payment-figures">
+src/billing/PaymentPanel.tsx:75:    <div className="space-y-1 text-sm" data-testid="payment-status-detail" data-status={payment.status}>
+src/billing/PaymentPanel.tsx:85:      <p className="text-xs text-ink-subtle" data-testid="payment-provenance">
+src/billing/PaymentPanel.tsx:90:        <p className="text-sm text-rose-300" role="alert" data-testid="payment-error">
+src/billing/PaymentPanel.tsx:134:      data-testid="payment-panel"
+src/billing/PaymentPanel.tsx:139:          <p className="text-sm font-semibold text-emerald-300" data-testid="payment-already-paid">
+src/billing/PaymentPanel.tsx:144:          <div data-testid="payment-blockers">
+src/billing/PaymentPanel.tsx:148:                <li key={r.code} data-testid="payment-blocker" data-code={r.code}>
+src/billing/PaymentPanel.tsx:157:          <p className="text-sm text-ink-subtle" data-testid="payment-ready">
+src/billing/PaymentPanel.tsx:164:            <Button onClick={() => setConfirm("pay")} disabled={!panel.canPay || busy} data-testid="pay-sub-button">
+src/billing/PaymentPanel.tsx:173:              data-testid="payment-refresh"
+src/billing/PaymentPanel.tsx:183:              data-testid="payment-retry"
+src/billing/PaymentPanel.tsx:189:            <Button variant="secondary" disabled={busy} onClick={() => setConfirm("resume")} data-testid="payment-resume">
+src/billing/PaymentPanel.tsx:200:          <p className="text-sm text-rose-300" role="alert" data-testid="payment-action-error">
+src/billing/PaymentPanel.tsx:301:    <Card title="Payment" data-testid="payment-panel">
+src/billing/PaymentPanel.tsx:306:            <p className="text-sm font-semibold" data-testid="sub-payment-summary">
+src/billing/PaymentPanel.tsx:314:          <p className="text-sm text-ink-subtle" data-testid="sub-payment-summary">
+src/billing/PaymentPanel.tsx:318:        <dl className="grid gap-3 text-sm sm:grid-cols-2" data-testid="sub-retainage">
+src/billing/PaymentPanel.tsx:331:          <p className="text-xs text-amber-200" data-testid="sub-retainage-zero-note">
+src/billing/ProjectMoneyStrip.test.tsx:130:function cell(html: string, testId: string): { text: string; href: string | null; openingTag: string } {
+src/billing/ProjectMoneyStrip.test.tsx:131:  const match = html.match(new RegExp(`<dd[^>]*data-testid="${testId}"[^>]*>([\\s\\S]*?)</dd>`));
+src/billing/ProjectMoneyStrip.test.tsx:132:  const openingTag = html.match(new RegExp(`<dd[^>]*data-testid="${testId}"[^>]*>`))?.[0] ?? "";
+src/billing/ProjectMoneyStrip.test.tsx:156:    expect(html).toContain('data-testid="project-money-owner-retainage"');
+src/billing/ProjectMoneyStrip.test.tsx:159:    expect(html).toContain('data-testid="project-money-strip"');
+src/billing/ProjectMoneyStrip.tsx:49:  testId,
+src/billing/ProjectMoneyStrip.tsx:58:  testId: string;
+src/billing/ProjectMoneyStrip.tsx:70:        <dd className="mt-1 text-xl font-semibold tabular-nums text-ink sm:text-2xl" data-testid={testId}>
+src/billing/ProjectMoneyStrip.tsx:105:      <Card className={className} data-testid="project-money-strip" aria-busy="true">
+src/billing/ProjectMoneyStrip.tsx:173:    <Card className={className} data-testid="project-money-strip" title={title} description={<span className="hidden sm:inline">{description}</span>}>
+src/billing/ProjectMoneyStrip.tsx:177:          testId="project-money-collected"
+src/billing/ProjectMoneyStrip.tsx:194:          testId="project-money-paid-subs"
+src/billing/ProjectMoneyStrip.tsx:204:          testId="project-money-retainage"
+src/billing/ProjectMoneyStrip.tsx:211:                <span className="block" data-testid="project-money-owner-retainage">
+src/billing/ProjectMoneyStrip.tsx:224:          testId="project-money-owed"
+src/billing/ProjectMoneyStrip.tsx:235:        <details className="mt-3 rounded-lg border border-line bg-surface-sunken" data-testid="project-money-receipts">
+src/billing/RetainageView.tsx:21:    <div className="space-y-4" data-testid="retainage-view">
+src/billing/RetainageView.tsx:23:        <Card key={p.projectId} title={p.projectTitle} headingLevel={3} data-testid="retainage-project">
+src/billing/RetainageView.tsx:25:            <div className="rounded-lg border border-line p-3" data-testid="retainage-sub-total">
+src/billing/RetainageView.tsx:29:            <div className="rounded-lg border border-line p-3" data-testid="retainage-prime">
+src/billing/RetainageView.tsx:45:              <table className="w-full text-sm" data-testid="retainage-prime-trades">
+src/billing/RetainageView.tsx:56:                    <tr key={l.description} className="border-t border-line" data-testid="retainage-prime-trade-row">
+src/billing/RetainageView.tsx:65:                <p className="mt-2 text-xs text-ink-subtle" data-testid="retainage-rounding-note">
+src/billing/RetainageView.tsx:75:            <table className="w-full text-sm" data-testid="retainage-agreements">
+src/billing/RetainageView.tsx:90:                  <tr key={a.agreementId} className="border-t border-line" data-testid="retainage-agreement-row">
+src/billing/RetainageView.tsx:117:                      <DocumentDownloadButton kind="retainage_ledger_csv" relatedId={a.agreementId} label="Ledger CSV" variant="ghost" testId="retainage-ledger-csv" />
+src/billing/SovEditor.tsx:129:              data-testid="sov-approved-by"
+src/billing/SovEditor.tsx:145:            data-testid="sov-contract-sum"
+src/billing/SovEditor.tsx:156:                data-testid="sov-total"
+src/billing/SovEditor.tsx:167:                data-testid="sov-difference"
+src/billing/SovEditor.tsx:178:              <dd className="font-semibold tabular-nums" data-testid="sov-net-change">
+src/billing/SovEditor.tsx:185:              <dd className="font-semibold tabular-nums" data-testid="sov-contract-sum-to-date">
+src/billing/SovEditor.tsx:196:          data-testid="sov-locked-note"
+src/billing/SovEditor.tsx:228:            <DocumentDownloadButton kind="sov_csv" relatedId={sov.agreementId} label="Export CSV" variant="ghost" testId="sov-export-csv" />
+src/billing/SovEditor.tsx:247:          data-testid="sov-error"
+src/billing/SovEditor.tsx:255:          <table className="w-full text-sm" data-testid="sov-lines">
+src/billing/SovEditor.tsx:306:                    data-testid="sov-line"
+src/billing/SovEditor.tsx:314:                          data-testid="sov-line-change-order"
+src/billing/SovEditor.tsx:418:              data-testid="sov-approval-problem"
+src/billing/SovEditor.tsx:659:          data-testid="sov-import-file"
+src/billing/SovEditor.tsx:671:          data-testid="sov-import-errors"
+src/billing/SovEditor.tsx:684:        <div className="mt-3" data-testid="sov-import-preview">
+src/billing/SovEditor.tsx:723:                    data-testid="sov-import-total"
+src/billing/ownerDrawVocabulary.test.tsx:49:/** Static markup includes data-testid attributes; the vocabulary gate is about rendered text. */
+src/billing/payAppsPage.test.ts:39:  const match = html.match(/<button[^>]*data-testid="new-pay-app"[^>]*>/);
+src/compliance/CompliancePage.tsx:35:    <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs text-ink-muted" data-testid="compliance-reasons">
+src/compliance/CompliancePage.tsx:95:      <p className="text-xs text-ink-muted" data-testid="license-manual">
+src/compliance/CompliancePage.tsx:107:    <div className="flex flex-wrap items-center gap-2" data-testid="license-cslb">
+src/compliance/CompliancePage.tsx:280:      data-testid="compliance-item"
+src/compliance/CompliancePage.tsx:405:                <Card padded data-testid="compliance-vendor-row" data-status={r.status}>
+src/compliance/ComplianceUploadForm.tsx:215:    <form ref={formRef} noValidate onSubmit={(e) => void onSubmit(e)} className="space-y-4" data-testid={`compliance-form-${kind}`}>
+src/components/BidLevelingMatrixView.tsx:755:              <p className="text-xs text-slate-300 mb-1" data-testid="leveling-bid-due">
+src/components/ContractsRegisterView.tsx:285:                    <td className="px-4 py-3.5 font-mono font-bold text-white text-sm" data-testid="register-contract-sum-to-date">
+src/components/ContractsRegisterView.tsx:288:                        <div className="text-[11px] font-normal text-slate-400" data-testid="register-original-contract-sum">
+src/components/Header.tsx:155:          data-testid="demo-toolbar"
+src/components/TradePackagesView.tsx:406:                      <span className="text-slate-300 text-[11px] text-right" data-testid="procurement-bid-due">
+src/dashboard/DashboardFallback.test.tsx:37:    expect(html).toContain('data-testid="dashboard-money-chart"');
+src/dashboard/DashboardFallback.tsx:13:    <div className="space-y-4" data-testid="dashboard-basic-view">
+src/dashboard/DashboardFallback.tsx:64:    <section aria-labelledby="money-chart-title" data-testid="dashboard-money-chart" className="rounded-xl border border-slate-800 p-4">
+src/dashboard/PayAppEvalPanel.tsx:66:    <div className="space-y-2" data-testid="payapp-eval-panel">
+src/dashboard/PaymentsDashboard.tsx:31:          <p className="text-xs text-slate-400" data-testid="dashboard-convex-totals">
+src/dashboard/PaymentsDashboard.tsx:43:              data-testid="dashboard-read-only"
+src/dashboard/PaymentsDashboard.tsx:74:          data-testid="dashboard-data-incomplete"
+src/dashboard/StudioDashboard.tsx:52:            <div style={{ height: "100%" }} data-testid="ag-studio-dashboard">
+src/dashboard/widgets.tsx:103:    <div style={{ height: "100%", overflow: "auto", padding: 8, color: P.text, fontSize: 12 }} data-testid="pay-app-review-card">
+src/dashboard/widgets.tsx:192:      data-testid="retainage-gauge"
+src/documents/DocumentDownload.tsx:42:  testId,
+src/documents/DocumentDownload.tsx:49:  testId?: string;
+src/documents/DocumentDownload.tsx:85:        data-testid={testId}
+src/documents/DocumentDownload.tsx:129:        <table className="w-full text-sm" data-testid="documents-table">
+src/documents/DocumentDownload.tsx:143:              <tr key={d._id} className="border-t border-line" data-testid="documents-row">
+src/invites/InvitePage.tsx:90:          <dd className="font-medium break-all text-right" data-testid="invite-email">
+src/notifications/NotificationBell.tsx:49:        data-testid="notification-bell"
+src/notifications/NotificationBell.tsx:57:            data-testid="notification-badge"
+src/payments/AgreementLedgerView.tsx:80:            <p className="text-xs text-slate-400 mt-1" data-testid="ledger-agreement-number">
+src/payments/AgreementLedgerView.tsx:86:              <span data-testid="ledger-retainage-rate">
+src/payments/AgreementLedgerView.tsx:98:              <DocumentDownloadButton kind="subcontract_pdf" relatedId={agreement._id} label="Subcontract PDF" testId="ledger-subcontract-pdf" />
+src/payments/AgreementLedgerView.tsx:99:              <DocumentDownloadButton kind="retainage_ledger_csv" relatedId={agreement._id} label="Retainage CSV" testId="ledger-retainage-csv" />
+src/payments/AgreementLedgerView.tsx:103:        <dl className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-sm" data-testid="ledger-totals">
+src/payments/AgreementLedgerView.tsx:107:              <dd className="font-semibold tabular-nums" data-testid={`ledger-${t.key}`}>
+src/payments/AgreementLedgerView.tsx:111:                <dd className="text-xs text-slate-400" data-testid="ledger-original-contract-sum">
+src/payments/AgreementLedgerView.tsx:118:        <p className="text-xs text-slate-400" data-testid="ledger-balance-formula">
+src/payments/AgreementLedgerView.tsx:122:          <ul className="text-xs text-amber-200 space-y-1" role="alert" data-testid="ledger-billing-attention">
+src/payments/AgreementLedgerView.tsx:128:        <dl className="grid grid-cols-2 sm:grid-cols-6 gap-3 text-xs" data-testid="ledger-reconciliation">
+src/payments/AgreementLedgerView.tsx:134:              <dd className="font-semibold tabular-nums text-slate-200" data-testid={`ledger-${t.key}`}>
+src/payments/AgreementLedgerView.tsx:140:        <p className="text-xs text-slate-400" data-testid="ledger-definitions">
+src/payments/AgreementLedgerView.tsx:159:          <table className="w-full text-sm" data-testid="ledger-sov-table">
+src/payments/AgreementLedgerView.tsx:170:                <tr key={line._id} className="border-t border-slate-800" data-testid="sov-line">
+src/payments/AgreementLedgerView.tsx:191:                <td className="py-2 pr-3 text-right tabular-nums" data-testid="ledger-sov-total">
+src/payments/AgreementLedgerView.tsx:200:          <div className="mt-4" data-testid="ledger-excluded-scope">
+src/payments/AgreementLedgerView.tsx:229:        <p className="text-sm text-slate-300" data-testid="retainage-summary">
+src/payments/AgreementLedgerView.tsx:231:          <span className="font-semibold tabular-nums" data-testid="retainage-released">
+src/payments/AgreementLedgerView.tsx:238:              <span className="font-semibold tabular-nums" data-testid="retainage-releasable">
+src/payments/AgreementLedgerView.tsx:258:          <table className="w-full text-sm" data-testid="retainage-ledger-table">
+src/payments/AgreementLedgerView.tsx:268:                <tr key={r._id} className="border-t border-slate-800" data-testid="retainage-row">
+src/payments/AgreementLedgerView.tsx:272:                      <a href={payAppHash(r.payAppId)} className="text-emerald-400 hover:text-emerald-300" data-testid="retainage-row-link">
+src/payments/AgreementLedgerView.tsx:291:                <td className="py-2 pr-3 text-right tabular-nums" data-testid="retainage-ledger-balance">
+src/payments/AgreementSummaryView.tsx:38:          <DocumentDownloadButton kind="subcontract_pdf" relatedId={agreementId} label="Subcontract PDF" testId="agreement-subcontract-pdf" />
+src/payments/AgreementSummaryView.tsx:48:          <dd className="font-semibold" data-testid="agreement-retainage">
+src/payments/ChangeOrderDetail.test.tsx:75:    expect(html).toContain('data-testid="change-order-amount"');
+src/payments/ChangeOrderDetail.test.tsx:76:    expect(html).toMatch(/class="[^"]*text-3xl[^"]*"[^>]*data-testid="change-order-amount"/);
+src/payments/ChangeOrderDetail.test.tsx:79:    expect(html).toContain('data-testid="change-order-paid-state"');
+src/payments/ChangeOrderDetail.test.tsx:91:    expect(html).toContain('data-testid="change-order-invoice-link"');
+src/payments/ChangeOrderDetail.test.tsx:95:    const linkTag = html.slice(html.indexOf('data-testid="change-order-invoice-link"') - 500, html.indexOf('data-testid="change-order-invoice-link"'));
+src/payments/ChangeOrderDetail.test.tsx:126:    expect(html).not.toContain('data-testid="change-order-invoice-link"');
+src/payments/ChangeOrderDetail.test.tsx:144:    expect(html).toContain('data-testid="not-found"');
+src/payments/ChangeOrderDetail.tsx:24:      <div role="alert" data-testid="not-found" className="max-w-xl rounded-2xl border border-slate-700 bg-slate-900/60 p-6">
+src/payments/ChangeOrderDetail.tsx:75:              data-testid="change-order-invoice-link"
+src/payments/ChangeOrderDetail.tsx:86:            <p className="text-3xl font-bold leading-tight tabular-nums text-ink" data-testid="change-order-amount">
+src/payments/ChangeOrderDetail.tsx:90:              <span className="flex flex-wrap items-center gap-2 text-sm text-ink-muted" data-testid="change-order-paid-state">
+src/payments/ChangeOrders.tsx:22:function ContractSumSummary({ sum, label, testId }: { sum: ContractSumBreakdown; label: string; testId: string }) {
+src/payments/ChangeOrders.tsx:27:    <dl className="grid gap-2 text-sm sm:grid-cols-3" data-testid={testId}>
+src/payments/ChangeOrders.tsx:30:        <dd className="font-semibold tabular-nums" data-testid={`${testId}-original`}>
+src/payments/ChangeOrders.tsx:36:        <dd className="font-semibold tabular-nums" data-testid={`${testId}-net`}>
+src/payments/ChangeOrders.tsx:39:        {parts.length > 0 ? <dd className="text-xs text-ink-subtle" data-testid={`${testId}-breakdown`}>{parts.join(", ")}</dd> : null}
+src/payments/ChangeOrders.tsx:43:        <dd className="font-semibold tabular-nums" data-testid={`${testId}-to-date`}>
+src/payments/ChangeOrders.tsx:116:    <form ref={formRef} onSubmit={(e) => void submit(e)} noValidate className="space-y-3 rounded-xl border border-line p-4" data-testid="change-order-form">
+src/payments/ChangeOrders.tsx:124:        data-testid="change-order-title"
+src/payments/ChangeOrders.tsx:135:            data-testid="change-order-description"
+src/payments/ChangeOrders.tsx:148:          data-testid="change-order-amount-input"
+src/payments/ChangeOrders.tsx:156:          data-testid="change-order-schedule-days"
+src/payments/ChangeOrders.tsx:162:            <select {...control} value={linked} onChange={(e) => setLinked(e.target.value)} className={inputClass(false)} data-testid="change-order-link">
+src/payments/ChangeOrders.tsx:174:        <p role="alert" className="text-sm text-rose-300" data-testid="change-order-form-error">
+src/payments/ChangeOrders.tsx:179:        <Button type="submit" loading={busy} loadingLabel="Saving…" data-testid="change-order-save">
+src/payments/ChangeOrders.tsx:219:      effect={<span data-testid="change-order-approve-effect">{effect}</span>}
+src/payments/ChangeOrders.tsx:272:          <Button variant="danger" loading={busy} onClick={() => void submit()} data-testid="change-order-reject-confirm">
+src/payments/ChangeOrders.tsx:287:            data-testid="change-order-reject-reason"
+src/payments/ChangeOrders.tsx:334:      <li className="py-3" data-testid="change-order-row">
+src/payments/ChangeOrders.tsx:350:    <li className="space-y-1.5 py-3" data-testid="change-order-row" data-status={co.status}>
+src/payments/ChangeOrders.tsx:354:            <a href={`#/change-orders/${encodeURIComponent(co._id)}`} className="inline-flex min-h-6 items-center font-semibold text-emerald-300 underline" data-testid="change-order-label">
+src/payments/ChangeOrders.tsx:358:            <span data-testid="change-order-title-text">{co.title}</span>
+src/payments/ChangeOrders.tsx:371:            <p className="text-xs text-rose-300" data-testid="change-order-rejection-reason">
+src/payments/ChangeOrders.tsx:388:          <span className="text-sm font-semibold tabular-nums" data-testid="change-order-amount">
+src/payments/ChangeOrders.tsx:396:        <DocumentDownloadButton kind="change_order_pdf" relatedId={co._id} label="PDF" variant="ghost" testId="change-order-pdf" />
+src/payments/ChangeOrders.tsx:398:          <Button size="sm" variant="secondary" onClick={() => setEditing(true)} disabled={busy} data-testid="change-order-edit">
+src/payments/ChangeOrders.tsx:403:          <Button size="sm" onClick={() => void run(`${co.label} submitted.`, () => submit({ changeOrderId: co._id }))} disabled={busy} data-testid="change-order-submit">
+src/payments/ChangeOrders.tsx:408:          <Button size="sm" variant="ghost" onClick={() => setPending("delete")} disabled={busy} data-testid="change-order-delete">
+src/payments/ChangeOrders.tsx:418:            data-testid="change-order-withdraw"
+src/payments/ChangeOrders.tsx:424:          <Button size="sm" onClick={() => setPending("approve")} disabled={busy} data-testid="change-order-approve">
+src/payments/ChangeOrders.tsx:429:          <Button size="sm" variant="danger" onClick={() => setPending("reject")} disabled={busy} data-testid="change-order-reject">
+src/payments/ChangeOrders.tsx:440:            data-testid="change-order-invoice-now"
+src/payments/ChangeOrders.tsx:446:          <span className="text-xs text-amber-300" data-testid="change-order-invoice-disabled">
+src/payments/ChangeOrders.tsx:451:          <a href={co.payerViewUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-6 items-center text-xs text-emerald-300 hover:underline" data-testid="change-order-invoice-link">
+src/payments/ChangeOrders.tsx:466:            data-testid="change-order-refresh"
+src/payments/ChangeOrders.tsx:525:      <p className="text-sm text-ink-subtle" data-testid="change-orders-empty">
+src/payments/ChangeOrders.tsx:531:    <ul className="divide-y divide-line" data-testid="change-order-list">
+src/payments/ChangeOrders.tsx:552:      <Button size="sm" onClick={() => setOpen(true)} data-testid="change-order-new">
+src/payments/ChangeOrders.tsx:579:    <section className="space-y-3 rounded-2xl border border-line bg-surface p-5" data-testid="subcontract-change-orders" aria-label={`${agreement.agreementNumber} change orders`}>
+src/payments/ChangeOrders.tsx:603:      <ContractSumSummary sum={agreement.contractSum} label="contract sum" testId="agreement-contract-sum" />
+src/payments/ChangeOrders.tsx:620:      data-testid="prime-change-orders"
+src/payments/ChangeOrders.tsx:647:        <ContractSumSummary sum={prime.contractSum} label={residential ? "contract sum" : "prime contract sum"} testId="prime-contract-sum" />
+src/payments/ChangeOrders.tsx:654:        <p className="text-xs text-ink-subtle" data-testid="change-order-recipient">
+src/payments/ChangeOrders.tsx:734:                <select {...control} value={selected ?? ""} onChange={(e) => setProjectId(e.target.value)} className={inputClass(false)} data-testid="change-orders-project">
+src/payments/ChangeOrders.tsx:759:    <section aria-labelledby="ledger-change-orders" className="space-y-3 rounded-2xl border border-slate-800 bg-slate-900 p-5" data-testid="ledger-change-orders">
+src/payments/ChangeOrders.tsx:768:      <ContractSumSummary sum={data.contractSum} label="contract sum" testId="ledger-contract-sum" />
+src/payments/FundMilestone.tsx:71:      <span className="text-xs text-emerald-300" data-testid="milestone-funding">
+src/payments/FundMilestone.tsx:78:      <span className="text-xs text-rose-300" data-testid="milestone-funding">
+src/payments/FundMilestone.tsx:86:      <span className="text-xs text-emerald-300 space-y-0.5" data-testid="milestone-funding">
+src/payments/FundMilestone.tsx:93:          <span className="block text-amber-300" data-testid="milestone-reauthorize-error">
+src/payments/FundMilestone.tsx:102:      <span className="text-xs text-rose-300" data-testid="milestone-funding">
+src/payments/FundMilestone.tsx:109:      <span className="text-xs text-amber-300" data-testid="milestone-funding">
+src/payments/FundMilestone.tsx:115:    <span className="text-xs text-slate-400" data-testid="milestone-funding">
+src/payments/FundMilestone.tsx:152:    <div className="space-y-2" data-testid="fund-control">
+src/payments/FundMilestone.tsx:156:          data-testid="fund-milestone-button"
+src/payments/FundMilestone.tsx:171:          data-testid="retry-authorization-button"
+src/payments/FundMilestone.tsx:180:        <div className="bg-white rounded-xl p-3 w-72 space-y-2" data-testid="paypal-buttons">
+src/payments/FundMilestone.tsx:238:        <p className="text-xs text-rose-300 max-w-xs" role="alert" data-testid="funding-error">
+src/payments/JudgeDemoBadge.tsx:7:      data-testid="judge-demo-badge"
+src/payments/LicenseCheck.tsx:25:      <span className="rounded-full border border-sky-800 bg-sky-950 px-2 py-0.5 text-xs text-sky-200" data-testid="license-badge" data-status="running">
+src/payments/LicenseCheck.tsx:32:    <span className={`rounded-full border px-2 py-0.5 text-xs ${b.style}`} data-testid="license-badge" data-status={status}>
+src/payments/LicenseCheck.tsx:75:    <section className="border border-slate-800 rounded-xl p-4 space-y-3" data-testid="license-check-panel">
+src/payments/LicenseCheck.tsx:81:            {data.contractor.companyName} · CA license #<span data-testid="license-number">{data.contractor.licenseNumber}</span>
+src/payments/LicenseCheck.tsx:86:              <span className="text-xs text-slate-400" data-testid="license-checked-at">
+src/payments/LicenseCheck.tsx:98:          data-testid="license-check-button"
+src/payments/LicenseCheck.tsx:112:              data-testid="license-live-view"
+src/payments/LicenseCheck.tsx:124:        <p className="text-xs text-slate-300 whitespace-pre-line" data-testid="license-summary">
+src/payments/LicenseCheck.tsx:128:      {note ? <p className="text-xs text-slate-300" role="status" data-testid="license-check-note">{note}</p> : null}
+src/payments/LienWaiverGateCard.tsx:45:      data-testid="lien-waiver-gate-card"
+src/payments/LienWaiverGateCard.tsx:83:              data-testid="lien-waiver-gate-toggle"
+src/payments/MilestoneFundingSummary.tsx:24:    <table className="w-full text-sm" aria-label={label} data-testid="sub-milestone-funding-table">
+src/payments/MilestoneFundingSummary.tsx:34:          <tr key={m._id} className="border-t border-slate-800" data-testid="sub-milestone-row">
+src/payments/MilestoneFundingSummary.tsx:40:                data-testid="sub-milestone-funding"
+src/payments/OwnerPortal.test.tsx:71:    expect(html).toContain('data-testid="owner-home-open-draw"');
+src/payments/OwnerPortal.test.tsx:121:    expect(html).toContain('data-testid="owner-job-so-far"');
+src/payments/OwnerPortal.test.tsx:122:    expect(html).toContain('data-testid="owner-project-secondary"');
+src/payments/OwnerPortal.test.tsx:126:    expect((html.match(/data-testid="owner-job-so-far"/g) ?? []).length).toBe(1);
+src/payments/OwnerPortal.test.tsx:132:    expect(html).toContain('data-testid="owner-money-trail"');
+src/payments/OwnerPortal.test.tsx:134:      expect(html, hook).toContain(`data-testid="${hook}"`);
+src/payments/OwnerPortal.test.tsx:136:    expect(html).toMatch(/data-testid="owner-job-paid"[^>]*text-3xl/);
+src/payments/OwnerPortal.tsx:69:    { label: "Contract to date", valueCents: job.contractSumToDateCents, valueTestId: "owner-job-contract" },
+src/payments/OwnerPortal.tsx:73:      valueTestId: "owner-job-completed",
+src/payments/OwnerPortal.tsx:75:    { label: "Retainage held", valueCents: job.retainageHeldCents, valueTestId: "owner-job-retainage" },
+src/payments/OwnerPortal.tsx:79:      valueTestId: "owner-job-balance",
+src/payments/OwnerPortal.tsx:85:      valueTestId: "owner-job-change-orders",
+src/payments/OwnerPortal.tsx:98:      data-testid="owner-job-so-far"
+src/payments/OwnerPortal.tsx:113:          <LinkButton variant="primary" size="md" href={OWNER_PAY_APPS_HASH} data-testid="owner-home-open-draw">
+src/payments/OwnerPortal.tsx:122:            <p className="text-3xl font-semibold tabular-nums text-ink" data-testid="owner-job-percent">
+src/payments/OwnerPortal.tsx:137:          <p className="mt-2 text-xs text-slate-400" data-testid="owner-job-basis">
+src/payments/OwnerPortal.tsx:141:            <p className="mt-1 text-xs text-slate-400" data-testid="owner-job-dates">
+src/payments/OwnerPortal.tsx:148:          testId="owner-money-trail"
+src/payments/OwnerPortal.tsx:153:            valueTestId: "owner-job-paid",
+src/payments/OwnerPortal.tsx:160:              <p className="text-xs text-slate-400" data-testid="owner-job-status">
+src/payments/OwnerPortal.tsx:185:      data-testid="owner-project-secondary"
+src/payments/OwnerPortal.tsx:302:                <div className="flex flex-wrap items-center justify-between gap-2 text-sm" data-testid="portal-prime-retainage">
+src/payments/OwnerPortal.tsx:317:              <div data-testid="portal-change-orders">
+src/payments/OwnerPortal.tsx:325:                  <p className="text-sm text-slate-300 mb-2" data-testid="portal-prime-contract-sum">
+src/payments/OwnerPortal.tsx:374:    <div data-testid="owner-tranches">
+src/payments/OwnerPortal.tsx:397:                  <tr key={tr._id} className="border-t border-slate-800" data-testid="owner-tranche-row">
+src/payments/PayAppReviews.tsx:47:      <p className="text-xs text-slate-300" data-testid="payapp-review-source">
+src/payments/PayAppReviews.tsx:53:    <p className="text-xs text-amber-200" data-testid="payapp-review-source">
+src/payments/PayAppReviews.tsx:111:    <article className="border border-slate-800 rounded-xl p-4 space-y-3" data-testid="payapp-review-card">
+src/payments/PayAppReviews.tsx:117:            {" · "}status <span data-testid="payapp-review-status" data-status={payApp.status}>{statusLabel(payApp.status)}</span>
+src/payments/PayAppReviews.tsx:123:            <dd className="tabular-nums" data-testid="payapp-requested-total">{formatCents(payApp.requestedTotalCents)}</dd>
+src/payments/PayAppReviews.tsx:127:            <dd className="tabular-nums font-semibold" data-testid="payapp-approved-total">
+src/payments/PayAppReviews.tsx:134:              <dd className="tabular-nums font-semibold text-emerald-200" data-testid="payapp-final-approved-total">
+src/payments/PayAppReviews.tsx:143:        <p className="text-xs text-rose-300" data-testid="payapp-rejection-reason">
+src/payments/PayAppReviews.tsx:152:              <span className="rounded-full border border-rose-800 bg-rose-950 px-2 py-0.5 text-rose-200" data-testid="flag-lien-waiver-missing">
+src/payments/PayAppReviews.tsx:157:              <span className="rounded-full border border-rose-800 bg-rose-950 px-2 py-0.5 text-rose-200" data-testid="flag-license-issue">
+src/payments/PayAppReviews.tsx:161:              <span className="rounded-full border border-emerald-800 bg-emerald-950 px-2 py-0.5 text-emerald-200" data-testid="flag-license-active">
+src/payments/PayAppReviews.tsx:187:        <table className="w-full text-sm" data-testid="payapp-review-lines">
+src/payments/PayAppReviews.tsx:201:              <tr key={l.sovLineId} className="border-t border-slate-800 align-top" data-testid="payapp-review-line">
+src/payments/PayAppReviews.tsx:209:                <td className="py-2 pr-3 text-right tabular-nums" data-testid="payapp-line-approved">
+src/payments/PayAppReviews.tsx:213:                  <td className="py-2 pr-3 text-right tabular-nums" data-testid="payapp-line-final-approved">
+src/payments/PayAppReviews.tsx:222:                        data-testid="payapp-line-verdict"
+src/payments/PaymentsWorkspace.tsx:28:          <div className="table-scroll" role="region" aria-label="Agreement payment ledgers" tabIndex={0}><table className="w-full text-sm" data-testid="payments-agreements">
+src/payments/ReferenceNotice.tsx:8:    <aside className="rounded-xl border border-sky-800 bg-sky-950/40 px-3 py-2 text-xs text-sky-100" data-testid="read-only-reference">
+src/payments/ReleaseMilestone.tsx:71:    <div className="space-y-1" data-testid="milestone-releases">
+src/payments/ReleaseMilestone.tsx:75:          <div key={r.paymentId} className="text-xs space-y-0.5" data-testid="release-row" data-status={r.status}>
+src/payments/ReleaseMilestone.tsx:77:              <span className={`rounded-full px-2 py-0.5 border font-semibold ${badge.cls}`} data-testid="release-status">
+src/payments/ReleaseMilestone.tsx:85:                <span className="text-slate-400" data-testid="release-retry-tag">
+src/payments/ReleaseMilestone.tsx:90:                <span className="text-amber-300" data-testid="release-captured-not-paid">
+src/payments/ReleaseMilestone.tsx:106:              <p className={r.status === "success" ? "text-slate-400" : "text-rose-300"} data-testid="release-error">
+src/payments/ReleaseMilestone.tsx:113:                data-testid="refresh-payout-button"
+src/payments/ReleaseMilestone.tsx:124:                data-testid="refresh-capture-button"
+src/payments/ReleaseMilestone.tsx:133:              <p className="text-slate-400" data-testid="release-recovery-hint">
+src/payments/RetainageRelease.tsx:33:    <div className="space-y-1 text-xs" data-testid="retainage-releases">
+src/payments/RetainageRelease.tsx:37:          <div key={r.paymentId} className="rounded-lg border border-slate-800 bg-slate-950/60 px-2 py-1.5 space-y-0.5" data-testid="retainage-release">
+src/payments/RetainageRelease.tsx:39:              <span className={`rounded-full border px-2 py-0.5 font-semibold ${badge.cls}`} data-testid="retainage-release-status">
+src/payments/RetainageRelease.tsx:147:    <div className="space-y-1.5" data-testid="retainage-release-control">
+src/payments/RetainageRelease.tsx:151:          data-testid="release-retainage-button"
+src/payments/RetainageRelease.tsx:161:            data-testid="resume-retainage-button"
+src/payments/RetainageRelease.tsx:169:        <span className="text-xs text-slate-400" data-testid="retainage-release-hint">
+src/payments/RetainageRelease.tsx:174:        <p className="text-xs text-slate-300" role="status" data-testid="retainage-release-notice">
+src/payments/RetainageRelease.tsx:179:        <p className="text-xs text-rose-300 max-w-md" role="alert" data-testid="retainage-release-error">
+src/payments/SubPortal.tsx:34:            <dd className="font-semibold" data-testid="sub-contractor-name">
+src/payments/SubPortal.tsx:40:            <dd className="font-semibold break-all" data-testid="sub-paypal-email">
+src/payments/SubPortal.tsx:108:            <div key={a.agreementId} data-testid="sub-milestone-funding-agreement">
+src/payments/SubPortal.tsx:159:                <tr key={p._id} className="border-t border-slate-800" data-testid="sub-payapp-row">
+src/payments/SubPortal.tsx:167:                  <td className="py-2 pr-3" data-testid="sub-payapp-status">
+src/payments/SubPortal.tsx:172:                  <td className="py-2 pr-3 text-xs" data-testid="sub-payapp-outcome">
+src/payments/SubPortal.tsx:193:            data-testid="sub-payapp-show-older"
+src/payments/SubPortal.tsx:219:          <span className="block text-slate-300" data-testid="sub-payapp-rejection-reason">
+src/payments/SubPortal.tsx:231:        <p className={label.tone} data-testid="sub-payapp-payout-status" data-status={outcome.payoutStatus ?? ""}>
+src/payments/SubPortal.tsx:236:          <dd data-testid="sub-payapp-approved-gross">{formatCents(outcome.approvedGrossCents)}</dd>
+src/payments/SubPortal.tsx:238:          <dd data-testid="sub-payapp-retainage">
+src/payments/SubPortal.tsx:242:          <dd data-testid="sub-payapp-net">{formatCents(outcome.netCents ?? 0)}</dd>
+src/payments/inbox/ApprovalInbox.test.tsx:150:    expect(html).toContain('data-testid="project-money-strip"');
+src/payments/inbox/ApprovalInbox.test.tsx:151:    expect(html).toContain('data-testid="project-money-collected"');
+src/payments/inbox/ApprovalInbox.test.tsx:171:    expect(html).toContain('data-testid="proposal-status"');
+src/payments/inbox/ApprovalInbox.test.tsx:173:    expect(html).not.toContain('data-testid="proposal-status">pending');
+src/payments/inbox/ApprovalInbox.test.tsx:174:    expect(html).toContain('data-testid="proposal-money-trail"');
+src/payments/inbox/ApprovalInbox.test.tsx:175:    expect(html).toMatch(/data-testid="proposal-amount"[^>]*>\$320\.00<\/dd>/);
+src/payments/inbox/ApprovalInbox.test.tsx:176:    expect(html).toMatch(/data-testid="proposal-retainage"[^>]*>\$32\.00<\/dd>/);
+src/payments/inbox/ApprovalInbox.test.tsx:177:    expect(html).toMatch(/data-testid="proposal-net"[^>]*>\$288\.00<\/dd>/);
+src/payments/inbox/ApprovalInbox.test.tsx:185:    expect(html.match(/data-testid="approve-proposal"/g)).toHaveLength(2);
+src/payments/inbox/ApprovalInbox.test.tsx:187:    const [primaryApprove] = html.match(/<button[^>]*data-testid="approve-proposal"[^>]*>/) ?? [];
+src/payments/inbox/ApprovalInbox.test.tsx:188:    const [, secondaryApprove] = html.match(/<button[^>]*data-testid="approve-proposal"[^>]*>/g) ?? [];
+src/payments/inbox/ApprovalInbox.test.tsx:192:      const tag = html.match(new RegExp(`<button[^>]*data-testid="${id}"[^>]*>`))?.[0] ?? "";
+src/payments/inbox/ApprovalInbox.test.tsx:207:    expect(html.match(/data-testid="approve-proposal"/g)).toHaveLength(3);
+src/payments/inbox/ApprovalInbox.test.tsx:214:    const residential = html.indexOf('data-testid="inbox-residential-decision"');
+src/payments/inbox/ApprovalInbox.test.tsx:215:    const commercial = html.indexOf('data-testid="inbox-entry"');
+src/payments/inbox/ApprovalInbox.test.tsx:219:    expect(html).toContain('data-testid="inbox-residential-decision-action"');
+src/payments/inbox/ApprovalInbox.test.tsx:234:    expect(html.split('data-testid="approve-proposal"').length - 1).toBeGreaterThan(0);
+src/payments/inbox/ApprovalInbox.test.tsx:235:    const firstApprove = html.match(/<button[^>]*data-testid="approve-proposal"[^>]*>/)?.[0] ?? "";
+src/payments/inbox/ApprovalInbox.test.tsx:243:    expect(html).toContain('data-testid="jump-to-approve"');
+src/payments/inbox/ApprovalInbox.test.tsx:244:    expect(html).toMatch(/<button[^>]*hidden[^>]*data-testid="jump-to-approve"/);
+src/payments/inbox/ApprovalInbox.tsx:96:      data-testid="proposal-reason"
+src/payments/inbox/ApprovalInbox.tsx:137:    <div className="space-y-2" data-testid="proposal-actions">
+src/payments/inbox/ApprovalInbox.tsx:145:            data-testid="override-license-hold"
+src/payments/inbox/ApprovalInbox.tsx:158:          data-testid="approve-proposal"
+src/payments/inbox/ApprovalInbox.tsx:162:        <Button variant="secondary" size="sm" disabled={busy} onClick={() => setEditing((e) => !e)} data-testid="edit-proposal">
+src/payments/inbox/ApprovalInbox.tsx:170:          data-testid="reject-proposal"
+src/payments/inbox/ApprovalInbox.tsx:177:        <div className="flex flex-wrap items-end gap-2" data-testid="edit-proposal-form">
+src/payments/inbox/ApprovalInbox.tsx:185:              data-testid="edit-proposal-amount"
+src/payments/inbox/ApprovalInbox.tsx:196:              data-testid="edit-proposal-reason"
+src/payments/inbox/ApprovalInbox.tsx:199:          <Button variant="secondary" size="sm" disabled={busy} onClick={() => void saveEdit()} data-testid="save-proposal-amount">
+src/payments/inbox/ApprovalInbox.tsx:206:        <p role="alert" className="text-xs text-red-300" data-testid="proposal-error">
+src/payments/inbox/ApprovalInbox.tsx:220:    <div className="space-y-1" data-testid="proposal-actions">
+src/payments/inbox/ApprovalInbox.tsx:228:          data-testid="approve-proposal"
+src/payments/inbox/ApprovalInbox.tsx:237:          data-testid="reject-proposal"
+src/payments/inbox/ApprovalInbox.tsx:244:        <p role="alert" className="text-xs text-red-300" data-testid="proposal-error">
+src/payments/inbox/ApprovalInbox.tsx:272:      data-testid="proposal-card"
+src/payments/inbox/ApprovalInbox.tsx:280:          <StatusPill status={proposal.status} testId="proposal-status" />
+src/payments/inbox/ApprovalInbox.tsx:282:            <StatusPill status="held" label={`Held · license ${statusLabel(proposal.licenseStatus ?? "unverified").toLowerCase()}`} tone="warning" testId="proposal-held" />
+src/payments/inbox/ApprovalInbox.tsx:296:            testId="proposal-money-trail"
+src/payments/inbox/ApprovalInbox.tsx:299:              { label: "Proposed by code rules", valueCents: proposal.amountCents, valueTestId: "proposal-amount" },
+src/payments/inbox/ApprovalInbox.tsx:301:                ? [{ label: "Edited by GC", valueCents: proposal.editedAmountCents, valueTestId: "proposal-edited-amount", tone: "warning" as const }]
+src/payments/inbox/ApprovalInbox.tsx:305:                    { label: `Retainage ${retainagePercent}%`, valueCents: proposal.split.retainageCents, valueTestId: "proposal-retainage" },
+src/payments/inbox/ApprovalInbox.tsx:306:                    { label: "Net to sub", valueCents: proposal.split.netCents, valueTestId: "proposal-net", tone: "positive" as const },
+src/payments/inbox/ApprovalInbox.tsx:314:      <p className="text-xs text-slate-200" data-testid="proposal-rationale">{auditText(reviewText(withoutDemoAgreementId(proposal.rationale)))}</p>
+src/payments/inbox/ApprovalInbox.tsx:316:        <p className="rounded-lg border border-amber-800/60 bg-amber-950/30 px-2 py-1 text-xs text-amber-100" data-testid="proposal-edited-reason">
+src/payments/inbox/ApprovalInbox.tsx:323:            <li key={f} className="rounded-full border border-amber-800 bg-amber-950 px-2 py-0.5 text-[11px] text-amber-200" data-testid="proposal-flag" data-flag={f}>
+src/payments/inbox/ApprovalInbox.tsx:331:          PayPal capture <span className="font-mono" data-testid="proposal-capture-id">{proposal.paypalCaptureId}</span>
+src/payments/inbox/ApprovalInbox.tsx:335:        <p className="text-xs text-rose-300" data-testid="proposal-failure">
+src/payments/inbox/ApprovalInbox.tsx:363:    <div className="space-y-2 text-xs" data-testid="agent-trace">
+src/payments/inbox/ApprovalInbox.tsx:364:      <p className="text-slate-300" data-testid="agent-trace-source">
+src/payments/inbox/ApprovalInbox.tsx:371:          <li key={i} className="rounded-lg border border-slate-800 p-2" data-testid="agent-trace-call" data-tool={c.tool}>
+src/payments/inbox/ApprovalInbox.tsx:402:        data-testid="reject-payapp-reason"
+src/payments/inbox/ApprovalInbox.tsx:415:        data-testid="reject-payapp"
+src/payments/inbox/ApprovalInbox.tsx:452:      data-testid="inbox-residential-decision"
+src/payments/inbox/ApprovalInbox.tsx:468:          data-testid="inbox-residential-decision-action"
+src/payments/inbox/ApprovalInbox.tsx:486:    <article className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4" data-testid="inbox-entry" data-payapp-id={item.payApp._id}>
+src/payments/inbox/ApprovalInbox.tsx:494:            <span data-testid="inbox-payapp-status" data-status={item.payApp.status}>{payAppStatusLabel(item.payApp.status)}</span>
+src/payments/inbox/ApprovalInbox.tsx:496:          <p className="text-sm text-slate-300" data-testid="inbox-attribution" data-actor={item.payApp.submittedBy.actorType}>{submissionAttribution(item.payApp.submittedBy, item.payApp.judgeDemoFiledBy)}</p>
+src/payments/inbox/ApprovalInbox.tsx:507:            <button type="button" hidden tabIndex={-1} aria-hidden="true" data-testid="jump-to-approve" />
+src/payments/inbox/ApprovalInbox.tsx:543:          <p className="text-xs text-slate-300 [overflow-wrap:anywhere]" data-testid="inbox-payment">
+src/payments/inbox/ApprovalInbox.tsx:556:        <Button variant="ghost" size="sm" onClick={() => setShowTrace((s) => !s)} data-testid="toggle-agent-trace">
+src/payments/inbox/ApprovalInbox.tsx:627:          <p role="status" className="text-xs text-slate-400" data-testid="inbox-counts">
+src/payments/inbox/ApprovalInbox.tsx:666:            <details className="group rounded-2xl border border-slate-800 bg-slate-900/40" open={historyOpen} data-testid="inbox-history">
+src/payments/inbox/ApprovalInbox.tsx:682:      <details className="rounded-xl border border-slate-800 bg-slate-900/40 sm:hidden" open={filtering} data-testid="inbox-filters">
+src/payments/judgeDemo/JudgeDemoPage.tsx:110:    <div className="max-w-4xl space-y-4" data-testid="judge-demo-page">
+src/payments/judgeDemo/JudgeDemoPage.tsx:148:            data-testid="judge-demo-start"
+src/payments/judgeDemo/JudgeDemoPage.tsx:158:              data-testid="judge-demo-continue"
+src/payments/judgeDemo/JudgeDemoPage.tsx:168:          <p className="text-sm text-sky-200" role="status" data-testid="judge-demo-phase">
+src/payments/judgeDemo/JudgeDemoPage.tsx:174:          <p className="text-sm text-rose-300" role="alert" data-testid="judge-demo-error">
+src/payments/judgeDemo/JudgeDemoPage.tsx:202:          <section className="rounded-xl border border-slate-800 p-4 text-sm flex flex-wrap gap-x-6 gap-y-1" data-testid="judge-demo-run">
+src/payments/judgeDemo/JudgeDemoPage.tsx:205:              <a href={ledgerHash(run.agreementId)} className="font-mono text-emerald-300 underline" data-testid="judge-demo-agreement">
+src/payments/judgeDemo/JudgeDemoPage.tsx:210:            <span data-testid="judge-demo-elapsed">
+src/payments/judgeDemo/JudgeDemoPage.tsx:216:          <ol className="space-y-2" data-testid="judge-demo-steps">
+src/payments/judgeDemo/JudgeDemoPage.tsx:218:              <li key={step.id} className="rounded-xl border border-slate-800 p-3 space-y-2" data-testid={`judge-demo-step-${step.id}`} data-status={step.status}>
+src/payments/judgeDemo/JudgeDemoPage.tsx:225:                <p className="text-xs text-slate-400" data-testid={`judge-demo-detail-${step.id}`}>
+src/payments/judgeDemo/JudgeDemoPage.tsx:249:                      <a href={changeOrder.payerViewUrl} target="_blank" rel="noreferrer" className="underline text-emerald-300" data-testid="judge-demo-payer-link">
+src/payments/judgeDemo/JudgeDemoPage.tsx:256:                      data-testid="judge-demo-refresh-co"
+src/payments/judgeDemo/JudgeDemoPage.tsx:280:          {!run.readOnlyReference && <section className="rounded-xl border border-slate-800 p-4 space-y-3" aria-label="Closeout" data-testid="judge-demo-closeout">
+src/payments/judgeDemo/JudgeDemoPage.tsx:290:              data-testid="judge-demo-release-retainage"
+src/payments/judgeDemo/JudgeDemoPage.tsx:337:            <a href="#/dashboard" className="text-emerald-300 underline" data-testid="judge-demo-dashboard-link">
+src/payments/judgeDemo/SandboxTopUpPanel.tsx:40:    <section className="rounded-xl border border-amber-800/70 bg-amber-950/20 p-4 space-y-3" data-testid="sandbox-top-up" aria-label="Sandbox platform top-up">
+src/payments/judgeDemo/SandboxTopUpPanel.tsx:57:            data-testid="sandbox-top-up-amount"
+src/payments/judgeDemo/SandboxTopUpPanel.tsx:63:          data-testid="sandbox-top-up-create"
+src/payments/judgeDemo/SandboxTopUpPanel.tsx:83:        <div className="rounded-lg border border-slate-700 bg-slate-900 p-3 text-xs space-y-2" data-testid="sandbox-top-up-open">
+src/payments/judgeDemo/SandboxTopUpPanel.tsx:90:              <a href={open.approveUrl} target="_blank" rel="noreferrer" className="text-emerald-300 underline" data-testid="sandbox-top-up-approve-link">
+src/payments/judgeDemo/SandboxTopUpPanel.tsx:98:            data-testid="sandbox-top-up-capture"
+src/payments/judgeDemo/SandboxTopUpPanel.tsx:114:        <ul className="text-xs text-slate-400 space-y-0.5" data-testid="sandbox-top-up-history">
+src/people/InviteDialog.tsx:52:      <p role="status" data-testid="invite-email-outcome" className={`rounded-lg border px-3 py-2 text-sm ${OUTCOME_STYLE[outcome.tone]}`}>
+src/people/InviteDialog.tsx:57:          <input {...control} readOnly value={result.link} onFocus={(e) => e.currentTarget.select()} className={inputClass(false, "font-mono text-xs")} data-testid="invite-link" />
+src/people/InviteList.tsx:66:            <li key={i._id} className="flex flex-col gap-2 px-3 py-3 text-sm sm:flex-row sm:items-center sm:justify-between" data-testid="invite-row">
+src/projects/MyProjectsPage.tsx:30:    <ul className="grid gap-3 sm:grid-cols-2" aria-label="Your projects" data-testid="project-switcher">
+src/projects/MyProjectsPage.tsx:73:          <dl className="grid gap-3 text-sm sm:grid-cols-2" data-testid="owner-project-summary">
+src/projects/gc/BidDueEditor.tsx:69:        {!hideLabel && <span data-testid="bid-due-label">Bids due {pkg.dueLabel ?? pkg.bidDeadline}</span>}
+src/projects/gc/PrimeLinesCard.tsx:61:    <li className="flex flex-wrap items-center justify-between gap-2 border-t border-line py-2 text-sm" data-testid="prime-line-row">
+src/projects/gc/PrimeLinesCard.tsx:150:        <ul data-testid="prime-lines">
+src/projects/gc/PrimeLinesCard.tsx:168:            data-testid="prime-line-description"
+src/projects/gc/PrimeLinesCard.tsx:170:          <MoneyInput label="Scheduled value" required value={cents} onChange={setCents} error={errors.scheduledValueCents} data-testid="prime-line-amount" />
+src/projects/gc/PrimeLinesCard.tsx:172:            <Button type="submit" loading={busy} data-testid="prime-line-add">
+src/projects/gc/ProjectMoneyTrail.tsx:62:      testId="gc-money-trail"
+src/projects/gc/ProjectPage.test.tsx:120:    expect(html).toContain('data-testid="read-only-reference"');
+src/projects/gc/ProjectPage.test.tsx:131:    expect(html).toContain('data-testid="project-money-strip"');
+src/projects/gc/ProjectPage.test.tsx:132:    expect(html).toContain('data-testid="project-money-collected"');
+src/projects/gc/ProjectPage.test.tsx:134:    expect(html.indexOf('data-testid="project-money-strip"')).toBeLessThan(html.indexOf("Project details"));
+src/projects/gc/ProjectPage.test.tsx:143:    expect(html.indexOf("Bayview Remodeling")).toBeLessThan(html.indexOf('data-testid="project-money-strip"'));
+src/projects/gc/ProjectPage.test.tsx:156:    expect(html).toContain('data-testid="gc-money-trail"');
+src/projects/gc/ProjectPage.test.tsx:164:    expect(html.indexOf('data-testid="project-money-strip"')).toBeLessThan(html.indexOf('data-testid="gc-money-trail"'));
+src/projects/gc/ProjectPage.test.tsx:165:    expect(html.indexOf('data-testid="gc-money-trail"')).toBeLessThan(html.indexOf("Project details"));
+src/projects/gc/ProjectPage.test.tsx:171:    expect(html).toContain('data-testid="gc-money-trail"');
+src/projects/gc/ProjectPage.test.tsx:183:    expect(html).not.toContain('data-testid="read-only-reference"');
+src/projects/gc/ProjectPage.tsx:174:              <dd className={`break-words text-right${row.value === "Not set" ? " text-ink-muted" : ""}`} data-testid={row.testId}>
+src/projects/gc/ProjectSettingsPage.test.tsx:66:    expect(html).toContain('data-testid="read-only-reference"');
+src/projects/gc/ProjectSettingsPage.test.tsx:78:    expect(html).not.toContain('data-testid="prime-line-add"');
+src/projects/gc/ProjectSettingsPage.test.tsx:85:    expect(html).not.toContain('data-testid="read-only-reference"');
+src/projects/gc/ProjectSettingsPage.test.tsx:90:    expect(html).toContain('data-testid="prime-line-add"');
+src/projects/gc/ownerDetails.ts:19:export function ownerDetailRows(company: OwnerCompanyProfile): Array<{ label: string; value: string; testId: string }> {
+src/projects/gc/ownerDetails.ts:21:    { label: "Company", value: demoIdentityName(company.name), testId: "owner-name" },
+src/projects/gc/ownerDetails.ts:22:    { label: "Legal name", value: company.legalName ? demoIdentityName(company.legalName) : "Not set", testId: "owner-legal-name" },
+src/projects/gc/ownerDetails.ts:23:    { label: "Address", value: company.address ? formatOwnerAddress(company.address) : "Not set", testId: "owner-address" },
+src/projects/gc/ownerDetails.ts:24:    { label: "Phone", value: company.phone || "Not set", testId: "owner-phone" },
+src/projects/gc/ownerDetails.ts:25:    { label: "Billing email", value: maskSandboxEmail(company.billingEmail) ?? "Not set", testId: "owner-billing-email" },
+src/ui/BuildStamp.test.tsx:9:    expect(html).toContain('data-testid="build-stamp"');
+src/ui/BuildStamp.tsx:7:    <p className={cx("text-[11px] leading-relaxed text-slate-400", className)} data-testid="build-stamp">
+src/ui/CommercialReferenceBadge.tsx:19:      data-testid="commercial-reference-badge"
+src/ui/MoneyTrail.test.tsx:7:  { label: "Claimed", valueCents: 540_000, valueTestId: "trail-claimed" },
+src/ui/MoneyTrail.test.tsx:8:  { label: "GC approves", valueCents: 400_000, valueTestId: "trail-approved" },
+src/ui/MoneyTrail.test.tsx:10:  { label: "Net to the sub", valueCents: 380_000, tone: "positive", valueTestId: "trail-net" },
+src/ui/MoneyTrail.test.tsx:15:    const html = renderToStaticMarkup(<MoneyTrail testId="gc-money-trail" title="Money trail" description="Every figure is stored cents." steps={steps} />);
+src/ui/MoneyTrail.test.tsx:16:    expect(html).toContain('data-testid="gc-money-trail"');
+src/ui/MoneyTrail.test.tsx:30:    const html = renderToStaticMarkup(<MoneyTrail variant="compact" testId="proposal-money-trail" steps={steps} />);
+src/ui/MoneyTrail.test.tsx:31:    expect(html).toContain('data-testid="proposal-money-trail"');
+src/ui/MoneyTrail.test.tsx:33:    expect(html).toMatch(/data-testid="trail-claimed"[^>]*>\$5,400\.00<\/dd>/);
+src/ui/MoneyTrail.test.tsx:34:    expect(html).toMatch(/data-testid="trail-approved"[^>]*>\$4,000\.00<\/dd>/);
+src/ui/MoneyTrail.test.tsx:35:    expect(html).toMatch(/data-testid="trail-net"[^>]*>\$3,800\.00<\/dd>/);
+src/ui/MoneyTrail.test.tsx:48:        testId="payapp-money-trail"
+src/ui/MoneyTrail.test.tsx:64:        testId="payapp-money-trail"
+src/ui/MoneyTrail.test.tsx:67:        footer={<p data-testid="payapp-retainage-total">Total retainage held to date: $200.00.</p>}
+src/ui/MoneyTrail.test.tsx:70:    expect(card).toContain('data-testid="payapp-retainage-total"');
+src/ui/MoneyTrail.test.tsx:73:      <MoneyTrail steps={steps} footer={<p data-testid="paid-note">Paid by PayPal</p>} />,
+src/ui/MoneyTrail.test.tsx:75:    expect(plain).toContain('data-testid="paid-note"');
+src/ui/MoneyTrail.tsx:19:  valueTestId?: string;
+src/ui/MoneyTrail.tsx:32:  testId?: string;
+src/ui/MoneyTrail.tsx:52:  testId,
+src/ui/MoneyTrail.tsx:63:        data-testid={hero.valueTestId}
+src/ui/MoneyTrail.tsx:91:            data-testid={step.valueTestId}
+src/ui/MoneyTrail.tsx:112:      <Card data-testid={testId} title={title} description={description} className={className}>
+src/ui/MoneyTrail.tsx:118:    <div data-testid={testId} className={className}>
+src/ui/NotFoundState.tsx:34:      data-testid="not-found"
+src/ui/StatusPill.tsx:13:  testId?: string;
+src/ui/StatusPill.tsx:17:export function StatusPill({ status, label, kind, tone, testId, className }: StatusPillProps) {
+src/ui/StatusPill.tsx:21:      data-testid={testId}
+src/ui/UiKitGallery.tsx:77:      <p className="text-xs text-ink-subtle sm:col-span-2" data-testid="form-values">
+src/ui/UiKitGallery.tsx:173:          <p className="mt-3 text-xs text-ink-subtle" data-testid="confirm-log">
+src/ui/statusLabelFor.test.tsx:37:      expect(html).toContain('data-testid="commercial-reference-badge"');
+src/vendors/BidderRfqStatus.tsx:24:    <div className="flex w-full flex-col gap-1 text-xs" data-testid="bidder-rfq-status">
+src/vendors/BidderRfqStatus.tsx:85:        <ul className="divide-y divide-line text-sm" data-testid="bidder-messages">
+src/vendors/GcRelationshipsCard.tsx:18:        <ul className="divide-y divide-line text-sm" data-testid="gc-relationships">
+src/vendors/ImportVendorsDialog.tsx:115:          <div role="status" className="space-y-2" data-testid="vendor-import-result">
+src/vendors/ImportVendorsDialog.tsx:138:    <div className="space-y-4" data-testid="vendor-import-preview">
+src/vendors/PackageBidders.tsx:55:        <ul className="divide-y divide-line text-sm" data-testid="package-bidders">
+src/vendors/PackageBidders.tsx:66:                    <span className="text-xs text-ink-subtle" data-testid="bidder-not-on-project">
+src/vendors/PackageBidders.tsx:207:        <ul className="max-h-72 divide-y divide-line overflow-y-auto rounded-lg border border-line text-sm" data-testid="bidder-picker">
+src/vendors/RfqSendDialog.tsx:178:                <li key={r.contractorId} className="space-y-2 py-2" data-testid="rfq-recipient">
+src/vendors/VendorDetailPage.tsx:54:              <span className="font-mono" data-testid="payee-current-email">
+src/vendors/VendorDetailPage.tsx:81:          <p className="mt-3 text-xs text-amber-200" data-testid="payee-admin-only">

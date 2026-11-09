@@ -6,7 +6,7 @@ import type { Id } from "../../convex/_generated/dataModel";
 import { DocumentDownloadButton, ProjectDocumentsList } from "../documents/DocumentDownload";
 import { getErrorMessage } from "../lib/errors";
 import { maskSandboxEmail } from "../lib/demoPrivacy";
-import { demoDisplayName, demoProjectName } from "../lib/demoCopy";
+import { demoIdentityName, demoProjectName } from "../lib/demoCopy";
 import { tradeLineDisplay } from "../lib/tradeLineDisplay";
 import { termsForKind, type ProjectKind } from "../lib/terms";
 import { Button, Card, CommercialReferenceBadge, ConfirmDialog, Dialog, EmptyState, LinkButton, MoneyInput, MoneyTrail, PageHeader, StatusPill, formatBps, formatCents, formatDate, useToast, type LinkButtonVariant } from "../ui";
@@ -133,7 +133,12 @@ export function PrimeSheet({
     return (
       <div className="space-y-2">
         {bare ? null : <h3 className="text-base font-semibold">{terms.breakdown}</h3>}
-        <div className="overflow-x-auto">
+        <div
+          className="overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+          role="region"
+          aria-label={`${terms.breakdown}, scroll horizontally`}
+          tabIndex={0}
+        >
           <table className="w-full min-w-[720px] text-sm" data-testid="owner-g703">
             <caption className="sr-only">{terms.breakdown}</caption>
             <thead className="text-left text-xs text-ink-subtle">
@@ -192,7 +197,12 @@ export function PrimeSheet({
     );
   }
   return (
-    <div className="overflow-x-auto">
+    <div
+      className="overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+      role="region"
+      aria-label="Prime continuation sheet, scroll horizontally"
+      tabIndex={0}
+    >
       <table className="w-full min-w-[900px] text-sm" data-testid="owner-g703">
         <caption className="sr-only">Prime continuation sheet</caption>
         <thead className="text-left text-xs text-ink-subtle">
@@ -331,7 +341,7 @@ function History({ app }: { app: Detail }) {
     <ol className="space-y-1 text-xs text-ink-subtle" data-testid="owner-pay-app-history">
       {app.history.map((h, i) => (
         <li key={i}>
-          <StatusPill status={h.status} kind={app.projectKind} /> {formatDate(h.at)} by {demoDisplayName(h.byName)}
+          <StatusPill status={h.status} kind={app.projectKind} /> {formatDate(h.at)} by {demoIdentityName(h.byName)}
           {h.comment ? <span className="block pl-2 text-ink">“{h.comment}”</span> : null}
         </li>
       ))}
@@ -912,6 +922,7 @@ function OwnerProjectPayApps({ projectId }: { projectId: string }) {
           title={terms.kind === "residential" ? "No draws yet" : "No owner pay apps yet"}
           description={terms.kind === "residential" ? "Draws from your GC appear here once they are submitted to you." : "Pay applications from your GC appear here once they are submitted to you."}
           headingLevel={3}
+          action={<LinkButton href="#/projects" size="sm">View your projects</LinkButton>}
         />
       ) : (
         <>
@@ -923,7 +934,21 @@ function OwnerProjectPayApps({ projectId }: { projectId: string }) {
         <h3 id="owner-documents-heading" className="text-base font-semibold">
           Documents
         </h3>
-        <ProjectDocumentsList projectId={projectId} />
+        <ProjectDocumentsList
+          projectId={projectId}
+          emptyAction={
+            current ? (
+              <DocumentDownloadButton
+                kind="owner_pay_app_pdf"
+                relatedId={current}
+                label={terms.kind === "residential" ? "Download this draw's PDF" : "Download this pay app's PDF"}
+                testId="owner-documents-download-first"
+              />
+            ) : (
+              <LinkButton href="#/projects" size="sm">View your projects</LinkButton>
+            )
+          }
+        />
       </section>
     </div>
   );

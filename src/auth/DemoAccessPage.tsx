@@ -94,8 +94,8 @@ export function DemoAccessPage() {
                         <span>{seat.title}</span>
                         <span aria-hidden="true" className={primarySeat ? undefined : "text-emerald-300"}>→</span>
                       </span>
-                      <span className={`mt-1 block text-sm ${primarySeat ? "text-accent-fg/90" : "text-slate-300"}`}>{seat.detail}</span>
-                      <span className={`mt-2 block break-all font-mono text-xs ${primarySeat ? "text-accent-fg/90" : "text-emerald-300"}`}>
+                      <span className={`mt-1 block text-sm ${primarySeat ? "text-accent-fg" : "text-slate-300"}`}>{seat.detail}</span>
+                      <span className={`mt-2 block break-all font-mono text-xs ${primarySeat ? "text-accent-fg" : "text-emerald-300"}`}>
                         {pending === seat.email ? "Signing in…" : seat.email}
                       </span>
                     </button>
@@ -107,7 +107,7 @@ export function DemoAccessPage() {
               These buttons use ordinary demo-account sign-in, not an authentication bypass. Funding and invoice
               payment still need sandbox browser approval.
             </p>
-            <a href="#" className="inline-block text-sm text-emerald-300 underline">Normal sign-in / create a GC account</a>
+            <a href="#" className="inline-flex min-h-6 items-center text-sm text-emerald-300 underline">Normal sign-in / create a GC account</a>
           </section>
         </div>
 
@@ -153,7 +153,7 @@ export function DemoAccessPage() {
         <footer className="border-t border-slate-800 py-6 text-xs leading-relaxed text-slate-400">
           <p>
             Canonical:{" "}
-            <a href="https://tradepulse-pay.asynchronope.tech/#/demo" className="text-emerald-300 underline underline-offset-2">
+            <a href="https://tradepulse-pay.asynchronope.tech/#/demo" className="inline-flex min-h-6 items-center text-emerald-300 underline underline-offset-2">
               tradepulse-pay.asynchronope.tech/#/demo
             </a>
           </p>
@@ -198,7 +198,7 @@ function ManualSandboxDetails() {
           <dd className="mt-1 break-all leading-relaxed">
             <a
               href="https://cheery-axolotl-689.convex.site/#/demo"
-              className="text-emerald-300 underline underline-offset-2"
+              className="inline-flex min-h-6 items-center text-emerald-300 underline underline-offset-2"
             >
               cheery-axolotl-689.convex.site/#/demo
             </a>{" "}

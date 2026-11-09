@@ -45,6 +45,14 @@ export function demoProjectName(title: string): string {
     .trim();
 }
 
+/**
+ * A seeded guided-demo subcontract number, without the internal A401 prefix. The old demo runs
+ * stored numbers such as `A401-DEMO-PAY-20261101-02`; a real agreement number passes through.
+ */
+export function demoAgreementNumber(number: string): string {
+  return /\bA401-[A-Z0-9-]+\b/i.test(number) ? "Sandbox subcontract" : number;
+}
+
 /** The seeded project description, without the old demo-run wording. */
 export function demoProjectDescription(description: string): string {
   return description

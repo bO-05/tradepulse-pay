@@ -279,7 +279,7 @@ function ProposalCard({
           <span className="text-sm font-semibold">{KIND_LABEL[proposal.kind] ?? proposal.kind.replace(/_/g, " ")}</span>
           <StatusPill status={proposal.status} testId="proposal-status" />
           {held ? (
-            <StatusPill status="held" label={`Held · license ${proposal.licenseStatus ?? "unverified"}`} tone="warning" testId="proposal-held" />
+            <StatusPill status="held" label={`Held · license ${statusLabel(proposal.licenseStatus ?? "unverified").toLowerCase()}`} tone="warning" testId="proposal-held" />
           ) : null}
           {proposal.licenseStatus ? (
             <LicenseBadge status={(proposal.licenseStatus as LicenseBadgeStatus) ?? "unverified"} />
@@ -663,7 +663,7 @@ export function ApprovalInbox() {
           />
           <InboxBucket title="Approved · awaiting payment" items={waiting} primaryProposalId={null} />
           {history.length > 0 ? (
-            <details className="group rounded-2xl border border-slate-800 bg-slate-900/40" open={historyOpen}>
+            <details className="group rounded-2xl border border-slate-800 bg-slate-900/40" open={historyOpen} data-testid="inbox-history">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
                 <span>
                   <span className="text-base font-semibold">History</span>

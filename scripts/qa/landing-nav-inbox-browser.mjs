@@ -116,17 +116,30 @@ try {
   phase = "approval inbox";
   const inbox = await page.evaluate(() => {
     const entries = [...document.querySelectorAll('[data-testid="inbox-entry"]')];
-    const history = document.querySelector("main details");
+    // Scope the History disclosure by its own test id: "main details" now matches the money
+    // strip's receipts panel too, and measuring whichever <details> comes first was ambiguous.
+    const historySelector = '[data-testid="inbox-history"]';
+    const history = document.querySelector(historySelector);
     return {
       counts: document.querySelector('[data-testid="inbox-counts"]')?.textContent.trim() ?? "",
       entries: entries.length,
       visible: entries.filter((el) => el.getClientRects().length > 0).length,
       labels: entries.map((el) => el.querySelector('[data-testid="inbox-payapp-status"]')?.textContent.trim() ?? ""),
       groups: [...document.querySelectorAll("main section[aria-label] > div > h2")].map((el) => el.textContent.trim()),
-      history: history ? { open: history.open, label: history.querySelector("summary")?.textContent.trim() ?? "" } : null,
+      history: history
+        ? {
+            selector: historySelector,
+            tag: history.tagName.toLowerCase(),
+            open: history.open,
+            label: history.querySelector("summary")?.textContent.trim() ?? "",
+          }
+        : null,
       chips: [...document.querySelectorAll("main h1, main h2")].map((el) => el.textContent.trim()),
     };
   });
+  console.log(
+    `history disclosure measured: ${inbox.history ? `${inbox.history.selector} (<${inbox.history.tag}>) "${inbox.history.label}" open=${inbox.history.open}` : "not present"}`,
+  );
   const match = inbox.counts.match(/^(\d+) open · (\d+) awaiting payment · (\d+) in history$/);
   check("inbox reports its three buckets", match !== null, inbox.counts);
   const [, activeCount, waitingCount, historyCount] = match?.map(Number) ?? [];

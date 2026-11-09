@@ -1,7 +1,7 @@
 import { useAuthToken } from "@convex-dev/auth/react";
 import { useConvex, useMutation, useQuery } from "convex/react";
 import { Download } from "lucide-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { api } from "../../convex/_generated/api";
 import type { DocumentKind } from "../../convex/documents/kinds";
 import { downloadBlob } from "../billing/sovFile";
@@ -96,7 +96,7 @@ export function DocumentDownloadButton({
 }
 
 /** The documents already generated on a project that the caller may download. */
-export function ProjectDocumentsList({ projectId }: { projectId: string }) {
+export function ProjectDocumentsList({ projectId, emptyAction }: { projectId: string; emptyAction?: ReactNode }) {
   const data = useQuery(api.documents.documents.listDocuments, { projectId });
   const fetchDocument = useFetchDocument();
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -114,6 +114,7 @@ export function ProjectDocumentsList({ projectId }: { projectId: string }) {
         title="No documents yet"
         description="PDFs and CSV exports appear here once someone downloads them from a pay app, change order, owner pay app or subcontract."
         headingLevel={3}
+        action={emptyAction}
       />
     );
   }

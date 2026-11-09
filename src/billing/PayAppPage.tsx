@@ -21,7 +21,7 @@ import { LienWaiverPanel } from "./LienWaiverPanel";
 import { PaymentPanel } from "./PaymentPanel";
 import { PayAppThread } from "./PayAppThread";
 import { ReferenceNotice } from "../payments/ReferenceNotice";
-import { demoDisplayName, demoPeriodLabel, demoProjectName } from "../lib/demoCopy";
+import { demoDisplayName, demoIdentityName, demoPeriodLabel, demoProjectName } from "../lib/demoCopy";
 import { PayAppMoneyTrail, type PayAppView } from "./PayAppMoneyTrail";
 
 type SheetLine = PayAppView["lines"][number];
@@ -496,7 +496,7 @@ function ApprovalHistory({ view }: { view: PayAppView }) {
       {history.approvedGrossCents !== null && (
         <li>
           GC approved gross {formatCents(history.approvedGrossCents)} · reduction from request {formatCents(history.requestedGrossCents - history.approvedGrossCents)}.
-          {history.approvedAt !== null && <> Approved by {history.approvedBy ?? "the GC"} · {formatDateTime(history.approvedAt, { timeZone: "UTC" })} UTC.</>}
+          {history.approvedAt !== null && <> Approved by {demoIdentityName(history.approvedBy ?? "the GC")} · {formatDateTime(history.approvedAt, { timeZone: "UTC" })} UTC.</>}
           <p className="mt-1 text-slate-300">GC explanation: {history.reason ?? "No additional GC explanation was recorded. Review reasons are not a GC-authored explanation."}</p>
         </li>
       )}
@@ -529,7 +529,13 @@ export function ContinuationSheet({
   const showStored = terms.kind === "commercial";
   const body = (
     <> 
-      <div className="overflow-x-auto" data-testid="g703-sheet">
+      <div
+        className="overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+        role="region"
+        aria-label="Pay app breakdown, scroll horizontally"
+        tabIndex={0}
+        data-testid="g703-sheet"
+      >
         <table className="w-full min-w-[960px] text-sm">
           <caption className="sr-only">
             {terms.kind === "residential" ? "Pay app breakdown, columns A to E and G to I" : "G703 continuation sheet, columns A to I"}

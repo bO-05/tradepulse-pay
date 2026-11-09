@@ -5,7 +5,7 @@ import { api } from "../../convex/_generated/api";
 import { approvedWorkAndStored, g702Summary } from "../../convex/payApps/g703Math";
 import { getErrorMessage } from "../lib/errors";
 import { reviewAttribution } from "../lib/aiProvenance";
-import { demoDisplayName } from "../lib/demoCopy";
+import { demoIdentityName } from "../lib/demoCopy";
 import { recordedReviewHeading, reviewText } from "../lib/reviewDisplay";
 import { Button, Card, ConfirmDialog, MoneyInput, StatusPill, TextInput, formatCents, formatDateTime } from "../ui";
 
@@ -436,7 +436,7 @@ export function DecisionCard({ decision, title, recordedHistory = false }: { dec
   return (
     <Card
       title={title ?? "GC decision"}
-      description={`${demoDisplayName(decision.decidedByName)} · ${formatDateTime(decision.decidedAt)}`}
+      description={`${demoIdentityName(decision.decidedByName)} · ${formatDateTime(decision.decidedAt)}`}
       actions={<StatusPill status={decision.outcome} />}
       data-testid="payapp-decision"
     >

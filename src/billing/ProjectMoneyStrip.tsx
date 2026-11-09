@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { billingTabHash, ledgerHash, payAppHash } from "../auth/navigation";
+import { demoAgreementNumber, demoProjectName } from "../lib/demoCopy";
 import { termsForKind, type ProjectKind } from "../lib/terms";
 import { Card, formatBps, formatCents, formatDate } from "../ui";
 
@@ -64,12 +65,14 @@ function MoneyCell({
 }) {
   return (
     <div className="rounded-lg border border-line bg-surface-sunken p-2.5 sm:p-3">
-      <dt className="text-xs font-medium text-ink-subtle">{label}</dt>
-      <dd className="mt-1 text-xl font-semibold tabular-nums text-ink sm:text-2xl" data-testid={testId}>
-        <a href={href} className="rounded hover:underline">
-          {formatCents(cents)}
-        </a>
-      </dd>
+      <dl>
+        <dt className="text-xs font-medium text-ink-subtle">{label}</dt>
+        <dd className="mt-1 text-xl font-semibold tabular-nums text-ink sm:text-2xl" data-testid={testId}>
+          <a href={href} className="rounded hover:underline">
+            {formatCents(cents)}
+          </a>
+        </dd>
+      </dl>
       {cents === 0 ? (
         <p className="mt-1 text-xs leading-relaxed text-ink-subtle">
           {zeroSentence}{" "}
@@ -137,7 +140,8 @@ export function ProjectMoneyStrip({ projectId, className }: ProjectMoneyStripPro
       : "#/payments";
 
   const projectTitleById = new Map<string, string>(scope.projects.map((entry) => [entry.projectId, entry.projectTitle]));
-  const receiptProject = (id: string) => (portfolio ? `${projectTitleById.get(id) ?? "Job"} · ` : "");
+  const receiptProject = (id: string) =>
+    portfolio ? `${demoProjectName(projectTitleById.get(id) ?? "Job")} · ` : "";
 
   const collectedNote = (
     <>
@@ -167,7 +171,7 @@ export function ProjectMoneyStrip({ projectId, className }: ProjectMoneyStripPro
 
   return (
     <Card className={className} data-testid="project-money-strip" title={title} description={<span className="hidden sm:inline">{description}</span>}>
-      <dl className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
         <MoneyCell
           label={collectedLabel(scope.kind, projectKind)}
           testId="project-money-collected"
@@ -225,7 +229,7 @@ export function ProjectMoneyStrip({ projectId, className }: ProjectMoneyStripPro
           zeroAction="Open billing"
           zeroHref="#/billing"
         />
-      </dl>
+      </div>
 
       {hasReceipts ? (
         <details className="mt-3 rounded-lg border border-line bg-surface-sunken" data-testid="project-money-receipts">
@@ -262,7 +266,7 @@ export function ProjectMoneyStrip({ projectId, className }: ProjectMoneyStripPro
                   <li key={receipt.paymentId}>
                     <a href={ledgerHash(receipt.agreementId)} className={RECEIPT_LINK}>
                       {receiptProject(receipt.projectId)}
-                      {receipt.agreementNumber}
+                      {demoAgreementNumber(receipt.agreementNumber)}
                     </a>{" "}
                     · <span className="tabular-nums">{formatCents(receipt.amountCents)}</span> net
                     {receipt.kind === "retainage_release" ? " retainage release" : " payout"}
@@ -285,7 +289,7 @@ export function ProjectMoneyStrip({ projectId, className }: ProjectMoneyStripPro
                   <li key={`${receipt.agreementId}-${index}`}>
                     <a href={billingTabHash("retainage")} className={RECEIPT_LINK}>
                       {receiptProject(receipt.projectId)}
-                      {receipt.agreementNumber}
+                      {demoAgreementNumber(receipt.agreementNumber)}
                     </a>{" "}
                     · <span className="tabular-nums">{formatCents(receipt.amountCents)}</span>{" "}
                     {receipt.amountCents < 0 ? "released" : "held"}
@@ -307,7 +311,7 @@ export function ProjectMoneyStrip({ projectId, className }: ProjectMoneyStripPro
                   <li key={receipt.payAppId}>
                     <a href={payAppHash(receipt.payAppId)} className={RECEIPT_LINK}>
                       {receiptProject(receipt.projectId)}
-                      {receipt.agreementNumber} · due {formatDate(receipt.dueDate)}
+                      {demoAgreementNumber(receipt.agreementNumber)} · due {formatDate(receipt.dueDate)}
                     </a>{" "}
                     · <span className="tabular-nums">{formatCents(receipt.amountCents)}</span>
                   </li>

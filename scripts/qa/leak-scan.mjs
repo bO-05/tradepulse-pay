@@ -20,6 +20,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { launchBrowser, attachDiagnostics, writeJson, REPO_ROOT, delay } from "./lib.mjs";
+import { DEMO_COMMIT_RULE, RULES, extractText, openDisclosures, scanText } from "./copy-rules.mjs";
 
 function argValue(name, fallback) {
   const i = process.argv.indexOf(name);
@@ -27,112 +28,7 @@ function argValue(name, fallback) {
 }
 
 const BASE_URL = argValue("--url", process.env.REM_BASE_URL || "http://localhost:3150").replace(/\/+$/, "");
-
-const RULES = [
-  { id: "agent-id", label: "AgentID", re: /\bAgentID\b/g },
-  { id: "stand-in", label: "stand-in", re: /\bstand-in\b/gi },
-  { id: "guided-demo-driver", label: "Guided demo driver", re: /Guided demo driver/gi },
-  { id: "fixture", label: "fixture", re: /\bfixture\b/gi },
-  { id: "demo-suffix", label: "(demo)", re: /\(demo\)/gi },
-  { id: "seed-suffix", label: "(seed)", re: /\(seed\)/gi },
-  { id: "demo-mutual", label: "Demo Mutual Insurance Co.", re: /Demo Mutual Insurance Co\.?/gi },
-  { id: "convex", label: "Convex", re: /\bConvex\b/gi },
-  { id: "invalid-domain", label: "verify-required.invalid", re: /verify-required\.invalid/gi },
-  { id: "rule-closeout", label: "closeoutWorkBeforeEarlierTranches", re: /closeoutWorkBeforeEarlierTranches/g },
-  { id: "rule-ceiling", label: "trancheCeilingPctToDate", re: /trancheCeilingPctToDate/g },
-  { id: "rule-exclusions", label: "excludedScopeNotes", re: /excludedScopeNotes/g },
-  { id: "judge-demo-period", label: "Judge demo ·", re: /Judge demo\s*[·•]/gi },
-  { id: "recovery-dev", label: "Recovery-dev", re: /Recovery-dev/gi },
-  { id: "studio-license", label: "Studio license", re: /Studio license/gi },
-  { id: "cron-actor", label: "Convex Automated Cron Engine", re: /Convex Automated Cron Engine/gi },
-  { id: "cron-auditor", label: "Convex Compliance Auditor Cron", re: /Convex Compliance Auditor Cron/gi },
-  { id: "kernel-browser", label: "KERNEL hosted browser", re: /KERNEL hosted browser/gi },
-  { id: "system-actor", label: "internal system actor", re: /\bsystem:[a-z0-9-]+\b/g },
-  { id: "env-name", label: "environment variable name", re: /\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+){1,}\b/g },
-  { id: "record-id", label: "record or vendor id", re: /\b[a-z][a-z0-9]{31}\b/g },
-  // An unmasked address is any full local part at an example.com domain.
-  // Masked forms (sb-****@personal.example.com, [demo inbox]@example.com) do
-  // not match because '*' and '[' are not local-part characters.
-  { id: "example-address", label: "unmasked .example.com address", re: /\b[A-Za-z0-9._%+-]+@(?:[A-Za-z0-9-]+\.)*example\.com\b/gi },
-];
-
-// Commit stamps are only a demo-flow concern; apply this rule to #/demo alone.
-// Require at least one a-f letter so a plain date such as 20261108 is not a hit.
-const DEMO_COMMIT_RULE = { id: "demo-commit", label: "commit hash in demo flow", re: /\b(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}\b/g };
-
-function contextFor(text, index, length) {
-  const start = Math.max(0, index - 70);
-  const end = Math.min(text.length, index + length + 70);
-  return text.slice(start, end).replace(/\s+/g, " ").trim();
-}
-
-function scanText(text, rules) {
-  const hits = [];
-  for (const rule of rules) {
-    const re = new RegExp(rule.re.source, rule.re.flags);
-    let match;
-    while ((match = re.exec(text)) !== null) {
-      hits.push({
-        rule: rule.label,
-        match: match[0],
-        context: contextFor(text, match.index, match[0].length),
-      });
-      if (match[0] === "") re.lastIndex += 1;
-    }
-  }
-  return hits;
-}
-
-/**
- * Runs in the browser. Walks rendered text nodes and returns app copy, quoted
- * recorded history, and the text skipped inside closed <details> elements. Any
- * text node with a closed <details> anywhere in its ancestor chain is skipped,
- * including that element's own <summary>, exactly as VAL-COPY-005 requires.
- */
-async function extractText(page) {
-  return page.evaluate(() => {
-    const root = document.querySelector("#workspace-main") ?? document.body;
-    const app = [];
-    const recorded = [];
-    const skipped = [];
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-      acceptNode(node) {
-        const el = node.parentElement;
-        if (!el) return NodeFilter.FILTER_REJECT;
-        if (el.closest("script,style,noscript,template,svg")) return NodeFilter.FILTER_REJECT;
-        for (let n = el; n; n = n.parentElement) {
-          if (n.tagName === "DETAILS" && !n.hasAttribute("open")) {
-            skipped.push((node.textContent || "").trim().slice(0, 80));
-            return NodeFilter.FILTER_REJECT;
-          }
-          if (n.hasAttribute("hidden")) return NodeFilter.FILTER_REJECT;
-        }
-        const visible =
-          typeof el.checkVisibility === "function"
-            ? el.checkVisibility({ checkVisibilityCSS: true })
-            : el.getClientRects().length > 0;
-        return visible ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
-      },
-    });
-    let node;
-    while ((node = walker.nextNode())) {
-      const value = (node.textContent || "").replace(/\s+/g, " ").trim();
-      if (!value) continue;
-      if (node.parentElement.closest("[data-recorded-history]")) recorded.push(value);
-      else app.push(value);
-    }
-    return {
-      hash: location.hash,
-      appText: app.join(" ").replace(/\s+/g, " ").trim(),
-      recordedText: recorded.join(" ").replace(/\s+/g, " ").trim(),
-      recordedBlocks: [...root.querySelectorAll("[data-recorded-history]")].filter((el) => {
-        if (el.closest("details:not([open])")) return false;
-        return typeof el.checkVisibility === "function" ? el.checkVisibility() : el.getClientRects().length > 0;
-      }).length,
-      skippedInsideClosedDetails: skipped.length,
-    };
-  });
-}
+const OPEN_DISCLOSURES = process.argv.includes("--open-disclosures");
 
 async function selfTest(browser) {
   const page = await browser.newPage();
@@ -217,6 +113,18 @@ function resolved(href) {
   return new URL(href, `${BASE_URL}/`).href;
 }
 
+/**
+ * Extracts app copy in the requested disclosure state. `--open-disclosures` opens every
+ * disclosure except the contract-exempt `#/demo` manual block, so a stored string that only
+ * appears after expansion still fails the scan.
+ */
+async function capture(page) {
+  const opened = OPEN_DISCLOSURES ? await openDisclosures(page) : 0;
+  if (opened > 0) await delay(500);
+  const text = await extractText(page);
+  return { ...text, disclosureMode: OPEN_DISCLOSURES ? "open" : "closed", disclosuresOpened: opened };
+}
+
 async function findLink(page, pattern, description) {
   const href = await page.evaluate((source) => {
     const re = new RegExp(source, "i");
@@ -248,7 +156,7 @@ async function main() {
       await page.goto(`${BASE_URL}/#/demo`, { waitUntil: "networkidle0", timeout: 60000 });
       await page.waitForSelector('[data-testid="demo-access-page"]', { timeout: 30000 });
       await delay(800);
-      screens.push({ name: "Demo landing", route: "#/demo", ...(await extractText(page)) });
+      screens.push({ name: "Demo landing", route: "#/demo", ...(await capture(page)) });
       diagnostics["Demo landing"] = { consoleErrors: diag.consoleLogs.filter((l) => l.type === "error"), pageErrors: diag.pageErrors, failedRequests: diag.failedRequests };
       await page.close();
     }
@@ -258,7 +166,7 @@ async function main() {
       const { context, page } = await enterSeat(browser, "gc");
       const diag = attachDiagnostics(page);
       await gotoAndWait(page, "#/inbox", "GC inbox");
-      screens.push({ name: "GC inbox", route: "#/inbox", ...(await extractText(page)) });
+      screens.push({ name: "GC inbox", route: "#/inbox", ...(await capture(page)) });
 
       await gotoAndWait(page, "#/all-projects", "GC all projects");
       const lopez = await findLink(page, /Lopez Kitchen/i, "Lopez project");
@@ -266,7 +174,7 @@ async function main() {
       await delay(1800);
       const body = await page.evaluate(() => document.body.innerText);
       if (!/Lopez Kitchen/i.test(body)) throw new Error("GC Lopez project: Lopez content did not render");
-      screens.push({ name: "GC Lopez project", route: new URL(lopez).hash, ...(await extractText(page)) });
+      screens.push({ name: "GC Lopez project", route: new URL(lopez).hash, ...(await capture(page)) });
       diagnostics["GC inbox"] = { consoleErrors: diag.consoleLogs.filter((l) => l.type === "error"), pageErrors: diag.pageErrors, failedRequests: diag.failedRequests };
       await context.close();
     }
@@ -279,7 +187,7 @@ async function main() {
       await gotoAndWait(page, hash, "Sub pay app");
       const body = await page.evaluate(() => document.body.innerText);
       if (!/Ortiz Plumbing/.test(body)) throw new Error("Sub pay app: Ortiz pay app did not render");
-      screens.push({ name: "Sub pay app", route: hash, ...(await extractText(page)) });
+      screens.push({ name: "Sub pay app", route: hash, ...(await capture(page)) });
       diagnostics["Sub pay app"] = { consoleErrors: diag.consoleLogs.filter((l) => l.type === "error"), pageErrors: diag.pageErrors, failedRequests: diag.failedRequests };
       await context.close();
     }
@@ -291,10 +199,10 @@ async function main() {
       await gotoAndWait(page, "#/projects", "Owner projects");
       const homeBody = await page.evaluate(() => document.body.innerText);
       if (!/Owner home/i.test(homeBody)) throw new Error("Owner projects: owner home did not render");
-      screens.push({ name: "Owner projects", route: "#/projects", ...(await extractText(page)) });
+      screens.push({ name: "Owner projects", route: "#/projects", ...(await capture(page)) });
 
       await gotoAndWait(page, "#/owner-pay-apps", "Owner pay apps");
-      screens.push({ name: "Owner pay apps", route: "#/owner-pay-apps", ...(await extractText(page)) });
+      screens.push({ name: "Owner pay apps", route: "#/owner-pay-apps", ...(await capture(page)) });
 
       await gotoAndWait(page, "#/change-orders", "Owner change orders");
       // The owner has both the residential Lopez job and a commercial reference
@@ -320,7 +228,7 @@ async function main() {
       await delay(1800);
       const coBody = await page.evaluate(() => document.body.innerText);
       if (!/change order|invoice/i.test(coBody)) throw new Error("Owner change-order invoice: detail did not render");
-      screens.push({ name: "Owner change-order invoice", route: new URL(invoice).hash, ...(await extractText(page)) });
+      screens.push({ name: "Owner change-order invoice", route: new URL(invoice).hash, ...(await capture(page)) });
       diagnostics["Owner screens"] = { consoleErrors: diag.consoleLogs.filter((l) => l.type === "error"), pageErrors: diag.pageErrors, failedRequests: diag.failedRequests };
       await context.close();
     }
@@ -342,6 +250,8 @@ async function main() {
         hits: recordedHits,
       },
       skippedInsideClosedDetails: screen.skippedInsideClosedDetails,
+      disclosureMode: screen.disclosureMode,
+      disclosuresOpened: screen.disclosuresOpened,
       charsScanned: screen.appText.length,
     };
   });
@@ -361,10 +271,12 @@ async function main() {
   const report = {
     generatedAt: new Date().toISOString(),
     baseUrl: BASE_URL,
+    disclosureMode: OPEN_DISCLOSURES ? "open" : "closed",
     selfTest: self,
     summary: {
       screens: core.length,
       screensIncludingDemo: results.length,
+      disclosuresOpened: results.reduce((n, r) => n + r.disclosuresOpened, 0),
       appCopyHits: appHits,
       quotedRecordedHits: recordedHits,
       quotedRecordedBlocks: results.reduce((n, r) => n + r.quotedRecordedText.blocks, 0),
@@ -374,7 +286,7 @@ async function main() {
   };
   const file = writeJson("leak-scan.json", report);
 
-  console.log(`leak-scan ${BASE_URL}`);
+  console.log(`leak-scan ${BASE_URL} (disclosures: ${OPEN_DISCLOSURES ? "open" : "closed"})`);
   console.log(
     `self-test: ${self.ok ? "PASS" : "FAIL"} (closed <details> exempt=${self.closedDetailsExempt}, inside hits=${self.insideClosedDetailsHits}, outside hits=${self.outsideHits}, quoted reported separately=${self.recordedReportedSeparately})`
   );
@@ -395,7 +307,7 @@ async function main() {
     }
   }
   console.log(
-    `summary: ${core.length} core screens + demo; ${appHits} app-copy hits; ${report.summary.quotedRecordedBlocks} quoted block(s), ${recordedHits} banned strings inside quoted history (reported, never rewritten)`
+    `summary: ${core.length} core screens + demo (disclosures ${OPEN_DISCLOSURES ? "open" : "closed"}, ${report.summary.disclosuresOpened} opened); ${appHits} app-copy hits; ${report.summary.quotedRecordedBlocks} quoted block(s), ${recordedHits} banned strings inside quoted history (reported, never rewritten)`
   );
   console.log(`evidence: ${file}`);
 

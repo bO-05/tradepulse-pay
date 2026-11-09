@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { demoDisplayName, demoIdentityName, demoPeriodLabel, demoProjectDescription, demoProjectName } from "./demoCopy";
+import { demoAgreementNumber, demoDisplayName, demoIdentityName, demoPeriodLabel, demoProjectDescription, demoProjectName } from "./demoCopy";
 
 describe("seeded demo names read as real", () => {
   test("drops a demo or seed parenthetical and the old brand suffix", () => {
@@ -36,6 +36,11 @@ describe("the demo identity chip names the residential job", () => {
 });
 
 describe("seeded demo project and period labels", () => {
+  test("a guided-demo agreement number loses the internal A401 prefix", () => {
+    expect(demoAgreementNumber("A401-DEMO-PAY-20261101-02")).toBe("Sandbox subcontract");
+    expect(demoAgreementNumber("SC-22-ORTIZ-0001")).toBe("SC-22-ORTIZ-0001");
+  });
+
   test("a guided-demo title loses the run prefix and the words judge demo", () => {
     expect(demoProjectName("Demo · TradePulse Pay judge demo 20261108-13")).toBe("Sandbox run 20261108-13");
     expect(demoProjectName("Demo · Pay-app review scenario")).toBe("Pay-app review scenario");

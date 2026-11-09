@@ -1,5 +1,5 @@
 import { maskSandboxEmail } from "../../lib/demoPrivacy";
-import { demoDisplayName } from "../../lib/demoCopy";
+import { demoIdentityName } from "../../lib/demoCopy";
 
 export type OwnerAddress = { line1: string; line2?: string; city: string; state: string; zip: string };
 
@@ -18,8 +18,8 @@ export function formatOwnerAddress(a: OwnerAddress): string {
 /** The owner company rows a GC sees on the project page; unset profile fields read "Not set". */
 export function ownerDetailRows(company: OwnerCompanyProfile): Array<{ label: string; value: string; testId: string }> {
   return [
-    { label: "Company", value: demoDisplayName(company.name), testId: "owner-name" },
-    { label: "Legal name", value: company.legalName ? demoDisplayName(company.legalName) : "Not set", testId: "owner-legal-name" },
+    { label: "Company", value: demoIdentityName(company.name), testId: "owner-name" },
+    { label: "Legal name", value: company.legalName ? demoIdentityName(company.legalName) : "Not set", testId: "owner-legal-name" },
     { label: "Address", value: company.address ? formatOwnerAddress(company.address) : "Not set", testId: "owner-address" },
     { label: "Phone", value: company.phone || "Not set", testId: "owner-phone" },
     { label: "Billing email", value: maskSandboxEmail(company.billingEmail) ?? "Not set", testId: "owner-billing-email" },
