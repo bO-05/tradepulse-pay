@@ -188,7 +188,7 @@ export const confirmPayee = mutation({
     await audit(ctx, {
       eventType: "payee_confirmed",
       title: `Payee confirmed for ${vendor.name}`,
-      description: `${personName(user)} of ${company.name} confirmed ${current} as the payout PayPal email for vendor ${vendor.name} (${vendor._id}); previously confirmed: ${previous?.email ?? "(none)"}.`,
+      description: `${personName(user)} of ${company.name} confirmed the payout PayPal email for ${vendor.name}; previously confirmed: ${previous?.email ? "a different address" : "none"}.`,
       user,
       companyId: company._id,
     });

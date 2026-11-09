@@ -432,7 +432,7 @@ describe("tenancy migration", () => {
       const projectMembers = await ctx.db.query("projectMembers").collect();
       return { companies, demoGc, projects, users, members, projectMembers };
     });
-    expect(state.demoGc).toMatchObject({ name: "Demo GC (TradePulse Pay demo)", kind: "gc", isDemo: true });
+    expect(state.demoGc).toMatchObject({ name: "Demo GC", kind: "gc", isDemo: true });
     expect(state.companies.filter((c) => c.isDemo).map((c) => c.name).sort()).toEqual(DEMO_COMPANIES.map((c) => c.name).sort());
     for (const id of Object.values(legacy.projects)) {
       expect(state.projects.find((p) => p._id === id)!.gcCompanyId).toBe(state.demoGc._id);

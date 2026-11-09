@@ -6,6 +6,7 @@ import { payAppHash } from "../auth/navigation";
 import { getErrorMessage } from "../lib/errors";
 import { Button, Card, ConfirmDialog, EmptyState, PageHeader, StatusPill, formatCents, formatDate } from "../ui";
 import { DocumentDownloadButton } from "../documents/DocumentDownload";
+import { demoProjectName } from "../lib/demoCopy";
 import { payAppTitle } from "./PayAppPage";
 
 type AgreementRow = FunctionReturnType<typeof api.payApps.g703.mySubPayAppAgreements>[number];
@@ -63,7 +64,7 @@ function AgreementPayApps({ row }: { row: AgreementRow }) {
 
   return (
     <Card
-      title={`${row.agreementNumber} · ${row.projectTitle}`}
+      title={`${row.agreementNumber} · ${demoProjectName(row.projectTitle)}`}
       description={`${row.tradeName} · contract sum ${formatCents(row.contractSumCents)}`}
       actions={
         open ? (

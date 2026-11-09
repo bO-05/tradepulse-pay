@@ -8,6 +8,8 @@ import { LicenseCheckPanel } from "./LicenseCheck";
 import { submissionAttribution } from "./SubmissionAttribution";
 import { isAIReviewProvider, reviewAttribution } from "../lib/aiProvenance";
 import { statusLabel } from "../ui";
+import { demoPeriodLabel } from "../lib/demoCopy";
+import { recordedReviewHeading, reviewText } from "../lib/reviewDisplay";
 
 type PayAppWithReview = FunctionReturnType<typeof api.payApps.review.listAgreementPayApps>[number];
 
@@ -90,14 +92,26 @@ function RerunReviewButton({ payAppId, label }: { payAppId: string; label: strin
 }
 
 /** One pay application with its per-line review. Dollar amounts come from code, never from the model. */
-export function PayAppReviewCard({ payApp, canRerun, showAttribution = true }: { payApp: PayAppWithReview; canRerun: boolean; showAttribution?: boolean }) {
+export function PayAppReviewCard({
+  payApp,
+  canRerun,
+  showAttribution = true,
+  recordedHistory = false,
+}: {
+  payApp: PayAppWithReview;
+  canRerun: boolean;
+  showAttribution?: boolean;
+  /** A frozen run: its stored words are quoted history, not current app copy. */
+  recordedHistory?: boolean;
+}) {
   const review = payApp.review;
   const rerunnable = ["submitted", "under_review", "reviewed"].includes(payApp.status);
+  const quoted = recordedHistory && review !== null;
   return (
     <article className="border border-slate-800 rounded-xl p-4 space-y-3" data-testid="payapp-review-card">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="font-semibold">{payApp.periodLabel}</h3>
+          <h3 className="font-semibold">{demoPeriodLabel(payApp.periodLabel)}</h3>
           <p className="text-xs text-slate-400 [overflow-wrap:anywhere]">
             Submitted {formatDate(payApp.createdAt)}{showAttribution ? ` · ${submissionAttribution(payApp.submittedBy, payApp.judgeDemoFiledBy)}` : ""}
             {" · "}status <span data-testid="payapp-review-status" data-status={payApp.status}>{statusLabel(payApp.status)}</span>
@@ -150,10 +164,17 @@ export function PayAppReviewCard({ payApp, canRerun, showAttribution = true }: {
             ) : null}
           </div>
           {review.flags.notes ? (
-            <div>
-              <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Review notes (model commentary, not a GC decision)</p>
-              <p className="text-xs text-slate-300">{review.flags.notes}</p>
-            </div>
+            quoted ? (
+              <div data-recorded-history="review-note">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{recordedReviewHeading(review.reviewedAt, "Recorded review")}</p>
+                <blockquote className="mt-1 border-l-2 border-slate-600 pl-3 text-xs text-slate-300">{review.flags.notes}</blockquote>
+              </div>
+            ) : (
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Review notes (model commentary, not a GC decision)</p>
+                <p className="text-xs text-slate-300">{reviewText(review.flags.notes)}</p>
+              </div>
+            )
           ) : null}
         </>
       ) : (
@@ -202,7 +223,11 @@ export function PayAppReviewCard({ payApp, canRerun, showAttribution = true }: {
                       >
                         {VERDICT_LABEL[l.review.verdict] ?? l.review.verdict}
                       </span>
-                      <span className="block text-xs text-slate-300 mt-1">{l.review.reason}</span>
+                      {quoted ? (
+                        <blockquote className="mt-1 border-l-2 border-slate-600 pl-2 text-xs text-slate-300" data-recorded-history="review-line">{l.review.reason}</blockquote>
+                      ) : (
+                        <span className="block text-xs text-slate-300 mt-1">{reviewText(l.review.reason)}</span>
+                      )}
                     </>
                   ) : (
                     "—"
@@ -242,7 +267,7 @@ export function AgreementPayAppReviews({ agreementId, contractorId, readOnly = f
       ) : (
         <div className="space-y-4">
           {payApps.map((p) => (
-            <PayAppReviewCard key={p._id} payApp={p} canRerun={!readOnly} />
+            <PayAppReviewCard key={p._id} payApp={p} canRerun={!readOnly} recordedHistory={readOnly} />
           ))}
         </div>
       )}

@@ -13,6 +13,10 @@ import { Button, EmptyState, MoneyTrail, StatusPill, TextInput, statusLabel } fr
 import { ReceiptId } from "../ReceiptId";
 import { ReferenceNotice } from "../ReferenceNotice";
 import { isAIReviewProvider } from "../../lib/aiProvenance";
+import { demoDisplayName, demoPeriodLabel, demoProjectName } from "../../lib/demoCopy";
+import { maskSandboxEmail } from "../../lib/demoPrivacy";
+import { auditText } from "../../lib/auditCopy";
+import { reviewText } from "../../lib/reviewDisplay";
 import { ProjectMoneyStrip } from "../../billing/ProjectMoneyStrip";
 import { inboxGroup, payAppStatusLabel } from "./inboxBuckets";
 
@@ -302,10 +306,10 @@ function ProposalCard({
           {proposal.milestoneName ? <p className="text-xs text-ink-subtle">Milestone: {proposal.milestoneName}</p> : null}
         </div>
       ) : null}
-      <p className="text-xs text-slate-200" data-testid="proposal-rationale">{proposal.rationale}</p>
+      <p className="text-xs text-slate-200" data-testid="proposal-rationale">{auditText(reviewText(proposal.rationale))}</p>
       {proposal.editedReason ? (
         <p className="rounded-lg border border-amber-800/60 bg-amber-950/30 px-2 py-1 text-xs text-amber-100" data-testid="proposal-edited-reason">
-          <span className="font-semibold">GC reason for the change:</span> {proposal.editedReason}
+          <span className="font-semibold">GC reason for the change:</span> {auditText(proposal.editedReason)}
         </p>
       ) : null}
       {proposal.flags.length > 0 ? (
@@ -424,10 +428,10 @@ function InboxEntry({ item, primaryProposalId }: { item: InboxItem; primaryPropo
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-1 [overflow-wrap:anywhere]">
           <h2 className="text-base font-semibold">
-            {item.agreement.subcontractorName} · {item.payApp.periodLabel}
+            {demoDisplayName(item.agreement.subcontractorName)} · {demoPeriodLabel(item.payApp.periodLabel)}
           </h2>
           <p className="text-xs text-slate-400">
-            {item.agreement.agreementNumber} · {item.agreement.projectTitle} · status{" "}
+            {item.agreement.agreementNumber} · {demoProjectName(item.agreement.projectTitle)} · status{" "}
             <span data-testid="inbox-payapp-status" data-status={item.payApp.status}>{payAppStatusLabel(item.payApp.status)}</span>
           </p>
           <p className="text-sm text-slate-300" data-testid="inbox-attribution" data-actor={item.payApp.submittedBy.actorType}>{submissionAttribution(item.payApp.submittedBy, item.payApp.judgeDemoFiledBy)}</p>
@@ -479,7 +483,7 @@ function InboxEntry({ item, primaryProposalId }: { item: InboxItem; primaryPropo
         {item.payment ? (
           <p className="text-xs text-slate-300 [overflow-wrap:anywhere]" data-testid="inbox-payment">
             Payout {statusLabel(item.payment.status)}: {formatCents(item.payment.grossCents)} gross, {formatCents(item.payment.retainageCents)} retainage held,{" "}
-            {formatCents(item.payment.netCents)} net to {item.payment.receiverEmail ?? "the sub"}
+            {formatCents(item.payment.netCents)} net to {maskSandboxEmail(item.payment.receiverEmail) ?? "the sub"}
             {item.payment.batchId ? ` · batch ${item.payment.batchId}` : ""}
             {item.payment.error ? ` · ${item.payment.error}` : ""}
           </p>
@@ -496,7 +500,7 @@ function InboxEntry({ item, primaryProposalId }: { item: InboxItem; primaryPropo
         {showTrace ? <AgentTrace payAppId={item.payApp._id} /> : null}
       </section>
 
-      <PayAppReviewCard payApp={item.payApp} canRerun={!item.readOnlyReference} showAttribution={false} />
+      <PayAppReviewCard payApp={item.payApp} canRerun={!item.readOnlyReference} showAttribution={false} recordedHistory={item.readOnlyReference} />
     </article>
   );
 }

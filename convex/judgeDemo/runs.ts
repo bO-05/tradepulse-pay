@@ -280,7 +280,7 @@ export const fileDemoPayApp = mutation({
         actor: run.gcEmail,
         auditFields: { agentEmail, ...(agentId?.agentSub ? { agentSub: agentId.agentSub } : {}), ...(agentId?.ownerEmail ? { ownerEmail: agentId.ownerEmail } : {}) },
         judgeDemo,
-        auditNote: `(filed by the judge demo as a stand-in for ${agentEmail})`,
+        auditNote: "(filed in the guided demo for the linked billing agent)",
       };
     }
     const payAppId = await recordPayApplication(ctx, agreement, { ...text, lines }, who);

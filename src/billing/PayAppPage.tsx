@@ -21,6 +21,7 @@ import { LienWaiverPanel } from "./LienWaiverPanel";
 import { PaymentPanel } from "./PaymentPanel";
 import { PayAppThread } from "./PayAppThread";
 import { ReferenceNotice } from "../payments/ReferenceNotice";
+import { demoDisplayName, demoPeriodLabel, demoProjectName } from "../lib/demoCopy";
 import { PayAppMoneyTrail, type PayAppView } from "./PayAppMoneyTrail";
 
 type SheetLine = PayAppView["lines"][number];
@@ -39,7 +40,7 @@ function savedTime(at: number | undefined): string {
 }
 
 export function payAppTitle(p: { applicationNo: number | null; periodLabel: string }): string {
-  return p.applicationNo !== null ? `Pay app #${p.applicationNo}` : p.periodLabel;
+  return p.applicationNo !== null ? `Pay app #${p.applicationNo}` : demoPeriodLabel(p.periodLabel);
 }
 
 /** One pay application: the sub edits its draft G703 (autosaved); everyone allowed reads G703 and G702. */
@@ -198,7 +199,7 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
         <div>
           <dt className="text-xs text-ink-subtle">Period</dt>
           <dd className="font-semibold" data-testid="payapp-period">
-            {view.periodStart && view.periodEnd ? `${formatDate(view.periodStart)} – ${formatDate(view.periodEnd)}` : view.periodLabel}
+            {view.periodStart && view.periodEnd ? `${formatDate(view.periodStart)} – ${formatDate(view.periodEnd)}` : demoPeriodLabel(view.periodLabel)}
           </dd>
         </div>
         <div>
@@ -240,7 +241,7 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
       <PageHeader
         back={{ href: backHash, label: backLabel }}
         title={title}
-        description={`${view.agreement.subcontractorName} · ${view.agreement.projectTitle} · ${view.agreement.agreementNumber}`}
+        description={`${demoDisplayName(view.agreement.subcontractorName)} · ${demoProjectName(view.agreement.projectTitle)} · ${view.agreement.agreementNumber}`}
         meta={
           <>
             <StatusPill status={view.status} />
@@ -311,10 +312,11 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
       {view.revisionRequest ? (
         <DecisionCard
           decision={view.revisionRequest}
+          recordedHistory={view.readOnlyReference}
           title={view.status === "draft" ? `Revising for version ${view.version}: what the GC asked for` : "Revision requested"}
         />
       ) : view.decision ? (
-        <DecisionCard decision={view.decision} />
+        <DecisionCard decision={view.decision} recordedHistory={view.readOnlyReference} />
       ) : null}
 
       {metaCard}
@@ -399,7 +401,7 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
         title={`Submit ${title}?`}
         amountCents={summary.currentPaymentDueCents}
         amountLabel="Current payment due"
-        payee={view.agreement.subcontractorName}
+        payee={demoDisplayName(view.agreement.subcontractorName)}
         payeeLabel="Billing as"
         details={[
           { label: "Completed & stored to date", value: formatCents(summary.completedAndStoredCents) },

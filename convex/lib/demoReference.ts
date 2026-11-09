@@ -3,7 +3,7 @@ import { ConvexError } from "convex/values";
 export const REFERENCE_RUN_ID = "nx74k1sdcnsmqzvkr97kf0ts598hch6p";
 export const REFERENCE_AGREEMENT_ID = "jn78x0j5xeh7q9gb55p26r7pdh8hdmjx";
 export const READ_ONLY_REFERENCE_MESSAGE =
-  "This is a preserved, read-only demo fixture. Start a fresh guided run to try approvals and sandbox payments.";
+  "This is a preserved, read-only reference job. Start a fresh guided run to try approvals and sandbox payments.";
 
 export function isReadOnlyReference(project: { readOnlyReference?: boolean; readOnlyDemoFixture?: boolean } | null): boolean {
   return project?.readOnlyReference === true || project?.readOnlyDemoFixture === true;

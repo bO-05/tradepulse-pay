@@ -153,7 +153,7 @@ export function InvitePage({ token }: { token: string }) {
       <AuthLayout title="Billing agents can't accept invites">
         {summary}
         <div className="mt-4 space-y-3">
-          <FormAlert>AgentID billing agents cannot accept invitations. A person at the invited company must accept it.</FormAlert>
+          <FormAlert>Billing agents cannot accept invitations. A person at the invited company must accept it.</FormAlert>
           {signOutButton("Sign out")}
         </div>
       </AuthLayout>

@@ -21,6 +21,8 @@ import {
 import { loadSovRows } from "../lib/sovLines";
 import { loadTranches } from "../lib/trancheRows";
 import { isReadOnlyReference, READ_ONLY_REFERENCE_MESSAGE } from "../lib/demoReference";
+import { projectKindOf } from "../lib/projectKind";
+import { termsForKind } from "../lib/terms";
 import { milestoneStatusValidator, paymentStatusValidator } from "../schema";
 
 /**
@@ -114,12 +116,12 @@ async function trancheAgreement(ctx: MutationCtx, tranche: Doc<"milestones">): P
   return agreement;
 }
 
-function requireBillable(agreement: Doc<"agreements">) {
+function requireBillable(agreement: Doc<"agreements">, terms: ReturnType<typeof termsForKind>) {
   if (agreement.status !== "executed") {
-    throw new ConvexError({ code: "INVALID_STATE", message: "Funding tranches can be added once the subcontract is executed." });
+    throw new ConvexError({ code: "INVALID_STATE", message: `${terms.funding.ledgerTitle} can be added once the subcontract is executed.` });
   }
   if (!sovIsApproved(agreement)) {
-    throw new ConvexError({ code: "INVALID_STATE", message: "Approve the schedule of values before adding funding tranches." });
+    throw new ConvexError({ code: "INVALID_STATE", message: `Approve the schedule of values before adding ${terms.funding.ledgerLower}.` });
   }
 }
 
@@ -134,18 +136,27 @@ export const createTranche = mutation({
   handler: async (ctx, args) => {
     const scope = await requireDocScope(ctx, "agreements", args.agreementId, { roles: ["gc"], write: true });
     const agreement = scope.doc;
-    requireBillable(agreement);
-    const name = checkTrancheName(args.name);
+    const kind = projectKindOf(scope.project);
+    const terms = termsForKind(kind);
+    requireBillable(agreement, terms);
+    const name = checkTrancheName(args.name, kind);
     if (!name.ok) throw invalid(name);
-    const amount = checkTrancheAmount(args.amountCents);
+    const amount = checkTrancheAmount(args.amountCents, kind);
     if (!amount.ok) throw invalid(amount);
     const existing = await tranchesOf(ctx, agreement._id);
-    if (existing.length >= MAX_TRANCHES_PER_AGREEMENT) throw new ConvexError({ code: "TRANCHE_LIMIT", message: TRANCHE_LIMIT_MESSAGE });
+    if (existing.length >= MAX_TRANCHES_PER_AGREEMENT) {
+      const message =
+        kind === "residential"
+          ? `An agreement can have at most ${MAX_TRANCHES_PER_AGREEMENT} funded milestones. Combine or delete a milestone before adding another.`
+          : TRANCHE_LIMIT_MESSAGE;
+      throw new ConvexError({ code: "TRANCHE_LIMIT", message });
+    }
     const sum = await contractSumToDateCents(ctx, agreement._id);
     const total = checkTrancheTotal(
       existing.map((t) => t.amountCents),
       args.amountCents,
       sum,
+      kind,
     );
     if (!total.ok) throw invalid(total);
     const startMs = projectStartMs(scope.project);
@@ -178,21 +189,23 @@ export const updateTranche = mutation({
     const scope = await requireDocScope(ctx, "milestones", args.trancheId, { roles: ["gc"], write: true });
     const tranche = scope.doc;
     const agreement = await trancheAgreement(ctx, tranche);
+    const kind = projectKindOf(scope.project);
     if (await isTrancheLocked(ctx, tranche)) throw new ConvexError({ code: "TRANCHE_LOCKED", message: TRANCHE_LOCKED_MESSAGE });
     const patch: Partial<Doc<"milestones">> = {};
     if (args.name !== undefined) {
-      const name = checkTrancheName(args.name);
+      const name = checkTrancheName(args.name, kind);
       if (!name.ok) throw invalid(name);
       patch.name = args.name.trim();
     }
     if (args.amountCents !== undefined) {
-      const amount = checkTrancheAmount(args.amountCents);
+      const amount = checkTrancheAmount(args.amountCents, kind);
       if (!amount.ok) throw invalid(amount);
       const others = (await tranchesOf(ctx, agreement._id)).filter((t) => t._id !== tranche._id);
       const total = checkTrancheTotal(
         others.map((t) => t.amountCents),
         args.amountCents,
         await contractSumToDateCents(ctx, agreement._id),
+        kind,
       );
       if (!total.ok) throw invalid(total);
       patch.amountCents = args.amountCents;
@@ -298,6 +311,7 @@ export const listTranches = query({
     const scope = await findSubcontractDocScope(ctx, "agreements", args.agreementId, { roles: ["gc", "sub"] });
     if (scope === null) return null;
     const agreement = scope.doc;
+    const terms = termsForKind(projectKindOf(scope.project));
     const startMs = projectStartMs(scope.project);
     const tranches = await trancheRows(ctx, agreement, startMs);
     const sum = await contractSumToDateCents(ctx, agreement._id);
@@ -312,9 +326,9 @@ export const listTranches = query({
           : scope.partyRole !== "gc"
           ? null
           : agreement.status !== "executed"
-            ? "Funding tranches can be added once the subcontract is executed."
+            ? `${terms.funding.ledgerTitle} can be added once the subcontract is executed.`
             : !sovIsApproved(agreement)
-              ? "Approve the schedule of values before adding funding tranches."
+              ? `Approve the schedule of values before adding ${terms.funding.ledgerLower}.`
               : null,
       contractSumToDateCents: sum,
       trancheTotalCents: tranches.reduce((acc, t) => acc + t.amountCents, 0),
@@ -330,6 +344,7 @@ export const ownerProjectTranches = query({
   args: { projectId: v.string() },
   handler: async (ctx, args) => {
     const scope = await requireProjectScope(ctx, args.projectId, { roles: ["owner", "gc"] });
+    const kind = projectKindOf(scope.project);
     const agreements = await ctx.db
       .query("agreements")
       .withIndex("by_project", (q) => q.eq("projectId", scope.project._id))
@@ -340,7 +355,7 @@ export const ownerProjectTranches = query({
       const rows = await trancheRows(ctx, a, projectStartMs(scope.project));
       if (rows.length === 0) continue;
       out.push({
-        trade: `${a.csiDivision} ${a.tradeName}`.trim(),
+        trade: kind === "residential" ? a.tradeName : `${a.csiDivision} ${a.tradeName}`.trim(),
         tranches: rows.map((t) => ({ _id: t._id, name: t.name, order: t.order, amountCents: t.amountCents, status: t.status, funded: t.fundingStatus !== null })),
       });
     }

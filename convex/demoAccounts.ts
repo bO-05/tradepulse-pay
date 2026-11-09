@@ -32,25 +32,25 @@ type DemoAccount = {
 };
 
 export const DEMO_ACCOUNTS: readonly DemoAccount[] = [
-  { email: "gc@demo.tradepulse", role: "gc", displayName: "Demo GC (Austin Commercial, LP)" },
+  { email: "gc@demo.tradepulse", role: "gc", displayName: "Demo GC" },
   {
     email: "sub1@demo.tradepulse",
     role: "sub",
-    displayName: "Demo Sub 1 (Rosendin Electric)",
+    displayName: "Rosendin Electric, Inc.",
     contractorName: "Rosendin Electric, Inc.",
     paypalEmailEnv: "PAYPAL_SANDBOX_SUB1_EMAIL",
   },
   {
     email: "sub2@demo.tradepulse",
     role: "sub",
-    displayName: "Demo Sub 2 (TDIndustries)",
+    displayName: "TDIndustries, Inc.",
     contractorName: "TDIndustries, Inc.",
     paypalEmailEnv: "PAYPAL_SANDBOX_SUB2_EMAIL",
   },
   {
     email: "sub3@demo.tradepulse",
     role: "sub",
-    displayName: "Demo Sub 3 (Clarke Kent Plumbing)",
+    displayName: "Clarke Kent Plumbing",
     contractorName: "Clarke Kent Plumbing",
     paypalEmailEnv: "PAYPAL_SANDBOX_SUB3_EMAIL",
   },
@@ -59,7 +59,7 @@ export const DEMO_ACCOUNTS: readonly DemoAccount[] = [
     // repoint of sub1: Rosendin keeps its company, contractor, account and payee.
     email: "sub4@demo.tradepulse",
     role: "sub",
-    displayName: "Demo Sub 4 (Ortiz Plumbing)",
+    displayName: "Ortiz Plumbing",
     contractorName: "Ortiz Plumbing",
     paypalEmailEnv: "PAYPAL_SANDBOX_SUB4_EMAIL",
     paypalEmailFallbackEnv: "PAYPAL_SANDBOX_SUB3_EMAIL",
@@ -67,7 +67,7 @@ export const DEMO_ACCOUNTS: readonly DemoAccount[] = [
   {
     email: "owner@demo.tradepulse",
     role: "owner",
-    displayName: "Demo Owner (Domain Tower B)",
+    displayName: "Demo Owner",
     paypalEmailEnv: "PAYPAL_SANDBOX_OWNER_EMAIL",
   },
 ];
@@ -126,6 +126,10 @@ export async function linkDemoProfiles(ctx: MutationCtx) {
       results.push({ email: account.email, role: account.role, linked: false, contractorLinked: false, hasPaypalEmail: false });
       continue;
     }
+    // The auth profile name is the second place a seeded demo label is read (the header shows the
+    // profile display name; older sessions may still carry the auth name). Rename only this demo
+    // account, never a real user's name.
+    if (user.name !== account.displayName) await ctx.db.patch(user._id, { name: account.displayName });
     const contractorId = account.contractorName ? await findDemoContractorId(ctx, account.contractorName) : undefined;
     const payee = demoAccountPayee(account);
     const fields = {

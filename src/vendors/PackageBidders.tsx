@@ -12,6 +12,7 @@ import { BidderRfqStatus, PackageBidderMessages } from "./BidderRfqStatus";
 import { RfqSendDialog } from "./RfqSendDialog";
 import { RFQ_EMAIL_LABELS } from "./rfqLabels";
 import { EMPTY_VENDOR_FORM, VendorFormFields, serverVendorError, vendorFormArgs, type VendorFormErrors, type VendorFormState } from "./VendorFormFields";
+import { publicContactEmail } from "../lib/demoPrivacy";
 
 type Pkg = { _id: Id<"tradePackages">; csiDivision: string; tradeName: string; dueLabel?: string };
 
@@ -212,7 +213,7 @@ function DirectoryPicker({
                 <label htmlFor={id} className="flex flex-1 flex-col">
                   <span className="font-medium">{v.name}</span>
                   <span className="text-xs text-ink-subtle">
-                    {v.trades.join(", ") || "No trades"} · {v.email}
+                    {v.trades.join(", ") || "No trades"} · {publicContactEmail(v.email)}
                   </span>
                 </label>
                 {already && <span className="text-xs text-ink-subtle">Already a bidder</span>}

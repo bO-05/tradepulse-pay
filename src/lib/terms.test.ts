@@ -36,6 +36,12 @@ describe("residential vocabulary", () => {
     expect(terms.signed).toBe("Signed");
     expect(terms.fundedMilestone).toBe("Funded milestone");
     expect(terms.fundedMilestones).toBe("Funded milestones");
+    expect(terms.ledger).toEqual({
+      ownerInvoicesUnpaid: "Owner change-order invoices unpaid (project income)",
+      ownerIncomePaid: "Owner change-order income paid (not this subcontract)",
+      ownerIncomeNote:
+        "Statuses are recorded from PayPal webhooks/API responses at the time shown; this page does not re-query PayPal. Owner change-order income belongs to the project, not this subcontract's scope or balance.",
+    });
     expect(terms.primePrefix).toBe("");
     expect(terms.commercialBadge).toBe(false);
   });
@@ -80,6 +86,12 @@ describe("commercial vocabulary", () => {
     expect(terms.signed).toBe("Executed");
     expect(terms.fundedMilestone).toBe("Tranche");
     expect(terms.fundedMilestones).toBe("Funding tranches");
+    expect(terms.ledger).toEqual({
+      ownerInvoicesUnpaid: "Owner prime CO invoices unpaid (project income)",
+      ownerIncomePaid: "Owner prime CO income paid (not this subcontract)",
+      ownerIncomeNote:
+        "Statuses are recorded from PayPal webhooks/API responses at the time shown; this page does not re-query PayPal. Owner prime change-order income belongs to the project, not this subcontract's scope or balance.",
+    });
     expect(terms.primePrefix).toBe("Prime ");
     expect(terms.commercialBadge).toBe(true);
     expect(terms.commercialBadgeLabel).toBe("Commercial reference job");

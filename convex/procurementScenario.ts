@@ -166,9 +166,9 @@ export const seedProcurementScenario = internalMutation({
       projectId,
       tradePackageId,
       eventType: "bid_leveled",
-      title: `Procurement scenario seeded: ${args.suffix}`,
+      title: `Sample procurement project prepared: ${args.suffix}`,
       description: `Two leveled Div 26 bids: ${contractor.companyName} $${SCENARIO_SUB1_LEVELED.toLocaleString("en-US")} (seismic bracing excluded) and ${SCENARIO_COMPETING_NAME} $${SCENARIO_COMPETING_LEVELED.toLocaleString("en-US")}. Nothing awarded.`,
-      actor: "Procurement scenario fixture",
+      actor: "Sample procurement setup",
       timestamp: now,
     });
     await attachProjectToDemo(ctx, projectId);

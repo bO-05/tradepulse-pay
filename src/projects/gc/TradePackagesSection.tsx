@@ -197,7 +197,8 @@ export function TradePackagesSection({
                 <li key={p._id} className="py-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span>
-                      <span className="font-mono text-ink-subtle">{p.csiDivision}</span> <span className="font-semibold">{p.tradeName}</span>
+                      {terms.kind === "commercial" ? <span className="font-mono text-ink-subtle">{p.csiDivision}</span> : null}{" "}
+                      <span className="font-semibold">{p.tradeName}</span>
                     </span>
                     <span className="flex items-center gap-2">
                       <StatusPill status={p.status} />

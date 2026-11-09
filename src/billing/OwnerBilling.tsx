@@ -5,7 +5,9 @@ import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { DocumentDownloadButton, ProjectDocumentsList } from "../documents/DocumentDownload";
 import { getErrorMessage } from "../lib/errors";
-import { maskSharedEmail } from "../lib/demoPrivacy";
+import { maskSandboxEmail } from "../lib/demoPrivacy";
+import { demoDisplayName, demoProjectName } from "../lib/demoCopy";
+import { tradeLineDisplay } from "../lib/tradeLineDisplay";
 import { termsForKind, type ProjectKind } from "../lib/terms";
 import { Button, Card, CommercialReferenceBadge, ConfirmDialog, Dialog, EmptyState, LinkButton, MoneyInput, MoneyTrail, PageHeader, StatusPill, formatBps, formatCents, formatDate, useToast, type LinkButtonVariant } from "../ui";
 import { Field, inputClass } from "../ui/Field";
@@ -41,14 +43,14 @@ function useOwnerBillingProject(party: Party) {
   const selected = projectId ?? ordered?.[0]?._id ?? null;
   const picker =
     ordered === undefined || ordered.length <= 1 ? (
-      ordered?.[0] ? <p className="text-sm font-medium">{ordered[0].title}</p> : null
+      ordered?.[0] ? <p className="text-sm font-medium">{demoProjectName(ordered[0].title)}</p> : null
     ) : (
       <Field label="Project" className="max-w-sm">
         {(control) => (
           <select {...control} value={selected ?? ""} onChange={(e) => setProjectId(e.target.value)} className={inputClass(false)} data-testid="owner-billing-project">
             {ordered.map((p) => (
               <option key={p._id} value={p._id}>
-                {p.title}
+                {demoProjectName(p.title)}
               </option>
             ))}
           </select>
@@ -99,7 +101,7 @@ export function G702Summary({ app }: { app: Detail }) {
 function SheetLineDescription({ line }: { line: Detail["lines"][number] }) {
   return (
     <td className="py-2 pr-2">
-      {line.description}
+      {line.kind === "trade" ? tradeLineDisplay(line.description) : line.description}
       {line.kind === "trade" ? <span className="block text-xs text-ink-subtle">From approved sub pay apps</span> : null}
     </td>
   );
@@ -329,7 +331,7 @@ function History({ app }: { app: Detail }) {
     <ol className="space-y-1 text-xs text-ink-subtle" data-testid="owner-pay-app-history">
       {app.history.map((h, i) => (
         <li key={i}>
-          <StatusPill status={h.status} kind={app.projectKind} /> {formatDate(h.at)} by {h.byName}
+          <StatusPill status={h.status} kind={app.projectKind} /> {formatDate(h.at)} by {demoDisplayName(h.byName)}
           {h.comment ? <span className="block pl-2 text-ink">“{h.comment}”</span> : null}
         </li>
       ))}
@@ -357,14 +359,14 @@ function InvoicePanel({ app, linkVariant = "secondary" }: { app: Detail; linkVar
     }
   }
   const amount = formatCents(app.figures.currentPaymentDueCents);
-  const recipient = app.recipientEmail ?? "the owner's billing email";
+  const recipient = maskSandboxEmail(app.recipientEmail) ?? "the owner's billing email";
   return (
     <div className="space-y-2 rounded-lg border border-line p-3 text-sm" data-testid="owner-invoice-panel">
       <p className="font-medium">PayPal invoice</p>
       {app.paypalInvoiceId ? (
         <p>
           Invoice <span className="font-mono text-xs" data-testid="owner-invoice-id">{app.paypalInvoiceId}</span>
-          {app.recipientEmail ? ` · sent to ${maskSharedEmail(app.recipientEmail)}` : null}
+          {app.recipientEmail ? ` · sent to ${maskSandboxEmail(app.recipientEmail)}` : null}
         </p>
       ) : null}
       {app.paypalInvoiceStatus ? (
@@ -861,7 +863,7 @@ function OwnerPayAppView({ ownerPayAppId }: { ownerPayAppId: string }) {
         title={`Approve ${terms.ownerBill.toLowerCase()} #${app.applicationNo}?`}
         amountCents={app.figures.currentPaymentDueCents}
         amountLabel={terms.kind === "residential" ? "This draw" : "Current payment due"}
-        payee={app.recipientEmail ?? "No billing email set"}
+        payee={maskSandboxEmail(app.recipientEmail) ?? "No billing email set"}
         payeeLabel="Invoice to"
         details={[{ label: "Retainage held", value: formatCents(app.figures.retainageCents) }]}
         effect={

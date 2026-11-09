@@ -5,6 +5,7 @@ import type { Id } from "../../convex/_generated/dataModel";
 import { getErrorMessage } from "../lib/errors";
 import { Button, Dialog, StatusPill, TextInput, useToast } from "../ui";
 import { RFQ_RECIPIENT_LABELS, copyRfqLink } from "./rfqLabels";
+import { publicContactEmail } from "../lib/demoPrivacy";
 
 type Result = { contractorId: Id<"contractors">; email: string; status: string; reason?: string };
 
@@ -141,7 +142,7 @@ export function RfqSendDialog({
                 <span className="font-semibold">{nameOf(r.contractorId)}</span>
                 <RecipientPill state={r.status} />
               </div>
-              <p className="break-all text-xs text-ink-subtle">{r.email}</p>
+              <p className="break-all text-xs text-ink-subtle">{publicContactEmail(r.email)}</p>
               {r.status !== "sent" && r.reason && <p className="text-xs text-ink-subtle">{r.reason}</p>}
               {r.status === "skipped_budget" && (
                 <Button

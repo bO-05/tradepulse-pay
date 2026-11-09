@@ -1,6 +1,7 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
-import { contractSumCentsOf, projectPlace, resolveAgreementTerms } from "../lib/agreementDocument";
+import { contractSumCentsOf, projectPlace, renderAgreementText, resolveAgreementTerms } from "../lib/agreementDocument";
+import { projectKindOf } from "../lib/projectKind";
 import { paymentTermsText, retainageText, stateName } from "../lib/agreementTerms";
 import { notFound } from "../lib/tenancy";
 import { payAppChangeOrderSummary, primeChangeOrders, subcontractChangeOrders } from "../billing/changeOrderView";
@@ -289,6 +290,7 @@ async function changeOrderDocument(ctx: QueryCtx, co: Doc<"changeOrders">): Prom
 async function subcontractDocument(ctx: QueryCtx, agreement: Doc<"agreements">): Promise<LoadedDocument> {
   const project = await projectOf(ctx, agreement.projectId);
   const terms = resolveAgreementTerms(agreement, project);
+  const kind = projectKindOf(project);
   return {
     projectId: project._id,
     fileName: `${fileSlug(agreement.agreementNumber)}-subcontract.pdf`,
@@ -296,19 +298,22 @@ async function subcontractDocument(ctx: QueryCtx, agreement: Doc<"agreements">):
     input: {
       kind: "subcontract_pdf",
       data: {
+        projectKind: kind,
         agreementNumber: agreement.agreementNumber,
         gcName: await gcNameOf(ctx, project, agreement.generalContractorName),
         subName: await subNameOf(ctx, agreement),
         projectTitle: project.title,
         projectAddress: projectPlace(project).address,
-        trade: `${agreement.csiDivision} ${agreement.tradeName}`.trim(),
+        trade: kind === "residential" ? agreement.tradeName : `${agreement.csiDivision} ${agreement.tradeName}`.trim(),
         contractSumCents: contractSumCentsOf(agreement),
         retainageText: retainageText(terms),
         paymentTermsText: paymentTermsText(terms.paymentTerms),
         governingLaw: stateName(terms.governingState),
         statusLabel: statusText(agreement.status),
         executedOn: dayOf(agreement.executedAt),
-        contractText: agreement.contractText,
+        // A stored commercial draft is byte-stable. A residential agreement always renders the
+        // residential wording, even when its row still holds an older commercial-template draft.
+        contractText: kind === "residential" ? await renderAgreementText(ctx, agreement, project, terms) : agreement.contractText,
       },
     },
   };

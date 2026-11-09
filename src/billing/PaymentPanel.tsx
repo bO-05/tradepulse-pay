@@ -8,6 +8,8 @@ import { termsForKind, type ProjectKind } from "../lib/terms";
 import { Button, Card, ConfirmDialog, StatusPill, formatCents, formatDateTime } from "../ui";
 import { GcComplianceHold, SubComplianceHold } from "./ComplianceHold";
 import { ReceiptId } from "../payments/ReceiptId";
+import { demoDisplayName } from "../lib/demoCopy";
+import { maskSandboxEmail } from "../lib/demoPrivacy";
 
 type Panel = NonNullable<FunctionReturnType<typeof api.billing.canPay.paymentPanel>>;
 type Payment = NonNullable<Panel["payment"]>;
@@ -76,7 +78,7 @@ function PaymentDetail({ payment }: { payment: Payment }) {
         <span className="text-ink-subtle">{formatDateTime(payment.updatedAt)}</span>
       </div>
       <p className="text-xs text-ink-subtle">
-        {payment.receiverEmail ? `To ${payment.receiverEmail}` : null}
+        {payment.receiverEmail ? `To ${maskSandboxEmail(payment.receiverEmail)}` : null}
         {payment.trancheName ? ` · from ${payment.trancheName}` : null}
       </p>
       <ReceiptId label="PayPal payout batch" value={payment.paypalPayoutBatchId} />
@@ -108,7 +110,7 @@ function GcPaymentPanel({ panel, payAppId, projectKind }: { panel: Panel; payApp
   const paid = payment?.status === "success";
   const now = useNow(payment?.status === "created");
   const stuck = payment !== null && payment.status === "created" && now - payment.createdAt > STUCK_AFTER_MS;
-  const payee = panel.payeeEmail ?? "No confirmed payee: the server refuses until a GC confirms one";
+  const payee = maskSandboxEmail(panel.payeeEmail) ?? "No confirmed payee: the server refuses until a GC confirms one";
 
   async function run(fn: () => Promise<unknown>, done?: string) {
     setBusy(true);
@@ -150,17 +152,17 @@ function GcPaymentPanel({ panel, payAppId, projectKind }: { panel: Panel; payApp
             </ul>
           </div>
         ) : null}
-        <GcComplianceHold compliance={panel.compliance} payAppId={payAppId} subcontractorName={panel.subcontractorName} />
+        <GcComplianceHold compliance={panel.compliance} payAppId={payAppId} subcontractorName={demoDisplayName(panel.subcontractorName)} />
         {panel.ok && panel.tranche && panel.payeeEmail ? (
           <p className="text-sm text-ink-subtle" data-testid="payment-ready">
-            Ready: pays {panel.payeeEmail} from {panel.tranche.name} ({formatCents(panel.tranche.availableCents)} available).
+            Ready: pays {maskSandboxEmail(panel.payeeEmail)} from {panel.tranche.name} ({formatCents(panel.tranche.availableCents)} available).
           </p>
         ) : null}
         {payment ? <PaymentDetail payment={payment} /> : null}
         <div className="flex flex-wrap gap-2">
           {!paid ? (
             <Button onClick={() => setConfirm("pay")} disabled={!panel.canPay || busy} data-testid="pay-sub-button">
-              Pay {panel.subcontractorName}
+              Pay {demoDisplayName(panel.subcontractorName)}
             </Button>
           ) : null}
           {payment && (payment.status === "pending" || payment.status === "unclaimed") ? (
@@ -203,10 +205,10 @@ function GcPaymentPanel({ panel, payAppId, projectKind }: { panel: Panel; payApp
       {figures && panel.tranche ? (
         <ConfirmDialog
           open={confirm === "pay"}
-          title={`Pay ${panel.subcontractorName}?`}
+          title={`Pay ${demoDisplayName(panel.subcontractorName)}?`}
           amountCents={figures.netCents}
           amountLabel="Net to sub"
-          payee={panel.payeeEmail}
+          payee={maskSandboxEmail(panel.payeeEmail)}
           payeeLabel="Payee (confirmed PayPal email)"
           details={[
             { label: "Approved gross", value: formatCents(figures.grossCents) },
@@ -232,7 +234,7 @@ function GcPaymentPanel({ panel, payAppId, projectKind }: { panel: Panel; payApp
       {payment && next ? (
         <ConfirmDialog
           open={confirm === "retry"}
-          title={`Retry the payout to ${panel.subcontractorName}?`}
+          title={`Retry the payout to ${demoDisplayName(panel.subcontractorName)}?`}
           amountCents={next.netCents}
           amountLabel="Payout (net to sub)"
           payee={payee}
@@ -255,7 +257,7 @@ function GcPaymentPanel({ panel, payAppId, projectKind }: { panel: Panel; payApp
       {payment && next && stuck ? (
         <ConfirmDialog
           open={confirm === "resume"}
-          title={`Retry the payment to ${panel.subcontractorName}?`}
+          title={`Retry the payment to ${demoDisplayName(panel.subcontractorName)}?`}
           amountCents={next.netCents}
           amountLabel="Payout (net to sub)"
           payee={payee}

@@ -140,8 +140,10 @@ describe("confirming the payee (GC of the relationship only)", () => {
     expect(detail.payee).toMatchObject({ status: "confirmed", confirmedEmail: "kim.payouts@example.com", confirmedByName: "dana@bayview.test" });
     const audit = await t.run(async (ctx) => (await ctx.db.query("auditLogs").collect()).filter((a) => a.eventType === "payee_confirmed"));
     expect(audit).toEqual([expect.objectContaining({ actorUserId: fx.gcA.admin.userId, actorCompanyId: fx.gcA.companyId })]);
-    expect(audit[0].description).toContain(`confirmed kim.payouts@example.com`);
-    expect(audit[0].description).toContain(String(bayviewVendor));
+    // The audit feed names the companies, never the raw email or the vendor row id.
+    expect(audit[0].description).toContain("Eastbay Electric");
+    expect(audit[0].description).not.toContain("kim.payouts@example.com");
+    expect(audit[0].description).not.toContain(String(bayviewVendor));
     const sub = await notificationsOf(t, fx.sub.companyId);
     expect(sub.map((n) => [n.userId, n.kind, n.title, n.readAt])).toEqual([
       [fx.sub.admin.userId, "payee_confirmed", "Payee confirmed by Bayview Builders Inc.", undefined],
@@ -430,8 +432,8 @@ describe("demo seed", () => {
       const gcUser = await t.run(async (ctx) => (await ctx.db.query("users").collect()).find((u) => u.email === "gc@demo.tradepulse")!);
       for (const e of entries) {
         expect(e).toMatchObject({ actorUserId: gcUser._id, actorCompanyId: vendors[0].companyId });
-        expect(e.description).toContain("demo seed");
-        expect(e.description).not.toMatch(/sandbox@/i);
+        expect(e.description).toMatch(/demo setup/i);
+        expect(e.description).not.toMatch(/sandbox@|demo seed/i);
       }
       // A reset that restores a cleared confirmation audits that restoration.
       await t.run((ctx) => ctx.db.patch(vendors[0]._id, { payoutEmailConfirmed: undefined }));

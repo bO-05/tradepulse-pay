@@ -1,4 +1,5 @@
 import { formatCents } from "../lib/money";
+import { termsForKind, type ProjectKind } from "../lib/terms";
 
 /**
  * Pure rules for GC-defined funding tranches (architecture §16): amounts in integer cents, the
@@ -16,26 +17,27 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 export type TrancheCheck = { ok: true } | { ok: false; message: string };
 
-export function checkTrancheName(name: string): TrancheCheck {
+export function checkTrancheName(name: string, kind?: ProjectKind): TrancheCheck {
   const trimmed = name.trim();
-  if (trimmed === "") return { ok: false, message: "Enter a tranche name." };
-  if (trimmed.length > MAX_TRANCHE_NAME_LENGTH) return { ok: false, message: `A tranche name must be at most ${MAX_TRANCHE_NAME_LENGTH} characters.` };
+  if (trimmed === "") return { ok: false, message: termsForKind(kind).funding.nameRequired };
+  if (trimmed.length > MAX_TRANCHE_NAME_LENGTH) return { ok: false, message: `A ${termsForKind(kind).funding.item} name must be at most ${MAX_TRANCHE_NAME_LENGTH} characters.` };
   return { ok: true };
 }
 
-export function checkTrancheAmount(amountCents: number): TrancheCheck {
-  if (!Number.isSafeInteger(amountCents)) return { ok: false, message: "The tranche amount must be whole cents." };
-  if (amountCents <= 0) return { ok: false, message: "The tranche amount must be more than $0.00." };
+export function checkTrancheAmount(amountCents: number, kind?: ProjectKind): TrancheCheck {
+  const item = termsForKind(kind).funding.item;
+  if (!Number.isSafeInteger(amountCents)) return { ok: false, message: `The ${item} amount must be whole cents.` };
+  if (amountCents <= 0) return { ok: false, message: `The ${item} amount must be more than $0.00.` };
   return { ok: true };
 }
 
 /** The total of every tranche on the agreement (with the new or changed amount) may not exceed the contract sum to date. */
-export function checkTrancheTotal(otherTrancheCents: readonly number[], amountCents: number, contractSumToDateCents: number): TrancheCheck {
+export function checkTrancheTotal(otherTrancheCents: readonly number[], amountCents: number, contractSumToDateCents: number, kind?: ProjectKind): TrancheCheck {
   const total = otherTrancheCents.reduce((a, c) => a + c, 0) + amountCents;
   if (total > contractSumToDateCents) {
     return {
       ok: false,
-      message: `Tranches total ${formatCents(total)}, more than the contract sum to date ${formatCents(contractSumToDateCents)}`,
+      message: `${termsForKind(kind).funding.itemsTitle} total ${formatCents(total)}, more than the contract sum to date ${formatCents(contractSumToDateCents)}`,
     };
   }
   return { ok: true };

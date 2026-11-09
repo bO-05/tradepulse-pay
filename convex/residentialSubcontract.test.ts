@@ -165,7 +165,7 @@ describe("Ortiz Plumbing residential subcontract", () => {
     expect(state.ortiz).not.toBeNull();
     if (state.ortiz === null) return;
     expect(state.ortiz.company).toMatchObject({
-      name: "Ortiz Plumbing (demo)",
+      name: "Ortiz Plumbing",
       demoKey: "sub:ortiz",
       kind: "sub",
       isDemo: true,

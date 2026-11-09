@@ -17,6 +17,7 @@ import {
 import { buildSubcontractText } from "./subcontractText";
 import { venueFor } from "./venue";
 import { generalContractorNameFor } from "./gcCompanyName";
+import { projectKindOf } from "./projectKind";
 
 type Ctx = Pick<QueryCtx, "db">;
 
@@ -200,6 +201,7 @@ export async function renderAgreementText(
   const place = projectPlace(project);
   const subName = contractor?.companyName.trim() || agreement.subcontractorName;
   return buildSubcontractText({
+    projectKind: projectKindOf(project),
     agreementNumber: agreement.agreementNumber,
     formattedDate: `${formatUtcDate(agreement.createdAt)} (UTC)`,
     generalContractor: await generalContractorNameFor(ctx, project),

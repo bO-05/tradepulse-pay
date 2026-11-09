@@ -3,13 +3,14 @@ import { api } from "../../convex/_generated/api";
 import type { FunctionReturnType } from "convex/server";
 import { billingTabHash, payAppHash, type BillingTab } from "../auth/navigation";
 import { Card, EmptyState, PageHeader, StatusPill, Tabs, formatCents, formatDate } from "../ui";
+import { demoPeriodLabel, demoProjectName } from "../lib/demoCopy";
 import { GcBillingDocuments, GcOwnerBilling } from "./OwnerBilling";
 import { RetainageView } from "./RetainageView";
 
 type Row = FunctionReturnType<typeof api.payApps.g703.gcBillingWorklist>["rows"][number];
 
 function headline(r: Row): string {
-  const which = r.applicationNo !== null ? `#${r.applicationNo}` : `"${r.periodLabel}"`;
+  const which = r.applicationNo !== null ? `#${r.applicationNo}` : `"${demoPeriodLabel(r.periodLabel)}"`;
   const amount = r.currentPaymentDueCents ?? r.requestedTotalCents;
   return `${r.subName} submitted pay app ${which} – ${formatCents(amount)}`;
 }
@@ -86,7 +87,7 @@ function WorklistTable({ rows, caption }: { rows: Row[]; caption: string }) {
                 </a>
               </td>
               <td className="py-2 pr-3">
-                {r.projectTitle}
+                {demoProjectName(r.projectTitle)}
                 <span className="block text-xs text-ink-subtle">{r.agreementNumber}</span>
               </td>
               <td className="py-2 pr-3">{formatDate(r.periodEnd)}</td>

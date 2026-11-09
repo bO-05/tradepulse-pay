@@ -5,8 +5,8 @@ import type { ComplianceKind } from "./validators";
 import { contractorForVendor, itemsFor, requirementsFor, subVendorOnProject } from "./status";
 
 const DEMO_SUBS: DemoCompanyKey[] = ["sub:rosendin", "sub:tdindustries", "sub:clarke-kent"];
-const DEMO_REVIEWER = "Demo GC (seed)";
-const DEMO_COI_INSURER = "Demo Mutual Insurance Co. (demo)";
+const DEMO_REVIEWER = "Demo GC";
+const DEMO_COI_INSURER = "Harbor Point Mutual";
 const GENEROUS_LIMITS = {
   glEachOccurrenceCents: 200_000_000,
   glAggregateCents: 400_000_000,
@@ -53,7 +53,7 @@ export async function ensureDemoProjectCompliance(
       companyId: sub._id,
       gcCompanyId: ids.gc,
       status: "accepted" as const,
-      uploadedByName: `${sub.name} (seed)`,
+      uploadedByName: sub.name,
       reviewedByName: DEMO_REVIEWER,
       ...(demoGcUserId !== null ? { reviewedByUserId: demoGcUserId } : {}),
       reviewedAt: now,
@@ -106,8 +106,8 @@ export async function ensureDemoProjectCompliance(
     await ctx.db.insert("auditLogs", {
       projectId,
       eventType: "compliance_seeded",
-      title: "Demo compliance records seeded",
-      description: `The demo seed added ${counts.itemsCreated} accepted demo compliance record(s) (no files) for the Demo sub companies.`,
+      title: "Example compliance records added",
+      description: `Setup added ${counts.itemsCreated} accepted example compliance record(s) (no files) for the shared sandbox companies.`,
       actor: "system:demo-seed",
       ...(demoGcUserId !== null ? { actorUserId: demoGcUserId } : {}),
       actorCompanyId: ids.gc,

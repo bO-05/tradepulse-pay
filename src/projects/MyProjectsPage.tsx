@@ -4,6 +4,7 @@ import { agreementHash, myProjectHash } from "../auth/navigation";
 import { formatDollars } from "../payments/format";
 import { OWNER_PAY_APPS_HASH } from "../billing/OwnerBilling";
 import { Card, EmptyState, Money, PageHeader, StatusPill, formatBps } from "../ui";
+import { demoDisplayName, demoProjectName } from "../lib/demoCopy";
 
 /** Project switcher for subs and owners: each project is labeled with its general contractor. */
 export function MyProjectsPage({ projectId }: { projectId?: string }) {
@@ -34,9 +35,9 @@ function ProjectList({ projects, current }: { projects: ProjectSummary[]; curren
             aria-current={p._id === current ? "page" : undefined}
             className={`block rounded-xl border bg-surface p-4 hover:border-emerald-700 ${p._id === current ? "border-emerald-700" : "border-line"}`}
           >
-            <span className="font-semibold">{p.title}</span>
+            <span className="font-semibold">{demoProjectName(p.title)}</span>
             <span className="block text-sm text-ink-subtle">
-              {p.gcCompanyName ? `GC: ${p.gcCompanyName}` : "General contractor not set"}
+              {p.gcCompanyName ? `GC: ${demoDisplayName(p.gcCompanyName)}` : "General contractor not set"}
               {p.location ? ` · ${p.location}` : ""}
             </span>
           </a>
@@ -63,16 +64,16 @@ function ProjectView({ projectId, projects }: { projectId: string; projects: Pro
   return (
     <div className="max-w-4xl space-y-5">
       <PageHeader
-        title={project.title}
+        title={demoProjectName(project.title)}
         back={{ href: "#/my-projects", label: "All projects" }}
-        meta={<span>{project.gcCompanyName ? `General contractor: ${project.gcCompanyName}` : null}{project.location ? ` · ${project.location}` : ""}</span>}
+        meta={<span>{project.gcCompanyName ? `General contractor: ${demoDisplayName(project.gcCompanyName)}` : null}{project.location ? ` · ${project.location}` : ""}</span>}
       />
       {project.ownerSummary ? (
         <Card title="Project summary">
           <dl className="grid gap-3 text-sm sm:grid-cols-2" data-testid="owner-project-summary">
             <div>
               <dt className="text-xs text-ink-subtle">Project</dt>
-              <dd className="font-semibold">{project.title}</dd>
+              <dd className="font-semibold">{demoProjectName(project.title)}</dd>
             </div>
             <div>
               <dt className="text-xs text-ink-subtle">Address</dt>
@@ -137,7 +138,7 @@ function ProjectView({ projectId, projects }: { projectId: string; projects: Pro
             {project.agreements.map((a) => (
               <li key={a._id} className="flex flex-wrap items-center justify-between gap-2 py-2">
                 <a href={agreementHash(a._id)} className="font-medium text-emerald-300 hover:underline">
-                  {a.agreementNumber} · {a.subcontractorName} · {a.tradeName}
+                  {a.agreementNumber} · {demoDisplayName(a.subcontractorName)} · {a.tradeName}
                 </a>
                 <span className="flex items-center gap-3">
                   <span className="tabular-nums">{formatDollars(a.contractSum)}</span>
@@ -152,7 +153,7 @@ function ProjectView({ projectId, projects }: { projectId: string; projects: Pro
       <Card title="People">
         <div className="grid gap-4 sm:grid-cols-2 text-sm">
           <div>
-            <h3 className="font-semibold">{project.gcCompanyName ?? "General contractor"}</h3>
+            <h3 className="font-semibold">{project.gcCompanyName ? demoDisplayName(project.gcCompanyName) : "General contractor"}</h3>
             <ul className="mt-1 space-y-1">
               {project.gcContacts.map((m) => (
                 <li key={`${m.name}-${m.email}`}>
@@ -164,7 +165,7 @@ function ProjectView({ projectId, projects }: { projectId: string; projects: Pro
           </div>
           {project.yourCompanyName && (
             <div>
-              <h3 className="font-semibold">{project.yourCompanyName} (your company)</h3>
+              <h3 className="font-semibold">{demoDisplayName(project.yourCompanyName)} (your company)</h3>
               <ul className="mt-1 space-y-1">
                 {project.yourTeam.map((m) => (
                   <li key={`${m.name}-${m.email}`}>

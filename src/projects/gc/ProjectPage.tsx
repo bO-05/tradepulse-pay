@@ -8,6 +8,7 @@ import { Button, Card, CommercialReferenceBadge, DateText, Money, PageHeader, St
 import { ReferenceNotice } from "../../payments/ReferenceNotice";
 import { ProjectMoneyStrip } from "../../billing/ProjectMoneyStrip";
 import { ownerDetailRows } from "./ownerDetails";
+import { demoDisplayName } from "../../lib/demoCopy";
 import { openProcurementPackages } from "./specBreakdownRequest";
 import { TradePackagesSection } from "./TradePackagesSection";
 import { ProjectMoneyTrail } from "./ProjectMoneyTrail";
@@ -162,7 +163,7 @@ function OwnerCompanyCard({ projectId }: { projectId: Id<"projects"> }) {
   return (
     <Card
       title="Owner company"
-      description={company ? `Maintained by ${company.name}. Only its admins can change it.` : undefined}
+      description={company ? `Maintained by ${demoDisplayName(company.name)}. Only its admins can change it.` : undefined}
       actions={<StatusPill status={invoicing.enabled ? "active" : "invoicing_disabled"} tone={invoicing.enabled ? "success" : "warning"} label={invoicing.enabled ? "Invoicing ready" : "Invoicing disabled"} />}
     >
       {company ? (

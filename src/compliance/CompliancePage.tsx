@@ -7,6 +7,7 @@ import { api } from "../../convex/_generated/api";
 import type { ComplianceKind } from "../../convex/compliance/validators";
 import { COMPLIANCE_KIND_LABEL, COMPUTED_STATUS_LABEL, REJECTION_REASON_MAX, type ComputedStatus } from "../../convex/lib/complianceRules";
 import { downloadBlob } from "../billing/sovFile";
+import { demoDisplayName } from "../lib/demoCopy";
 import { getErrorMessage } from "../lib/errors";
 import { fetchAuthenticatedFile } from "../lib/storedFile";
 import { Button, Card, ConfirmDialog, Dialog, EmptyState, Field, PageHeader, StatusPill, formatCents, formatDate, formatDateTime, useToast } from "../ui";
@@ -137,7 +138,7 @@ function ItemDetails({ item }: { item: Item }) {
   if (item.coi) {
     const c = item.coi;
     rows.push(
-      ["Insurer", c.insurer],
+      ["Insurer", demoDisplayName(c.insurer)],
       ["GL policy", c.glPolicyNumber],
       ["GL each occurrence", formatCents(c.glEachOccurrenceCents)],
       ["GL aggregate", formatCents(c.glAggregateCents)],
@@ -289,8 +290,8 @@ function ItemCard({ item, gc, vendorName, current, focused }: { item: Item; gc: 
       </div>
       <ItemDetails item={item} />
       <p className="text-xs text-ink-subtle">
-        Uploaded {formatDate(item.createdAt)} by {item.uploadedByName}
-        {item.reviewedAt !== null ? ` · ${item.status === "accepted" ? "Accepted" : "Rejected"} ${formatDate(item.reviewedAt)} by ${item.reviewedByName ?? "GC"}` : ""}
+        Uploaded {formatDate(item.createdAt)} by {demoDisplayName(item.uploadedByName)}
+        {item.reviewedAt !== null ? ` · ${item.status === "accepted" ? "Accepted" : "Rejected"} ${formatDate(item.reviewedAt)} by ${demoDisplayName(item.reviewedByName ?? "GC")}` : ""}
       </p>
       {item.rejectionReason ? <p className="text-xs text-rose-300">Reason: {item.rejectionReason}</p> : null}
       {item.kind === "license" ? <LicenseCheckLine item={item} canRun={gc} /> : null}

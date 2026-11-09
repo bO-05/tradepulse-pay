@@ -13,8 +13,10 @@ import {
   type AgreementTerms,
 } from "./agreementTerms";
 import { venueText, type Venue } from "./venue";
+import type { ProjectKind } from "./projectKind";
 
 export type SubcontractTextInput = {
+  projectKind?: ProjectKind;
   agreementNumber: string;
   formattedDate: string;
   generalContractor: string;
@@ -103,7 +105,182 @@ function paymentClause(terms: AgreementTerms): string {
     : `Payment terms: ${paymentTermsText(p)} after the Contractor approves the Subcontractor's payment application.`;
 }
 
+/**
+ * The residential draft. Same stored figures and clauses, but none of the commercial form
+ * vocabulary: no AIA reference, no CSI division, no prime contract, no certificate language.
+ * Commercial generation is the function below, unchanged byte-for-byte.
+ */
+function buildResidentialSubcontractText(p: SubcontractTextInput): string {
+  const t = p.terms;
+  const ins = t.insurance;
+  const governingName = stateName(t.governingState);
+  const governing = governingName ? `the law of the State of ${governingName}` : "the law of the state in which the Project is located";
+  const venue = venueText(p.venue);
+  const contact = /\.invalid$/i.test(p.contactEmail)
+    ? "not published; obtain the subcontractor's notice address before execution"
+    : p.contactEmail;
+  const inclusions = p.mandatoryInclusions.length
+    ? p.mandatoryInclusions.map((inc) => `  [x] ${inc}`).join("\n")
+    : "  (none listed in the trade package)";
+  const ld =
+    t.liquidatedDamagesCentsPerDay === undefined
+      ? "Liquidated damages: none stated in this Subcontract."
+      : `Liquidated damages: ${liquidatedDamagesText(t.liquidatedDamagesCentsPerDay)} for each calendar day of unexcused delay past Substantial Completion of the Subcontractor's Work.`;
+
+  return `================================================================================
+RESIDENTIAL SUBCONTRACT AGREEMENT - GENERATED DRAFT
+AGREEMENT NO: ${p.agreementNumber}
+================================================================================
+
+NOTICE: This draft records the terms agreed for a residential remodel. It is not a
+form published by a trade association. Review it with counsel and complete any
+item marked [to be completed] before execution.
+TradePulse Pay does not provide a signature service.
+
+AGREEMENT made as of ${p.formattedDate}.
+
+BETWEEN the Homeowner:
+  ${p.ownerName}
+
+and the Contractor:
+  ${p.generalContractor}
+
+and the Subcontractor:
+  ${p.subName}
+  Contact: ${contact}
+  License: ${p.licenseLine}
+
+The Project:
+  ${p.projectTitle}
+  Address: ${p.projectAddress}
+  Type: ${p.projectType}
+
+--------------------------------------------------------------------------------
+TABLE OF ARTICLES
+--------------------------------------------------------------------------------
+ARTICLE 1   THE SUBCONTRACT DOCUMENTS
+ARTICLE 2   MUTUAL RIGHTS AND RESPONSIBILITIES
+ARTICLE 3   CONTRACTOR OBLIGATIONS
+ARTICLE 4   SUBCONTRACTOR WORK AND SCOPE INCLUSIONS
+ARTICLE 5   CHANGES IN THE WORK
+ARTICLE 6   SUBCONTRACT SUM, RETAINAGE AND PROGRESS PAYMENTS
+ARTICLE 7   INSURANCE AND INDEMNIFICATION
+ARTICLE 8   WARRANTY
+ARTICLE 9   DISPUTE RESOLUTION AND GOVERNING LAW
+ARTICLE 10  EXECUTION
+
+--------------------------------------------------------------------------------
+ARTICLE 1 - THE SUBCONTRACT DOCUMENTS
+--------------------------------------------------------------------------------
+1.1 The Subcontract Documents consist of:
+  (1) this Subcontract Agreement;
+  (2) the homeowner's contract with the Contractor, to the extent it applies
+      to the Subcontractor's Work;
+  (3) ${p.tradeName} drawings and specifications for the Project;
+  (4) addenda issued before execution; and
+  (5) written pre-bid clarifications recorded in TradePulse Pay.
+
+--------------------------------------------------------------------------------
+ARTICLE 2 - MUTUAL RIGHTS AND RESPONSIBILITIES
+--------------------------------------------------------------------------------
+2.1 The Contractor and Subcontractor are mutually bound by this Agreement and, to
+the extent the homeowner's contract applies to the Subcontractor's Work, the
+Contractor assumes toward the Subcontractor the obligations the homeowner assumes
+toward the Contractor.
+
+--------------------------------------------------------------------------------
+ARTICLE 3 - CONTRACTOR OBLIGATIONS
+--------------------------------------------------------------------------------
+3.1 The Contractor shall coordinate the Work of all trades, provide site access
+and administer requests for information through the TradePulse Pay project portal.
+
+--------------------------------------------------------------------------------
+ARTICLE 4 - SUBCONTRACTOR WORK AND SCOPE INCLUSIONS
+--------------------------------------------------------------------------------
+4.1 The Subcontractor shall furnish the labor, materials, equipment, services and
+supervision necessary to complete the ${p.tradeName} work.
+
+Summary of scope:
+${p.scopeSummary}
+
+4.2 Scope inclusions. The Subcontract Sum includes:
+${inclusions}
+
+${
+    p.excludedScopeNotes === undefined
+      ? ""
+      : `4.3 Excluded scope (not in contract). The Subcontractor's bid excluded the
+following; it is not part of the Work or the Subcontract Sum:
+${p.excludedScopeNotes.length ? p.excludedScopeNotes.map((n) => `  - ${n}`).join("\n") : "  (none listed in the bid)"}
+
+`
+  }4.${p.excludedScopeNotes === undefined ? "3" : "4"} Exclusions or substitutions are recognized only when approved in an executed
+Change Order.
+
+--------------------------------------------------------------------------------
+ARTICLE 5 - CHANGES IN THE WORK
+--------------------------------------------------------------------------------
+5.1 The Contractor may order changes within the general scope of this Subcontract
+by written Change Order before the changed work begins.
+
+--------------------------------------------------------------------------------
+ARTICLE 6 - SUBCONTRACT SUM, RETAINAGE AND PROGRESS PAYMENTS
+--------------------------------------------------------------------------------
+6.1 The Contractor shall pay the Subcontractor the Subcontract Sum of
+  ${formatCents(p.contractSumCents)} (${amountInWords(p.contractSumCents)}),
+  subject to additions and deductions by Change Order.${p.award ? `\n${sumBreakdown(p.award)}` : ""}
+
+6.2 Progress payments are made monthly on the approved schedule of values.
+Retainage withheld from each progress payment: ${retainageText(t)}.
+${paymentClause(t)}
+${ld}
+
+--------------------------------------------------------------------------------
+ARTICLE 7 - INSURANCE AND INDEMNIFICATION
+--------------------------------------------------------------------------------
+7.1 Before starting the Work, the Subcontractor shall furnish a certificate of
+insurance evidencing at least:
+  - Commercial general liability: ${formatCents(ins.glEachOccurrenceCents)} each occurrence / ${formatCents(ins.glAggregateCents)} general aggregate
+  - Automobile liability: ${formatCents(ins.autoCents)} combined single limit
+  - Umbrella / excess liability: ${formatCents(ins.umbrellaCents)} each occurrence
+  - Workers' compensation: ${ins.workersComp ? "statutory limits, with employer's liability" : "not required by this Subcontract"}
+  - Additional insured: ${ins.additionalInsured ? "the Contractor and the homeowner, on a non-contributory basis" : "not required by this Subcontract"}
+
+--------------------------------------------------------------------------------
+ARTICLE 8 - WARRANTY
+--------------------------------------------------------------------------------
+8.1 The Subcontractor warrants that materials and equipment are new unless
+otherwise specified and that the Work is free from defects and conforms to the
+${p.tradeName} specifications.
+Warranty period: ${warrantyText(t.warrantyMonths)} from Substantial Completion.
+
+--------------------------------------------------------------------------------
+ARTICLE 9 - DISPUTE RESOLUTION AND GOVERNING LAW
+--------------------------------------------------------------------------------
+9.1 Claims arising out of or related to this Subcontract are subject to mediation
+as a condition precedent to binding arbitration administered by the American
+Arbitration Association. Mediation and arbitration hearings shall be held in
+${venue}.
+
+9.2 Governing law: this Subcontract is governed by ${governing}.
+
+--------------------------------------------------------------------------------
+ARTICLE 10 - EXECUTION
+--------------------------------------------------------------------------------
+CONTRACTOR: ${p.generalContractor}
+By: ___________________________________       Date: ____________________
+
+SUBCONTRACTOR: ${p.subName}
+By: ___________________________________       Date: ____________________
+
+================================================================================
+Prepared in TradePulse Pay for ${p.generalContractor}
+Residential subcontract draft for the project named above
+================================================================================`;
+}
+
 export function buildSubcontractText(p: SubcontractTextInput): string {
+  if (p.projectKind === "residential") return buildResidentialSubcontractText(p);
   const t = p.terms;
   const ins = t.insurance;
   const governingName = stateName(t.governingState);

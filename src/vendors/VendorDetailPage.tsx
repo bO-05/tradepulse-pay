@@ -3,6 +3,7 @@ import { useState } from "react";
 import { api } from "../../convex/_generated/api";
 import { Button, Card, ConfirmDialog, DateText, PageHeader, StatusPill, useToast } from "../ui";
 import { useActiveCompany } from "../auth/companyContext";
+import { publicContactEmail } from "../lib/demoPrivacy";
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -103,7 +104,7 @@ export function VendorDetailPage({ vendorId }: { vendorId: string }) {
       <Card title="Directory details">
         <dl>
           <Row label="Contact">{vendor.contactName || "—"}</Row>
-          <Row label="Email">{vendor.email}</Row>
+          <Row label="Email">{publicContactEmail(vendor.email)}</Row>
           {vendor.phone && <Row label="Phone">{vendor.phone}</Row>}
           <Row label="Trades">{vendor.trades.join(", ") || "—"}</Row>
           {vendor.licenseNumber && (

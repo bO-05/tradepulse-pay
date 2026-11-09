@@ -8,6 +8,7 @@ import { formatCents, formatDate } from "./format";
 import { BADGE, type MilestoneRelease } from "./ReleaseMilestone";
 import { ConfirmDialog } from "../ui";
 import { ReceiptId } from "./ReceiptId";
+import { maskSandboxEmail } from "../lib/demoPrivacy";
 
 /** Closeout retainage releases recorded on the agreement; GC can refresh a pending one. */
 export function RetainageReleaseList({ releases, canRefresh }: { releases: MilestoneRelease[]; canRefresh: boolean }) {
@@ -43,7 +44,7 @@ export function RetainageReleaseList({ releases, canRefresh }: { releases: Miles
             </div>
             {(r.paypalPayoutBatchId || r.receiverEmail) && (
               <div className="text-slate-400 [overflow-wrap:anywhere]">
-                {r.receiverEmail ? `To ${r.receiverEmail}` : ""}
+                {r.receiverEmail ? `To ${maskSandboxEmail(r.receiverEmail)}` : ""}
                 {r.paypalPayoutBatchId ? ` · batch ${r.paypalPayoutBatchId}` : ""}
                 {r.paypalItemStatus ? ` · PayPal item ${r.paypalItemStatus}` : ""}
               </div>
@@ -184,7 +185,7 @@ export function RetainageReleaseControl({
         title="Release retainage now?"
         amountCents={releasableCents}
         amountLabel="Retainage payout"
-        payee={payeeEmail ?? "No confirmed PayPal payee yet"}
+        payee={maskSandboxEmail(payeeEmail) ?? "No confirmed PayPal payee yet"}
         payeeLabel="Payee (confirmed PayPal email)"
         effect={`Pays the sub ${formatCents(releasableCents)} immediately as a PayPal payout. This is the closeout release and can't be undone. If the platform balance is short, PayPal may refuse the payout; no money moves in that case.`}
         confirmLabel={`Release ${formatCents(releasableCents)} payout`}
@@ -200,7 +201,7 @@ export function RetainageReleaseControl({
           title="Resume the retainage release?"
           amountCents={interrupted.netCents}
           amountLabel="Retainage payout"
-          payee={interrupted.receiverEmail ?? payeeEmail ?? "No confirmed PayPal payee yet"}
+          payee={maskSandboxEmail(interrupted.receiverEmail) ?? maskSandboxEmail(payeeEmail) ?? "No confirmed PayPal payee yet"}
           payeeLabel="Payee (confirmed PayPal email)"
           effect={`Sends the interrupted ${formatCents(interrupted.netCents)} retainage payout to PayPal under the same batch id. If PayPal already received it, PayPal returns that payout instead of paying twice. This can't be undone.`}
           confirmLabel={`Resume ${formatCents(interrupted.netCents)} payout`}

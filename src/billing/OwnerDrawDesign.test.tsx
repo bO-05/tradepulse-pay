@@ -145,7 +145,7 @@ describe("owner draw screen", () => {
     routeQueries("residential", "submitted_to_owner");
     const html = renderPage();
     expect(text(html)).toContain("Draws");
-    expect(html.indexOf("Lopez Kitchen Remodel")).toBeLessThan(html.indexOf("Demo · TradePulse Pay judge demo 20261108-13"));
+    expect(html.indexOf("Lopez Kitchen Remodel")).toBeLessThan(html.indexOf("Sandbox run 20261108-13"));
   });
 
   test("shows the money trail and the current payment due as the largest figure", () => {

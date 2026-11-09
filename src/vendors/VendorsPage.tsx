@@ -9,6 +9,7 @@ import { ImportVendorsDialog } from "./ImportVendorsDialog";
 import { downloadCsv, vendorsToCsv } from "./vendorCsv";
 import { VendorFormDialog, type EditableVendor } from "./VendorFormDialog";
 import { useActiveCompany } from "../auth/companyContext";
+import { publicContactEmail } from "../lib/demoPrivacy";
 
 type Vendor = FunctionReturnType<typeof api.vendors.listVendorsPage>["page"][number];
 type Filter = "active" | "inactive" | "all";
@@ -99,7 +100,7 @@ export function VendorsPage() {
       header: "Contact",
       render: (v) => (
         <span className="flex flex-col break-all">
-          <span>{v.email}</span>
+          <span>{publicContactEmail(v.email)}</span>
           {v.phone && <span className="text-xs text-ink-subtle">{v.phone}</span>}
         </span>
       ),

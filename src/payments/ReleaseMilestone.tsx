@@ -5,6 +5,7 @@ import type { Id } from "../../convex/_generated/dataModel";
 import { readableError } from "./FundMilestone";
 import { formatCents, formatDate } from "./format";
 import { ReceiptId } from "./ReceiptId";
+import { maskSandboxEmail } from "../lib/demoPrivacy";
 
 export type MilestoneRelease = {
   paymentId: Id<"payments">;
@@ -93,7 +94,7 @@ export function ReleaseList({ milestone, canRelease }: { milestone: ReleasableMi
             </div>
             {(r.paypalPayoutBatchId || r.receiverEmail) && (
               <div className="text-slate-400 [overflow-wrap:anywhere]">
-                {r.receiverEmail ? `To ${r.receiverEmail}` : ""}
+                {r.receiverEmail ? `To ${maskSandboxEmail(r.receiverEmail)}` : ""}
                 {r.paypalPayoutBatchId ? ` · batch ${r.paypalPayoutBatchId}` : ""}
                 {r.paypalItemStatus ? ` · PayPal item ${r.paypalItemStatus}` : ""}
               </div>

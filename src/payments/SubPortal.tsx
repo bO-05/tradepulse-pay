@@ -7,6 +7,8 @@ import { WithdrawPayAppButton } from "./WithdrawPayAppButton";
 import { submissionAttribution } from "./SubmissionAttribution";
 import { MilestoneFundingTable } from "./MilestoneFundingSummary";
 import { statusLabelFor } from "../ui/statusLabels";
+import { demoDisplayName, demoPeriodLabel, demoProjectName } from "../lib/demoCopy";
+import { maskSandboxEmail } from "../lib/demoPrivacy";
 
 const PAY_APP_PAGE_SIZE = 25;
 
@@ -30,18 +32,18 @@ export function SubPortal() {
           <div>
             <dt className="text-xs text-slate-400">Contractor</dt>
             <dd className="font-semibold" data-testid="sub-contractor-name">
-              {portal.contractorName ?? "Not linked to a contractor yet"}
+              {portal.contractorName ? demoDisplayName(portal.contractorName) : "Not linked to a contractor yet"}
             </dd>
           </div>
           <div>
             <dt className="text-xs text-slate-400">PayPal payout email</dt>
             <dd className="font-semibold break-all" data-testid="sub-paypal-email">
-              {portal.paypalEmail ?? "Not set"}
+              {portal.paypalEmail ? maskSandboxEmail(portal.paypalEmail) : "Not set"}
             </dd>
           </div>
           <div>
             <dt className="text-xs text-slate-400">Account</dt>
-            <dd className="font-semibold">{portal.displayName}</dd>
+            <dd className="font-semibold">{demoDisplayName(portal.displayName)}</dd>
           </div>
         </dl>
       </section>
@@ -74,8 +76,8 @@ export function SubPortal() {
                       {a.agreementNumber}
                     </a>
                   </td>
-                  <td className="py-2 pr-3">{a.subcontractorName}</td>
-                  <td className="py-2 pr-3">{a.projectTitle}</td>
+                  <td className="py-2 pr-3">{demoDisplayName(a.subcontractorName)}</td>
+                  <td className="py-2 pr-3">{demoProjectName(a.projectTitle)}</td>
                   <td className="py-2 pr-3 text-right">{formatDollars(a.contractSum)}</td>
                   <td className="py-2 pr-3">{statusLabelFor(a.status, a.projectKind)}</td>
                   <td className="py-2 pr-3">
@@ -105,7 +107,7 @@ export function SubPortal() {
           portal.milestoneFunding.map((a) => (
             <div key={a.agreementId} data-testid="sub-milestone-funding-agreement">
               <h3 className="text-sm font-semibold mb-1">
-                {a.agreementNumber} <span className="font-normal text-slate-400">· {a.projectTitle}</span>
+                {a.agreementNumber} <span className="font-normal text-slate-400">· {demoProjectName(a.projectTitle)}</span>
               </h3>
               <MilestoneFundingTable milestones={a.milestones} label={`Milestone funding for ${a.agreementNumber}`} />
             </div>
@@ -157,7 +159,7 @@ export function SubPortal() {
                 <tr key={p._id} className="border-t border-slate-800" data-testid="sub-payapp-row">
                   <td className="py-2 pr-3">
                     <a href={payAppHash(p._id)} className="text-emerald-400 hover:text-emerald-300">
-                      {p.periodLabel}
+                      {demoPeriodLabel(p.periodLabel)}
                     </a>
                   </td>
                   <td className="py-2 pr-3">{p.agreementNumber}</td>
@@ -175,7 +177,7 @@ export function SubPortal() {
                     {p.status === "draft" ? "Unsubmitted draft · created by the subcontractor" : submissionAttribution(p.submittedBy, p.judgeDemoFiledBy)}
                   </td>
                   <td className="py-2 pr-3 text-right">
-                    {p.canWithdraw ? <WithdrawPayAppButton payAppId={p._id} periodLabel={p.periodLabel} /> : null}
+                    {p.canWithdraw ? <WithdrawPayAppButton payAppId={p._id} periodLabel={demoPeriodLabel(p.periodLabel)} /> : null}
                   </td>
                 </tr>
               ))}

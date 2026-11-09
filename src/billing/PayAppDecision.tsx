@@ -5,6 +5,8 @@ import { api } from "../../convex/_generated/api";
 import { approvedWorkAndStored, g702Summary } from "../../convex/payApps/g703Math";
 import { getErrorMessage } from "../lib/errors";
 import { reviewAttribution } from "../lib/aiProvenance";
+import { demoDisplayName } from "../lib/demoCopy";
+import { recordedReviewHeading, reviewText } from "../lib/reviewDisplay";
 import { Button, Card, ConfirmDialog, MoneyInput, StatusPill, TextInput, formatCents, formatDateTime } from "../ui";
 
 type PayAppView = NonNullable<FunctionReturnType<typeof api.payApps.g703.getPayApp>>;
@@ -47,6 +49,7 @@ export function GcReviewPanel({ view }: { view: PayAppView }) {
   const [panelError, setPanelError] = useState<string | null>(null);
   const [rerunning, setRerunning] = useState(false);
   const decidable = view.canApprove || view.canRequestRevision || view.canReject;
+  const recorded = view.readOnlyReference;
 
   const choiceOf = (id: string): LineChoice => choices[id] ?? { action: "accept", amountCents: null, reason: "", saved: false };
   const setChoice = (id: string, patch: Partial<LineChoice>) =>
@@ -167,6 +170,13 @@ export function GcReviewPanel({ view }: { view: PayAppView }) {
         </div>
       ) : null}
 
+      {review?.flags.notes && recorded ? (
+        <div className="mb-3" data-recorded-history="review-note">
+          <p className="text-xs font-medium uppercase tracking-wide text-ink-subtle">{recordedReviewHeading(review.reviewedAt, "Recorded review")}</p>
+          <blockquote className="mt-1 border-l-2 border-line-strong pl-3 text-sm text-ink-muted">{review.flags.notes}</blockquote>
+        </div>
+      ) : null}
+
       {review ? (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[880px] text-sm" data-testid="review-lines">
@@ -190,7 +200,11 @@ export function GcReviewPanel({ view }: { view: PayAppView }) {
                       <span className="block font-medium">
                         {l.lineNo}. {l.description}
                       </span>
-                      <span className="mt-1 block text-xs text-ink-muted">{l.reason}</span>
+                      {recorded ? (
+                        <blockquote className="mt-1 border-l-2 border-line-strong pl-2 text-xs text-ink-muted" data-recorded-history="review-line">{l.reason}</blockquote>
+                      ) : (
+                        <span className="mt-1 block text-xs text-ink-muted">{reviewText(l.reason)}</span>
+                      )}
                     </td>
                     <td className="px-2 py-2">
                       <StatusPill status={l.verdict} />
@@ -417,16 +431,25 @@ function LineDecision({
 }
 
 /** The GC's decision with per-line reasons, as both the GC and the sub see it. */
-export function DecisionCard({ decision, title }: { decision: Decision; title?: string }) {
+export function DecisionCard({ decision, title, recordedHistory = false }: { decision: Decision; title?: string; recordedHistory?: boolean }) {
   const noted = decision.lines.filter((l) => l.action !== "accept" || l.reason);
   return (
     <Card
       title={title ?? "GC decision"}
-      description={`${decision.decidedByName} · ${formatDateTime(decision.decidedAt)}`}
+      description={`${demoDisplayName(decision.decidedByName)} · ${formatDateTime(decision.decidedAt)}`}
       actions={<StatusPill status={decision.outcome} />}
       data-testid="payapp-decision"
     >
-      {decision.reason ? <p className="mb-2 text-sm" data-testid="payapp-decision-reason">{decision.reason}</p> : null}
+      {recordedHistory && (decision.reason || noted.length > 0) ? (
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-subtle">{recordedReviewHeading(decision.decidedAt, "Recorded decision")}</p>
+      ) : null}
+      {decision.reason ? (
+        recordedHistory ? (
+          <blockquote className="mb-2 border-l-2 border-line-strong pl-3 text-sm" data-recorded-history="decision-reason" data-testid="payapp-decision-reason">{decision.reason}</blockquote>
+        ) : (
+          <p className="mb-2 text-sm" data-testid="payapp-decision-reason">{reviewText(decision.reason)}</p>
+        )
+      ) : null}
       {noted.length > 0 ? (
         <ul className="space-y-2 text-sm">
           {noted.map((l) => (
@@ -436,7 +459,13 @@ export function DecisionCard({ decision, title }: { decision: Decision; title?: 
                 {l.action === "override" ? `: approved ${formatCents(l.approvedCents)}` : ""}
                 {l.action === "override" && l.recommendedCents !== null ? ` (AI ${formatCents(l.recommendedCents)})` : ""}
               </p>
-              {l.reason ? <p className="text-ink-muted">Reason: {l.reason}</p> : null}
+              {l.reason ? (
+                recordedHistory ? (
+                  <blockquote className="border-l-2 border-line-strong pl-2 text-ink-muted" data-recorded-history="decision-line">Reason: {l.reason}</blockquote>
+                ) : (
+                  <p className="text-ink-muted">Reason: {reviewText(l.reason)}</p>
+                )
+              ) : null}
             </li>
           ))}
         </ul>

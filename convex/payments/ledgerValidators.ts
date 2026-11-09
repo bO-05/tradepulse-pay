@@ -10,6 +10,7 @@ export const ledgerAgreementValidator = v.object({
   retainagePercentApplied: v.number(), retainageReductionBpsAt50: nullableNumber,
   contractSumCents: v.number(), originalContractSumCents: v.number(), netChangeOrdersCents: v.number(),
   excludedScopeNotes: v.array(v.string()), executedAt: nullableNumber,
+  projectKind: v.union(v.literal("residential"), v.literal("commercial")),
 });
 const fundingValidator = v.union(v.null(), v.object({
   paymentId: v.id("payments"), status: paymentStatusValidator, grossCents: v.number(),

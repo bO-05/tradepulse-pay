@@ -1,6 +1,6 @@
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { maskSharedEmail } from "../lib/demoPrivacy";
+import { maskSandboxEmail } from "../lib/demoPrivacy";
 import { termsForKind } from "../lib/terms";
 import { Card, CommercialReferenceBadge, LinkButton, Money, PageHeader, StatusPill } from "../ui";
 import { formatDateTime } from "../ui/format";
@@ -145,7 +145,7 @@ export function ChangeOrderDetail({ changeOrderId }: { changeOrderId: string }) 
             <div className="flex flex-wrap items-center gap-2 text-ink-subtle">
               <span>Invoice status</span>
               {co.paypalInvoiceStatus !== null ? <StatusPill status={co.paypalInvoiceStatus} /> : <span>Not sent yet</span>}
-              {co.recipientEmail !== null ? <span>Sent to {maskSharedEmail(co.recipientEmail)}</span> : null}
+              {co.recipientEmail !== null ? <span>Sent to {maskSandboxEmail(co.recipientEmail)}</span> : null}
             </div>
           </div>
         </Card>

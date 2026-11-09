@@ -32,7 +32,7 @@ export const DEMO_CONTRACT_SUM = DEMO_LINE_ITEMS.reduce((a, l) => a + l.totalCos
 
 export type DemoPayAppKind = "honest" | "agent";
 
-/** % complete to date each stand-in claims, by kind of SOV line. */
+/** % complete to date each guided-demo filing claims, by kind of SOV line. */
 export const DEMO_TARGET_PCT: Record<DemoPayAppKind, { base: number; closeout: number; excluded: number }> = {
   // Within what a funded Mobilization supports; nothing on closeout or excluded scope.
   honest: { base: 4, closeout: 0, excluded: 0 },
@@ -43,14 +43,14 @@ export const DEMO_TARGET_PCT: Record<DemoPayAppKind, { base: number; closeout: n
 
 export const DEMO_PAY_APP_TEXT: Record<DemoPayAppKind, { periodLabel: string; notes: string; lienWaiver: boolean }> = {
   honest: {
-    periodLabel: "Judge demo · Period 1 (honest)",
-    notes: "Judge demo stand-in for sub1: early mobilization progress on the base scope. Demo conditional lien-waiver flag only; no legal document uploaded.",
+    periodLabel: "Period 1",
+    notes: "Guided demo filing for sub1: early mobilization progress on the base scope. Demo conditional lien-waiver flag only; no legal document uploaded.",
     lienWaiver: true,
   },
   agent: {
-    periodLabel: "Judge demo · Period 2 (billing agent)",
+    periodLabel: "Period 2 · billing agent",
     notes:
-      "Judge demo stand-in for the billing agent: claims 30% on the base scope and early closeout testing. " +
+      "Guided demo billing-agent filing: claims 30% on the base scope and early closeout testing. " +
       "Line 2: branch conduit & wire feeder claim includes $4,500 seismic bracing (excluded scope), hidden within the claimed base-line amount, not added to the contract.",
     lienWaiver: false,
   },
@@ -124,7 +124,7 @@ export function demoLineCut(lines: readonly DemoPayAppLine[]): DemoLineCut | nul
 
 /** Prime change order approved for the demo owner and invoiced to it at the end of the demo. */
 export const DEMO_CHANGE_ORDER = {
-  title: "Judge demo: add two EV charger circuits in the garage",
+  title: "Add two EV charger circuits in the garage",
   description: "Owner-requested change, billed to the owner as a PayPal invoice.",
   amountCents: 1_850_00,
 };

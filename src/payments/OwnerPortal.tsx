@@ -10,6 +10,8 @@ import { statusLabelFor } from "../ui/statusLabels";
 import { termsForKind, type Terms } from "../lib/terms";
 import { CHANGE_ORDERS_PAGE_HASH, ChangeOrderRows } from "./ChangeOrders";
 import { formatDollars } from "./format";
+import { demoDisplayName, demoProjectDescription, demoProjectName } from "../lib/demoCopy";
+import { tradeLineDisplay } from "../lib/tradeLineDisplay";
 
 type OwnerOverview = NonNullable<FunctionReturnType<typeof api.portal.ownerOverview>>;
 type OwnerProject = OwnerOverview[number];
@@ -165,12 +167,11 @@ function SecondaryProjectCard({ project }: { project: OwnerProject }) {
       data-testid="owner-project-secondary"
     >
       <div className="flex flex-wrap items-center gap-2">
-        <h3 className="text-sm font-semibold text-ink">{project.title}</h3>
+        <h3 className="text-sm font-semibold text-ink">{demoProjectName(project.title)}</h3>
         <CommercialReferenceBadge kind={project.projectKind} />
       </div>
       <p className="mt-1 text-xs text-ink-subtle">
-        {project.location} · {project.projectType} · Budget {formatDollars(project.estBudget)}
-        {project.isDemoProject ? " · demo project" : ""}
+        {project.location} · {demoProjectDescription(project.projectType)} · Budget {formatDollars(project.estBudget)}
       </p>
       {job !== null ? (
         <>
@@ -231,12 +232,11 @@ export function OwnerPortal({ role }: { role?: Role }) {
             >
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-base font-semibold">{project.title}</h2>
+                  <h2 className="text-base font-semibold">{demoProjectName(project.title)}</h2>
                   <CommercialReferenceBadge kind={project.projectKind} />
                 </div>
                 <p className="text-xs text-slate-400">
-                  {project.location} · {project.projectType} · Budget {formatDollars(project.estBudget)}
-                  {project.isDemoProject ? " · demo project" : ""}
+                  {project.location} · {demoProjectDescription(project.projectType)} · Budget {formatDollars(project.estBudget)}
                 </p>
               </div>
 
@@ -267,7 +267,7 @@ export function OwnerPortal({ role }: { role?: Role }) {
                                   {a.agreementNumber}
                                 </a>
                               </td>
-                              <td className="py-2 pr-3">{a.subcontractorName}</td>
+                              <td className="py-2 pr-3">{demoDisplayName(a.subcontractorName)}</td>
                               <td className="py-2 pr-3">{a.tradeName}</td>
                               <td className="py-2 pr-3 text-right">{formatDollars(a.contractSum)}</td>
                               <td className="py-2 pr-3">{statusLabelFor(a.status, terms.kind)}</td>
@@ -377,7 +377,7 @@ function OwnerTrancheStatus({ projectId, terms }: { projectId: string; terms: Te
               {trades.flatMap((t) =>
                 t.tranches.map((tr) => (
                   <tr key={tr._id} className="border-t border-slate-800" data-testid="owner-tranche-row">
-                    <td className="py-2 pr-3">{t.trade}</td>
+                    <td className="py-2 pr-3">{tradeLineDisplay(t.trade)}</td>
                     <td className="py-2 pr-3">{tr.name}</td>
                     <td className="py-2 pr-3 text-right tabular-nums">{formatCents(tr.amountCents)}</td>
                     <td className="py-2 pr-3">{OWNER_TRANCHE_STATUS[tr.status] ?? "Not funded"}</td>

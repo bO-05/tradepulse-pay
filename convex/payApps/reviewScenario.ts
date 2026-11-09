@@ -151,9 +151,9 @@ export const seedReviewScenario = internalMutation({
       projectId,
       agreementId,
       eventType: "compliance_audit",
-      title: "Demo pay-app review scenario seeded",
-      description: `${agreementNumber}: demo agreement with excluded seismic bracing; Mobilization complete, Rough-in in progress.`,
-      actor: "TradePulse Pay (demo seed)",
+      title: "Pay-app review scenario prepared",
+      description: `${agreementNumber}: sample agreement with excluded seismic bracing; Mobilization complete, Rough-in in progress.`,
+      actor: "Demo setup",
       timestamp: now,
     });
     await attachProjectToDemo(ctx, projectId);

@@ -10,14 +10,19 @@ import { stampPayAppsSubCompany } from "../payApps/backfill";
  */
 export type DemoCompanyKey = "gc" | "sub:rosendin" | "sub:tdindustries" | "sub:clarke-kent" | "sub:ortiz" | "owner";
 
+/**
+ * Seeded display names. They intentionally carry no "(demo)"/"(seed)" suffix: a shared sandbox
+ * account is disclosed by the persistent demo banner, not by putting the word "demo" in a company
+ * name a judge reads as a project party. The rows are still found by `demoKey`, never by name.
+ */
 export const DEMO_COMPANIES: readonly { key: DemoCompanyKey; name: string; kind: Role }[] = [
-  { key: "gc", name: "Demo GC (TradePulse Pay demo)", kind: "gc" },
-  { key: "sub:rosendin", name: "Rosendin Electric (demo)", kind: "sub" },
-  { key: "sub:tdindustries", name: "TDIndustries (demo)", kind: "sub" },
-  { key: "sub:clarke-kent", name: "Clarke Kent Plumbing (demo)", kind: "sub" },
+  { key: "gc", name: "Demo GC", kind: "gc" },
+  { key: "sub:rosendin", name: "Rosendin Electric, Inc.", kind: "sub" },
+  { key: "sub:tdindustries", name: "TDIndustries, Inc.", kind: "sub" },
+  { key: "sub:clarke-kent", name: "Clarke Kent Plumbing", kind: "sub" },
   // The residential reference subcontractor on Lopez. Additive: the three commercial demo subs above
   // keep their companies, contractors, accounts and payees.
-  { key: "sub:ortiz", name: "Ortiz Plumbing (demo)", kind: "sub" },
+  { key: "sub:ortiz", name: "Ortiz Plumbing", kind: "sub" },
   { key: "owner", name: "Demo Owner", kind: "owner" },
 ];
 
@@ -75,6 +80,9 @@ export async function ensureDemoCompanies(
   for (const def of DEMO_COMPANIES) {
     const found = existing.find((c) => c.demoKey === def.key);
     if (found) {
+      // One-time display cleanup for rows seeded before the names lost their demo suffixes. Only a
+      // Demo company is touched, always by demoKey, and only its display name changes.
+      if (found.name !== def.name) await ctx.db.patch(found._id, { name: def.name });
       ids[def.key] = found._id;
       continue;
     }

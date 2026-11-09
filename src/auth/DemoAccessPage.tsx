@@ -91,9 +91,10 @@ export function DemoAccessPage() {
           </section>
         </div>
 
-        <p className="max-w-3xl rounded-lg border border-amber-800/70 bg-amber-950/30 px-3 py-2 text-xs leading-relaxed text-amber-100">
-          This public build uses PayPal sandbox money only. No real funds move, and every demo account is shared.
-        </p>
+        <div className="max-w-3xl space-y-1 rounded-lg border border-amber-800/70 bg-amber-950/30 px-3 py-2 text-xs leading-relaxed text-amber-100">
+          <p><strong>PayPal sandbox · no real money</strong> moves here, and every demo account is shared.</p>
+          <p><strong>Rules set the amount. Mistral explains it. You decide.</strong></p>
+        </div>
 
         <div className="mt-4 max-w-3xl">
           <ManualSandboxDetails />
@@ -108,7 +109,7 @@ export function DemoAccessPage() {
             </summary>
             <div className="space-y-3 border-t border-slate-800 px-4 py-4 text-sm text-slate-300">
               <p><strong className="text-white">2-minute inspection.</strong> Enter as General contractor. Choose a previous run, inspect its steps, open the agreement ledger and compare capture, payout and invoice IDs.</p>
-              <p><strong className="text-white">5–10-minute hands-on run.</strong> Choose “Run TradePulse Pay demo.” It creates a separate $55,000 award. You authorize $5,500 in PayPal; the guided run then submits labeled fixtures and approves the displayed demo proposals as the GC.</p>
+              <p><strong className="text-white">5–10-minute hands-on run.</strong> Choose “Run TradePulse Pay demo.” It creates a separate $55,000 award. You authorize $5,500 in PayPal; the guided run then submits labeled example filings and approves the displayed proposals as the GC.</p>
               <p><strong className="text-white">Owner step.</strong> Open a separate private browser as Project owner, pay the $1,850 change-order invoice, then refresh its status in the GC tab. A submitted payout is not a settled payout.</p>
             </div>
           </details>

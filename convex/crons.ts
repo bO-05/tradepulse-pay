@@ -80,7 +80,7 @@ export const monitorBidDeadlines = internalMutation({
               eventType: "compliance_audit",
               title: `Deadline passed with no bids: ${pkg.tradeName}`,
               description: `Bid deadline (${pkg.bidDeadline}) passed with zero proposals on file. The package was left open — extend the deadline or re-solicit subcontractors before leveling.`,
-              actor: "Convex Automated Cron Engine",
+              actor: "TradePulse automation",
               timestamp: Date.now(),
             });
           }
@@ -93,9 +93,9 @@ export const monitorBidDeadlines = internalMutation({
           projectId: pkg.projectId,
           tradePackageId: pkg._id,
           eventType: "cron_executed",
-          title: `Cron Monitor: Bid Deadline Closed for ${pkg.tradeName}`,
-          description: `Bid deadline (${pkg.bidDeadline}) reached with ${pkgBids.length} proposal(s) on file. Auto-transitioned Division ${pkg.csiDivision} to active leveling status.`,
-          actor: "Convex Automated Cron Engine",
+          title: `Bid deadline closed for ${pkg.tradeName}`,
+          description: `Bid deadline (${pkg.bidDeadline}) reached with ${pkgBids.length} proposal(s) on file. The package moved to leveling.`,
+          actor: "TradePulse automation",
           timestamp: Date.now(),
         });
       }
@@ -164,9 +164,9 @@ export const auditContractorCompliance = internalMutation({
         await ctx.db.insert("auditLogs", {
           projectId: project._id,
           eventType: "compliance_audit",
-          title: `Cron Audit: Recorded License Status & ACORD 25 Sweep - ${project.title}`,
-          description: `Audited ${projectContractors.length} trade contractors (${pVerified} with recorded active/verified status, ${pFlagged} flagged). No registry lookup is performed. Detected ${pCoiDeficiencies} active COI insurance deficiency riders.`,
-          actor: "Convex Compliance Auditor Cron",
+          title: `Licence and insurance check - ${project.title}`,
+          description: `Audited ${projectContractors.length} trade contractors (${pVerified} with recorded active/verified status, ${pFlagged} flagged). No registry lookup is performed. Detected ${pCoiDeficiencies} active insurance deficiency riders.`,
+          actor: "TradePulse automation",
           timestamp: Date.now(),
         });
       }
@@ -223,7 +223,7 @@ export const runDeadlineMonitorNow = mutation({
                 eventType: "compliance_audit",
                 title: `Deadline passed with no bids: ${pkg.tradeName}`,
                 description: `Bid deadline (${pkg.bidDeadline}) passed with zero proposals on file. The package was left open — extend the deadline or re-solicit subcontractors before leveling.`,
-                actor: "Convex Automated Cron Engine",
+                actor: "TradePulse automation",
                 timestamp: Date.now(),
               });
             }
@@ -303,20 +303,20 @@ export const getCronStatus = query({
         {
           name: "monitor-bid-deadlines",
           schedule: "Every 1 hour",
-          description: "Scans CSI package bid deadlines and auto-advances to leveling",
+          description: "Checks package bid deadlines and moves a package to leveling when it closes.",
         },
         {
           name: "audit-contractor-compliance",
           schedule: "Every 6 hours",
-          description: "Sweeps recorded contractor license statuses and ACORD 25 insurance flags (no registry lookup is performed)",
+          description: "Checks recorded contractor licence statuses and insurance flags. No registry lookup is performed.",
         },
         {
           name: "compliance-expiry-notifications",
           schedule: "Daily at 14:00 UTC",
-          description: "Notifies subs and their GC in-app when an accepted certificate of insurance or license expires within 30 days or has expired",
+          description: "Reminds subs and their GC in-app when an accepted insurance certificate or licence expires within 30 days or has expired.",
         },
       ],
-      engine: "Convex Native cronJobs()",
+      engine: "TradePulse scheduler",
       status: "Active & Scheduled",
     };
   },

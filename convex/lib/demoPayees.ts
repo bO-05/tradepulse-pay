@@ -93,12 +93,13 @@ export async function ensureDemoPayees(ctx: MutationCtx, ids: DemoCompanyIds, de
       if (vendor.companyId !== ids.gc || vendor.payoutEmailConfirmed?.email === email) continue;
       const now = Date.now();
       await ctx.db.patch(vendor._id, { payoutEmailConfirmed: { email, confirmedByUserId: demoGcUserId, confirmedAt: now } });
-      // The sandbox payee address comes from a deployment env var, so the entry does not repeat it.
+      // The sandbox payee address comes from a deployment env var, so the entry neither repeats the
+      // address nor names the variable. Vendor ids are internal and never shown to a reader.
       await ctx.db.insert("auditLogs", {
         eventType: "payee_confirmed",
         title: `Payee confirmed for ${vendor.name}`,
-        description: `The demo seed confirmed ${sub.name}'s PayPal sandbox payout email (from ${resolved.envName}) for vendor ${vendor.name} (${vendor._id}) on behalf of the Demo GC; previously confirmed: ${vendor.payoutEmailConfirmed ? "a different email" : "(none)"}.`,
-        actor: "system:demo-seed",
+        description: `The demo setup confirmed ${sub.name}'s PayPal sandbox payout email for ${vendor.name}; previously confirmed: ${vendor.payoutEmailConfirmed ? "a different email" : "none"}.`,
+        actor: "Demo setup",
         actorUserId: demoGcUserId,
         actorCompanyId: ids.gc,
         timestamp: now,

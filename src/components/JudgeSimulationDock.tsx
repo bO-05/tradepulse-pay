@@ -7,6 +7,7 @@ import { TradePackage } from "../types.ts";
 import { useDialogFocus } from "../lib/useDialogFocus.ts";
 import { ConfirmDialog } from "./ConfirmDialog.tsx";
 import { JUDGE_DEMO_AUTOSTART_KEY } from "../payments/judgeDemo/steps.ts";
+import { demoProjectName } from "../lib/demoCopy";
 
 interface JudgeSimulationDockProps {
   isOpen: boolean;
@@ -153,7 +154,7 @@ export const JudgeSimulationDock: React.FC<JudgeSimulationDockProps> = ({
           <div className="bg-slate-850 p-2.5 rounded-lg border border-slate-700/60 text-xs flex items-center justify-between gap-2">
             <span className="text-slate-400">Target project:</span>
             <span className={`font-semibold px-2 py-0.5 rounded font-mono truncate ${isDemoProject ? "text-emerald-400" : "text-amber-300 bg-amber-950/40 border border-amber-800/40"}`}>
-              {projectTitle || "Active project"} {isDemoProject ? "(demo)" : "(custom project)"}
+              {projectTitle ? demoProjectName(projectTitle) : "Active project"} {isDemoProject ? "· demo project" : "· your project"}
             </span>
           </div>
 

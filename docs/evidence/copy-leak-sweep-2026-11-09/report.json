@@ -1,0 +1,619 @@
+{
+  "target": "http://localhost:3150",
+  "capturedAt": "2026-11-09T04:00:23.953Z",
+  "width": [
+    1440,
+    390
+  ],
+  "screenshotFormat": "Puppeteer full-page PNG plus first viewport; Droid cannot view images, so no visual pass was performed by the worker.",
+  "checks": [
+    {
+      "name": "[1440] PayPal sandbox label is verbatim",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] rules/model honesty label is verbatim",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] demo landing has no app-copy leak",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[1440] expanded manual details is the sole home of AgentID",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] expanded manual details is the sole home of Recovery-dev and Studio license",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] nothing outside expanded manual details leaks",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[1440] Lopez project link found",
+      "ok": true,
+      "detail": "#/all-projects/q97f6pmh2d5qn733jmh5pg4c3x8hr9sn"
+    },
+    {
+      "name": "[1440] residential ledger link found",
+      "ok": true,
+      "detail": "#/payments/jn77jrsvkvmwzj69tpyx7gj2f98htcnv"
+    },
+    {
+      "name": "[1440] residential ledger says milestone funding",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] residential ledger names funded milestones, never tranches",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] recorded review names its run date under a plain heading",
+      "ok": true,
+      "detail": "RECORDED REVIEW · NOV 8, 2026 Both billed lines exceed their funding-tranche ceilings: Rough-in capped at 50% (funded tranche only), Fixtures set at 0% (tranche"
+    },
+    {
+      "name": "[1440] frozen Lopez review narrative is quoted byte-for-byte",
+      "ok": true,
+      "detail": "RECORDED REVIEW · NOV 8, 2026 Both billed lines exceed their funding-tranche ceilings: Rough-in capped at 50% (funded tranche only), Fixtures set at 0% (tranche still planned). No lien waiver provided and no active licen"
+    },
+    {
+      "name": "[1440] ledger chrome around the quote has no commercial vocabulary",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] residential ledger still has its funding controls",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] commercial ledger keeps Funding tranches",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] commercial ledger keeps tranche wording",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] sub pay app shows the masked sandbox payee",
+      "ok": true,
+      "detail": "sb-****@personal.example.com"
+    },
+    {
+      "name": "[1440] sub pay app shows no unmasked example address",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] sub pay app shows the payout receipt",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] sub pay app labels the frozen decision as recorded history",
+      "ok": true,
+      "detail": "Recorded decision · Nov 8, 2026 Line 1 "
+    },
+    {
+      "name": "[1440] recorded decision is quoted, not paraphrased",
+      "ok": true,
+      "detail": "Reason: Rough-in is complete and the $4,000.00 Rough-in tranche is authorized at PayPal. The 50% tranche ceiling measures funding progress, not work in place, s"
+    },
+    {
+      "name": "[1440] frozen draw trade line drops the division code",
+      "ok": true,
+      "detail": "Plumbing — Ortiz Plumbing From approved sub pay apps $9,000.00 $4,00"
+    },
+    {
+      "name": "[1440] frozen draw trade line has no division code",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] Lopez change-order project option found",
+      "ok": true,
+      "detail": "q97f6pmh2d5qn733jmh5pg4c3x8hr9sn"
+    },
+    {
+      "name": "[1440] owner change-order invoice link found",
+      "ok": true,
+      "detail": "#/change-orders/kx76mes3b4e7dt47qbv92tbav58httg0"
+    },
+    {
+      "name": "[1440] change-order invoice has no unmasked example address",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] change-order invoice shows its PayPal invoice receipt",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] sub and GC resolved the same residential ledger",
+      "ok": true,
+      "detail": "#/payments/jn77jrsvkvmwzj69tpyx7gj2f98htcnv"
+    },
+    {
+      "name": "[390] PayPal sandbox label is verbatim",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] rules/model honesty label is verbatim",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] demo landing has no app-copy leak",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[390] expanded manual details is the sole home of AgentID",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] expanded manual details is the sole home of Recovery-dev and Studio license",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] nothing outside expanded manual details leaks",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[390] Lopez project link found",
+      "ok": true,
+      "detail": "#/all-projects/q97f6pmh2d5qn733jmh5pg4c3x8hr9sn"
+    },
+    {
+      "name": "[390] residential ledger link found",
+      "ok": true,
+      "detail": "#/payments/jn77jrsvkvmwzj69tpyx7gj2f98htcnv"
+    },
+    {
+      "name": "[390] residential ledger says milestone funding",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] residential ledger names funded milestones, never tranches",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] recorded review names its run date under a plain heading",
+      "ok": true,
+      "detail": "RECORDED REVIEW · NOV 8, 2026 Both billed lines exceed their funding-tranche ceilings: Rough-in capped at 50% (funded tranche only), Fixtures set at 0% (tranche"
+    },
+    {
+      "name": "[390] frozen Lopez review narrative is quoted byte-for-byte",
+      "ok": true,
+      "detail": "RECORDED REVIEW · NOV 8, 2026 Both billed lines exceed their funding-tranche ceilings: Rough-in capped at 50% (funded tranche only), Fixtures set at 0% (tranche still planned). No lien waiver provided and no active licen"
+    },
+    {
+      "name": "[390] ledger chrome around the quote has no commercial vocabulary",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] residential ledger still has its funding controls",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] commercial ledger keeps Funding tranches",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] commercial ledger keeps tranche wording",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] sub pay app shows the masked sandbox payee",
+      "ok": true,
+      "detail": "sb-****@personal.example.com"
+    },
+    {
+      "name": "[390] sub pay app shows no unmasked example address",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] sub pay app shows the payout receipt",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] sub pay app labels the frozen decision as recorded history",
+      "ok": true,
+      "detail": "Recorded decision · Nov 8, 2026 Line 1 "
+    },
+    {
+      "name": "[390] recorded decision is quoted, not paraphrased",
+      "ok": true,
+      "detail": "Reason: Rough-in is complete and the $4,000.00 Rough-in tranche is authorized at PayPal. The 50% tranche ceiling measures funding progress, not work in place, s"
+    },
+    {
+      "name": "[390] frozen draw trade line drops the division code",
+      "ok": true,
+      "detail": "Plumbing — Ortiz Plumbing From approved sub pay apps $9,000.00 $4,00"
+    },
+    {
+      "name": "[390] frozen draw trade line has no division code",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] Lopez change-order project option found",
+      "ok": true,
+      "detail": "q97f6pmh2d5qn733jmh5pg4c3x8hr9sn"
+    },
+    {
+      "name": "[390] owner change-order invoice link found",
+      "ok": true,
+      "detail": "#/change-orders/kx76mes3b4e7dt47qbv92tbav58httg0"
+    },
+    {
+      "name": "[390] change-order invoice has no unmasked example address",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] change-order invoice shows its PayPal invoice receipt",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] sub and GC resolved the same residential ledger",
+      "ok": true,
+      "detail": "#/payments/jn77jrsvkvmwzj69tpyx7gj2f98htcnv"
+    }
+  ],
+  "screens": [
+    {
+      "name": "demo-collapsed",
+      "width": 1440,
+      "hash": "#/demo",
+      "scrollWidth": 1440,
+      "clientWidth": 1440
+    },
+    {
+      "name": "demo-expanded",
+      "width": 1440,
+      "hash": "#/demo",
+      "manualDetailsOpen": true
+    },
+    {
+      "name": "gc-home",
+      "width": 1440,
+      "hash": "#/inbox",
+      "scrollWidth": 1440,
+      "clientWidth": 1440
+    },
+    {
+      "name": "gc-lopez-project",
+      "width": 1440,
+      "hash": "#/all-projects/q97f6pmh2d5qn733jmh5pg4c3x8hr9sn",
+      "scrollWidth": 1440,
+      "clientWidth": 1440
+    },
+    {
+      "name": "gc-residential-ledger",
+      "width": 1440,
+      "hash": "#/payments/jn77jrsvkvmwzj69tpyx7gj2f98htcnv",
+      "scrollWidth": 1440,
+      "clientWidth": 1440
+    },
+    {
+      "name": "gc-commercial-ledger",
+      "width": 1440,
+      "hash": "#/payments/jn78x0j5xeh7q9gb55p26r7pdh8hdmjx",
+      "scrollWidth": 1440,
+      "clientWidth": 1440
+    },
+    {
+      "name": "sub-pay-app",
+      "width": 1440,
+      "hash": "#/pay-apps/ph7434a59sqck3nysgt6teqh0h8hvx1h",
+      "scrollWidth": 1440,
+      "clientWidth": 1440
+    },
+    {
+      "name": "owner-home",
+      "width": 1440,
+      "hash": "#/projects",
+      "scrollWidth": 1440,
+      "clientWidth": 1440
+    },
+    {
+      "name": "owner-draw",
+      "width": 1440,
+      "hash": "#/owner-pay-apps",
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "breakdownOpen": true
+    },
+    {
+      "name": "owner-change-order-invoice",
+      "width": 1440,
+      "hash": "#/change-orders/kx76mes3b4e7dt47qbv92tbav58httg0",
+      "scrollWidth": 1440,
+      "clientWidth": 1440
+    },
+    {
+      "name": "demo-collapsed",
+      "width": 390,
+      "hash": "#/demo",
+      "scrollWidth": 390,
+      "clientWidth": 390
+    },
+    {
+      "name": "demo-expanded",
+      "width": 390,
+      "hash": "#/demo",
+      "manualDetailsOpen": true
+    },
+    {
+      "name": "gc-home",
+      "width": 390,
+      "hash": "#/inbox",
+      "scrollWidth": 390,
+      "clientWidth": 390
+    },
+    {
+      "name": "gc-lopez-project",
+      "width": 390,
+      "hash": "#/all-projects/q97f6pmh2d5qn733jmh5pg4c3x8hr9sn",
+      "scrollWidth": 390,
+      "clientWidth": 390
+    },
+    {
+      "name": "gc-residential-ledger",
+      "width": 390,
+      "hash": "#/payments/jn77jrsvkvmwzj69tpyx7gj2f98htcnv",
+      "scrollWidth": 390,
+      "clientWidth": 390
+    },
+    {
+      "name": "gc-commercial-ledger",
+      "width": 390,
+      "hash": "#/payments/jn78x0j5xeh7q9gb55p26r7pdh8hdmjx",
+      "scrollWidth": 390,
+      "clientWidth": 390
+    },
+    {
+      "name": "sub-pay-app",
+      "width": 390,
+      "hash": "#/pay-apps/ph7434a59sqck3nysgt6teqh0h8hvx1h",
+      "scrollWidth": 390,
+      "clientWidth": 390
+    },
+    {
+      "name": "owner-home",
+      "width": 390,
+      "hash": "#/projects",
+      "scrollWidth": 390,
+      "clientWidth": 390
+    },
+    {
+      "name": "owner-draw",
+      "width": 390,
+      "hash": "#/owner-pay-apps",
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "breakdownOpen": true
+    },
+    {
+      "name": "owner-change-order-invoice",
+      "width": 390,
+      "hash": "#/change-orders/kx76mes3b4e7dt47qbv92tbav58httg0",
+      "scrollWidth": 390,
+      "clientWidth": 390
+    }
+  ],
+  "diagnostics": [
+    {
+      "screen": "demo-collapsed",
+      "width": 1440,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": []
+    },
+    {
+      "screen": "demo-expanded",
+      "width": 1440,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": []
+    },
+    {
+      "screen": "gc-home",
+      "width": 1440,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [
+        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED"
+      ]
+    },
+    {
+      "screen": "gc-lopez-project",
+      "width": 1440,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [
+        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED"
+      ]
+    },
+    {
+      "screen": "gc-residential-ledger",
+      "width": 1440,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [
+        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED"
+      ]
+    },
+    {
+      "screen": "gc-commercial-ledger",
+      "width": 1440,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [
+        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED"
+      ]
+    },
+    {
+      "screen": "sub-pay-app",
+      "width": 1440,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [
+        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED",
+        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED"
+      ]
+    },
+    {
+      "screen": "owner-home",
+      "width": 1440,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [
+        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED",
+        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED"
+      ]
+    },
+    {
+      "screen": "owner-draw",
+      "width": 1440,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [
+        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED",
+        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED"
+      ]
+    },
+    {
+      "screen": "owner-change-order-invoice",
+      "width": 1440,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [
+        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED",
+        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED"
+      ]
+    },
+    {
+      "screen": "demo-collapsed",
+      "width": 390,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": []
+    },
+    {
+      "screen": "demo-expanded",
+      "width": 390,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": []
+    },
+    {
+      "screen": "gc-home",
+      "width": 390,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [
+        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED"
+      ]
+    },
+    {
+      "screen": "gc-lopez-project",
+      "width": 390,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [
+        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED"
+      ]
+    },
+    {
+      "screen": "gc-residential-ledger",
+      "width": 390,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [
+        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED"
+      ]
+    },
+    {
+      "screen": "gc-commercial-ledger",
+      "width": 390,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [
+        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED"
+      ]
+    },
+    {
+      "screen": "sub-pay-app",
+      "width": 390,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [
+        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED"
+      ]
+    },
+    {
+      "screen": "owner-home",
+      "width": 390,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [
+        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED",
+        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED"
+      ]
+    },
+    {
+      "screen": "owner-draw",
+      "width": 390,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [
+        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED",
+        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED"
+      ]
+    },
+    {
+      "screen": "owner-change-order-invoice",
+      "width": 390,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [
+        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED",
+        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED"
+      ]
+    }
+  ],
+  "notes": [
+    "Banned-string verdicts come from scripts/qa/leak-scan.mjs. This report records screenshots and approved-string checks.",
+    "Quoted recorded history is reported separately by the leak scan and is never edited, hidden or paraphrased.",
+    "All screenshots were taken with non-demo email addresses masked in the DOM; the approved sandbox alias remains visible."
+  ]
+}

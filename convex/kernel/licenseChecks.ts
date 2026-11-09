@@ -175,9 +175,9 @@ export const finishCheck = internalMutation({
       eventType: "license_check",
       title: "CSLB license check",
       description: `${contractor?.companyName ?? "Contractor"} CA license #${row.licenseNumber}: ${args.status}.`,
-      actor: "KERNEL hosted browser",
+      actor: "Licence registry lookup",
       timestamp: now,
-      operation: "kernel.cslb.lookup",
+      operation: "licence-registry.lookup",
     });
     return null;
   },

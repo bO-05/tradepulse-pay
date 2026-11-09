@@ -1,0 +1,136 @@
+{
+  "generatedAt": "2026-11-09T04:57:36.333Z",
+  "baseUrl": "http://localhost:3150",
+  "selfTest": {
+    "ok": true,
+    "failures": [],
+    "closedDetailsExempt": true,
+    "insideClosedDetailsHits": 0,
+    "outsideHits": 1,
+    "hits": [
+      {
+        "screen": "self-test",
+        "rule": "fixture",
+        "match": "fixture",
+        "context": "fixture outside the panel masked sb-****@personal.example.com and [demo inbox"
+      }
+    ],
+    "recordedReportedSeparately": true,
+    "skippedTextSample": 6
+  },
+  "summary": {
+    "screens": 6,
+    "screensIncludingDemo": 7,
+    "appCopyHits": 0,
+    "quotedRecordedHits": 0,
+    "quotedRecordedBlocks": 4
+  },
+  "screens": [
+    {
+      "name": "Demo landing",
+      "route": "#/demo",
+      "appCopyHits": [],
+      "quotedRecordedText": {
+        "blocks": 0,
+        "characters": 0,
+        "hits": []
+      },
+      "skippedInsideClosedDetails": 40,
+      "charsScanned": 2004
+    },
+    {
+      "name": "GC inbox",
+      "route": "#/inbox",
+      "appCopyHits": [],
+      "quotedRecordedText": {
+        "blocks": 2,
+        "characters": 467,
+        "hits": []
+      },
+      "skippedInsideClosedDetails": 2061,
+      "charsScanned": 21740
+    },
+    {
+      "name": "GC Lopez project",
+      "route": "#/all-projects/q97f6pmh2d5qn733jmh5pg4c3x8hr9sn",
+      "appCopyHits": [],
+      "quotedRecordedText": {
+        "blocks": 0,
+        "characters": 0,
+        "hits": []
+      },
+      "skippedInsideClosedDetails": 25,
+      "charsScanned": 1424
+    },
+    {
+      "name": "Sub pay app",
+      "route": "#/pay-apps/ph7434a59sqck3nysgt6teqh0h8hvx1h",
+      "appCopyHits": [],
+      "quotedRecordedText": {
+        "blocks": 2,
+        "characters": 431,
+        "hits": []
+      },
+      "skippedInsideClosedDetails": 146,
+      "charsScanned": 2697
+    },
+    {
+      "name": "Owner projects",
+      "route": "#/projects",
+      "appCopyHits": [],
+      "quotedRecordedText": {
+        "blocks": 0,
+        "characters": 0,
+        "hits": []
+      },
+      "skippedInsideClosedDetails": 0,
+      "charsScanned": 3994
+    },
+    {
+      "name": "Owner pay apps",
+      "route": "#/owner-pay-apps",
+      "appCopyHits": [],
+      "quotedRecordedText": {
+        "blocks": 0,
+        "characters": 0,
+        "hits": []
+      },
+      "skippedInsideClosedDetails": 45,
+      "charsScanned": 1533
+    },
+    {
+      "name": "Owner change-order invoice",
+      "route": "#/change-orders/kx76mes3b4e7dt47qbv92tbav58httg0",
+      "appCopyHits": [],
+      "quotedRecordedText": {
+        "blocks": 0,
+        "characters": 0,
+        "hits": []
+      },
+      "skippedInsideClosedDetails": 0,
+      "charsScanned": 736
+    }
+  ],
+  "diagnostics": {
+    "Demo landing": {
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": []
+    },
+    "GC inbox": {
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": []
+    },
+    "Sub pay app": {
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": []
+    },
+    "Owner screens": {
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": []
+    }
+  }
+}

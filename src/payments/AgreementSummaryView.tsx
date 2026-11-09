@@ -8,6 +8,8 @@ import { MilestoneFundingTable } from "./MilestoneFundingSummary";
 import { AgreementTermsPanel } from "../contracts/AgreementTermsPanel";
 import { DocumentDownloadButton } from "../documents/DocumentDownload";
 import { LienWaiverGateCard } from "./LienWaiverGateCard";
+import { demoDisplayName, demoProjectName } from "../lib/demoCopy";
+import { termsForKind } from "../lib/terms";
 
 export function AgreementSummaryView({ agreementId, backHash }: { agreementId: string; backHash: string }) {
   const agreement = useQuery(api.portal.getAgreementSummary, { agreementId });
@@ -17,15 +19,16 @@ export function AgreementSummaryView({ agreementId, backHash }: { agreementId: s
   }
 
   if (agreement === null) return <NotFoundState />;
+  const terms = termsForKind(agreement.projectKind);
 
   return (
     <div className="max-w-3xl bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
       <div className="flex flex-col items-start justify-between gap-4 sm:flex-row">
         <div className="min-w-0">
           <p className="text-xs text-slate-400">{agreement.agreementNumber}</p>
-          <h1 className="text-lg font-semibold">{agreement.subcontractorName}</h1>
+          <h1 className="text-lg font-semibold">{demoDisplayName(agreement.subcontractorName)}</h1>
           <p className="text-sm text-slate-400">
-            {agreement.projectTitle} · Division {agreement.csiDivision} {agreement.tradeName}
+            {demoProjectName(agreement.projectTitle)} · {terms.kind === "residential" ? agreement.tradeName : `Division ${agreement.csiDivision} ${agreement.tradeName}`}
           </p>
         </div>
         <div className="flex flex-col items-end gap-2">

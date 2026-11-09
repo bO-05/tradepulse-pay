@@ -19,9 +19,10 @@ import { loadTranches } from "../lib/trancheRows";
 import { isReadOnlyReference } from "../lib/demoReference";
 import { payoutReceiverForContractorReadOnly } from "../lib/payee";
 import { agreementLedgerValidator, ledgerAgreementValidator } from "./ledgerValidators";
+import { projectKindOf, type ProjectKind } from "../lib/projectKind";
 
 /** contractSumCents is the contract sum to date (original plus approved change orders). */
-function ledgerAgreementSummary(a: Doc<"agreements">, sum: ContractSumBreakdown, billedCents = 0) {
+function ledgerAgreementSummary(a: Doc<"agreements">, sum: ContractSumBreakdown, billedCents = 0, projectKind: ProjectKind = "commercial") {
   const basePercent = retainagePercentFor(a);
   // The rate that applies to the next application: the base rate, or the reduced rate once approved
   // billing has reached half the contract sum. Shown next to the base so "10%" is never mistaken for
@@ -45,6 +46,7 @@ function ledgerAgreementSummary(a: Doc<"agreements">, sum: ContractSumBreakdown,
     netChangeOrdersCents: sum.netChangeCents,
     excludedScopeNotes: a.excludedScopeNotes ?? [],
     executedAt: a.executedAt ?? null,
+    projectKind,
   };
 }
 
@@ -95,7 +97,11 @@ export const listLedgerAgreements = query({
     await requireRole(ctx, ["gc", "sub"]);
     const { rows } = await scopedAgreements(ctx, { parties: ["gc", "sub"], limit: 200 });
     const live = rows.filter((r) => r.agreement.status !== "superseded");
-    return await Promise.all(live.map(async (r) => ledgerAgreementSummary(r.agreement, await agreementContractSum(ctx, r.agreement))));
+    return await Promise.all(
+      live.map(async (r) =>
+        ledgerAgreementSummary(r.agreement, await agreementContractSum(ctx, r.agreement), 0, projectKindOf(r.access.project)),
+      ),
+    );
   },
 });
 
@@ -143,7 +149,7 @@ export const getAgreementLedger = query({
       // Change-order invoices are between the GC and the owner; a sub's ledger never counts them.
       changeOrders: isGc ? changeOrders : [],
     });
-    const summary = ledgerAgreementSummary(agreement, sum, totals.billedCents);
+    const summary = ledgerAgreementSummary(agreement, sum, totals.billedCents, projectKindOf(scope.project));
     const capturedReleaseIds = new Set<string>();
     const captureByRelease = new Map<string, string>();
     for (const p of payments) {

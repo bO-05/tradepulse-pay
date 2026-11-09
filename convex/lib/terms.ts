@@ -21,6 +21,39 @@ export type DrawColumns = {
   retainage: string;
 };
 
+/** The GC funding ledger's nouns. Residential never says "tranche"; commercial keeps today's bytes. */
+export type FundingTerms = {
+  ledgerTitle: string;
+  ledgerLower: string;
+  item: string;
+  items: string;
+  itemTitle: string;
+  itemsTitle: string;
+  totalLabel: string;
+  authorizationNote: string;
+  emptyReadOnly: string;
+  emptyEditable: string;
+  addTitle: string;
+  addAction: string;
+  saveAction: string;
+  amountRequired: string;
+  nameRequired: string;
+  saveFailed: string;
+  moveFailed: string;
+  addFailed: string;
+  closeFailed: string;
+  deleteEffect: string;
+  closeEffect: string;
+  addedNotice: string;
+};
+
+/** Owner-income rows on the GC ledger. Residential drops "Prime"; commercial keeps today's bytes. */
+export type LedgerTerms = {
+  ownerInvoicesUnpaid: string;
+  ownerIncomePaid: string;
+  ownerIncomeNote: string;
+};
+
 export type Terms = {
   kind: ProjectKind;
   /** "Draw" on a residential job, "Owner pay app" on a commercial one. */
@@ -48,6 +81,8 @@ export type Terms = {
   signed: string;
   fundedMilestone: string;
   fundedMilestones: string;
+  funding: FundingTerms;
+  ledger: LedgerTerms;
   commercialBadge: boolean;
   commercialBadgeLabel: string;
 };
@@ -77,6 +112,36 @@ const RESIDENTIAL_TERMS: Terms = {
   signed: "Signed",
   fundedMilestone: "Funded milestone",
   fundedMilestones: "Funded milestones",
+  funding: {
+    ledgerTitle: "Milestone funding",
+    ledgerLower: "milestone funding",
+    item: "funded milestone",
+    items: "funded milestones",
+    itemTitle: "Funded milestone",
+    itemsTitle: "Funded milestones",
+    totalLabel: "Milestone funding total",
+    authorizationNote: "Funding a milestone authorizes money at PayPal. The sub is paid only from an approved pay app's Payment panel.",
+    emptyReadOnly: "No milestone funding yet.",
+    emptyEditable: "No milestone funding yet. Add the first one below.",
+    addTitle: "Add milestone funding",
+    addAction: "Add milestone",
+    saveAction: "Save milestone",
+    amountRequired: "Enter the milestone amount.",
+    nameRequired: "Enter a milestone name.",
+    saveFailed: "The milestone could not be saved.",
+    moveFailed: "The milestone could not be moved.",
+    addFailed: "The milestone could not be added.",
+    closeFailed: "The milestone could not be closed.",
+    deleteEffect: "Removes this unfunded milestone. No money moves.",
+    closeEffect: "Voids the rest of this milestone's PayPal authorization. The voided money can't be captured again; fund a new milestone if needed.",
+    addedNotice: "Milestone funding added.",
+  },
+  ledger: {
+    ownerInvoicesUnpaid: "Owner change-order invoices unpaid (project income)",
+    ownerIncomePaid: "Owner change-order income paid (not this subcontract)",
+    ownerIncomeNote:
+      "Statuses are recorded from PayPal webhooks/API responses at the time shown; this page does not re-query PayPal. Owner change-order income belongs to the project, not this subcontract's scope or balance.",
+  },
   commercialBadge: false,
   commercialBadgeLabel: "",
 };
@@ -110,6 +175,36 @@ const COMMERCIAL_TERMS: Terms = {
   signed: "Executed",
   fundedMilestone: "Tranche",
   fundedMilestones: "Funding tranches",
+  funding: {
+    ledgerTitle: "Funding tranches",
+    ledgerLower: "funding tranches",
+    item: "tranche",
+    items: "tranches",
+    itemTitle: "Tranche",
+    itemsTitle: "Tranches",
+    totalLabel: "Tranches total",
+    authorizationNote: "Funding a tranche authorizes money at PayPal. The sub is paid only from an approved pay app's Payment panel.",
+    emptyReadOnly: "No funding tranches yet.",
+    emptyEditable: "No funding tranches yet. Add the first one below.",
+    addTitle: "Add a funding tranche",
+    addAction: "Add tranche",
+    saveAction: "Save tranche",
+    amountRequired: "Enter the tranche amount.",
+    nameRequired: "Enter a tranche name.",
+    saveFailed: "The tranche could not be saved.",
+    moveFailed: "The tranche could not be moved.",
+    addFailed: "The tranche could not be added.",
+    closeFailed: "The tranche could not be closed.",
+    deleteEffect: "Removes this unfunded tranche. No money moves.",
+    closeEffect: "Voids the rest of this tranche's PayPal authorization. The voided money can't be captured again; fund a new tranche if needed.",
+    addedNotice: "Tranche added.",
+  },
+  ledger: {
+    ownerInvoicesUnpaid: "Owner prime CO invoices unpaid (project income)",
+    ownerIncomePaid: "Owner prime CO income paid (not this subcontract)",
+    ownerIncomeNote:
+      "Statuses are recorded from PayPal webhooks/API responses at the time shown; this page does not re-query PayPal. Owner prime change-order income belongs to the project, not this subcontract's scope or balance.",
+  },
   commercialBadge: true,
   commercialBadgeLabel: "Commercial reference job",
 };

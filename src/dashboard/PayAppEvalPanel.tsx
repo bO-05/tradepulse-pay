@@ -77,7 +77,7 @@ export const PayAppEvalPanel: React.FC<{ run: PayAppEvalRun | null | undefined }
       </div>
       <p className="text-[11px] leading-relaxed text-slate-400">
         These scores measure how closely the reviewer matches <strong className="text-slate-300">this app&apos;s own rules</strong> on
-        24 hand-built fixtures. The deterministic rules engine matches them 100% by construction, so a perfect score is a
+        24 hand-built review cases. The deterministic rules engine matches them 100% by construction, so a perfect score is a
         regression check on the rules, not proof that the rules are right; only real claims adjudicated by a GC test that.
       </p>
       {run.reviewMetrics ? (

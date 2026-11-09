@@ -19,6 +19,7 @@ import {
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api.js";
 import { Project, AuditLog } from "../types.ts";
+import { auditActorLabel, auditCronLabel, auditText } from "../lib/auditCopy";
 
 interface ActivityAuditStreamViewProps {
   currentProject: Project | null;
@@ -145,14 +146,14 @@ export const ActivityAuditStreamView: React.FC<ActivityAuditStreamViewProps> = (
           <div className="flex items-center gap-2 mb-1">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
             <h2 className="text-lg font-bold text-white tracking-tight">
-              Live Reactive Activity Audit Stream
+              Activity and audit history
             </h2>
             <span className="text-[10px] font-mono bg-emerald-950 text-emerald-400 border border-emerald-800 px-2 py-0.5 rounded-full">
-              useQuery WebSocket Feed
+              Live records
             </span>
           </div>
           <p className="text-xs text-slate-400">
-            Immutable causal audit log tracking all trade RFQs, pre-bid RFI clarifications, forensic bid leveling calculations, A401-style subcontract drafts, and Convex cron executions.
+            A record of bid invitations, pre-bid clarifications, bid leveling, subcontract drafts and scheduled checks. Each row keeps its own timestamp.
           </p>
         </div>
 
@@ -162,60 +163,63 @@ export const ActivityAuditStreamView: React.FC<ActivityAuditStreamViewProps> = (
             disabled={runningDeadline}
             onClick={handleRunDeadlineCron}
             className="bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 transition"
-            title="Execute Convex deadline monitoring cron job"
+            title="Run the bid deadline check now"
           >
             {runningDeadline ? (
               <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-400" />
             ) : (
               <Play className="w-3.5 h-3.5 text-amber-400" />
             )}
-            Run Deadline Cron
+            Run bid deadline check
           </button>
 
           <button
             disabled={runningCompliance}
             onClick={handleRunComplianceCron}
             className="bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 transition"
-            title="Execute Convex contractor compliance sweep cron job"
+            title="Run the contractor compliance check now"
           >
             {runningCompliance ? (
               <RefreshCw className="w-3.5 h-3.5 animate-spin text-purple-400" />
             ) : (
               <ShieldCheck className="w-3.5 h-3.5 text-purple-400" />
             )}
-            Run Compliance Sweep
+            Run compliance check
           </button>
         </div>
       </div>
 
       {cronError && (
         <div className="rounded-xl border border-rose-800/80 bg-rose-950/40 p-3 text-xs text-rose-300" role="alert">
-          Cron execution failed: {cronError}
+The check could not run: {cronError}
         </div>
       )}
 
       {/* Convex Cron Scheduled Status Banner */}
       {cronStatusData && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {cronStatusData.activeCrons.map((cron: any) => (
-            <div
-              key={cron.name}
-              className="bg-slate-900 border border-slate-800/80 rounded-xl p-4 flex items-center justify-between gap-3 text-xs"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-slate-850 border border-slate-700 flex items-center justify-center text-amber-400">
-                  <Clock className="w-4 h-4" />
+          {cronStatusData.activeCrons.map((cron: any) => {
+            const label = auditCronLabel(cron.name);
+            return (
+              <div
+                key={cron.name}
+                className="bg-slate-900 border border-slate-800/80 rounded-xl p-4 flex items-center justify-between gap-3 text-xs"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-slate-850 border border-slate-700 flex items-center justify-center text-amber-400">
+                    <Clock className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-white text-[11px]">{label.name}</h4>
+                    <p className="text-[11px] text-slate-400">{label.description ?? auditText(cron.description)}</p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="font-bold text-white font-mono text-[11px]">{cron.name}</h4>
-                  <p className="text-[11px] text-slate-400">{cron.description}</p>
-                </div>
+                <span className="text-[10px] font-mono font-bold bg-amber-950/70 text-amber-300 border border-amber-800/60 px-2 py-0.5 rounded-full shrink-0">
+                  {cron.schedule}
+                </span>
               </div>
-              <span className="text-[10px] font-mono font-bold bg-amber-950/70 text-amber-300 border border-amber-800/60 px-2 py-0.5 rounded-full shrink-0">
-                {cron.schedule}
-              </span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -227,7 +231,7 @@ export const ActivityAuditStreamView: React.FC<ActivityAuditStreamViewProps> = (
             Activity Events ({logs.length})
           </span>
           <span className="text-slate-400 font-mono text-[11px]">
-            Convex Realtime Subscriptions (Zero Polling Invariant)
+            Live records, newest first
           </span>
         </div>
 
@@ -249,7 +253,7 @@ export const ActivityAuditStreamView: React.FC<ActivityAuditStreamViewProps> = (
                 <div className="flex-1 min-w-0 space-y-1">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
-                      <h4 className="text-xs font-bold text-white">{log.title}</h4>
+                      <h4 className="text-xs font-bold text-white">{auditText(log.title)}</h4>
                       <span
                         className={`text-[10px] font-semibold border px-2 py-0.5 rounded-full uppercase tracking-wider font-mono ${getEventBadge(
                           log.eventType
@@ -266,12 +270,12 @@ export const ActivityAuditStreamView: React.FC<ActivityAuditStreamViewProps> = (
                   </div>
 
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    {log.description}
+                    {auditText(log.description)}
                   </p>
 
                   <div className="text-[11px] text-slate-400 flex items-center gap-1.5 pt-0.5">
-                    <span>Actor:</span>
-                    <span className="text-slate-400 font-medium">{log.actor}</span>
+                    <span>Recorded by:</span>
+                    <span className="text-slate-400 font-medium">{auditActorLabel(log.actor)}</span>
                   </div>
                 </div>
               </div>

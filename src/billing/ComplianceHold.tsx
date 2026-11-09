@@ -4,6 +4,7 @@ import { api } from "../../convex/_generated/api";
 import type { FunctionReturnType } from "convex/server";
 import { Button, ConfirmDialog, Field, StatusPill, formatDate } from "../ui";
 import { inputClass } from "../ui/Field";
+import { demoDisplayName } from "../lib/demoCopy";
 
 type Panel = NonNullable<FunctionReturnType<typeof api.billing.canPay.paymentPanel>>;
 type Compliance = Panel["compliance"];
@@ -12,7 +13,7 @@ export const OVERRIDE_REASON_MAX = 500;
 export const ADMIN_ONLY_TEXT = "Only company admins can override";
 
 export function overrideText(o: NonNullable<Compliance["override"]>): string {
-  return `Compliance override by ${o.byName} on ${formatDate(o.at)}: ${o.reason}`;
+  return `Compliance override by ${demoDisplayName(o.byName)} on ${formatDate(o.at)}: ${o.reason}`;
 }
 
 function Warnings({ warnings }: { warnings: string[] }) {

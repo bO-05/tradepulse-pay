@@ -61,7 +61,8 @@ test("the seat buttons are the first action and the manual details are one colla
 test("the landing leads with the residential GC job story, not the judge checklist", () => {
   const html = renderToStaticMarkup(<DemoAccessPage />);
   for (const text of ["Residential remodel GCs", "Pay the right amount.", "Catch overbilling early",
-    "Keep a clean owner trail", "owner-run remodels", "PayPal sandbox money only"]) expect(html).toContain(text);
+    "Keep a clean owner trail", "owner-run remodels", "PayPal sandbox · no real money",
+    "Rules set the amount. Mistral explains it. You decide."]) expect(html).toContain(text);
   expect(html).toContain("Judge walkthrough");
   expect(html).toContain("<details");
 });

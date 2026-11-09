@@ -8,6 +8,7 @@ import { FundMilestoneControl, FundingStatus } from "../payments/FundMilestone";
 import { ReleaseList } from "../payments/ReleaseMilestone";
 import { ReceiptId } from "../payments/ReceiptId";
 import { Button, ConfirmDialog, DateInput, MoneyInput, StatusPill, TextInput, formatCents } from "../ui";
+import type { Terms } from "../lib/terms";
 
 type Ledger = NonNullable<FunctionReturnType<typeof api.payments.ledger.getAgreementLedger>>;
 type LedgerMilestone = Ledger["milestones"][number];
@@ -42,13 +43,14 @@ function dateWarning(value: string, projectStartDate: string | null): string | n
  * tranches until they are funded, and funds each through PayPal; nothing here pays the sub. Payments
  * are made from an approved pay app's Payment panel.
  */
-export function FundingTranches({ agreementId, ledgerMilestones, isGc }: { agreementId: string; ledgerMilestones: LedgerMilestone[]; isGc: boolean }) {
+export function FundingTranches({ agreementId, ledgerMilestones, isGc, terms }: { agreementId: string; ledgerMilestones: LedgerMilestone[]; isGc: boolean; terms: Terms }) {
+  const funding = terms.funding;
   const list = useQuery(api.billing.tranches.listTranches, { agreementId });
   const byId = new Map(ledgerMilestones.map((m) => [m._id as string, m]));
   if (list === undefined) {
     return (
       <p className="text-sm text-slate-400" role="status">
-        Loading tranches…
+        Loading {funding.items}…
       </p>
     );
   }
@@ -58,23 +60,23 @@ export function FundingTranches({ agreementId, ledgerMilestones, isGc }: { agree
   return (
     <div className="space-y-4" data-testid="funding-tranches">
       <p className="text-sm text-slate-300" data-testid="tranche-totals">
-        Tranches total <span className="font-semibold tabular-nums">{formatCents(list.trancheTotalCents)}</span> of the contract sum to date{" "}
+        {funding.totalLabel} <span className="font-semibold tabular-nums">{formatCents(list.trancheTotalCents)}</span> of the contract sum to date{" "}
         <span className="font-semibold tabular-nums">{formatCents(list.contractSumToDateCents)}</span>
-        {remaining > 0 ? ` (${formatCents(remaining)} not yet in a tranche)` : ""}.
+        {remaining > 0 ? ` (${formatCents(remaining)} not yet in a ${funding.item})` : ""}.
       </p>
-      <p className="text-xs text-slate-400">Funding a tranche authorizes money at PayPal. The sub is paid only from an approved pay app's Payment panel.</p>
+      <p className="text-xs text-slate-400">{funding.authorizationNote}</p>
       {isGc && list.editBlockedReason ? <p className="text-sm text-amber-200">{list.editBlockedReason}</p> : null}
       {list.tranches.length === 0 ? (
         <p className="text-sm text-slate-400" data-testid="tranches-empty">
-          {list.canEdit ? "No funding tranches yet. Add the first one below." : "No funding tranches yet."}
+          {list.canEdit ? funding.emptyEditable : funding.emptyReadOnly}
         </p>
       ) : (
-        <div className="table-scroll" role="region" aria-label="Funding tranches, scroll horizontally on narrow screens" tabIndex={0}>
+        <div className="table-scroll" role="region" aria-label={`${funding.ledgerTitle}, scroll horizontally on narrow screens`} tabIndex={0}>
           <table className="w-full text-sm" data-testid="tranches-table">
-            <caption className="sr-only">Funding tranches</caption>
+            <caption className="sr-only">{funding.ledgerTitle}</caption>
             <thead className="text-xs text-slate-400 text-left">
               <tr>
-                <th scope="col" className="py-2 pr-3 font-medium">Tranche</th>
+                <th scope="col" className="py-2 pr-3 font-medium">{funding.itemTitle}</th>
                 <th scope="col" className="py-2 pr-3 font-medium">Planned date</th>
                 <th scope="col" className="py-2 pr-3 font-medium">Status</th>
                 <th scope="col" className="py-2 pr-3 font-medium text-right">Amount</th>
@@ -93,6 +95,7 @@ export function FundingTranches({ agreementId, ledgerMilestones, isGc }: { agree
                   first={i === 0}
                   last={i === list.tranches.length - 1}
                   projectStartDate={list.projectStartDate}
+                  terms={terms}
                 />
               ))}
             </tbody>
@@ -100,7 +103,7 @@ export function FundingTranches({ agreementId, ledgerMilestones, isGc }: { agree
         </div>
       )}
       {list.canEdit ? (
-        <AddTranche agreementId={agreementId} defaultPlannedDate={isoDate(list.defaultPlannedDate)} projectStartDate={list.projectStartDate} remainingCents={remaining} />
+        <AddTranche agreementId={agreementId} defaultPlannedDate={isoDate(list.defaultPlannedDate)} projectStartDate={list.projectStartDate} remainingCents={remaining} terms={terms} />
       ) : null}
     </div>
   );
@@ -114,6 +117,7 @@ function TrancheRow({
   first,
   last,
   projectStartDate,
+  terms,
 }: {
   tranche: Tranche;
   milestone: LedgerMilestone | undefined;
@@ -122,7 +126,9 @@ function TrancheRow({
   first: boolean;
   last: boolean;
   projectStartDate: string | null;
+  terms: Terms;
 }) {
+  const funding = terms.funding;
   const update = useMutation(api.billing.tranches.updateTranche);
   const move = useMutation(api.billing.tranches.moveTranche);
   const remove = useMutation(api.billing.tranches.deleteTranche);
@@ -136,7 +142,7 @@ function TrancheRow({
 
   async function save() {
     if (amount === null) {
-      setError("Enter the tranche amount.");
+      setError(funding.amountRequired);
       return;
     }
     setBusy(true);
@@ -145,7 +151,7 @@ function TrancheRow({
       await update({ trancheId: tranche._id, name, amountCents: amount, plannedDate: date });
       setEditing(false);
     } catch (e) {
-      setError(getErrorMessage(e, "The tranche could not be saved."));
+      setError(getErrorMessage(e, funding.saveFailed));
     } finally {
       setBusy(false);
     }
@@ -156,7 +162,7 @@ function TrancheRow({
     try {
       await move({ trancheId: tranche._id, direction });
     } catch (e) {
-      setError(getErrorMessage(e, "The tranche could not be moved."));
+      setError(getErrorMessage(e, funding.moveFailed));
     }
   }
 
@@ -199,7 +205,7 @@ function TrancheRow({
             <ReceiptId label="PayPal authorization" value={milestone.funding?.paypalAuthorizationId} />
             {isGc && !editing ? <FundMilestoneControl milestone={milestone} /> : null}
             <ReleaseList milestone={milestone} canRelease={isGc} />
-            {isGc ? <CloseTrancheControl milestone={milestone} /> : null}
+            {isGc ? <CloseTrancheControl milestone={milestone} terms={terms} /> : null}
           </>
         ) : null}
       </td>
@@ -209,7 +215,7 @@ function TrancheRow({
             {editing ? (
               <>
                 <Button size="sm" loading={busy} onClick={() => void save()} data-testid="tranche-save">
-                  Save tranche
+                  {funding.saveAction}
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => { setEditing(false); setError(null); }}>
                   Cancel
@@ -246,8 +252,8 @@ function TrancheRow({
             title={`Delete ${tranche.name}?`}
             tone="danger"
             amountCents={tranche.amountCents}
-            effect="Removes this unfunded tranche. No money moves."
-            confirmLabel="Delete tranche"
+            effect={funding.deleteEffect}
+            confirmLabel={`Delete ${funding.item}`}
             onCancel={() => setConfirmDelete(false)}
             onConfirm={async () => {
               await remove({ trancheId: tranche._id });
@@ -265,12 +271,15 @@ function AddTranche({
   defaultPlannedDate,
   projectStartDate,
   remainingCents,
+  terms,
 }: {
   agreementId: string;
   defaultPlannedDate: string;
   projectStartDate: string | null;
   remainingCents: number;
+  terms: Terms;
 }) {
+  const funding = terms.funding;
   const create = useMutation(api.billing.tranches.createTranche);
   const [name, setName] = useState("");
   const [amount, setAmount] = useState<number | null>(null);
@@ -282,7 +291,7 @@ function AddTranche({
 
   async function submit() {
     const next: typeof errors = {};
-    if (name.trim() === "") next.name = "Enter a tranche name.";
+    if (name.trim() === "") next.name = funding.nameRequired;
     if (amount === null || amount <= 0) next.amount = "Enter an amount more than $0.00.";
     setErrors(next);
     setNotice(null);
@@ -293,9 +302,9 @@ function AddTranche({
       setName("");
       setAmount(null);
       setDate(defaultPlannedDate);
-      setNotice(out.warning ? `Tranche added. ${out.warning}` : "Tranche added.");
+      setNotice(out.warning ? `${funding.addedNotice} ${out.warning}` : funding.addedNotice);
     } catch (e) {
-      setErrors({ form: getErrorMessage(e, "The tranche could not be added.") });
+      setErrors({ form: getErrorMessage(e, funding.addFailed) });
     } finally {
       setBusy(false);
     }
@@ -310,7 +319,7 @@ function AddTranche({
         void submit();
       }}
     >
-      <p className="text-sm font-semibold">Add a funding tranche</p>
+      <p className="text-sm font-semibold">{funding.addTitle}</p>
       <div className="grid gap-3 sm:grid-cols-3">
         <TextInput label="Name" required value={name} onChange={setName} error={errors.name} data-testid="tranche-name-input" />
         <MoneyInput
@@ -346,14 +355,14 @@ function AddTranche({
         </p>
       ) : null}
       <Button type="submit" loading={busy} data-testid="add-tranche-button">
-        Add tranche
+        {funding.addAction}
       </Button>
     </form>
   );
 }
 
 /** Voids the uncaptured remainder of a partly paid tranche. */
-function CloseTrancheControl({ milestone }: { milestone: LedgerMilestone }) {
+function CloseTrancheControl({ milestone, terms }: { milestone: LedgerMilestone; terms: Terms }) {
   const closeMilestone = useAction(api.payments.release.closeMilestone);
   const [open, setOpen] = useState(false);
   const f = milestone.funding;
@@ -362,7 +371,7 @@ function CloseTrancheControl({ milestone }: { milestone: LedgerMilestone }) {
   return (
     <>
       <Button size="sm" variant="secondary" onClick={() => setOpen(true)} data-testid="close-milestone-button">
-        Close tranche
+        {`Close ${terms.funding.item}`}
       </Button>
       <ConfirmDialog
         open={open}
@@ -370,14 +379,14 @@ function CloseTrancheControl({ milestone }: { milestone: LedgerMilestone }) {
         tone="danger"
         amountCents={remainder}
         amountLabel="Uncaptured remainder voided"
-        effect="Voids the rest of this tranche's PayPal authorization. The voided money can't be captured again; fund a new tranche if needed."
-        confirmLabel="Close tranche"
+        effect={terms.funding.closeEffect}
+        confirmLabel={`Close ${terms.funding.item}`}
         onCancel={() => setOpen(false)}
         onConfirm={async () => {
           try {
             await closeMilestone({ milestoneId: milestone._id });
           } catch (e) {
-            throw new Error(getErrorMessage(e, "The tranche could not be closed."));
+            throw new Error(getErrorMessage(e, terms.funding.closeFailed));
           }
           setOpen(false);
         }}

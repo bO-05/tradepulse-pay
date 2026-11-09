@@ -98,6 +98,7 @@ export type ChangeOrderInput = {
 };
 
 export type SubcontractInput = {
+  projectKind?: "residential" | "commercial";
   agreementNumber: string;
   gcName: string;
   subName: string;

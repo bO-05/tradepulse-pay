@@ -7,7 +7,7 @@ import type { ChangeOrderRowView } from "../../convex/billing/changeOrderView";
 import type { ContractSumBreakdown } from "../../convex/payments/changeOrderMath";
 import { changeOrderFieldErrors, type ChangeOrderFieldErrors } from "../../convex/payments/changeOrderMath";
 import { getErrorMessage } from "../lib/errors";
-import { maskSharedEmail } from "../lib/demoPrivacy";
+import { maskSandboxEmail } from "../lib/demoPrivacy";
 import { termsForKind, type ProjectKind, type Terms } from "../lib/terms";
 import { Button, ConfirmDialog, Dialog, EmptyState, MoneyInput, PageHeader, StatusPill, Tabs, TextInput, formatCents, formatDate, statusLabel, useToast } from "../ui";
 import { Field, focusFirstInvalid, inputClass } from "../ui/Field";
@@ -375,7 +375,7 @@ function ChangeOrderRow({
           {co.recipientEmail || co.paypalInvoiceId ? (
             <p className="text-xs text-ink-subtle">
               {[
-                co.recipientEmail ? `Invoice to ${maskSharedEmail(co.recipientEmail)}` : null,
+                co.recipientEmail ? `Invoice to ${maskSandboxEmail(co.recipientEmail)}` : null,
                 co.paypalInvoiceId ? `PayPal invoice ${co.paypalInvoiceId}${co.paypalInvoiceStatus ? ` (${statusLabel(co.paypalInvoiceStatus)})` : ""}` : null,
               ]
                 .filter(Boolean)
@@ -492,7 +492,7 @@ function ChangeOrderRow({
         open={pending === "invoice"}
         title={`Invoice ${co.label} now?`}
         amountCents={co.amountCents}
-        payee={recipientEmail ?? "The project owner's billing email"}
+        payee={maskSandboxEmail(recipientEmail) ?? "The project owner's billing email"}
         payeeLabel="Invoice to"
         effect="Creates and sends a PayPal invoice for this approved change order. The sandbox sends no email; open the invoice from the link here."
         confirmLabel="Invoice now"
@@ -652,7 +652,7 @@ function PrimeSection({ data, terms }: { data: ProjectList; terms: Terms }) {
       ) : null}
       {data.invoicing?.recipientEmail ? (
         <p className="text-xs text-ink-subtle" data-testid="change-order-recipient">
-          "Invoice now" sends approved {residential ? "change orders" : "prime change orders"} to the owner at {maskSharedEmail(data.invoicing.recipientEmail)}.
+          "Invoice now" sends approved {residential ? "change orders" : "prime change orders"} to the owner at {maskSandboxEmail(data.invoicing.recipientEmail)}.
         </p>
       ) : null}
       <ChangeOrderRows

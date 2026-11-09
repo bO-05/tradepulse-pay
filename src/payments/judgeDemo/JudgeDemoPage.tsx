@@ -116,19 +116,19 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
           </span>
         </h1>
         <p className="text-sm text-slate-300">
-          After confirmation, the guided flow uses the real PayPal sandbox, the configured model provider and a hosted-browser CSLB lookup: execute a fresh demo
-          agreement (${DEMO_CONTRACT_SUM.toLocaleString("en-US")}, seismic bracing excluded) for sub1's contractor, fund Mobilization, file an
-          honest pay app for sub1 and an overbilled one for a labeled billing-agent stand-in, run the rules review with the model's
-          explanations and the CSLB license check, cut the flagged line by its own dollars, capture and pay with 10% retainage, and invoice a change
+          After confirmation, the guided flow uses the real PayPal sandbox, the configured model provider and a hosted-browser CSLB lookup: it creates a fresh demo
+          agreement (${DEMO_CONTRACT_SUM.toLocaleString("en-US")}, seismic bracing excluded) for sub1's contractor, funds Mobilization, files an
+          honest pay app for sub1 and an overbilled one for a labeled billing agent, runs the rules review with the model's
+          explanations and the CSLB licence check, cuts the flagged line by its own dollars, captures and pays with 10% retainage, and invoices a change
           order to the Owner.
         </p>
         {run?.readOnlyReference && <CommercialReferenceBadge kind="commercial" />}
         {run?.readOnlyReference && <ReferenceNotice />}
         <p className="text-xs text-amber-200">
-          The two pay apps explicitly identify the guided demo driver and demo stand-ins. PayPal approval
-          and the Owner's invoice payment are real browser steps and are never faked. The driver stops after invoice submission;
-          pay the invoice separately to complete the Owner-payment step. By starting, you authorize this demo driver to approve the displayed fixture proposals as the GC.
-          {" "}Compliance records are marked demo fixtures without uploaded documents, not proof of real insurance, tax or licensing compliance.
+          The two pay apps label which party each filing represents. PayPal approval
+          and the Owner's invoice payment are real browser steps and are never faked. The guided run stops after invoice submission;
+          pay the invoice separately to complete the Owner-payment step. By starting, you authorize the guided run to approve the displayed proposals as the GC.
+          {" "}Compliance records are demo data without uploaded documents, not proof of real insurance, tax or licensing compliance.
         </p>
         <label className="block text-xs text-slate-300">
           Inspect a previous run (latest 20)
@@ -187,7 +187,7 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
           { label: "Provider calls", value: "Model-written review explanation, hosted CSLB license lookup and PayPal sandbox; these use provider credits" },
           { label: "Shared account limit", value: "Up to 3 new guided runs per hour" },
         ]}
-        effect="Creates a new project, $55,000 agreement and labeled stand-in pay applications. After funding, the driver approves the displayed demo proposals as the GC and sends sandbox payouts with 10% retainage. The Owner pays the invoice separately. The new run remains in history; the preserved fixtures are unchanged. Cancel creates nothing."
+        effect="Creates a new project, $55,000 agreement and two labeled pay applications. After funding, the guided run approves the displayed proposals as the GC and sends sandbox payouts with 10% retainage. The Owner pays the invoice separately. The new run remains in history; the preserved reference run is unchanged. Cancel creates nothing."
         confirmLabel="Create sandbox run"
         onCancel={() => setConfirmStart(false)}
         onConfirm={async () => { setConfirmStart(false); await driver.drive(true); }}

@@ -157,7 +157,7 @@ describe("pay-app question thread", () => {
     const view = await f.sub.admin.as.query(api.payApps.questions.list, { payAppId });
     expect(view).toMatchObject({ canPost: false, postingBlockedReason: expect.stringContaining("preserved demo run") });
     await expect(f.sub.admin.as.mutation(api.payApps.questions.post, { payAppId, body: "Can I post?" })).rejects.toThrow(
-      /preserved, read-only demo fixture/,
+      /preserved, read-only reference job/,
     );
   });
 

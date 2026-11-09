@@ -2,6 +2,8 @@ import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { ledgerHash } from "../auth/navigation";
 import { formatCents, formatDate } from "./format";
+import { demoDisplayName } from "../lib/demoCopy";
+import { termsForKind } from "../lib/terms";
 
 /** Payments workspace home: the agreements the caller may see, each linking to its ledger. */
 export function PaymentsWorkspace() {
@@ -42,9 +44,9 @@ export function PaymentsWorkspace() {
                       {a.agreementNumber}
                     </a>
                   </td>
-                  <td className="py-2 pr-3">{a.subcontractorName}</td>
+                  <td className="py-2 pr-3">{demoDisplayName(a.subcontractorName)}</td>
                   <td className="py-2 pr-3">
-                    Div {a.csiDivision} {a.tradeName}
+                    {termsForKind(a.projectKind).kind === "residential" ? a.tradeName : `Div ${a.csiDivision} ${a.tradeName}`}
                   </td>
                   <td className="py-2 pr-3 text-right">{formatCents(a.contractSumCents)}</td>
                   <td className="py-2 pr-3">{a.status}</td>

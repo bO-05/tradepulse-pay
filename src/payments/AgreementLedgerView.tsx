@@ -11,6 +11,9 @@ import { FundingTranches } from "../billing/FundingTranches";
 import { RetainageReleaseControl, RetainageReleaseList } from "./RetainageRelease";
 import { DocumentDownloadButton } from "../documents/DocumentDownload";
 import { ReferenceNotice } from "./ReferenceNotice";
+import { termsForKind } from "../lib/terms";
+import type { Terms } from "../lib/terms";
+import { demoDisplayName, demoProjectName } from "../lib/demoCopy";
 
 const TOTALS: { key: "contractSumCents" | "billedCents" | "paidCents" | "retainageHeldCents" | "balanceCents"; label: string }[] = [
   { key: "contractSumCents", label: "Contract sum to date" },
@@ -46,6 +49,13 @@ const MONEY_DEFINITIONS: Record<string, string> = {
   changeOrdersPaidCents: "Separate paid Owner change-order invoices, not subcontractor payouts.",
 };
 
+/** The two owner-income rows speak the job's vocabulary; every other ledger label is neutral. */
+function ledgerLabel(key: string, fallback: string, terms: Terms): string {
+  if (key === "changeOrdersInvoicedCents") return terms.ledger.ownerInvoicesUnpaid;
+  if (key === "changeOrdersPaidCents") return terms.ledger.ownerIncomePaid;
+  return fallback;
+}
+
 export function AgreementLedgerView({ agreementId, backHash }: { agreementId: string; backHash: string }) {
   const ledger = useQuery(api.payments.ledger.getAgreementLedger, { agreementId });
 
@@ -56,6 +66,7 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
   if (ledger === null) return <NotFoundState />;
 
   const { agreement, sov, milestones, totals, canFund, retainageLedger, canReleaseRetainage, retainageReleases } = ledger;
+  const terms = termsForKind(agreement.projectKind);
 
   return (
     <div className="max-w-5xl space-y-6">
@@ -69,9 +80,9 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
             <p className="text-xs text-slate-400 mt-1" data-testid="ledger-agreement-number">
               {agreement.agreementNumber}
             </p>
-            <h1 className="text-lg font-semibold">{agreement.subcontractorName} payment ledger</h1>
+            <h1 className="text-lg font-semibold">{demoDisplayName(agreement.subcontractorName)} payment ledger</h1>
             <p className="text-sm text-slate-400">
-              {agreement.projectTitle} · Division {agreement.csiDivision} {agreement.tradeName} · Retainage{" "}
+              {demoProjectName(agreement.projectTitle)} · {terms.kind === "residential" ? agreement.tradeName : `Division ${agreement.csiDivision} ${agreement.tradeName}`} · Retainage{" "}
               <span data-testid="ledger-retainage-rate">
                 {agreement.retainagePercentApplied === agreement.retainagePercent
                   ? `${agreement.retainagePercent}%`
@@ -92,7 +103,7 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
         <dl className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-sm" data-testid="ledger-totals">
           {TOTALS.map((t) => (
             <div key={t.key} className="bg-slate-950/60 border border-slate-800 rounded-xl p-3">
-              <dt className="text-xs text-slate-400">{t.label}</dt>
+              <dt className="text-xs text-slate-400">{ledgerLabel(t.key, t.label, terms)}</dt>
               <dd className="font-semibold tabular-nums" data-testid={`ledger-${t.key}`}>
                 {formatCents(totals[t.key])}
               </dd>
@@ -118,7 +129,7 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
           {RECONCILIATION.map((t) => (
             <div key={t.key} className="border border-slate-800 rounded-lg p-2">
               <dt className="text-slate-400">
-                <abbr className="cursor-help no-underline" title={MONEY_DEFINITIONS[t.key]}>{t.label}</abbr>
+                <abbr className="cursor-help no-underline" title={MONEY_DEFINITIONS[t.key]}>{ledgerLabel(t.key, t.label, terms)}</abbr>
               </dt>
               <dd className="font-semibold tabular-nums text-slate-200" data-testid={`ledger-${t.key}`}>
                 {formatCents(totals[t.key])}
@@ -130,7 +141,7 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
           Retainage released is previously withheld retainage released, net of reversals. A demo release does not certify project closeout.
         </p>
         <p className="text-xs text-slate-300">Remaining authorization is the PayPal-authorized amount less completed captures, not cash paid to the sub. Captured is confirmed money collected; captured, not paid out is awaiting a successful subcontractor payout.</p>
-        <p className="text-xs text-slate-300">Statuses are recorded from PayPal webhooks/API responses at the time shown; this page does not re-query PayPal. Owner prime change-order income belongs to the project, not this subcontract's scope or balance.</p>
+        <p className="text-xs text-slate-300">{terms.ledger.ownerIncomeNote}</p>
       </section>
 
       <section aria-labelledby="ledger-sov" className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
@@ -204,10 +215,10 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
 
       <section aria-labelledby="ledger-milestones" className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
         <h2 id="ledger-milestones" className="text-base font-semibold mb-3">
-          Funding tranches
+          {terms.funding.ledgerTitle}
         </h2>
         <MaybeFundingProvider enabled={canFund}>
-          <FundingTranches agreementId={agreement._id} ledgerMilestones={milestones} isGc={canFund} />
+          <FundingTranches agreementId={agreement._id} ledgerMilestones={milestones} isGc={canFund} terms={terms} />
         </MaybeFundingProvider>
       </section>
 

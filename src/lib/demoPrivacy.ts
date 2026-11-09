@@ -17,3 +17,23 @@ export function maskSharedEmail(email: string | null | undefined): string | null
   const shared = /(^|\.)example\.com$/i.test(domain) || /@demo\.tradepulse$/i.test(email);
   return shared ? `[demo inbox]@${domain}` : email;
 }
+
+/**
+ * A payout address shown on a receipt: the sandbox alias keeps its recognizable "sb-" prefix and
+ * domain, but never its full local part. Real customer addresses are returned unchanged.
+ */
+export function maskSandboxEmail(email: string | null | undefined): string | null {
+  if (!email) return null;
+  const at = email.lastIndexOf("@");
+  if (at < 0) return "Sandbox payee";
+  const local = email.slice(0, at);
+  const domain = email.slice(at + 1);
+  if (/^sb-/i.test(local) && /(^|\.)example\.com$/i.test(domain)) return `sb-****@${domain}`;
+  return maskSharedEmail(email);
+}
+
+/** A contact field never renders the quote-intake placeholder as if it were a real address. */
+export function publicContactEmail(email: string | null | undefined): string {
+  if (!email || /\.invalid$/i.test(email)) return "Contact not published";
+  return email;
+}
