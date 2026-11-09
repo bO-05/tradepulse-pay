@@ -255,7 +255,7 @@ export const InvestorDemoTourBar: React.FC<InvestorDemoTourBarProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h4 className="text-xs font-bold text-white tracking-wide">
-                  Guided tour (Demo) complete • All 6 procurement stages covered
+                  Guided tour complete • All 6 procurement stages covered
                 </h4>
                 <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-mono font-bold">
                   Complete
@@ -297,7 +297,7 @@ export const InvestorDemoTourBar: React.FC<InvestorDemoTourBarProps> = ({
           title="Expand the guided tour"
         >
           <Tv className="w-4 h-4 text-slate-950" />
-          <span>Guided tour (Demo) ({scene.stepNumber}/06)</span>
+          <span>Guided tour ({scene.stepNumber}/06)</span>
           <Maximize2 className="w-3.5 h-3.5 text-slate-950/80" />
         </button>
       </div>
@@ -386,7 +386,7 @@ export const InvestorDemoTourBar: React.FC<InvestorDemoTourBarProps> = ({
                 title="Open the demo simulator"
               >
                 <Zap className="w-3 h-3 text-amber-400 fill-amber-400" />
-                <span className="text-[11px]">Simulator (Demo)</span>
+                <span className="text-[11px]">Simulator</span>
               </button>
             )}
 

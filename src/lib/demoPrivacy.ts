@@ -32,8 +32,8 @@ export function maskSandboxEmail(email: string | null | undefined): string | nul
   return maskSharedEmail(email);
 }
 
-/** A contact field never renders the quote-intake placeholder as if it were a real address. */
+/** A contact field never renders a quote-intake placeholder or a seeded example address. */
 export function publicContactEmail(email: string | null | undefined): string {
   if (!email || /\.invalid$/i.test(email)) return "Contact not published";
-  return email;
+  return maskSharedEmail(email) ?? "Contact not published";
 }

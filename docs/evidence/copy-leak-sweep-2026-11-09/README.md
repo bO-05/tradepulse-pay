@@ -19,6 +19,24 @@ looking at the screenshots.
   rewritten.
 - Exit code 0. Full output in `leak-scan.txt`; machine result in `leak-scan.json`.
 
+The scan was re-run on the final tree after the compliance, vendor and header display cleanup (and
+after the in-progress worker edits were finished): same result, **0 app-copy hits** on the six
+screens plus `#/demo`, 4 quoted blocks, 0 banned strings inside quoted history.
+
+### Activity and audit feed (VAL-COPY-003)
+
+`activity-log-1440.png` is the GC `#/procurement` → Activity log tab at 1440×900, captured after the
+copy sweep. `activity-log.json` records the measured result:
+
+- 35 activity rows rendered, **0 banned hits** in the visible text (env var names, Convex record ids,
+  `Convex Automated Cron Engine`, `Convex Compliance Auditor Cron`, `KERNEL hosted browser`,
+  `(demo)`/`(seed)`, `verify-required.invalid`, unmasked `.example.com`).
+- Recorded-by labels read `TradePulse automation`, `Compliance check`, `TradePulse AI Spec Agent` and
+  `TradePulse AI Agent`; the scheduled-check banner says `Bid deadline check`,
+  `Contractor compliance check` and `Insurance and licence expiry reminders`.
+- Zero console errors, zero page errors. The recurring `sign-in-options :: net::ERR_ABORTED` probe
+  appears twice, as recorded elsewhere.
+
 `report.json`: **56/56 checks passed** at 1440×900 and 390×844. The checks cover:
 
 - both honest labels are visible verbatim:
@@ -35,7 +53,8 @@ looking at the screenshots.
   app copy. Its quoted recorded review has the plain heading `Recorded review · Nov 8, 2026`, and
   the frozen narrative appears byte-for-byte; commercial vocabulary in that quote is reported but
   never edited. Ledger chrome outside the quote has no `tranche`, `prime`, `G702`, `G703`, `AIA` or
-  `CSI`.
+  `CSI`. The same wording is now pinned by `src/billing/FundingTranches.test.tsx` (residential vs
+  commercial render, plus the `termsForKind(agreement.projectKind)` wiring).
 - the commercial reference ledger (`jn78x0j5xeh7q9gb55p26r7pdh8hdmjx`) still says
   `Funding tranches` and `tranche`, and does not say `milestone funding`.
 - a temporary comparison against the pre-sweep `buildSubcontractText` and
@@ -61,6 +80,7 @@ Each screen has a full-page and first-viewport PNG at `1440` and `390`:
 - `SC-22-ORTIZ-0001-subcontract.pdf` and `.txt` — the Ortiz subcontract generated from the Lopez
   job. The text contains no `AIA`, `G702`, `G703`, `CSI MasterFormat`, `Prime` or
   `Less previous certificates for payment`, and keeps the residential heading/footer.
+- `activity-log-1440.png` and `activity-log.json` — the GC activity/audit feed (VAL-COPY-003).
 
 ## Diagnostics
 
@@ -78,5 +98,6 @@ node scripts/qa/leak-scan.mjs --url http://localhost:3150
 ```
 
 The screenshots were produced by a temporary `puppeteer-core` sweep that was removed after the
-capture. The committed `scripts/qa/leak-scan.mjs` is the executable copy-leak command; the
-`report.json` here records every check the temporary sweep made.
+capture. The activity-feed capture used the same pattern and was also removed. The committed
+`scripts/qa/leak-scan.mjs` is the executable copy-leak command; the `report.json` here records every
+check the temporary sweep made, and `activity-log.json` records the activity-feed check.

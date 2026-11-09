@@ -11,6 +11,15 @@ describe("activity feed hides internal actors and identifiers", () => {
     expect(auditActorLabel("TradePulse Pay (demo seed)")).toBe("Demo setup");
   });
 
+  test("hides old demo account names and seats in actor labels", () => {
+    expect(auditActorLabel("Demo GC (Austin Commercial, LP)")).toBe("Demo GC");
+    expect(auditActorLabel("Demo GC (seeded demo data)")).toBe("Demo GC");
+    expect(auditActorLabel("Demo Sub 4 (Ortiz Plumbing)")).toBe("Ortiz Plumbing");
+    expect(auditActorLabel("Demo Owner (Domain Tower B)")).toBe("Demo Owner");
+    expect(auditActorLabel("gc@demo.tradepulse")).toBe("Demo GC");
+    expect(auditActorLabel("dana@bayview.test")).toBe("dana@bayview.test");
+  });
+
   test("hides env var names and Convex record ids", () => {
     const stored =
       "The demo seed confirmed Ortiz Plumbing's PayPal sandbox payout email (from PAYPAL_SANDBOX_SUB4_EMAIL) for vendor Ortiz Plumbing (k1743f7m9q2d5qn733jmh5pg4c3x8hr9) on behalf of the Demo GC.";
@@ -45,6 +54,15 @@ describe("activity feed hides internal actors and identifiers", () => {
     expect(auditText("The demo seed added 3 accepted demo compliance records")).toContain("Setup added 3 accepted example compliance records");
     expect(auditText("(filed by the guided demo for boldlevel182@agentmail.to)")).toBe(
       "(filed in the guided demo for the linked billing agent)",
+    );
+  });
+
+  test("historical demo descriptions use the real company names", () => {
+    expect(auditText("Demo GC (Austin Commercial, LP) overrode the hold")).toBe("Demo GC overrode the hold");
+    expect(auditText("Demo Sub 4 (Ortiz Plumbing) filed the pay app")).toBe("Ortiz Plumbing filed the pay app");
+    expect(auditText("Demo Ortiz Plumbing bidder has no records")).toBe("Ortiz Plumbing bidder has no records");
+    expect(auditText("Cron Audit: Recorded License Status & ACORD 25 Sweep - Lopez Kitchen Remodel")).toBe(
+      "Licence and insurance check - Lopez Kitchen Remodel",
     );
   });
 });

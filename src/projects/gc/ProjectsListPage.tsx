@@ -3,6 +3,7 @@ import { useState } from "react";
 import { api } from "../../../convex/_generated/api";
 import { NEW_PROJECT_HASH, QUICK_START_HASH, gcProjectHash } from "../../auth/navigation";
 import { EmptyState, Money, PageHeader, StatusPill } from "../../ui";
+import { demoProjectName } from "../../lib/demoCopy";
 
 const linkButton =
   "inline-flex min-h-touch items-center rounded-lg bg-accent px-4 text-sm font-semibold text-accent-fg hover:bg-accent-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus";
@@ -61,7 +62,7 @@ export function ProjectsListPage() {
               <li key={p._id}>
                 <a href={gcProjectHash(p._id)} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 hover:bg-surface-raised">
                   <span className="min-w-0">
-                    <span className="block font-semibold text-ink">{p.title}</span>
+                    <span className="block font-semibold text-ink">{demoProjectName(p.title)}</span>
                     <span className="block text-sm text-ink-subtle">
                       {[p.ownerName, p.location].filter(Boolean).join(" · ")}
                     </span>

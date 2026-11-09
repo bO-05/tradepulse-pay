@@ -5,6 +5,7 @@
  * record ids or the name of the automation that wrote them. A signed-in GC, sub or owner never needs
  * those identifiers, so they are replaced before display. The rows themselves are not rewritten.
  */
+import { demoDisplayName } from "./demoCopy";
 import { maskSandboxEmail } from "./demoPrivacy";
 
 const INTERNAL_ACTORS: Record<string, string> = {
@@ -28,10 +29,36 @@ const CRON_DESCRIPTIONS: Record<string, string> = {
   "compliance-expiry-notifications": "Reminds subs and their GC when an insurance certificate or licence expires within 30 days.",
 };
 
-/** A human actor label: the three internal automation names become plain language. */
+/** Old audit rows stored the seeded demo account names, including the company that used to sit in parentheses. */
+const DEMO_ACTORS: readonly [RegExp, string][] = [
+  [/^Demo Sub 1\b/i, "Rosendin Electric, Inc."],
+  [/^Demo Sub 2\b/i, "TDIndustries, Inc."],
+  [/^Demo Sub 3\b/i, "Clarke Kent Plumbing"],
+  [/^Demo Sub 4\b/i, "Ortiz Plumbing"],
+  [/^Demo GC\b/i, "Demo GC"],
+  [/^Demo Owner\b/i, "Demo Owner"],
+];
+
+const DEMO_SEAT_ACTORS: Record<string, string> = {
+  "gc@demo.tradepulse": "Demo GC",
+  "sub1@demo.tradepulse": "Rosendin Electric, Inc.",
+  "sub2@demo.tradepulse": "TDIndustries, Inc.",
+  "sub3@demo.tradepulse": "Clarke Kent Plumbing",
+  "sub4@demo.tradepulse": "Ortiz Plumbing",
+  "owner@demo.tradepulse": "Demo Owner",
+};
+
+/** A human actor label: internal automation and old demo account names become plain language. */
 export function auditActorLabel(actor: string | null | undefined): string {
   if (!actor) return "TradePulse";
-  return INTERNAL_ACTORS[actor] ?? auditText(actor);
+  const internal = INTERNAL_ACTORS[actor];
+  if (internal) return internal;
+  const seat = DEMO_SEAT_ACTORS[actor.trim().toLowerCase()];
+  if (seat) return seat;
+  for (const [pattern, name] of DEMO_ACTORS) if (pattern.test(actor)) return name;
+  const email = actor.includes("@") ? maskSandboxEmail(actor) : null;
+  if (email) return email;
+  return demoDisplayName(auditText(actor));
 }
 
 /** A human cron label and description; unknown names are left alone. */
@@ -63,6 +90,16 @@ export function auditText(value: string): string {
   out = out.replace(/\bdemo compliance record(s?)\b/gi, "example compliance record$1");
   out = out.replace(/\bDemo sub companies\b/gi, "shared sandbox companies");
   out = out.replace(/\(filed by the guided demo for [^)]+\)/gi, "(filed in the guided demo for the linked billing agent)");
+  out = out.replace(/\bCron Audit: Recorded License Status & ACORD 25 Sweep - /gi, "Licence and insurance check - ");
+  // Old rows captured the seeded account label, including the company in parentheses.
+  out = out.replace(/\bDemo Sub 1 \([^)]*\)/gi, "Rosendin Electric, Inc.");
+  out = out.replace(/\bDemo Sub 2 \([^)]*\)/gi, "TDIndustries, Inc.");
+  out = out.replace(/\bDemo Sub 3 \([^)]*\)/gi, "Clarke Kent Plumbing");
+  out = out.replace(/\bDemo Sub 4 \([^)]*\)/gi, "Ortiz Plumbing");
+  out = out.replace(/\bDemo GC \([^)]*\)/gi, "Demo GC");
+  out = out.replace(/\bDemo Owner \([^)]*\)/gi, "Demo Owner");
+  out = out.replace(/\bDemo Ortiz Plumbing\b/gi, "Ortiz Plumbing");
+  out = out.replace(/\bDemo (Rosendin Electric|TDIndustries|Clarke Kent Plumbing)\b/gi, "$1");
   out = out.replace(/\bdemo seed\b/gi, "demo setup");
   out = out.replace(/\s*\((?:demo|seed)\)/gi, "");
   out = out.replace(/\s{2,}/g, " ");

@@ -33,8 +33,9 @@ describe("payout receipts keep the address recognizable but never the full alias
     expect(maskSandboxEmail(null)).toBeNull();
   });
 
-  test("publicContactEmail hides the quote-intake placeholder", () => {
+  test("publicContactEmail hides the quote-intake placeholder and masks example addresses", () => {
     expect(publicContactEmail("not-published@verify-required.invalid")).toBe("Contact not published");
+    expect(publicContactEmail("nora.qa@example.com")).toBe("[demo inbox]@example.com");
     expect(publicContactEmail("ap@harborpoint.test")).toBe("ap@harborpoint.test");
   });
 });

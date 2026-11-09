@@ -8,7 +8,7 @@ import { Button, Card, CommercialReferenceBadge, DateText, Money, PageHeader, St
 import { ReferenceNotice } from "../../payments/ReferenceNotice";
 import { ProjectMoneyStrip } from "../../billing/ProjectMoneyStrip";
 import { ownerDetailRows } from "./ownerDetails";
-import { demoDisplayName } from "../../lib/demoCopy";
+import { demoDisplayName, demoProjectName } from "../../lib/demoCopy";
 import { openProcurementPackages } from "./specBreakdownRequest";
 import { TradePackagesSection } from "./TradePackagesSection";
 import { ProjectMoneyTrail } from "./ProjectMoneyTrail";
@@ -56,7 +56,7 @@ export function ProjectPage({ projectId }: { projectId: string }) {
       <ProjectMoneyStrip projectId={project._id} />
       <ProjectMoneyTrail
         projectId={project._id}
-        projectTitle={project.title}
+        projectTitle={demoProjectName(project.title)}
         projectKind={project.projectKind}
         contractValueCents={project.contractValueCents}
       />
@@ -64,7 +64,7 @@ export function ProjectPage({ projectId }: { projectId: string }) {
       <OwnerCompanyCard projectId={project._id} />
       <TradePackagesSection
         projectId={project._id}
-        projectTitle={project.title}
+        projectTitle={demoProjectName(project.title)}
         projectKind={project.projectKind}
         readOnly={archived || readOnlyReference}
       />
@@ -76,7 +76,7 @@ export function ProjectHeader({ project, actions }: { project: Doc<"projects">; 
   const archived = project.archived === true;
   return (
     <PageHeader
-      title={project.title}
+      title={demoProjectName(project.title)}
       back={{ href: GC_PROJECTS_HASH, label: "All projects" }}
       description={
         [project.generalContractorName?.trim(), project.ownerName, project.location].filter(Boolean).join(" · ") || undefined

@@ -3,7 +3,8 @@ import { useState } from "react";
 import { api } from "../../convex/_generated/api";
 import { Button, Card, ConfirmDialog, DateText, PageHeader, StatusPill, useToast } from "../ui";
 import { useActiveCompany } from "../auth/companyContext";
-import { publicContactEmail } from "../lib/demoPrivacy";
+import { publicContactEmail, maskSandboxEmail } from "../lib/demoPrivacy";
+import { demoDisplayName } from "../lib/demoCopy";
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -29,7 +30,7 @@ export function VendorDetailPage({ vendorId }: { vendorId: string }) {
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <PageHeader
-        title={vendor.name}
+        title={demoDisplayName(vendor.name)}
         back={{ href: "#/vendors", label: "Vendors" }}
         meta={
           <>
@@ -44,24 +45,24 @@ export function VendorDetailPage({ vendorId }: { vendorId: string }) {
         {payee.status === "none" ? (
           <p className="text-sm text-ink-muted">
             {linkedCompany
-              ? `${linkedCompany.name} has not set a payout PayPal email yet. Payouts to this vendor are blocked until it does and you confirm it.`
+              ? `${demoDisplayName(linkedCompany.name)} has not set a payout PayPal email yet. Payouts to this vendor are blocked until it does and you confirm it.`
               : "This vendor has no TradePulse Pay company account yet. Invite it to a project; payouts are blocked until it sets a payout PayPal email and you confirm it."}
           </p>
         ) : (
           <dl>
             <Row label="Payout PayPal email">
               <span className="font-mono" data-testid="payee-current-email">
-                {payee.currentEmail}
+                {maskSandboxEmail(payee.currentEmail)}
               </span>
             </Row>
             {payee.status === "confirmed" ? (
               <Row label="Confirmed">
-                by {payee.confirmedByName ?? "a team member"} on <DateText value={payee.confirmedAt} withTime />
+                by {demoDisplayName(payee.confirmedByName ?? "a team member")} on <DateText value={payee.confirmedAt} withTime />
               </Row>
             ) : (
               <Row label="Status">
                 <span className="text-amber-200">
-                  Payee change pending. {vendor.name} set this email; payouts are blocked until you confirm it.
+                  Payee change pending. {demoDisplayName(vendor.name)} set this email; payouts are blocked until you confirm it.
                 </span>
               </Row>
             )}
@@ -83,10 +84,10 @@ export function VendorDetailPage({ vendorId }: { vendorId: string }) {
         ))}
       </Card>
 
-      <Card title="Company profile" description={linkedCompany ? `Maintained by ${linkedCompany.name}. Only its admins can change it.` : undefined}>
+      <Card title="Company profile" description={linkedCompany ? `Maintained by ${demoDisplayName(linkedCompany.name)}. Only its admins can change it.` : undefined}>
         {linkedCompany ? (
           <dl>
-            <Row label="Company">{linkedCompany.name}</Row>
+            <Row label="Company">{demoDisplayName(linkedCompany.name)}</Row>
             {linkedCompany.legalName && <Row label="Legal name">{linkedCompany.legalName}</Row>}
             {linkedCompany.phone && <Row label="Phone">{linkedCompany.phone}</Row>}
             {linkedCompany.website && <Row label="Website">{linkedCompany.website}</Row>}
@@ -118,17 +119,17 @@ export function VendorDetailPage({ vendorId }: { vendorId: string }) {
 
       <ConfirmDialog
         open={confirming}
-        title={`Confirm payee for ${vendor.name}?`}
-        payee={payee.currentEmail ?? ""}
+        title={`Confirm payee for ${demoDisplayName(vendor.name)}?`}
+        payee={maskSandboxEmail(payee.currentEmail) ?? ""}
         payeeLabel="Payout PayPal email"
-        effect={`Future payouts will go to ${payee.currentEmail ?? ""}. Only confirm an email you have verified with ${vendor.name}.`}
+        effect={`Future payouts will go to ${maskSandboxEmail(payee.currentEmail) ?? ""}. Only confirm an email you have verified with ${demoDisplayName(vendor.name)}.`}
         confirmLabel="Confirm payee"
         onCancel={() => setConfirming(false)}
         onConfirm={async () => {
           if (payee.currentEmail === null) return;
           await confirmPayee({ vendorId: vendor._id, email: payee.currentEmail });
           setConfirming(false);
-          toast.success(`Payee confirmed for ${vendor.name}.`);
+          toast.success(`Payee confirmed for ${demoDisplayName(vendor.name)}.`);
         }}
       />
     </div>

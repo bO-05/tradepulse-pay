@@ -6,6 +6,7 @@ import { getErrorMessage } from "../lib/errors";
 import { Button, Dialog, StatusPill, TextInput, useToast } from "../ui";
 import { RFQ_RECIPIENT_LABELS, copyRfqLink } from "./rfqLabels";
 import { publicContactEmail } from "../lib/demoPrivacy";
+import { demoDisplayName } from "../lib/demoCopy";
 
 type Result = { contractorId: Id<"contractors">; email: string; status: string; reason?: string };
 
@@ -186,8 +187,8 @@ export function RfqSendDialog({
                         onChange={() => toggle(r.contractorId)}
                       />
                       <span className="min-w-0">
-                        <span className="block font-semibold">{r.companyName}</span>
-                        <span className="block break-all text-xs text-ink-subtle">{r.email || "No email on file"}</span>
+                        <span className="block font-semibold">{demoDisplayName(r.companyName)}</span>
+                        <span className="block break-all text-xs text-ink-subtle">{r.email ? publicContactEmail(r.email) : "No email on file"}</span>
                       </span>
                     </label>
                     <RecipientPill

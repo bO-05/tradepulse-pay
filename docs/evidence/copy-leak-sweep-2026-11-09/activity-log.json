@@ -1,0 +1,35 @@
+{
+  "capturedAt": "2026-11-09T11:50:41.248Z",
+  "route": "#/procurement · Activity log tab",
+  "viewport": "1440x900",
+  "rows": 35,
+  "actorLabels": [
+    "3 Pkgs",
+    "4 Subs",
+    "3 RFIs",
+    "2 Bids",
+    "1/3 Awarded",
+    "Model checks",
+    "Subcontracts: 1/3 Awarded",
+    "TradePulse automation",
+    "Compliance check",
+    "Forensic Leveling Engine (ADR-0003)",
+    "TradePulse AI Spec Agent",
+    "TradePulse AI Agent"
+  ],
+  "bannedHits": [],
+  "contains": {
+    "activityHeading": true,
+    "cronEngine": false,
+    "friendlyCron": true
+  },
+  "diagnostics": {
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": [
+      "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED",
+      "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED"
+    ]
+  },
+  "textSample": "Shared demo — the demo accounts and their password are public, so anyone can see this data. Do not enter confidential or real bid data. Demo Sample data for the Demo company only Guided tour Demo simulator TradePulse Pay Demo GC Procurement: trade packages, bidder questions, bid leveling and subcontracts New Project ✓ CSI Scoping 3 Pkgs › ✓ Discovery 4 Subs › ✓ Pre-Bid Q&A 3 RFIs › ✓ Bid Leveling 2 Bids › 05 Scope Clash 4 Clashes › ✓ Subcontracts 1/3 Awarded Activity log Model checks Guided tour complete • All 6 procurement stages covered Complete CSI Scoping ➔ Contractor Discovery ➔ AI Pre-Bid Addenda ➔ ADR-0003 Leveling ➔ Scope Clash Deduction ➔ Subcontract Draft. Restart guided tour Dismiss Procurement Baseline: Budget: $ 4,250,000 • Leveled Buyout: $ 3,918,500 ( best bid per package ) • Variance: +$331,500 ( 7.8 %) • 1 apparent-low bid not leveled low • Gaps Exposed: +$ 186,000 • Subcontracts: 1 / 3 Awarded Expand 6-Card KPI View ▼ Activity and audit history Live records A record of bid invitations, pre-bid clarifications, bid leveling, subcontract drafts and scheduled checks. Each row keeps its own timestamp. Run bid deadline check Run compliance check Bid deadline check Checks package bid deadlines and moves a package to leveling when it closes. Every 1 hour Contractor compliance check Checks recorded contractor licence statuses and insurance flags. It does not call a registry. Every 6 hours Insurance and licence expiry reminders Reminds subs and their GC when an insurance certificate or licence expires within 30 days. Daily at 14:00 UTC Activity Events ( 35 ) Live records, newest first Licence and insurance check - The Domain Tower B - Commercial MEP compliance audit Nov 09, 2026, 01:24:22 PM GMT+7 Audited 12 trade contractors (0 with recorded active/verified status, 12 flagged). No registry lookup is performed. Detected 3 active insurance deficiency riders. Recorded by: TradePulse automation Licence and insurance check - The Domain Tower B - Commercial MEP compliance audit Nov 09, 2026, 07:24:22 AM GMT+7 Audited 12 trade contractors (0 with recorded active/verified status, 12 flagged). No registry lookup is performed. Detected 3 active COI insurance deficiency riders. Recorded by: Compliance check Licence and insurance check - The Domain Tower B - Commercial MEP compliance audit Nov 09, 2026, 01:24:22 AM GMT+7 Audited 12 trade contractors (0 with recorded active/verified status, 12 flagged). No registry lookup is performed. Detected 3 active COI insurance deficiency riders. Recorded by: Compliance check Licence and insurance check - The Domain Tower B - Commercial MEP compliance audit Nov 08, 2026, 07:24:22 PM GMT+7 Audited 12 trade contractors (0 with recorded active/verified status, 12 flagged). No registry lookup is performed. Detected 3 active COI insurance deficiency riders. Recorded by: Compliance check Licence and insurance check - The Domain Tower B - Commercial MEP compliance audit Nov 08, 2026, 01:24:22 PM GMT+7 Audited 12 trade contractors (0 with recorded active/verified status, 12 flagged). No registry lookup is performed. Detected 3 active COI insurance deficiency riders. Recorded by: Compliance check Licence and insurance check - The Domain Tower B - Commercial MEP compliance audit Nov 08, 2026, 07:24:22 AM GMT+7 Audited 12 trade contractors (0 with recorded active/verified status, 12 flagged). No registry lookup is performed. Detected 3 active COI insurance deficiency riders. Recorded by: Compliance check Licence and insurance check - The Domain Tower B - Commercial MEP compliance audit Nov 08, 2026, 01:24:22 AM GMT+7 Audited 12 trade contractors (0 with recorded active/verified status, 12 flagged). No registry lookup is performed. Detected 3 active COI insurance deficiency riders. Recorded by: Compliance check Licence and insurance check - The Domain Tower B - Commercial MEP compliance audit Nov 07, 2026, 07:24:22 PM GMT+7 Audited 12 trade contractors (0 with recorded active/verified status, 12 flagged"
+}

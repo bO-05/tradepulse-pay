@@ -5,6 +5,7 @@ import type { Doc } from "../../../convex/_generated/dataModel";
 import { firstProjectSetupError } from "../../../convex/lib/projectSetup";
 import { gcProjectHash, GC_PROJECTS_HASH } from "../../auth/navigation";
 import { getErrorMessage } from "../../lib/errors";
+import { demoProjectName } from "../../lib/demoCopy";
 import { Button, Card, ConfirmDialog, focusFirstInvalid, useToast } from "../../ui";
 import { ReferenceNotice } from "../../payments/ReferenceNotice";
 import { ArchivedBanner, ProjectHeader } from "./ProjectPage";
@@ -172,7 +173,7 @@ function ArchiveCard({ project }: { project: Doc<"projects"> }) {
       </Button>
       <ConfirmDialog
         open={open}
-        title={`Archive "${project.title}"?`}
+        title={`Archive "${demoProjectName(project.title)}"?`}
         effect="The project disappears from the project list and the project switcher, and becomes read-only. Its data is kept. Use “Show archived” on All projects to find and restore it."
         confirmLabel="Archive project"
         tone="danger"
@@ -180,7 +181,7 @@ function ArchiveCard({ project }: { project: Doc<"projects"> }) {
         onConfirm={async () => {
           await archive({ projectId: project._id });
           setOpen(false);
-          toast.success(`"${project.title}" archived.`);
+          toast.success(`"${demoProjectName(project.title)}" archived.`);
           window.location.hash = GC_PROJECTS_HASH;
         }}
       />

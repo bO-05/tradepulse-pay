@@ -79,8 +79,14 @@ export async function shot(page, name, opts = {}) {
   return p;
 }
 
+/**
+ * The project switcher's accessible name is "Select project" after the copy sweep; older builds
+ * and audit scripts used "Select Commercial Construction Project". Accept both.
+ */
+export const PROJECT_SELECTOR = 'select[aria-label="Select project"], select[aria-label="Select Commercial Construction Project"]';
+
 export async function waitForAppReady(page, timeout = 45000) {
-  await page.waitForSelector('select[aria-label="Select Commercial Construction Project"]', { timeout });
+  await page.waitForSelector(PROJECT_SELECTOR, { timeout });
   await page.waitForFunction(() => !document.body.innerText.includes("Connecting to Convex reactive backend"), { timeout });
   await delay(500);
 }
@@ -90,27 +96,27 @@ export async function bodyText(page) {
 }
 
 export async function getSelectorState(page) {
-  return page.evaluate(() => {
-    const sel = document.querySelector('select[aria-label="Select Commercial Construction Project"]');
+  return page.evaluate((selector) => {
+    const sel = document.querySelector(selector);
     if (!sel) return null;
     return {
       value: sel.value,
       selectedText: sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].textContent.trim() : null,
       options: [...sel.options].map((o) => ({ value: o.value, text: o.textContent.trim() })),
     };
-  });
+  }, PROJECT_SELECTOR);
 }
 
 export async function selectProjectByTitle(page, titleSubstring) {
-  return page.evaluate((needle) => {
-    const sel = document.querySelector('select[aria-label="Select Commercial Construction Project"]');
+  return page.evaluate((needle, selector) => {
+    const sel = document.querySelector(selector);
     if (!sel) return { ok: false, reason: "selector not found" };
     const opt = [...sel.options].find((o) => o.textContent.includes(needle));
     if (!opt) return { ok: false, reason: "option not found", options: [...sel.options].map((o) => o.textContent.trim()) };
     sel.value = opt.value;
     sel.dispatchEvent(new Event("change", { bubbles: true }));
     return { ok: true, value: opt.value, text: opt.textContent.trim() };
-  }, titleSubstring);
+  }, titleSubstring, PROJECT_SELECTOR);
 }
 
 export async function realClickButtonByText(page, text, opts = {}) {

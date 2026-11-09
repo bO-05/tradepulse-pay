@@ -18,6 +18,7 @@ import {
 import { Project } from "../types.ts";
 import { ConfirmDialog } from "./ConfirmDialog.tsx";
 import { NEW_PROJECT_HASH } from "../auth/navigation";
+import { demoProjectName } from "../lib/demoCopy";
 
 interface HeaderProps {
   projects?: Project[];
@@ -143,7 +144,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   const utilityTabs = [
     { id: "audit", label: "Activity log", icon: Clock },
-    ...(isDemo ? [{ id: "diagnostics", label: "Model checks (Demo)", icon: Activity }] : []),
+    ...(isDemo ? [{ id: "diagnostics", label: "Model checks", icon: Activity }] : []),
   ];
 
   return (
@@ -171,7 +172,7 @@ export const Header: React.FC<HeaderProps> = ({
                 title="Show or hide the guided tour of the Demo company"
               >
                 <Tv className="w-3.5 h-3.5" />
-                <span>Guided tour (Demo)</span>
+                <span>Guided tour</span>
               </button>
             )}
             <button
@@ -215,9 +216,9 @@ export const Header: React.FC<HeaderProps> = ({
               <select
                 value={currentProject?._id ?? ""}
                 onChange={(e) => onSelectProject(e.target.value)}
-                aria-label="Select Commercial Construction Project"
+                aria-label="Select project"
                 className="bg-slate-850 border border-slate-700 hover:border-slate-600 text-slate-200 text-xs rounded-lg pl-3 pr-8 py-1.5 focus:outline-none focus:border-emerald-500 font-medium appearance-none cursor-pointer max-w-[130px] sm:max-w-xs truncate"
-                title={projects.map((p) => `${p.title} (${p.location})`).join("\n")}
+                title={projects.map((p) => `${demoProjectName(p.title)} (${p.location})`).join("\n")}
               >
                 {!currentProject && (
                   <option value="" disabled className="bg-slate-900 text-slate-400">
@@ -226,7 +227,7 @@ export const Header: React.FC<HeaderProps> = ({
                 )}
                 {projects.map((p) => (
                   <option key={p._id} value={p._id} className="bg-slate-900 text-white">
-                    {p.title} ({p.location})
+                    {demoProjectName(p.title)} ({p.location})
                   </option>
                 ))}
               </select>

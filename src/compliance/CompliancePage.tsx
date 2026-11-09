@@ -7,7 +7,7 @@ import { api } from "../../convex/_generated/api";
 import type { ComplianceKind } from "../../convex/compliance/validators";
 import { COMPLIANCE_KIND_LABEL, COMPUTED_STATUS_LABEL, REJECTION_REASON_MAX, type ComputedStatus } from "../../convex/lib/complianceRules";
 import { downloadBlob } from "../billing/sovFile";
-import { demoDisplayName } from "../lib/demoCopy";
+import { demoDisplayName, demoProjectName } from "../lib/demoCopy";
 import { getErrorMessage } from "../lib/errors";
 import { fetchAuthenticatedFile } from "../lib/storedFile";
 import { Button, Card, ConfirmDialog, Dialog, EmptyState, Field, PageHeader, StatusPill, formatCents, formatDate, formatDateTime, useToast } from "../ui";
@@ -405,9 +405,9 @@ function GcCompliance({ focusItemId }: { focusItemId?: string }) {
                 <Card padded data-testid="compliance-vendor-row" data-status={r.status}>
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-ink">{r.vendorName}</p>
+                      <p className="text-sm font-semibold text-ink">{demoDisplayName(r.vendorName)}</p>
                       <p className="text-xs text-ink-subtle">
-                        {r.projectTitle}
+                        {demoProjectName(r.projectTitle)}
                         {r.projectState ? ` (${r.projectState})` : ""}
                         {r.pendingCount > 0 ? ` · ${r.pendingCount} pending review` : ""}
                       </p>
@@ -460,7 +460,7 @@ function SubProject({ projectId, focusItemId }: { projectId: string; focusItemId
   return (
     <div className="space-y-4">
       <Card
-        title={data.projectTitle}
+        title={demoProjectName(data.projectTitle)}
         description="Only records your GC has accepted count. A newer accepted record replaces the older one."
         actions={<ComputedPill status={data.status} />}
       >
@@ -524,7 +524,7 @@ function SubCompliance({ focusItemId }: { focusItemId?: string }) {
               <select {...control} value={projectId ?? ""} onChange={(e) => setProjectId(e.target.value)} className={inputClass(false, "sm:max-w-md")}>
                 {data.rows.map((r) => (
                   <option key={r.projectId} value={r.projectId}>
-                    {r.projectTitle}
+                    {demoProjectName(r.projectTitle)}
                     {r.gcName ? ` · ${r.gcName}` : ""} · {COMPUTED_STATUS_LABEL[r.status]}
                   </option>
                 ))}
