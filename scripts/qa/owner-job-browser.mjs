@@ -12,7 +12,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const site = process.argv.includes("--url")
   ? process.argv[process.argv.indexOf("--url") + 1]
   : "https://tradepulse-pay.asynchronope.tech";
-if (!/^https:\/\/[a-z0-9.-]+(?::\d+)?$/i.test(site)) throw new Error("--url must be an https origin.");
+if (!/^(https:\/\/[a-z0-9.-]+(?::\d+)?|http:\/\/localhost(?::\d+)?)$/i.test(site)) throw new Error("--url must be an https origin or http://localhost:<port>.");
 const stamp = new Date().toISOString().replace(/[:.]/g, "-");
 const evidenceDir = path.join(root, "evidence", `owner-job-browser-${stamp}`);
 fs.mkdirSync(evidenceDir, { recursive: true });
@@ -53,6 +53,7 @@ try {
   const card = await owner.evaluate(() => {
     const el = document.querySelector('[data-testid="owner-job-so-far"]');
     const progress = el?.querySelector('[role="progressbar"]');
+    const balance = el?.querySelector('[data-testid="owner-job-balance"]');
     return {
       text: el?.innerText ?? "",
       controls: el?.querySelectorAll("button, input, select, textarea, a").length ?? -1,
@@ -62,20 +63,31 @@ try {
       cards: document.querySelectorAll('[data-testid="owner-job-so-far"]').length,
       status: el?.querySelector('[data-testid="owner-job-status"]')?.innerText ?? "",
       percent: el?.querySelector('[data-testid="owner-job-percent"]')?.innerText ?? "",
+      hasTrail: el?.querySelector('[data-testid="owner-money-trail"]') !== null,
+      balance: balance ? { text: balance.innerText, fontSize: parseFloat(getComputedStyle(balance).fontSize) } : null,
+      leadKind: el?.closest("section[data-project-kind]")?.getAttribute("data-project-kind") ?? null,
+      leadTitle: el?.closest("section[data-project-kind]")?.querySelector("h2")?.innerText ?? null,
     };
   });
   check("Owner home shows the job-so-far card", card.cards >= 1, JSON.stringify(card));
+  check("the first job is the Lopez residential job", card.leadKind === "residential" && /Lopez Kitchen Remodel/.test(card.leadTitle ?? ""), JSON.stringify({ leadKind: card.leadKind, leadTitle: card.leadTitle }));
   check("card names the job-so-far summary", card.text.includes("Job so far"));
   check("card says it is read-only", card.text.includes("Read-only"), card.text.slice(0, 500));
   check("card has no payment or approval control", card.controls === 0, String(card.controls));
   check("card has a progress bar", card.progress !== null, JSON.stringify(card.progress));
   check("progress bar is bounded 0 to 100", card.progress?.min === "0" && card.progress?.max === "100", JSON.stringify(card.progress));
-  for (const label of ["Contract to date", "Completed & stored", "Paid to date", "Retainage held", "Balance to finish", "Change orders"]) {
-    check(`card shows ${label}`, card.text.includes(label), card.text.slice(0, 1200));
+  // The lead job is residential: "Work completed" replaces "Completed & stored". Both are accepted.
+  // Trail labels render uppercased, so compare without case.
+  const cardText = card.text.toLowerCase();
+  for (const label of ["Contract to date", "Paid to date", "Retainage held", "Balance to finish", "Change orders"]) {
+    check(`card shows ${label}`, cardText.includes(label.toLowerCase()), card.text.slice(0, 1200));
   }
+  check("card shows the completion money label", cardText.includes("work completed") || cardText.includes("completed & stored"), card.text.slice(0, 1200));
   check("card shows a dollar figure", /\$[\d,]+\.\d{2}/.test(card.text), card.text.slice(0, 1200));
   check("card shows a completion figure or a clear not-started mark", card.percent.includes("%") || card.percent === "—", card.percent);
-  check("card explains paid-to-date sources", card.text.includes("paid pay apps") && card.text.includes("paid change orders"), card.text.slice(-700));
+  check("card shows the money trail", card.hasTrail === true);
+  check("card leads with the balance at 24px or larger", (card.balance?.fontSize ?? 0) >= 24 && /\$[\d,]+\.\d{2}/.test(card.balance?.text ?? ""), JSON.stringify(card.balance));
+  check("card explains paid-to-date sources", (card.text.includes("paid draws") || card.text.includes("paid pay apps")) && card.text.includes("paid change orders"), card.text.slice(-700));
   check("card has a non-empty status line", card.status.trim().length > 0, card.status);
   await owner.screenshot({ path: path.join(evidenceDir, "owner-job-so-far.png"), fullPage: true });
 

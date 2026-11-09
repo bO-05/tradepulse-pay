@@ -11,7 +11,7 @@ export function ReceiptId({ label, value }: { label: string; value: string | nul
       <button
         type="button"
         aria-label={`Copy ${label} ${value}`}
-        className="rounded border border-slate-600 px-2 py-1 text-slate-200 hover:bg-slate-800"
+        className="inline-flex min-h-6 items-center rounded border border-slate-600 px-2 py-1 text-slate-200 hover:bg-slate-800"
         onClick={async () => {
           try {
             await navigator.clipboard.writeText(value);

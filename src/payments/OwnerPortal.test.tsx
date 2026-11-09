@@ -105,3 +105,42 @@ describe("Owner job so far card", () => {
     expect(html).toContain("Commercial reference job");
   });
 });
+
+describe("the owner's portfolio leads with the residential job", () => {
+  const commercial = { ...project(), _id: "project_commercial", title: "Harbor Point Dental Office TI" };
+  const residential = { ...project(), _id: "project_lopez", title: "Lopez Kitchen Remodel", projectKind: "residential" as const };
+
+  test("the residential job is the first full section and the others are secondary", () => {
+    // The server returns the newest commercial demo job first; the owner home puts Lopez first.
+    vi.mocked(useQuery).mockReturnValue([commercial, residential] as never);
+    const html = renderToStaticMarkup(<OwnerPortal role="owner" />);
+    expect(html.indexOf("Lopez Kitchen Remodel")).toBeLessThan(html.indexOf("Harbor Point Dental Office TI"));
+    expect(html).toContain('data-testid="owner-job-so-far"');
+    expect(html).toContain('data-testid="owner-project-secondary"');
+    const rendered = visibleText(html);
+    expect(rendered).toContain("Other projects");
+    // Exactly one full job card: Lopez.
+    expect((html.match(/data-testid="owner-job-so-far"/g) ?? []).length).toBe(1);
+  });
+
+  test("the lead job shows the money trail with every pinned hook and a large balance", () => {
+    vi.mocked(useQuery).mockReturnValue([commercial, residential] as never);
+    const html = renderToStaticMarkup(<OwnerPortal role="owner" />);
+    expect(html).toContain('data-testid="owner-money-trail"');
+    for (const hook of ["owner-job-contract", "owner-job-completed", "owner-job-retainage", "owner-job-paid", "owner-job-balance", "owner-job-change-orders"]) {
+      expect(html, hook).toContain(`data-testid="${hook}"`);
+    }
+    expect(html).toMatch(/data-testid="owner-job-balance"[^>]*text-3xl/);
+    expect(html).toContain(">Balance to finish<");
+    expect(html).toContain("Contract to date");
+    expect(visibleText(html)).toContain("1 awaiting your review");
+  });
+
+  test("the secondary commercial jobs keep their own wording and badge", () => {
+    vi.mocked(useQuery).mockReturnValue([commercial, residential] as never);
+    const rendered = visibleText(renderToStaticMarkup(<OwnerPortal role="owner" />));
+    expect(rendered).toContain("Pay app #3 is waiting for your review");
+    expect(rendered).toContain("Commercial reference job");
+    expect(rendered).not.toContain("Prime contract sum to date");
+  });
+});

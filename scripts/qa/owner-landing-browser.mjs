@@ -12,7 +12,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const site = process.argv.includes("--url")
   ? process.argv[process.argv.indexOf("--url") + 1]
   : "https://tradepulse-pay.asynchronope.tech";
-if (!/^https:\/\/[a-z0-9.-]+(?::\d+)?$/i.test(site)) throw new Error("--url must be an https origin.");
+if (!/^(https:\/\/[a-z0-9.-]+(?::\d+)?|http:\/\/localhost(?::\d+)?)$/i.test(site)) throw new Error("--url must be an https origin or http://localhost:<port>.");
 const stamp = new Date().toISOString().replace(/[:.]/g, "-");
 const evidenceDir = path.join(root, "evidence", `owner-landing-browser-${stamp}`);
 fs.mkdirSync(evidenceDir, { recursive: true });

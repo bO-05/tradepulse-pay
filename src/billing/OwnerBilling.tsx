@@ -5,8 +5,9 @@ import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { DocumentDownloadButton, ProjectDocumentsList } from "../documents/DocumentDownload";
 import { getErrorMessage } from "../lib/errors";
-import { termsForKind } from "../lib/terms";
-import { Button, Card, CommercialReferenceBadge, ConfirmDialog, Dialog, EmptyState, MoneyInput, PageHeader, StatusPill, formatBps, formatCents, formatDate, useToast } from "../ui";
+import { maskSharedEmail } from "../lib/demoPrivacy";
+import { termsForKind, type ProjectKind } from "../lib/terms";
+import { Button, Card, CommercialReferenceBadge, ConfirmDialog, Dialog, EmptyState, LinkButton, MoneyInput, MoneyTrail, PageHeader, StatusPill, formatBps, formatCents, formatDate, useToast, type LinkButtonVariant } from "../ui";
 import { Field, inputClass } from "../ui/Field";
 import { ReferenceNotice } from "../payments/ReferenceNotice";
 import { ownerMoneyTotals } from "./ownerMoney";
@@ -26,20 +27,26 @@ function percent(hundredths: number | null): string {
   return hundredths === null ? "–" : `${(hundredths / 100).toFixed(2)}%`;
 }
 
+/** A residential job leads the picker so the homeowner's draw is the first one a visitor sees. */
+function residentialFirst<T extends { projectKind: ProjectKind }>(rows: readonly T[]): T[] {
+  return [...rows].sort((a, b) => Number(b.projectKind === "residential") - Number(a.projectKind === "residential"));
+}
+
 /** The project picker shared by the GC tab and the owner page: only projects where the caller is that party. */
 function useOwnerBillingProject(party: Party) {
   const projects = useQuery(api.billing.ownerPayApps.ownerBillingProjects, {});
   const mine = projects?.filter((p) => p.partyRole === party);
+  const ordered = mine === undefined ? undefined : residentialFirst(mine);
   const [projectId, setProjectId] = useState<string | null>(null);
-  const selected = projectId ?? mine?.[0]?._id ?? null;
+  const selected = projectId ?? ordered?.[0]?._id ?? null;
   const picker =
-    mine === undefined || mine.length <= 1 ? (
-      mine?.[0] ? <p className="text-sm font-medium">{mine[0].title}</p> : null
+    ordered === undefined || ordered.length <= 1 ? (
+      ordered?.[0] ? <p className="text-sm font-medium">{ordered[0].title}</p> : null
     ) : (
       <Field label="Project" className="max-w-sm">
         {(control) => (
           <select {...control} value={selected ?? ""} onChange={(e) => setProjectId(e.target.value)} className={inputClass(false)} data-testid="owner-billing-project">
-            {mine.map((p) => (
+            {ordered.map((p) => (
               <option key={p._id} value={p._id}>
                 {p.title}
               </option>
@@ -48,7 +55,7 @@ function useOwnerBillingProject(party: Party) {
         )}
       </Field>
     );
-  return { loading: mine === undefined, empty: mine?.length === 0, selected, selectedKind: mine?.find((p) => p._id === selected)?.projectKind ?? null, picker };
+  return { loading: mine === undefined, empty: mine?.length === 0, selected, selectedKind: ordered?.find((p) => p._id === selected)?.projectKind ?? null, picker };
 }
 
 /** The owner-facing summary of an owner pay app (a draw on a residential job). */
@@ -108,11 +115,14 @@ export function PrimeSheet({
   amounts,
   onAmount,
   errors,
+  bare = false,
 }: {
   app: Detail;
   amounts: Record<string, number | null>;
   onAmount?: (key: string, cents: number | null) => void;
   errors: Record<string, string>;
+  /** The wrapper already names the sheet (for example a disclosure summary). */
+  bare?: boolean;
 }) {
   const terms = termsForKind(app.projectKind);
   const residential = terms.kind === "residential";
@@ -120,7 +130,7 @@ export function PrimeSheet({
   if (residential) {
     return (
       <div className="space-y-2">
-        <h3 className="text-base font-semibold">{terms.breakdown}</h3>
+        {bare ? null : <h3 className="text-base font-semibold">{terms.breakdown}</h3>}
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-sm" data-testid="owner-g703">
             <caption className="sr-only">{terms.breakdown}</caption>
@@ -327,7 +337,7 @@ function History({ app }: { app: Detail }) {
   );
 }
 
-function InvoicePanel({ app }: { app: Detail }) {
+function InvoicePanel({ app, linkVariant = "secondary" }: { app: Detail; linkVariant?: LinkButtonVariant }) {
   const terms = termsForKind(app.projectKind);
   const refresh = useAction(api.billing.ownerInvoices.refreshOwnerPayAppStatus);
   const resume = useAction(api.billing.ownerInvoices.sendOwnerPayAppInvoice);
@@ -354,14 +364,27 @@ function InvoicePanel({ app }: { app: Detail }) {
       {app.paypalInvoiceId ? (
         <p>
           Invoice <span className="font-mono text-xs" data-testid="owner-invoice-id">{app.paypalInvoiceId}</span>
-          {app.paypalInvoiceStatus ? ` · PayPal status ${app.paypalInvoiceStatus}` : null}
-          {app.recipientEmail ? ` · sent to ${app.recipientEmail}` : null}
+          {app.recipientEmail ? ` · sent to ${maskSharedEmail(app.recipientEmail)}` : null}
+        </p>
+      ) : null}
+      {app.paypalInvoiceStatus ? (
+        <p className="flex flex-wrap items-center gap-2 text-xs text-ink-subtle">
+          PayPal status <StatusPill status={app.paypalInvoiceStatus} />
         </p>
       ) : null}
       {app.payerViewUrl ? (
-        <a href={app.payerViewUrl} target="_blank" rel="noreferrer" className="text-emerald-400 hover:text-emerald-300" data-testid="owner-invoice-payer-link">
-          Open the invoice in PayPal (sandbox)
-        </a>
+        <div>
+          <LinkButton
+            variant={linkVariant}
+            size={linkVariant === "primary" ? "md" : "sm"}
+            href={app.payerViewUrl}
+            target="_blank"
+            rel="noreferrer"
+            data-testid="owner-invoice-payer-link"
+          >
+            Open the invoice in PayPal (sandbox)
+          </LinkButton>
+        </div>
       ) : null}
       {app.error ? (
         <p role="alert" className="text-rose-300">
@@ -775,13 +798,41 @@ function OwnerPayAppView({ ownerPayAppId }: { ownerPayAppId: string }) {
   const [open, setOpen] = useState<"approve" | "changes" | null>(null);
   if (app === undefined) return <p className="text-sm text-ink-subtle" role="status">Loading owner pay app…</p>;
   const terms = termsForKind(app.projectKind);
+  const residential = terms.kind === "residential";
+  const dueNote =
+    app.status === "paid"
+      ? "Paid by PayPal"
+      : app.status === "approved_invoiced"
+        ? "Invoice sent to you"
+        : app.status === "submitted_to_owner"
+          ? "Waiting for your approval"
+          : null;
   return (
     <div className="space-y-4" data-testid="owner-pay-app">
       <AppHeader app={app} />
-      {app.readOnlyReference ? <ReferenceNotice title="Preserved reference job · read-only." /> : null}
-      <G702Summary app={app} />
-      <PrimeSheet app={app} amounts={{}} errors={{}} />
-      <DirectlyInvoicedNote app={app} />
+      <MoneyTrail
+        testId="owner-draw-money-trail"
+        ariaLabel="Money trail"
+        hero={{
+          label: "Current payment due",
+          valueCents: app.figures.currentPaymentDueCents,
+          valueTestId: "owner-draw-payment-due",
+          note: dueNote,
+        }}
+        steps={[
+          { label: "Contract to date", valueCents: app.figures.contractSumToDateCents },
+          {
+            label: residential ? terms.drawColumns.workCompleted : "Completed & stored",
+            valueCents: app.figures.completedAndStoredCents,
+          },
+          {
+            label: "Retainage held",
+            valueCents: app.figures.retainageCents,
+            note: `${formatBps(app.retainageBps)} on each ${residential ? "" : "prime "}line`,
+          },
+          { label: residential ? "Previous draws" : "Previous payments", valueCents: app.figures.previousCertificatesCents },
+        ]}
+      />
       <div className="flex flex-wrap gap-2">
         {app.controls.approve ? (
           <Button onClick={() => setOpen("approve")} data-testid="owner-pay-app-approve">
@@ -795,7 +846,15 @@ function OwnerPayAppView({ ownerPayAppId }: { ownerPayAppId: string }) {
         ) : null}
       </div>
       {app.controls.approve && app.invoiceBlockedReason ? <p className="text-xs text-amber-200">{app.invoiceBlockedReason}</p> : null}
-      <InvoicePanel app={app} />
+      <InvoicePanel app={app} linkVariant={app.controls.approve ? "secondary" : "primary"} />
+      <G702Summary app={app} />
+      <details className="rounded-lg border border-line bg-surface px-3 py-2" data-testid="owner-draw-breakdown">
+        <summary className="cursor-pointer py-1 text-sm font-medium text-ink">{terms.breakdown}</summary>
+        <div className="mt-2">
+          <PrimeSheet app={app} amounts={{}} errors={{}} bare />
+        </div>
+      </details>
+      <DirectlyInvoicedNote app={app} />
       <History app={app} />
       <ConfirmDialog
         open={open === "approve"}

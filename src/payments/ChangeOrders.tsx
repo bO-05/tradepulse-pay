@@ -9,7 +9,7 @@ import { changeOrderFieldErrors, type ChangeOrderFieldErrors } from "../../conve
 import { getErrorMessage } from "../lib/errors";
 import { maskSharedEmail } from "../lib/demoPrivacy";
 import { termsForKind, type ProjectKind, type Terms } from "../lib/terms";
-import { Button, ConfirmDialog, Dialog, EmptyState, MoneyInput, PageHeader, StatusPill, Tabs, TextInput, formatCents, formatDate, useToast } from "../ui";
+import { Button, ConfirmDialog, Dialog, EmptyState, MoneyInput, PageHeader, StatusPill, Tabs, TextInput, formatCents, formatDate, statusLabel, useToast } from "../ui";
 import { Field, focusFirstInvalid, inputClass } from "../ui/Field";
 
 export const CHANGE_ORDERS_PAGE_HASH = "#/change-orders";
@@ -351,7 +351,7 @@ function ChangeOrderRow({
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-sm">
-            <a href={`#/change-orders/${encodeURIComponent(co._id)}`} className="font-semibold text-emerald-300 underline" data-testid="change-order-label">
+            <a href={`#/change-orders/${encodeURIComponent(co._id)}`} className="inline-flex min-h-6 items-center font-semibold text-emerald-300 underline" data-testid="change-order-label">
               {co.label}
             </a>
             {(showAgreement || co.scope === "prime") && co.agreementNumber ? <span className="text-ink-subtle"> · {co.agreementNumber}</span> : null} ·{" "}
@@ -364,7 +364,7 @@ function ChangeOrderRow({
             {co.sovLineNo !== null ? ` · SOV line ${co.sovLineNo}` : ""}
             {co.linkedLabel ? ` · linked to ${co.linkedLabel}` : ""}
             {co.approvedAt ? ` · approved ${formatDate(co.approvedAt, { timeZone: "UTC" })} UTC` : ""}
-            {co.judgeDemoApproval ? ` (by the guided demo for ${co.judgeDemoApproval})` : ""}
+            {co.judgeDemoApproval ? ` (approved in the guided demo for ${co.judgeDemoApproval})` : ""}
             {co.paidAt ? ` · payment recorded ${formatDate(co.paidAt, { timeZone: "UTC" })} UTC` : co.invoicedAt ? ` · invoiced ${formatDate(co.invoicedAt, { timeZone: "UTC" })} UTC` : ""}
           </p>
           {co.rejectionReason ? (
@@ -376,7 +376,7 @@ function ChangeOrderRow({
             <p className="text-xs text-ink-subtle">
               {[
                 co.recipientEmail ? `Invoice to ${maskSharedEmail(co.recipientEmail)}` : null,
-                co.paypalInvoiceId ? `PayPal invoice ${co.paypalInvoiceId}${co.paypalInvoiceStatus ? ` (${co.paypalInvoiceStatus})` : ""}` : null,
+                co.paypalInvoiceId ? `PayPal invoice ${co.paypalInvoiceId}${co.paypalInvoiceStatus ? ` (${statusLabel(co.paypalInvoiceStatus)})` : ""}` : null,
               ]
                 .filter(Boolean)
                 .join(" · ")}
@@ -448,7 +448,7 @@ function ChangeOrderRow({
           </span>
         ) : null}
         {co.payerViewUrl ? (
-          <a href={co.payerViewUrl} target="_blank" rel="noreferrer" className="text-xs text-emerald-300 hover:underline" data-testid="change-order-invoice-link">
+          <a href={co.payerViewUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-6 items-center text-xs text-emerald-300 hover:underline" data-testid="change-order-invoice-link">
             Open PayPal invoice
           </a>
         ) : null}

@@ -13,7 +13,7 @@ export function maskSharedEmail(email: string | null | undefined): string | null
   if (!email) return null;
   const at = email.lastIndexOf("@");
   if (at < 0) return "Demo inbox";
-  const domain = email.slice(at);
+  const domain = email.slice(at + 1);
   const shared = /(^|\.)example\.com$/i.test(domain) || /@demo\.tradepulse$/i.test(email);
-  return shared ? `[demo inbox]${domain}` : email;
+  return shared ? `[demo inbox]@${domain}` : email;
 }
