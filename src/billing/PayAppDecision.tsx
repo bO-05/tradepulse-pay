@@ -448,12 +448,11 @@ export function DecisionCard({ decision, title }: { decision: Decision; title?: 
 }
 
 /** Earlier and current versions of a revised pay app, with the fields that changed. */
-export function VersionHistory({ versions }: { versions: PayAppView["versions"] }) {
+export function VersionHistory({ versions, bare = false }: { versions: PayAppView["versions"]; bare?: boolean }) {
   const [open, setOpen] = useState<number | null>(null);
   if (versions.length === 0) return null;
-  return (
-    <Card title="Version history" data-testid="payapp-versions">
-      <ol className="space-y-3 text-sm">
+  const body = (
+    <ol className="space-y-3 text-sm">
         {versions.map((v) => (
           <li key={v.version} className="rounded-lg border border-line p-3" data-testid="payapp-version" data-version={v.version}>
             <div className="flex flex-wrap items-center gap-2">
@@ -504,7 +503,13 @@ export function VersionHistory({ versions }: { versions: PayAppView["versions"] 
             ) : null}
           </li>
         ))}
-      </ol>
+    </ol>
+  );
+  return bare ? (
+    <div data-testid="payapp-versions">{body}</div>
+  ) : (
+    <Card title="Version history" data-testid="payapp-versions">
+      {body}
     </Card>
   );
 }

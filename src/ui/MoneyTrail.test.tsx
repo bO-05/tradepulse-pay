@@ -41,4 +41,38 @@ describe("the shared money trail", () => {
     expect(html).toContain("—");
     expect(html).not.toContain("$0.00");
   });
+
+  test("a hero figure renders above the stages at text-3xl, the largest number on the screen", () => {
+    const html = renderToStaticMarkup(
+      <MoneyTrail
+        testId="payapp-money-trail"
+        title="Money trail"
+        hero={{ label: "Net this draw", valueCents: 380_000, tone: "positive", note: "Paid by PayPal" }}
+        steps={steps}
+      />,
+    );
+    expect(html.indexOf("Net this draw")).toBeLessThan(html.indexOf("Claimed"));
+    expect(html).toMatch(/<dd[^>]*text-3xl[^>]*>\$3,800\.00/);
+    expect(html).toContain("Paid by PayPal");
+    // Exactly one figure is the hero; the stages stay at the stage size.
+    expect((html.match(/text-3xl/g) ?? []).length).toBe(1);
+  });
+
+  test("the footer renders under the steps, inside the card and inside the cardless variant", () => {
+    const card = renderToStaticMarkup(
+      <MoneyTrail
+        testId="payapp-money-trail"
+        title="Money trail"
+        steps={steps}
+        footer={<p data-testid="payapp-retainage-total">Total retainage held to date: $200.00.</p>}
+      />,
+    );
+    expect(card).toContain('data-testid="payapp-retainage-total"');
+    expect(card.indexOf("Net to the sub")).toBeLessThan(card.indexOf("payapp-retainage-total"));
+    const plain = renderToStaticMarkup(
+      <MoneyTrail steps={steps} footer={<p data-testid="paid-note">Paid by PayPal</p>} />,
+    );
+    expect(plain).toContain('data-testid="paid-note"');
+    expect(plain).not.toContain("<section");
+  });
 });

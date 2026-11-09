@@ -1,7 +1,6 @@
 import { useMutation, useQuery } from "convex/react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api } from "../../convex/_generated/api";
-import type { FunctionReturnType } from "convex/server";
 import {
   formatPercentHundredths,
   g702Summary,
@@ -22,10 +21,13 @@ import { LienWaiverPanel } from "./LienWaiverPanel";
 import { PaymentPanel } from "./PaymentPanel";
 import { PayAppThread } from "./PayAppThread";
 import { ReferenceNotice } from "../payments/ReferenceNotice";
+import { PayAppMoneyTrail, type PayAppView } from "./PayAppMoneyTrail";
 
-type PayAppView = NonNullable<FunctionReturnType<typeof api.payApps.g703.getPayApp>>;
 type SheetLine = PayAppView["lines"][number];
 type Entry = { workThisPeriodCents: number; storedCents: number; note: string };
+
+const primaryLink =
+  "inline-flex min-h-touch items-center justify-center rounded-lg bg-accent px-4 text-sm font-semibold text-accent-fg hover:bg-accent-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus";
 
 const AUTOSAVE_DELAY_MS = 700;
 /** "Saving…" stays up at least this long so a fast save is still visible. */
@@ -50,7 +52,16 @@ export function PayAppPage({ payAppId, backHash, backLabel }: { payAppId: string
       </p>
     );
   }
-  if (view === null) return <p role="status">Pay application not found or not available to this account. <a href="#/home" className="underline">Back to home</a></p>;
+  if (view === null) {
+    return (
+      <p role="status">
+        Pay application not found or not available to this account.{" "}
+        <a href={backHash} className="inline-flex min-h-6 items-center underline">
+          Back to {backLabel.toLowerCase()}
+        </a>
+      </p>
+    );
+  }
   return <PayAppScreen key={view._id} view={view} backHash={backHash} backLabel={backLabel} />;
 }
 
@@ -171,6 +182,58 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
   const claimed = lines.reduce((acc, l) => acc + lineIncrementCents(l), 0);
   const canSubmit = editable && errors.size === 0 && claimed > 0;
   const title = payAppTitle(view);
+  /** A GC who can still decide owns this screen's one primary action, inside the review panel. */
+  const viewerCanDecide =
+    view.viewerRole === "gc" && (view.canApprove || view.canRequestRevision || view.canReject);
+
+  const metaCard = (
+    <Card padded>
+      <dl className="grid gap-3 text-sm sm:grid-cols-4">
+        <div>
+          <dt className="text-xs text-ink-subtle">Application No.</dt>
+          <dd className="font-semibold" data-testid="payapp-number">
+            {view.applicationNo ?? "—"}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-ink-subtle">Period</dt>
+          <dd className="font-semibold" data-testid="payapp-period">
+            {view.periodStart && view.periodEnd ? `${formatDate(view.periodStart)} – ${formatDate(view.periodEnd)}` : view.periodLabel}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-ink-subtle">Due date</dt>
+          <dd className="font-semibold" data-testid="payapp-due">
+            {formatDate(view.dueDate)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-ink-subtle">
+            {view.status === "draft" ? "Draft" : "Submitted"}
+            {view.version > 1 ? ` · version ${view.version}` : ""}
+          </dt>
+          <dd className="font-semibold" aria-live="polite" data-testid="payapp-save-state">
+            {view.status !== "draft" ? (
+              formatDateTime(view.submittedAt)
+            ) : saveState.kind === "saving" ? (
+              "Saving…"
+            ) : saveState.kind === "saved" ? (
+              `Saved ${savedTime(saveState.at)}`
+            ) : saveState.kind === "error" ? (
+              <span className="text-rose-300">{saveState.message}</span>
+            ) : (
+              "Unsaved changes"
+            )}
+          </dd>
+        </div>
+      </dl>
+      {view.status === "draft" ? (
+        <p className="mt-3 text-xs text-ink-subtle">
+          Not submitted. Entries save automatically; the GC sees this pay app only after you submit it.
+        </p>
+      ) : null}
+    </Card>
+  );
 
   return (
     <div className="max-w-6xl space-y-4">
@@ -185,10 +248,7 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
           </>
         }
         actions={
-          <div className="flex flex-wrap items-start gap-2">
-            <DocumentDownloadButton kind="sub_pay_app_pdf" relatedId={view._id} label="Download PDF" testId="payapp-download-pdf" />
-            <DocumentDownloadButton kind="pay_app_lines_csv" relatedId={view._id} label="Export lines CSV" testId="payapp-export-csv" />
-            {view.canDiscard ? <Button variant="danger" onClick={() => setConfirm("discard")}>Discard draft</Button> : null}
+          <div className="flex flex-wrap items-start justify-end gap-2">
             {editable ? (
               <Button onClick={() => setConfirm("submit")} disabled={!canSubmit} data-testid="payapp-submit">
                 Submit pay app
@@ -198,101 +258,56 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
                 Revise
               </Button>
             ) : view.canWithdraw ? (
-              <Button variant="secondary" onClick={() => setConfirm("withdraw")} data-testid="payapp-withdraw">
+              <Button onClick={() => setConfirm("withdraw")} data-testid="payapp-withdraw">
                 Withdraw
               </Button>
+            ) : viewerCanDecide ? null : view.status === "paid" ? (
+              // A paid pay app is a settled record: no workflow action is left, so the one thing
+              // to do is read the payment record. That link is this screen's single primary.
+              <a href={ledgerHash(view.agreement._id)} className={primaryLink} data-testid="payapp-view-payments">
+                View payments
+              </a>
             ) : null}
+            <details className="w-auto" data-testid="payapp-more-actions">
+              <summary className="inline-flex min-h-touch w-auto cursor-pointer list-none items-center justify-center rounded-lg border border-line-strong bg-surface-raised px-4 text-sm font-semibold text-ink hover:bg-slate-700 [&::-webkit-details-marker]:hidden">
+                More actions
+              </summary>
+              <div className="mt-2 flex flex-col items-start gap-2 rounded-lg border border-line bg-surface p-2">
+                <DocumentDownloadButton kind="sub_pay_app_pdf" relatedId={view._id} label="Download PDF" testId="payapp-download-pdf" />
+                <DocumentDownloadButton kind="pay_app_lines_csv" relatedId={view._id} label="Export lines CSV" testId="payapp-export-csv" />
+                {view.canDiscard ? (
+                  <Button variant="danger" size="sm" onClick={() => setConfirm("discard")}>
+                    Discard draft
+                  </Button>
+                ) : null}
+              </div>
+            </details>
           </div>
         }
       />
+
+      {view.unverifiedReason ? (
+        <p className="text-sm text-amber-300" role="status" data-testid="payapp-unverified">
+          {view.unverifiedReason}
+        </p>
+      ) : null}
+      {view.rejectionReason ? (
+        <p className="text-sm text-rose-300" data-testid="payapp-rejection-reason">
+          Rejected: {view.rejectionReason}
+        </p>
+      ) : null}
+      {view.basis === "approved" ? (
+        <p className="text-xs text-ink-subtle">The figures on this page are the GC-approved amounts.</p>
+      ) : null}
 
       {view.readOnlyReference ? (
         <ReferenceNotice title="Preserved reference job · read-only." showFreshRunLink={view.viewerRole !== "sub"} />
       ) : null}
 
-      <Card padded>
-        <dl className="grid gap-3 text-sm sm:grid-cols-4">
-          <div>
-            <dt className="text-xs text-ink-subtle">Application No.</dt>
-            <dd className="font-semibold" data-testid="payapp-number">
-              {view.applicationNo ?? "—"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-ink-subtle">Period</dt>
-            <dd className="font-semibold" data-testid="payapp-period">
-              {view.periodStart && view.periodEnd ? `${formatDate(view.periodStart)} – ${formatDate(view.periodEnd)}` : view.periodLabel}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-ink-subtle">Due date</dt>
-            <dd className="font-semibold" data-testid="payapp-due">
-              {formatDate(view.dueDate)}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-ink-subtle">
-              {view.status === "draft" ? "Draft" : "Submitted"}
-              {view.version > 1 ? ` · version ${view.version}` : ""}
-            </dt>
-            <dd className="font-semibold" aria-live="polite" data-testid="payapp-save-state">
-              {view.status !== "draft" ? (
-                formatDateTime(view.submittedAt)
-              ) : saveState.kind === "saving" ? (
-                "Saving…"
-              ) : saveState.kind === "saved" ? (
-                `Saved ${savedTime(saveState.at)}`
-              ) : saveState.kind === "error" ? (
-                <span className="text-rose-300">{saveState.message}</span>
-              ) : (
-                "Unsaved changes"
-              )}
-            </dd>
-          </div>
-        </dl>
-        {view.status === "draft" ? (
-          <p className="mt-3 text-xs text-ink-subtle">
-            Not submitted. Entries save automatically; the GC sees this pay app only after you submit it.
-          </p>
-        ) : null}
-        {view.basis === "approved" ? (
-          <p className="mt-3 text-xs text-ink-subtle">Figures below are the GC-approved amounts.</p>
-        ) : null}
-        {view.unverifiedReason ? (
-          <p className="mt-3 text-sm text-amber-300" role="status" data-testid="payapp-unverified">
-            {view.unverifiedReason}
-          </p>
-        ) : null}
-        {view.rejectionReason ? (
-          <p className="mt-3 text-sm text-rose-300" data-testid="payapp-rejection-reason">
-            Rejected: {view.rejectionReason}
-          </p>
-        ) : null}
-      </Card>
-
-      {view.status !== "draft" ? <MoneyTrail view={view} terms={terms} /> : null}
-
-      {view.approvalHistory && view.status !== "draft" && (
-        <Card title="Submission and GC approval history" padded>
-          <ol className="space-y-2 text-sm">
-            <li>Submitted: {formatDateTime(view.approvalHistory.submittedAt, { timeZone: "UTC" })} UTC · requested gross {formatCents(view.approvalHistory.requestedGrossCents)}</li>
-            {view.approvalHistory.reviewedAt !== null && <li>Review completed: {formatDateTime(view.approvalHistory.reviewedAt, { timeZone: "UTC" })} UTC. A review is a recommendation, not a payment approval.</li>}
-            {view.reviewSuggestedTotalCents !== null && view.approvalHistory.approvedGrossCents !== null ? (
-              <li data-testid="payapp-ai-vs-approved">
-                Rules recommended gross {formatCents(view.reviewSuggestedTotalCents)} · GC approved {formatCents(view.approvalHistory.approvedGrossCents)} ·{" "}
-                {view.approvalHistory.approvedGrossCents === view.reviewSuggestedTotalCents
-                  ? "no change to the recommendation."
-                  : `${formatCents(Math.abs(view.approvalHistory.approvedGrossCents - view.reviewSuggestedTotalCents))} ${view.approvalHistory.approvedGrossCents < view.reviewSuggestedTotalCents ? "below" : "above"} the recommendation.`}
-              </li>
-            ) : null}
-            {view.approvalHistory.approvedGrossCents !== null && <li>
-              GC approved gross {formatCents(view.approvalHistory.approvedGrossCents)} · reduction from request {formatCents(view.approvalHistory.requestedGrossCents - view.approvalHistory.approvedGrossCents)}.
-              {view.approvalHistory.approvedAt !== null && <> Approved by {view.approvalHistory.approvedBy ?? "the GC"} · {formatDateTime(view.approvalHistory.approvedAt, { timeZone: "UTC" })} UTC.</>}
-              <p className="mt-1 text-slate-300">GC explanation: {view.approvalHistory.reason ?? "No additional GC explanation was recorded. Review reasons are not a GC-authored explanation."}</p>
-            </li>}
-          </ol>
-        </Card>
-      )}
+      {view.status !== "draft" ? <PayAppMoneyTrail view={view} terms={terms} /> : null}
+      {view.status !== "draft" && view.viewerRole === "gc" ? <GcReviewPanel key={view.review?.reviewedAt ?? 0} view={view} /> : null}
+      {view.status !== "draft" ? <PaymentPanel payAppId={view._id} projectKind={view.projectKind} /> : null}
+      {view.status !== "draft" ? <LienWaiverPanel payAppId={view._id} /> : null}
       {view.revisionRequest ? (
         <DecisionCard
           decision={view.revisionRequest}
@@ -301,23 +316,45 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
       ) : view.decision ? (
         <DecisionCard decision={view.decision} />
       ) : null}
-      {view.viewerRole === "gc" ? <GcReviewPanel key={view.review?.reviewedAt ?? 0} view={view} /> : null}
-      {view.status !== "draft" ? <PaymentPanel payAppId={view._id} projectKind={view.projectKind} /> : null}
-      {view.status !== "draft" ? <LienWaiverPanel payAppId={view._id} /> : null}
+
+      {metaCard}
+
       {view.status !== "draft" ? <PayAppThread payAppId={view._id} /> : null}
 
-      <ContinuationSheet
-        lines={lines}
-        editable={editable}
-        errors={errors}
-        onChange={update}
-        summary={summary}
-        gcReasons={gcReasons(view)}
-        terms={terms}
-      />
-      <G702Card summary={summary} retainageBps={view.retainageBps} agreementId={view.agreement._id} terms={terms} />
+      {editable ? (
+        <ContinuationSheet
+          lines={lines}
+          editable={editable}
+          errors={errors}
+          onChange={update}
+          summary={summary}
+          gcReasons={gcReasons(view)}
+          terms={terms}
+        />
+      ) : (
+        <Disclosure testId="payapp-breakdown" title={terms.payAppBreakdown} description="Line by line, as stored">
+          <ContinuationSheet
+            lines={lines}
+            editable={editable}
+            errors={errors}
+            onChange={update}
+            summary={summary}
+            gcReasons={gcReasons(view)}
+            terms={terms}
+            bare
+          />
+        </Disclosure>
+      )}
+      <Disclosure testId="payapp-summary" title={terms.payAppSummary} description="How the net payment is reached">
+        <G702Card summary={summary} retainageBps={view.retainageBps} agreementId={view.agreement._id} terms={terms} bare />
+      </Disclosure>
+      {view.approvalHistory && view.status !== "draft" ? (
+        <Disclosure testId="payapp-approval-history" title="Submission and approval history" description="Timestamps and the recorded reasons">
+          <ApprovalHistory view={view} />
+        </Disclosure>
+      ) : null}
       {view.changeOrders.length > 0 ? (
-        <Card title="Change orders on this application" padded>
+        <Disclosure title="Change orders on this application" description={`${view.changeOrders.length} on this draw`}>
           <ul className="divide-y divide-line text-sm" data-testid="pay-app-change-orders">
             {view.changeOrders.map((co) => (
               <li key={co._id} className="flex flex-wrap items-baseline justify-between gap-2 py-2">
@@ -329,9 +366,13 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
               </li>
             ))}
           </ul>
-        </Card>
+        </Disclosure>
       ) : null}
-      <VersionHistory versions={view.versions} />
+      {view.versions.length > 0 ? (
+        <Disclosure title="Version history" description={`${view.versions.length} version${view.versions.length === 1 ? "" : "s"}`}>
+          <VersionHistory versions={view.versions} bare />
+        </Disclosure>
+      ) : null}
 
       <ConfirmDialog
         open={confirm === "discard"}
@@ -409,6 +450,59 @@ function gcReasons(view: PayAppView): Map<string, string> {
   return out;
 }
 
+/**
+ * Secondary detail on a pay app — the breakdown, the summary, the history — collapsed behind one
+ * plain-word row. The money trail, the payment and the waiver stay out of these; a judge reads
+ * those without opening anything.
+ */
+function Disclosure({
+  title,
+  description,
+  testId,
+  children,
+}: {
+  title: ReactNode;
+  description?: ReactNode;
+  testId?: string;
+  children: ReactNode;
+}) {
+  return (
+    <details className="group rounded-xl border border-line bg-surface" data-testid={testId}>
+      <summary className="flex min-h-touch cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-ink hover:bg-surface-raised [&::-webkit-details-marker]:hidden sm:px-5">
+        <span>{title}</span>
+        <span className="text-right text-xs font-normal text-ink-subtle group-open:hidden">{description}</span>
+      </summary>
+      <div className="border-t border-line px-4 py-4 sm:px-5">{children}</div>
+    </details>
+  );
+}
+
+/** The recorded submission and approval line items, kept exactly as the audit trail wrote them. */
+function ApprovalHistory({ view }: { view: PayAppView }) {
+  const history = view.approvalHistory;
+  return (
+    <ol className="space-y-2 text-sm">
+      <li>Submitted: {formatDateTime(history.submittedAt, { timeZone: "UTC" })} UTC · requested gross {formatCents(history.requestedGrossCents)}</li>
+      {history.reviewedAt !== null && <li>Review completed: {formatDateTime(history.reviewedAt, { timeZone: "UTC" })} UTC. A review is a recommendation, not a payment approval.</li>}
+      {view.reviewSuggestedTotalCents !== null && history.approvedGrossCents !== null ? (
+        <li data-testid="payapp-ai-vs-approved">
+          Rules recommended gross {formatCents(view.reviewSuggestedTotalCents)} · GC approved {formatCents(history.approvedGrossCents)} ·{" "}
+          {history.approvedGrossCents === view.reviewSuggestedTotalCents
+            ? "no change to the recommendation."
+            : `${formatCents(Math.abs(history.approvedGrossCents - view.reviewSuggestedTotalCents))} ${history.approvedGrossCents < view.reviewSuggestedTotalCents ? "below" : "above"} the recommendation.`}
+        </li>
+      ) : null}
+      {history.approvedGrossCents !== null && (
+        <li>
+          GC approved gross {formatCents(history.approvedGrossCents)} · reduction from request {formatCents(history.requestedGrossCents - history.approvedGrossCents)}.
+          {history.approvedAt !== null && <> Approved by {history.approvedBy ?? "the GC"} · {formatDateTime(history.approvedAt, { timeZone: "UTC" })} UTC.</>}
+          <p className="mt-1 text-slate-300">GC explanation: {history.reason ?? "No additional GC explanation was recorded. Review reasons are not a GC-authored explanation."}</p>
+        </li>
+      )}
+    </ol>
+  );
+}
+
 export function ContinuationSheet({
   lines,
   editable,
@@ -417,6 +511,7 @@ export function ContinuationSheet({
   summary,
   gcReasons,
   terms,
+  bare = false,
 }: {
   lines: SheetLine[];
   editable: boolean;
@@ -425,12 +520,14 @@ export function ContinuationSheet({
   summary: G702Summary;
   gcReasons: Map<string, string>;
   terms: Terms;
+  /** Render the sheet without its own card, for use inside a disclosure. */
+  bare?: boolean;
 }) {
   const th = "px-2 py-2 font-medium align-bottom";
   const num = "px-2 py-2 text-right tabular-nums align-top whitespace-nowrap";
   const showStored = terms.kind === "commercial";
-  return (
-    <Card title={terms.payAppBreakdown} padded>
+  const body = (
+    <> 
       <div className="overflow-x-auto" data-testid="g703-sheet">
         <table className="w-full min-w-[960px] text-sm">
           <caption className="sr-only">
@@ -557,8 +654,9 @@ export function ContinuationSheet({
           </tfoot>
         </table>
       </div>
-    </Card>
+    </>
   );
+  return bare ? body : <Card title={terms.payAppBreakdown} padded>{body}</Card>;
 }
 
 function Requested({ value, requested }: { value: number; requested: number | null }) {
@@ -570,61 +668,20 @@ function Requested({ value, requested }: { value: number; requested: number | nu
   );
 }
 
-function MoneyTrail({ view, terms }: { view: PayAppView; terms: Terms }) {
-  const claimed = view.approvalHistory.requestedGrossCents;
-  const ai = view.reviewSuggestedTotalCents;
-  const approved = view.approvalHistory.approvedGrossCents;
-  const retainage = view.summary.retainageCents;
-  const net = view.summary.currentPaymentDueCents;
-  const grossThisApp = approved ?? ai;
-  const periodRetainage = grossThisApp !== null ? grossThisApp - net : null;
-  const steps: { label: string; value: number | null; tone?: string }[] = [
-    { label: "Claimed", value: claimed },
-    ...(ai !== null ? [{ label: "Review suggests", value: ai }] : []),
-    { label: "GC approves", value: approved },
-    periodRetainage !== null
-      ? {
-          label: terms.kind === "residential" ? "Retainage this draw" : "Retainage this app",
-          value: periodRetainage,
-          tone: periodRetainage > 0 ? "text-amber-200" : undefined,
-        }
-      : { label: "Total retainage held", value: retainage, tone: retainage > 0 ? "text-amber-200" : undefined },
-    { label: terms.kind === "residential" ? "Net this draw" : "Net this app", value: net },
-  ];
-  return (
-    <Card
-      title="Money trail"
-      description="Every figure is computed from the schedule of values. PayPal settles only after the GC approves."
-      padded
-      data-testid="payapp-money-trail"
-    >
-      <ol className="flex flex-wrap items-stretch gap-2" aria-label="Money trail for this pay application">
-        {steps.map((step, i) => (
-          <li key={step.label} className="flex min-w-[8rem] flex-1 items-center gap-2">
-            {i > 0 ? <span aria-hidden="true" className="text-ink-subtle">→</span> : null}
-            <div className="min-w-0 flex-1 rounded-lg border border-line bg-surface-raised px-3 py-2">
-              <p className="text-[11px] uppercase tracking-wide text-ink-subtle">{step.label}</p>
-              <p className={`text-sm font-semibold tabular-nums ${step.tone ?? ""}`}>{step.value === null ? "—" : formatCents(step.value)}</p>
-            </div>
-          </li>
-        ))}
-      </ol>
-      <p className="mt-3 text-xs text-ink-subtle" data-testid="payapp-retainage-total">
-        Total retainage held to date: {formatCents(retainage)}
-        {terms.kind === "residential" ? "." : " (G702 line 5)."}
-        {periodRetainage !== null ? ` This ${terms.kind === "residential" ? "draw" : "application"} withheld ${formatCents(periodRetainage)}.` : ""}
-      </p>
-      {ai !== null && approved !== null && ai !== approved ? (
-        <p className="mt-3 text-xs text-ink-subtle" data-testid="payapp-money-trail-edit">
-          The GC approved {formatCents(Math.abs(approved - ai))} {approved < ai ? "below" : "above"} the review suggestion.
-          Per-line reasons, when entered, are under the GC decision below.
-        </p>
-      ) : null}
-    </Card>
-  );
-}
-
-export function G702Card({ summary, retainageBps, agreementId, terms }: { summary: G702Summary; retainageBps: number; agreementId: string; terms: Terms }) {
+export function G702Card({
+  summary,
+  retainageBps,
+  agreementId,
+  terms,
+  bare = false,
+}: {
+  summary: G702Summary;
+  retainageBps: number;
+  agreementId: string;
+  terms: Terms;
+  /** Render the summary without its own card, for use inside a disclosure. */
+  bare?: boolean;
+}) {
   const rows: [string, string, string?][] = [
     ["1", "Original contract sum", formatCents(summary.originalContractSumCents)],
     ["2", "Net change by change orders", formatCents(summary.netChangeOrdersCents, { showPlus: true })],
@@ -644,8 +701,8 @@ export function G702Card({ summary, retainageBps, agreementId, terms }: { summar
     ["8", terms.drawColumns.thisDraw, formatCents(summary.currentPaymentDueCents)],
     ["9", "Balance to finish, including retainage", formatCents(summary.balanceToFinishInclRetainageCents)],
   ];
-  return (
-    <Card title={terms.payAppSummary} padded>
+  const body = (
+    <>
       <dl className="divide-y divide-line text-sm" data-testid="g702-summary">
         {rows.map(([no, label, value]) => (
           <div key={no} className={`flex items-baseline justify-between gap-4 py-2 ${no.length > 1 ? "pl-6 text-ink-muted" : ""}`} data-g702-line={no}>
@@ -661,11 +718,12 @@ export function G702Card({ summary, retainageBps, agreementId, terms }: { summar
         {terms.kind === "residential"
           ? "Line 5a is this draw's retainage snapshot. Retainage released later is recorded in the "
           : "Line 5a is this application's retainage snapshot. Retainage released later is recorded in the "}
-        <a href={ledgerHash(agreementId)} className="underline">agreement ledger</a>;
+        <a href={ledgerHash(agreementId)} className="inline-flex min-h-6 items-center underline">agreement ledger</a>;
         {terms.kind === "residential"
           ? " a later release does not rewrite this summary."
           : " a later release does not rewrite this historical G702."}
       </p>
-    </Card>
+    </>
   );
+  return bare ? body : <Card title={terms.payAppSummary} padded>{body}</Card>;
 }

@@ -1,0 +1,1749 @@
+{
+  "target": "http://localhost:3150",
+  "settledPayAppId": "ph7434a59sqck3nysgt6teqh0h8hvx1h",
+  "checks": [
+    {
+      "name": "[1440] Subcontractor lands on the settled Lopez pay app",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] money trail is visible",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] trail shows claimed $5,400.00 and net $3,800.00",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] trail names the PayPal settlement",
+      "ok": true,
+      "detail": "Money trail\n\nEvery figure is computed from the schedule of values. PayPal settles only after the GC approves.\n\nNET THIS DRAW\n$3,800.00\nPaid by PayPal\nCLAIMED\n$5,400.00\nBilled by the sub\n→REVIEW SUGGES"
+    },
+    {
+      "name": "[1440] net figure is the largest money figure",
+      "ok": true,
+      "detail": "[{\"text\":\"$3,800.00\",\"fontSize\":30,\"testid\":null,\"label\":\"Net this draw\",\"top\":616,\"right\":1378,\"inClosedDetails\":false},{\"text\":\"$5,400.00\",\"fontSize\":18,\"testid\":null,\"label\":\"Claimed\",\"top\":718,\"right\":364,\"inClosedDetails\":false},{\"text\":\"$2,000.00\",\"fontSize\":18,\"testid\":null,\"label\":\"→Review suggests\",\"top\":718,\"right\":703,\"inClosedDetails\":false}]"
+    },
+    {
+      "name": "[1440] net figure is at least text-2xl (24px)",
+      "ok": true,
+      "detail": "30"
+    },
+    {
+      "name": "[1440] net figure is labeled \"Net this draw\"",
+      "ok": true,
+      "detail": "Net this draw"
+    },
+    {
+      "name": "[1440] net figure renders above the stages",
+      "ok": true,
+      "detail": "0 vs 1"
+    },
+    {
+      "name": "[1440] exactly one primary action",
+      "ok": true,
+      "detail": "[{\"tag\":\"A\",\"text\":\"View payments\",\"testid\":\"payapp-view-payments\",\"height\":44}]"
+    },
+    {
+      "name": "[1440] the primary is a named action",
+      "ok": true,
+      "detail": "View payments"
+    },
+    {
+      "name": "[1440] primary action meets the 44px floor",
+      "ok": true,
+      "detail": "44"
+    },
+    {
+      "name": "[1440] money trail sits above the application detail",
+      "ok": true,
+      "detail": "505 vs 1842"
+    },
+    {
+      "name": "[1440] breakdown is a collapsed disclosure",
+      "ok": true,
+      "detail": "{\"open\":false,\"visible\":true,\"summary\":\"Pay app breakdownLine by line, as stored\",\"bodyText\":41,\"contentRendered\":false}"
+    },
+    {
+      "name": "[1440] summary is a collapsed disclosure",
+      "ok": true,
+      "detail": "{\"open\":false,\"visible\":true,\"summary\":\"Pay app summaryHow the net payment is reached\",\"bodyText\":46,\"contentRendered\":false}"
+    },
+    {
+      "name": "[1440] approval history is a collapsed disclosure",
+      "ok": true,
+      "detail": "{\"open\":false,\"visible\":true,\"summary\":\"Submission and approval historyTimestamps and the recorded reasons\",\"bodyText\":67,\"contentRendered\":false}"
+    },
+    {
+      "name": "[1440] collapsed rows name their sections",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] payment panel stays visible",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] payout receipt is on the page",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] lien-waiver panel stays visible",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] no horizontal page overflow",
+      "ok": true,
+      "detail": "1440 vs 1440"
+    },
+    {
+      "name": "[1440] net figure fits the viewport width",
+      "ok": true,
+      "detail": "1378 vs 1440"
+    },
+    {
+      "name": "[1440] net figure is inside the first viewport",
+      "ok": true,
+      "detail": "616 vs 900"
+    },
+    {
+      "name": "[1440] no visible control under 24px",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[1440] secondary downloads are collapsed by default",
+      "ok": true,
+      "detail": "false"
+    },
+    {
+      "name": "[1440] More actions reveals Download PDF",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] More actions reveals Export lines CSV",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] downloads stay secondary",
+      "ok": true,
+      "detail": "[\"View payments\"]"
+    },
+    {
+      "name": "[1440] open More actions does not overflow",
+      "ok": true,
+      "detail": "1440 vs 1440"
+    },
+    {
+      "name": "[1440] open disclosures show the breakdown sheet",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] open disclosures show the summary lines",
+      "ok": true,
+      "detail": "Pay app summary\n(1)Original contract sum\n$9,000.00\n(2)Net change by change orders\n$0.00\n(3)Contract sum to date\n$9,000.0"
+    },
+    {
+      "name": "[1440] open disclosures do not overflow the page",
+      "ok": true,
+      "detail": "1440 vs 1440"
+    },
+    {
+      "name": "[1440] zero page errors",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[1440] zero failed requests",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[1440] zero console errors",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[390] Subcontractor lands on the settled Lopez pay app",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] money trail is visible",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] trail shows claimed $5,400.00 and net $3,800.00",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] trail names the PayPal settlement",
+      "ok": true,
+      "detail": "Money trail\n\nEvery figure is computed from the schedule of values. PayPal settles only after the GC approves.\n\nNET THIS DRAW\n$3,800.00\nPaid by PayPal\nCLAIMED\n$5,400.00\nBilled by the sub\n→REVIEW SUGGES"
+    },
+    {
+      "name": "[390] net figure is the largest money figure",
+      "ok": true,
+      "detail": "[{\"text\":\"$3,800.00\",\"fontSize\":30,\"testid\":null,\"label\":\"Net this draw\",\"top\":641,\"right\":340,\"inClosedDetails\":false},{\"text\":\"$5,400.00\",\"fontSize\":18,\"testid\":null,\"label\":\"Claimed\",\"top\":743,\"right\":178,\"inClosedDetails\":false},{\"text\":\"$2,000.00\",\"fontSize\":18,\"testid\":null,\"label\":\"→Review suggests\",\"top\":743,\"right\":344,\"inClosedDetails\":false}]"
+    },
+    {
+      "name": "[390] net figure is at least text-2xl (24px)",
+      "ok": true,
+      "detail": "30"
+    },
+    {
+      "name": "[390] net figure is labeled \"Net this draw\"",
+      "ok": true,
+      "detail": "Net this draw"
+    },
+    {
+      "name": "[390] net figure renders above the stages",
+      "ok": true,
+      "detail": "0 vs 1"
+    },
+    {
+      "name": "[390] exactly one primary action",
+      "ok": true,
+      "detail": "[{\"tag\":\"A\",\"text\":\"View payments\",\"testid\":\"payapp-view-payments\",\"height\":44}]"
+    },
+    {
+      "name": "[390] the primary is a named action",
+      "ok": true,
+      "detail": "View payments"
+    },
+    {
+      "name": "[390] primary action meets the 44px floor",
+      "ok": true,
+      "detail": "44"
+    },
+    {
+      "name": "[390] money trail sits above the application detail",
+      "ok": true,
+      "detail": "514 vs 2570"
+    },
+    {
+      "name": "[390] breakdown is a collapsed disclosure",
+      "ok": true,
+      "detail": "{\"open\":false,\"visible\":true,\"summary\":\"Pay app breakdownLine by line, as stored\",\"bodyText\":41,\"contentRendered\":false}"
+    },
+    {
+      "name": "[390] summary is a collapsed disclosure",
+      "ok": true,
+      "detail": "{\"open\":false,\"visible\":true,\"summary\":\"Pay app summaryHow the net payment is reached\",\"bodyText\":46,\"contentRendered\":false}"
+    },
+    {
+      "name": "[390] approval history is a collapsed disclosure",
+      "ok": true,
+      "detail": "{\"open\":false,\"visible\":true,\"summary\":\"Submission and approval historyTimestamps and the recorded reasons\",\"bodyText\":67,\"contentRendered\":false}"
+    },
+    {
+      "name": "[390] collapsed rows name their sections",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] payment panel stays visible",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] payout receipt is on the page",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] lien-waiver panel stays visible",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] no horizontal page overflow",
+      "ok": true,
+      "detail": "390 vs 390"
+    },
+    {
+      "name": "[390] net figure fits the viewport width",
+      "ok": true,
+      "detail": "340 vs 390"
+    },
+    {
+      "name": "[390] net figure is inside the first viewport",
+      "ok": true,
+      "detail": "641 vs 844"
+    },
+    {
+      "name": "[390] no visible control under 24px",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[390] secondary downloads are collapsed by default",
+      "ok": true,
+      "detail": "false"
+    },
+    {
+      "name": "[390] More actions reveals Download PDF",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] More actions reveals Export lines CSV",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] downloads stay secondary",
+      "ok": true,
+      "detail": "[\"View payments\"]"
+    },
+    {
+      "name": "[390] open More actions does not overflow",
+      "ok": true,
+      "detail": "390 vs 390"
+    },
+    {
+      "name": "[390] open disclosures show the breakdown sheet",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] open disclosures show the summary lines",
+      "ok": true,
+      "detail": "Pay app summary\n(1)Original contract sum\n$9,000.00\n(2)Net change by change orders\n$0.00\n(3)Contract sum to date\n$9,000.0"
+    },
+    {
+      "name": "[390] open disclosures do not overflow the page",
+      "ok": true,
+      "detail": "390 vs 390"
+    },
+    {
+      "name": "[390] zero page errors",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[390] zero failed requests",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[390] zero console errors",
+      "ok": true,
+      "detail": "[]"
+    }
+  ],
+  "measurements": [
+    {
+      "width": 1440,
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "trailText": "Money trail\n\nEvery figure is computed from the schedule of values. PayPal settles only after the GC approves.\n\nNET THIS DRAW\n$3,800.00\nPaid by PayPal\nCLAIMED\n$5,400.00\nBilled by the sub\n→REVIEW SUGGESTS\n$2,000.00\nRules check only\n→GC APPROVED\n$4,000.00\nFinal amount\n→RETAINAGE THIS DRAW\n$200.00\nWithheld\n\nTotal retainage held to date: $200.00. This draw withheld $200.00.\n\nThe GC approved $2,000.00 above the review suggestion. Per-line reasons, when entered, are under the GC decision below.",
+      "figures": [
+        {
+          "text": "$3,800.00",
+          "fontSize": 30,
+          "testid": null,
+          "label": "Net this draw",
+          "top": 616,
+          "right": 1378,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$5,400.00",
+          "fontSize": 18,
+          "testid": null,
+          "label": "Claimed",
+          "top": 718,
+          "right": 364,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$2,000.00",
+          "fontSize": 18,
+          "testid": null,
+          "label": "→Review suggests",
+          "top": 718,
+          "right": 703,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$4,000.00",
+          "fontSize": 18,
+          "testid": null,
+          "label": "→GC approved",
+          "top": 718,
+          "right": 1043,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$200.00",
+          "fontSize": 18,
+          "testid": null,
+          "label": "→Retainage this draw",
+          "top": 718,
+          "right": 1382,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$3,800.00",
+          "fontSize": 16,
+          "testid": null,
+          "label": "(8)This draw",
+          "top": 2506,
+          "right": 1395,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$200.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": "Retainage held this period",
+          "top": 1067,
+          "right": 714,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$200.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": "Retainage still held on this agreement",
+          "top": 1067,
+          "right": 1395,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$4,000.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": "Amount",
+          "top": 1265,
+          "right": 708,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$200.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": "Amount",
+          "top": 1436,
+          "right": 708,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$4,000.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 2188,
+          "right": 801,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 2188,
+          "right": 895,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$4,000.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 2188,
+          "right": 1143,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 2188,
+          "right": 1318,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$200.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 2188,
+          "right": 1395,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$4,000.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 2197,
+          "right": 1013,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$9,000.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": "(1)Original contract sum",
+          "top": 2210,
+          "right": 1395,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": "(2)Net change by change orders",
+          "top": 2247,
+          "right": 1395,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$9,000.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": "(3)Contract sum to date",
+          "top": 2284,
+          "right": 1395,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$3,500.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 2297,
+          "right": 801,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 2297,
+          "right": 895,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 2297,
+          "right": 1143,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$3,500.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 2297,
+          "right": 1318,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 2297,
+          "right": 1395,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 2306,
+          "right": 1013,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$4,000.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": "(4)Total work completed to date",
+          "top": 2321,
+          "right": 1395,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$200.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": "(5)Retainage (5% by line, rounded per line)",
+          "top": 2358,
+          "right": 1395,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$1,500.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 2386,
+          "right": 801,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 2386,
+          "right": 895,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 2386,
+          "right": 1143,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$1,500.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 2386,
+          "right": 1318,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 2386,
+          "right": 1395,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 2395,
+          "right": 1013,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$200.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": "(5a)On completed work",
+          "top": 2395,
+          "right": 1395,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$3,800.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": "(6)Total earned less retainage",
+          "top": 2432,
+          "right": 1395,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$9,000.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 2440,
+          "right": 801,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 2440,
+          "right": 895,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$4,000.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 2440,
+          "right": 1021,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$4,000.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 2440,
+          "right": 1143,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$5,000.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 2440,
+          "right": 1318,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$200.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 2440,
+          "right": 1395,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": "(7)Previously paid",
+          "top": 2469,
+          "right": 1395,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$5,200.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": "(9)Balance to finish, including retainage",
+          "top": 2547,
+          "right": 1395,
+          "inClosedDetails": true
+        }
+      ],
+      "domOrder": [
+        {
+          "text": "$3,800.00",
+          "index": 14,
+          "testid": null
+        },
+        {
+          "text": "$5,400.00",
+          "index": 16,
+          "testid": null
+        },
+        {
+          "text": "$2,000.00",
+          "index": 19,
+          "testid": null
+        },
+        {
+          "text": "$4,000.00",
+          "index": 22,
+          "testid": null
+        },
+        {
+          "text": "$200.00",
+          "index": 25,
+          "testid": null
+        },
+        {
+          "text": "$200.00",
+          "index": 35,
+          "testid": null
+        },
+        {
+          "text": "$200.00",
+          "index": 36,
+          "testid": null
+        },
+        {
+          "text": "$4,000.00",
+          "index": 40,
+          "testid": null
+        },
+        {
+          "text": "$200.00",
+          "index": 46,
+          "testid": null
+        },
+        {
+          "text": "$4,000.00",
+          "index": 72,
+          "testid": null
+        },
+        {
+          "text": "$0.00",
+          "index": 73,
+          "testid": null
+        },
+        {
+          "text": "$4,000.00",
+          "index": 75,
+          "testid": null
+        },
+        {
+          "text": "$4,000.00",
+          "index": 76,
+          "testid": null
+        },
+        {
+          "text": "$0.00",
+          "index": 78,
+          "testid": null
+        },
+        {
+          "text": "$200.00",
+          "index": 79,
+          "testid": null
+        },
+        {
+          "text": "$3,500.00",
+          "index": 85,
+          "testid": null
+        },
+        {
+          "text": "$0.00",
+          "index": 86,
+          "testid": null
+        },
+        {
+          "text": "$0.00",
+          "index": 88,
+          "testid": null
+        },
+        {
+          "text": "$0.00",
+          "index": 90,
+          "testid": null
+        },
+        {
+          "text": "$3,500.00",
+          "index": 92,
+          "testid": null
+        },
+        {
+          "text": "$0.00",
+          "index": 93,
+          "testid": null
+        },
+        {
+          "text": "$1,500.00",
+          "index": 98,
+          "testid": null
+        },
+        {
+          "text": "$0.00",
+          "index": 99,
+          "testid": null
+        },
+        {
+          "text": "$0.00",
+          "index": 101,
+          "testid": null
+        },
+        {
+          "text": "$0.00",
+          "index": 102,
+          "testid": null
+        },
+        {
+          "text": "$1,500.00",
+          "index": 104,
+          "testid": null
+        },
+        {
+          "text": "$0.00",
+          "index": 105,
+          "testid": null
+        },
+        {
+          "text": "$9,000.00",
+          "index": 106,
+          "testid": null
+        },
+        {
+          "text": "$0.00",
+          "index": 107,
+          "testid": null
+        },
+        {
+          "text": "$4,000.00",
+          "index": 108,
+          "testid": null
+        },
+        {
+          "text": "$4,000.00",
+          "index": 109,
+          "testid": null
+        },
+        {
+          "text": "$5,000.00",
+          "index": 111,
+          "testid": null
+        },
+        {
+          "text": "$200.00",
+          "index": 112,
+          "testid": null
+        },
+        {
+          "text": "$9,000.00",
+          "index": 116,
+          "testid": null
+        },
+        {
+          "text": "$0.00",
+          "index": 118,
+          "testid": null
+        },
+        {
+          "text": "$9,000.00",
+          "index": 120,
+          "testid": null
+        },
+        {
+          "text": "$4,000.00",
+          "index": 122,
+          "testid": null
+        },
+        {
+          "text": "$200.00",
+          "index": 124,
+          "testid": null
+        },
+        {
+          "text": "$200.00",
+          "index": 126,
+          "testid": null
+        },
+        {
+          "text": "$3,800.00",
+          "index": 128,
+          "testid": null
+        },
+        {
+          "text": "$0.00",
+          "index": 130,
+          "testid": null
+        },
+        {
+          "text": "$3,800.00",
+          "index": 132,
+          "testid": null
+        },
+        {
+          "text": "$5,200.00",
+          "index": 134,
+          "testid": null
+        }
+      ],
+      "primary": [
+        {
+          "tag": "A",
+          "text": "View payments",
+          "testid": "payapp-view-payments",
+          "height": 44
+        }
+      ],
+      "trail": {
+        "top": 505,
+        "right": 1416,
+        "width": 1392,
+        "height": 337,
+        "inClosedDetails": false
+      },
+      "net": {
+        "text": "$3,800.00",
+        "fontSize": 30,
+        "testid": null,
+        "label": "Net this draw",
+        "top": 616,
+        "right": 1378,
+        "inClosedDetails": false
+      },
+      "netIndex": 0,
+      "claimedIndex": 1,
+      "details": {
+        "breakdown": {
+          "open": false,
+          "visible": true,
+          "summary": "Pay app breakdownLine by line, as stored",
+          "bodyText": 41,
+          "contentRendered": false
+        },
+        "summary": {
+          "open": false,
+          "visible": true,
+          "summary": "Pay app summaryHow the net payment is reached",
+          "bodyText": 46,
+          "contentRendered": false
+        },
+        "history": {
+          "open": false,
+          "visible": true,
+          "summary": "Submission and approval historyTimestamps and the recorded reasons",
+          "bodyText": 67,
+          "contentRendered": false
+        }
+      },
+      "payment": {
+        "top": 858,
+        "right": 1416,
+        "width": 1392,
+        "height": 278,
+        "inClosedDetails": false
+      },
+      "waiver": {
+        "top": 1152,
+        "right": 1416,
+        "width": 1392,
+        "height": 395,
+        "inClosedDetails": false
+      },
+      "meta": {
+        "top": 1842,
+        "right": 374,
+        "width": 329,
+        "height": 20,
+        "inClosedDetails": false
+      },
+      "moreActionsOpen": false,
+      "paymentText": "Payment\n\nPaid $3,800.00\n\nPaid\nNov 8, 2026, 4:18 PM UTC\n\nTo [sandbox email] · from Rough-in\n\nPayPal payout batch\nD5V7XEN5YZH4C\nCopy\n\nStatus as recorded Nov 8, 2026, 4:18 PM UTC from PayPal API responses and webhooks. It is not a live PayPal balance; refreshing asks PayPal again and records the answer.\n\nRetainage held this period\n$200.00\nRetainage still held on this agreement\n$200.00\n\nRetainage held is withheld from approved work. A retainage release is a separate recorded payout; releasing it in this demo does not certify project closeout.",
+      "controls": 19,
+      "under24": []
+    },
+    {
+      "width": 390,
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "trailText": "Money trail\n\nEvery figure is computed from the schedule of values. PayPal settles only after the GC approves.\n\nNET THIS DRAW\n$3,800.00\nPaid by PayPal\nCLAIMED\n$5,400.00\nBilled by the sub\n→REVIEW SUGGESTS\n$2,000.00\nRules check only\n→GC APPROVED\n$4,000.00\nFinal amount\n→RETAINAGE THIS DRAW\n$200.00\nWithheld\n\nTotal retainage held to date: $200.00. This draw withheld $200.00.\n\nThe GC approved $2,000.00 above the review suggestion. Per-line reasons, when entered, are under the GC decision below.",
+      "figures": [
+        {
+          "text": "$3,800.00",
+          "fontSize": 30,
+          "testid": null,
+          "label": "Net this draw",
+          "top": 641,
+          "right": 340,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$5,400.00",
+          "fontSize": 18,
+          "testid": null,
+          "label": "Claimed",
+          "top": 743,
+          "right": 178,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$2,000.00",
+          "fontSize": 18,
+          "testid": null,
+          "label": "→Review suggests",
+          "top": 743,
+          "right": 344,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$4,000.00",
+          "fontSize": 18,
+          "testid": null,
+          "label": "→GC approved",
+          "top": 831,
+          "right": 178,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$200.00",
+          "fontSize": 18,
+          "testid": null,
+          "label": "→Retainage this draw",
+          "top": 848,
+          "right": 344,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$3,800.00",
+          "fontSize": 16,
+          "testid": null,
+          "label": "(8)This draw",
+          "top": 3496,
+          "right": 357,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$200.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": "Retainage held this period",
+          "top": 1303,
+          "right": 357,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$200.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": "Retainage still held on this agreement",
+          "top": 1351,
+          "right": 357,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$4,000.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": "Amount",
+          "top": 1613,
+          "right": 357,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$200.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": "Amount",
+          "top": 1865,
+          "right": 357,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$4,000.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 3175,
+          "right": 460,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 3175,
+          "right": 541,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$4,000.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 3175,
+          "right": 762,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 3175,
+          "right": 920,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$200.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 3175,
+          "right": 993,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$9,000.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": "(1)Original contract sum",
+          "top": 3180,
+          "right": 357,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$4,000.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 3183,
+          "right": 659,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": "(2)Net change by change orders",
+          "top": 3217,
+          "right": 357,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$9,000.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": "(3)Contract sum to date",
+          "top": 3254,
+          "right": 357,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$4,000.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": "(4)Total work completed to date",
+          "top": 3291,
+          "right": 357,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$200.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": "(5)Retainage (5% by line, rounded per line)",
+          "top": 3328,
+          "right": 357,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$3,500.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 3332,
+          "right": 460,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 3332,
+          "right": 541,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 3332,
+          "right": 762,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$3,500.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 3332,
+          "right": 920,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 3332,
+          "right": 993,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 3340,
+          "right": 659,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$200.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": "(5a)On completed work",
+          "top": 3385,
+          "right": 357,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$3,800.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": "(6)Total earned less retainage",
+          "top": 3422,
+          "right": 357,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": "(7)Previously paid",
+          "top": 3459,
+          "right": 357,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$1,500.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 3469,
+          "right": 460,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 3469,
+          "right": 541,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 3469,
+          "right": 762,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$1,500.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 3469,
+          "right": 920,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 3469,
+          "right": 993,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 3477,
+          "right": 659,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$9,000.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 3522,
+          "right": 460,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 3522,
+          "right": 541,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$4,000.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 3522,
+          "right": 667,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$4,000.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 3522,
+          "right": 762,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$5,000.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 3522,
+          "right": 920,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$200.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": null,
+          "top": 3522,
+          "right": 993,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$5,200.00",
+          "fontSize": 14,
+          "testid": null,
+          "label": "(9)Balance to finish, including retainage",
+          "top": 3537,
+          "right": 357,
+          "inClosedDetails": true
+        }
+      ],
+      "domOrder": [
+        {
+          "text": "$3,800.00",
+          "index": 14,
+          "testid": null
+        },
+        {
+          "text": "$5,400.00",
+          "index": 16,
+          "testid": null
+        },
+        {
+          "text": "$2,000.00",
+          "index": 19,
+          "testid": null
+        },
+        {
+          "text": "$4,000.00",
+          "index": 22,
+          "testid": null
+        },
+        {
+          "text": "$200.00",
+          "index": 25,
+          "testid": null
+        },
+        {
+          "text": "$200.00",
+          "index": 35,
+          "testid": null
+        },
+        {
+          "text": "$200.00",
+          "index": 36,
+          "testid": null
+        },
+        {
+          "text": "$4,000.00",
+          "index": 40,
+          "testid": null
+        },
+        {
+          "text": "$200.00",
+          "index": 46,
+          "testid": null
+        },
+        {
+          "text": "$4,000.00",
+          "index": 72,
+          "testid": null
+        },
+        {
+          "text": "$0.00",
+          "index": 73,
+          "testid": null
+        },
+        {
+          "text": "$4,000.00",
+          "index": 75,
+          "testid": null
+        },
+        {
+          "text": "$4,000.00",
+          "index": 76,
+          "testid": null
+        },
+        {
+          "text": "$0.00",
+          "index": 78,
+          "testid": null
+        },
+        {
+          "text": "$200.00",
+          "index": 79,
+          "testid": null
+        },
+        {
+          "text": "$3,500.00",
+          "index": 85,
+          "testid": null
+        },
+        {
+          "text": "$0.00",
+          "index": 86,
+          "testid": null
+        },
+        {
+          "text": "$0.00",
+          "index": 88,
+          "testid": null
+        },
+        {
+          "text": "$0.00",
+          "index": 90,
+          "testid": null
+        },
+        {
+          "text": "$3,500.00",
+          "index": 92,
+          "testid": null
+        },
+        {
+          "text": "$0.00",
+          "index": 93,
+          "testid": null
+        },
+        {
+          "text": "$1,500.00",
+          "index": 98,
+          "testid": null
+        },
+        {
+          "text": "$0.00",
+          "index": 99,
+          "testid": null
+        },
+        {
+          "text": "$0.00",
+          "index": 101,
+          "testid": null
+        },
+        {
+          "text": "$0.00",
+          "index": 102,
+          "testid": null
+        },
+        {
+          "text": "$1,500.00",
+          "index": 104,
+          "testid": null
+        },
+        {
+          "text": "$0.00",
+          "index": 105,
+          "testid": null
+        },
+        {
+          "text": "$9,000.00",
+          "index": 106,
+          "testid": null
+        },
+        {
+          "text": "$0.00",
+          "index": 107,
+          "testid": null
+        },
+        {
+          "text": "$4,000.00",
+          "index": 108,
+          "testid": null
+        },
+        {
+          "text": "$4,000.00",
+          "index": 109,
+          "testid": null
+        },
+        {
+          "text": "$5,000.00",
+          "index": 111,
+          "testid": null
+        },
+        {
+          "text": "$200.00",
+          "index": 112,
+          "testid": null
+        },
+        {
+          "text": "$9,000.00",
+          "index": 116,
+          "testid": null
+        },
+        {
+          "text": "$0.00",
+          "index": 118,
+          "testid": null
+        },
+        {
+          "text": "$9,000.00",
+          "index": 120,
+          "testid": null
+        },
+        {
+          "text": "$4,000.00",
+          "index": 122,
+          "testid": null
+        },
+        {
+          "text": "$200.00",
+          "index": 124,
+          "testid": null
+        },
+        {
+          "text": "$200.00",
+          "index": 126,
+          "testid": null
+        },
+        {
+          "text": "$3,800.00",
+          "index": 128,
+          "testid": null
+        },
+        {
+          "text": "$0.00",
+          "index": 130,
+          "testid": null
+        },
+        {
+          "text": "$3,800.00",
+          "index": 132,
+          "testid": null
+        },
+        {
+          "text": "$5,200.00",
+          "index": 134,
+          "testid": null
+        }
+      ],
+      "primary": [
+        {
+          "tag": "A",
+          "text": "View payments",
+          "testid": "payapp-view-payments",
+          "height": 44
+        }
+      ],
+      "trail": {
+        "top": 514,
+        "right": 374,
+        "width": 358,
+        "height": 502,
+        "inClosedDetails": false
+      },
+      "net": {
+        "text": "$3,800.00",
+        "fontSize": 30,
+        "testid": null,
+        "label": "Net this draw",
+        "top": 641,
+        "right": 340,
+        "inClosedDetails": false
+      },
+      "netIndex": 0,
+      "claimedIndex": 1,
+      "details": {
+        "breakdown": {
+          "open": false,
+          "visible": true,
+          "summary": "Pay app breakdownLine by line, as stored",
+          "bodyText": 41,
+          "contentRendered": false
+        },
+        "summary": {
+          "open": false,
+          "visible": true,
+          "summary": "Pay app summaryHow the net payment is reached",
+          "bodyText": 46,
+          "contentRendered": false
+        },
+        "history": {
+          "open": false,
+          "visible": true,
+          "summary": "Submission and approval historyTimestamps and the recorded reasons",
+          "bodyText": 67,
+          "contentRendered": false
+        }
+      },
+      "payment": {
+        "top": 1032,
+        "right": 374,
+        "width": 358,
+        "height": 416,
+        "inClosedDetails": false
+      },
+      "waiver": {
+        "top": 1464,
+        "right": 374,
+        "width": 358,
+        "height": 589,
+        "inClosedDetails": false
+      },
+      "meta": {
+        "top": 2570,
+        "right": 357,
+        "width": 324,
+        "height": 20,
+        "inClosedDetails": false
+      },
+      "moreActionsOpen": false,
+      "paymentText": "Payment\n\nPaid $3,800.00\n\nPaid\nNov 8, 2026, 4:18 PM UTC\n\nTo [sandbox email] · from Rough-in\n\nPayPal payout batch\nD5V7XEN5YZH4C\nCopy\n\nStatus as recorded Nov 8, 2026, 4:18 PM UTC from PayPal API responses and webhooks. It is not a live PayPal balance; refreshing asks PayPal again and records the answer.\n\nRetainage held this period\n$200.00\nRetainage still held on this agreement\n$200.00\n\nRetainage held is withheld from approved work. A retainage release is a separate recorded payout; releasing it in this demo does not certify project closeout.",
+      "controls": 11,
+      "under24": []
+    }
+  ],
+  "diagnostics": [
+    {
+      "width": 1440,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [],
+      "ignoredAborts": [
+        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED"
+      ]
+    },
+    {
+      "width": 390,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [],
+      "ignoredAborts": [
+        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED",
+        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED"
+      ]
+    }
+  ]
+}

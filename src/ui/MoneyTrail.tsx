@@ -22,12 +22,19 @@ export interface MoneyTrailStep {
 
 export interface MoneyTrailProps {
   steps: readonly MoneyTrailStep[];
+  /**
+   * The number the screen exists to show. Rendered above the stages at `text-3xl` — the largest
+   * figure on the page — so a phone reader sees the outcome before the derivation.
+   */
+  hero?: MoneyTrailStep;
   title?: ReactNode;
   description?: ReactNode;
   testId?: string;
   ariaLabel?: string;
   /** `compact` drops the Card and shrinks the type for use inside a proposal card. */
   variant?: "default" | "compact";
+  /** Fine print under the steps: the retainage held, the edit note, a receipt link. */
+  footer?: ReactNode;
   className?: string;
 }
 
@@ -39,14 +46,29 @@ const VALUE_TONE: Record<NonNullable<MoneyTrailStep["tone"]>, string> = {
 
 export function MoneyTrail({
   steps,
+  hero,
   title,
   description,
   testId,
   ariaLabel = "Money trail",
   variant = "default",
+  footer,
   className,
 }: MoneyTrailProps) {
   const compact = variant === "compact";
+  const headline = hero && !compact ? (
+    <dl className="mb-2 rounded-lg border border-line-strong bg-surface-raised px-4 py-3">
+      <dt className="text-[11px] uppercase tracking-wide text-ink-subtle">{hero.label}</dt>
+      <dd
+        data-testid={hero.valueTestId}
+        className={cx("text-3xl font-bold leading-tight tabular-nums", VALUE_TONE[hero.tone ?? "default"])}
+      >
+        {formatCents(hero.valueCents)}
+        {hero.note ? <span className="mt-0.5 block text-xs font-normal text-ink-muted">{hero.note}</span> : null}
+      </dd>
+    </dl>
+  ) : null;
+
   const list = (
     <dl aria-label={ariaLabel} className="flex flex-wrap items-stretch gap-2">
       {steps.map((step, index) => (
@@ -77,16 +99,24 @@ export function MoneyTrail({
     </dl>
   );
 
+  const body = (
+    <>
+      {headline}
+      {list}
+      {footer ? <div className="mt-3 space-y-1">{footer}</div> : null}
+    </>
+  );
+
   if (title !== undefined || description !== undefined) {
     return (
       <Card data-testid={testId} title={title} description={description} className={className}>
-        {list}
+        {body}
       </Card>
     );
   }
   return (
     <div data-testid={testId} className={className}>
-      {list}
+      {body}
     </div>
   );
 }
