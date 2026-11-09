@@ -99,6 +99,7 @@ function draw(kind: Kind, status: DrawStatus) {
     paypalInvoiceId: paid ? "INV2-5ZNS-USY8-KBFD-L3B9" : null,
     payerViewUrl: paid ? "https://www.sandbox.paypal.com/invoice/payerView/details/INV2-5ZNS-USY8-KBFD-L3B9" : null,
     paypalInvoiceStatus: paid ? "PAID" : null,
+    paidAt: paid ? 1_794_156_104_483 : null,
     recipientEmail: "owner-q97f6pmh2d5qn733jmh5pg4c3x8hr9sn@example.com",
     invoiceBlockedReason: null,
     error: null,
@@ -176,7 +177,7 @@ describe("owner draw screen", () => {
     expect(requestTag).not.toContain("bg-accent text-accent-fg");
   });
 
-  test("a paid draw states the word Paid and makes the PayPal invoice the one primary action", () => {
+  test("a paid draw reads Paid this draw with its date and makes the PayPal receipt the one primary action", () => {
     routeQueries("residential", "paid");
     const html = renderPage();
     const rendered = text(html);
@@ -184,14 +185,20 @@ describe("owner draw screen", () => {
     expect(html).toContain('data-status="paid"');
     expect(html).not.toContain(">paid<");
     expect(rendered).not.toContain("submitted_to_owner");
-    expect(rendered).toContain("Paid by PayPal");
+    expect(rendered).toContain("Paid this draw");
+    expect(rendered).toContain("Paid by PayPal · Nov 8, 2026");
+    expect(rendered).not.toContain("Current payment due");
     expect(primaryCount(html)).toBe(1);
     expect(html).toContain('data-testid="owner-invoice-payer-link"');
+    expect(rendered).toContain("Open the PayPal receipt");
     const linkTag = html.slice(html.indexOf('data-testid="owner-invoice-payer-link"') - 500, html.indexOf('data-testid="owner-invoice-payer-link"'));
     expect(linkTag).toContain("bg-accent text-accent-fg");
     expect(linkTag).toContain("min-h-touch");
     expect(rendered).not.toContain("owner-q97f6pmh2d5qn733jmh5pg4c3x8hr9sn@example.com");
     expect(rendered).toContain("[demo inbox]@example.com");
+    // The one-line read-only notice sits below the money, not above the draw.
+    expect(html.indexOf('data-testid="read-only-reference"')).toBeGreaterThan(html.indexOf('data-testid="owner-draw-money-trail"'));
+    expect(rendered).not.toContain("Approving one sends you");
   });
 
   test("the status pill uses words and the invoice status is never the raw code", () => {

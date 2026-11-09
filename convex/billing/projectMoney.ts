@@ -36,6 +36,8 @@ const projectContextValidator = v.object({
   projectId: v.id("projects"),
   projectTitle: v.string(),
   projectKind: v.union(v.literal("residential"), v.literal("commercial")),
+  /** The owner-side retainage rate stored on the project, shown beside the collected figure. */
+  ownerRetainageBps: v.union(v.number(), v.null()),
 });
 
 const ownerPayAppReceiptValidator = v.object({
@@ -66,6 +68,8 @@ const retainageReceiptValidator = v.object({
   agreementNumber: v.string(),
   payAppId: v.union(v.id("payApplications"), v.null()),
   amountCents: v.number(),
+  /** The subcontract's retainage rate, shown beside the held figure. */
+  retainageBps: v.union(v.number(), v.null()),
 });
 
 const owedReceiptValidator = v.object({
@@ -239,6 +243,7 @@ async function addProjectMoney(
           agreementNumber: agreement.agreementNumber,
           payAppId: payment?.payAppId ?? null,
           amountCents: entry.deltaCents,
+          retainageBps: agreement.terms?.retainageBps ?? Math.round(agreement.retainagePercent * 100),
         });
       }
     }
@@ -314,6 +319,7 @@ export const getProjectMoney = query({
       projectId: access.project._id,
       projectTitle: access.project.title,
       projectKind: projectKindOf(access.project),
+      ownerRetainageBps: access.project.retainageBps ?? null,
     }));
     const one = args.projectId !== undefined ? projects[0] : null;
     // Trim before the return so `truncated` reflects a receipt cap too.

@@ -67,6 +67,22 @@ test("the landing leads with the residential GC job story, not the judge checkli
   expect(html).toContain("<details");
 });
 
+test("the demo page leads with one filled GC seat and a settled dollar figure before the other seats", () => {
+  const html = renderToStaticMarkup(<DemoAccessPage />);
+  expect(html).toContain("Sign in as the general contractor");
+  expect(html).toContain('data-testid="demo-money-proof"');
+  expect(html).toContain("$3,800.00");
+  expect(html.indexOf('data-testid="demo-money-proof"')).toBeLessThan(html.indexOf('data-testid="demo-enter-gc"'));
+  const primary = [...html.matchAll(/class="([^"]*)"/g)].map((match) => match[1]).filter((className) => className.split(/\s+/).includes("bg-accent"));
+  expect(primary).toHaveLength(1);
+  const gcTag = html.match(/<button[^>]*data-testid="demo-enter-gc"[^>]*>/)?.[0] ?? "";
+  expect(gcTag).toContain("bg-accent");
+  const subTag = html.match(/<button[^>]*data-testid="demo-enter-sub"[^>]*>/)?.[0] ?? "";
+  expect(subTag).not.toContain("bg-accent");
+  // The defence and sandbox words sit below the seats, not in the first reading block.
+  expect(html.indexOf('data-testid="demo-defence"')).toBeGreaterThan(html.indexOf('data-testid="demo-enter-owner"'));
+});
+
 test("guide never silently replaces an existing signed-in account", () => {
   vi.mocked(useConvexAuth).mockReturnValue({ isAuthenticated: true, isLoading: false, isRefreshing: false });
   const html = renderToStaticMarkup(<DemoAccessPage />);

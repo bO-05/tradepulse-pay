@@ -301,11 +301,10 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
         <p className="text-xs text-ink-subtle">The figures on this page are the GC-approved amounts.</p>
       ) : null}
 
-      {view.readOnlyReference ? (
-        <ReferenceNotice title="Preserved reference job · read-only." showFreshRunLink={view.viewerRole !== "sub"} />
-      ) : null}
-
       {view.status !== "draft" ? <PayAppMoneyTrail view={view} terms={terms} /> : null}
+      {view.readOnlyReference ? (
+        <ReferenceNotice title="Preserved reference job · read-only." />
+      ) : null}
       {view.status !== "draft" && view.viewerRole === "gc" ? <GcReviewPanel key={view.review?.reviewedAt ?? 0} view={view} /> : null}
       {view.status !== "draft" ? <PaymentPanel payAppId={view._id} projectKind={view.projectKind} /> : null}
       {view.status !== "draft" ? <LienWaiverPanel payAppId={view._id} /> : null}

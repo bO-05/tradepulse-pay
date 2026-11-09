@@ -37,6 +37,7 @@ function money({
     projectId: PROJECT_ID,
     projectTitle: "Lopez Kitchen Remodel",
     projectKind: kind,
+    ownerRetainageBps: kind === "residential" ? 1_000 : null,
   };
   return {
     scope: {
@@ -88,6 +89,7 @@ function money({
               agreementNumber: "SC-22-ORTIZ-0001",
               payAppId: PAY_APP_ID,
               amountCents: retainage,
+              retainageBps: 500,
             },
           ]
         : [],
@@ -148,6 +150,10 @@ describe("the project money strip values", () => {
     expect(cell(html, "project-money-paid-subs").text).toBe("$3,800.00");
     expect(cell(html, "project-money-retainage").text).toBe("$200.00");
     expect(cell(html, "project-money-owed").text).toBe("$0.00");
+    const rendered = plain(html);
+    expect(rendered).toContain("5% to the sub");
+    expect(rendered).toContain("$400.00 at 10% from the homeowner");
+    expect(html).toContain('data-testid="project-money-owner-retainage"');
     expect(cell(html, "project-money-collected").openingTag).toContain("text-2xl");
     expect(cell(html, "project-money-collected").openingTag).toContain("tabular-nums");
     expect(html).toContain('data-testid="project-money-strip"');

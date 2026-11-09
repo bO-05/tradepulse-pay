@@ -3,7 +3,7 @@ import { api } from "../../convex/_generated/api";
 import { maskSandboxEmail } from "../lib/demoPrivacy";
 import { termsForKind } from "../lib/terms";
 import { Card, CommercialReferenceBadge, LinkButton, Money, PageHeader, StatusPill } from "../ui";
-import { formatDateTime } from "../ui/format";
+import { formatDate, formatDateTime } from "../ui/format";
 import { ReceiptId } from "./ReceiptId";
 
 /** PayPal's hosted invoice page, sandbox or live; anything else is not a link we will render. */
@@ -74,17 +74,25 @@ export function ChangeOrderDetail({ changeOrderId }: { changeOrderId: string }) 
               rel="noreferrer"
               data-testid="change-order-invoice-link"
             >
-              Open the PayPal invoice
+              Open the PayPal {co.paidAt === null ? "invoice" : "receipt"}
             </LinkButton>
           ) : undefined
         }
       />
 
       <Card title="Amount">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <p className="text-3xl font-bold leading-tight tabular-nums text-ink" data-testid="change-order-amount">
-            <Money cents={co.amountCents} />
-          </p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-3xl font-bold leading-tight tabular-nums text-ink" data-testid="change-order-amount">
+              <Money cents={co.amountCents} />
+            </p>
+            {co.paidAt !== null ? (
+              <span className="flex flex-wrap items-center gap-2 text-sm text-ink-muted" data-testid="change-order-paid-state">
+                <StatusPill status={co.status} kind={co.projectKind} />
+                <span>Paid {formatDate(co.paidAt)}</span>
+              </span>
+            ) : null}
+          </div>
           <p className="text-sm text-ink-subtle">
             {scopeLabel} change order{co.sovLineNo !== null ? ` · SOV line ${co.sovLineNo}` : ""}
           </p>

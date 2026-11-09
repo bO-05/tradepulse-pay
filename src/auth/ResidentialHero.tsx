@@ -34,7 +34,7 @@ export function ResidentialHeroIntro({
   const Heading = level === 1 ? "h1" : "h2";
   return (
     <div className={compact ? "space-y-3" : "space-y-4"}>
-      <p className="font-mono text-xs uppercase tracking-[0.2em] text-emerald-300">Pay apps for owner-run remodels</p>
+      <p className="font-mono text-sm uppercase tracking-[0.2em] text-emerald-300">Progress draws for owner-run remodels</p>
       <Heading
         id={headingId}
         className={

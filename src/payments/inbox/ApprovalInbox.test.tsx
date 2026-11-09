@@ -56,6 +56,7 @@ function proposal(overrides: Record<string, unknown> = {}) {
 function inboxItem(overrides: Record<string, unknown> = {}) {
   return {
     readOnlyReference: false,
+    projectKind: "commercial",
     payApp: {
       _id: "payapp_1",
       status: "reviewed",
@@ -83,6 +84,40 @@ function inboxItem(overrides: Record<string, unknown> = {}) {
     ],
     payment: null,
     ...overrides,
+  };
+}
+
+function residentialSettledItem() {
+  const base = inboxItem();
+  return {
+    ...base,
+    readOnlyReference: true,
+    projectKind: "residential",
+    payApp: {
+      ...base.payApp,
+      _id: "payapp_lopez_draw",
+      status: "paid",
+      periodLabel: "Pay app #1 – period ending Oct 15, 2026",
+      requestedTotalCents: 540_000,
+      finalApproval: { totalCents: 400_000, approvedAt: 1_794_156_100_000 },
+      review: null,
+    },
+    agreement: {
+      ...base.agreement,
+      _id: "agreement_ortiz",
+      agreementNumber: "SC-22-ORTIZ-0001",
+      projectTitle: "Lopez Kitchen Remodel",
+      subcontractorName: "Ortiz Plumbing",
+      retainagePercent: 5,
+    },
+    proposals: [
+      proposal({
+        _id: "proposal_paid_payout",
+        status: "executed",
+        amountCents: 400_000,
+        split: { retainageCents: 20_000, netCents: 380_000 },
+      }),
+    ],
   };
 }
 
@@ -171,6 +206,34 @@ describe("the GC approval inbox", () => {
     const html = renderToStaticMarkup(<ApprovalInbox />);
     expect(html.match(/data-testid="approve-proposal"/g)).toHaveLength(3);
     expect(primaryElements(html)).toHaveLength(1);
+  });
+
+  test("the settled residential draw is the first card and the one filled action names the money", () => {
+    mockQueries([inboxItem(), residentialSettledItem()]);
+    const html = renderToStaticMarkup(<ApprovalInbox />);
+    const residential = html.indexOf('data-testid="inbox-residential-decision"');
+    const commercial = html.indexOf('data-testid="inbox-entry"');
+    expect(residential).toBeGreaterThan(-1);
+    expect(residential).toBeLessThan(commercial);
+    expect(html.indexOf("Needs your attention")).toBeLessThan(residential);
+    expect(html).toContain('data-testid="inbox-residential-decision-action"');
+    expect(html).toContain("Approve $4,000.00 and pay $3,800.00");
+    expect(primaryElements(html)).toHaveLength(1);
+    const card = html.slice(residential, html.indexOf("</article>", residential));
+    expect(card).not.toContain("A401-");
+    expect(card).not.toContain("status");
+    expect(card).toContain("Lopez Kitchen Remodel");
+  });
+
+  test("the settled residential card leaves the commercial decision queued without a second primary", () => {
+    mockQueries([residentialSettledItem(), inboxItem()]);
+    const html = renderToStaticMarkup(<ApprovalInbox />);
+    expect(primaryElements(html)).toHaveLength(1);
+    const primary = primaryElements(html)[0];
+    expect(primary).toContain("bg-accent");
+    expect(html.split('data-testid="approve-proposal"').length - 1).toBeGreaterThan(0);
+    const firstApprove = html.match(/<button[^>]*data-testid="approve-proposal"[^>]*>/)?.[0] ?? "";
+    expect(firstApprove).not.toContain("bg-accent");
   });
 
   test("removes the duplicate jump-to-approve affordance while keeping its pinned hook", () => {

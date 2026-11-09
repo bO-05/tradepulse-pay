@@ -52,8 +52,16 @@ export function DemoAccessPage() {
           <section aria-labelledby="choose-demo-role" className="space-y-3">
             <h2 id="choose-demo-role" tabIndex={-1} className="text-xl font-semibold">Choose your seat</h2>
             <p className="max-w-xl text-sm text-slate-400">
-              Start with the GC seat. No signup or sponsor account is needed for the core demo. These buttons use
-              ordinary demo-account sign-in, not an authentication bypass.
+              Start with the GC seat. No signup or sponsor account is needed for the core demo.
+            </p>
+            <p
+              className="rounded-lg border border-emerald-900/70 bg-emerald-950/30 px-3 py-2 text-sm leading-relaxed text-emerald-100"
+              data-testid="demo-money-proof"
+            >
+              Settled Lopez draw: <strong className="tabular-nums">$5,400.00</strong> requested,{" "}
+              <strong className="tabular-nums">$4,000.00</strong> approved,{" "}
+              <strong className="tabular-nums">$3,800.00</strong> paid after{" "}
+              <strong className="tabular-nums">$200.00</strong> retainage.
             </p>
             {error && <FormAlert>{error}</FormAlert>}
             {isAuthenticated ? (
@@ -66,27 +74,39 @@ export function DemoAccessPage() {
               </div>
             ) : (
               <div className="grid gap-2 sm:gap-3">
-                {DEMO_SEATS.map((seat) => (
-                  <button
-                    key={seat.email}
-                    type="button"
-                    onClick={() => void enter(seat)}
-                    disabled={isLoading || pending !== null}
-                    data-testid={`demo-enter-${seat.testId}`}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-left transition hover:border-emerald-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-300 disabled:opacity-50 sm:p-5"
-                  >
-                    <span className="flex items-center justify-between gap-3 text-base font-semibold sm:text-lg">
-                      <span>{seat.title}</span>
-                      <span aria-hidden="true" className="text-emerald-300">→</span>
-                    </span>
-                    <span className="mt-1 block text-sm text-slate-300">{seat.detail}</span>
-                    <span className="mt-2 block break-all font-mono text-xs text-emerald-300">
-                      {pending === seat.email ? "Signing in…" : seat.email}
-                    </span>
-                  </button>
-                ))}
+                {DEMO_SEATS.map((seat) => {
+                  const primarySeat = seat.testId === "gc";
+                  return (
+                    <button
+                      key={seat.email}
+                      type="button"
+                      onClick={() => void enter(seat)}
+                      disabled={isLoading || pending !== null}
+                      data-testid={`demo-enter-${seat.testId}`}
+                      data-primary={primarySeat ? "true" : undefined}
+                      className={`w-full rounded-xl border px-4 py-3 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-300 disabled:opacity-50 sm:p-5 ${
+                        primarySeat
+                          ? "border-transparent bg-accent text-accent-fg hover:bg-accent-hover"
+                          : "border-slate-700 bg-slate-900 hover:border-emerald-400"
+                      }`}
+                    >
+                      <span className="flex items-center justify-between gap-3 text-base font-semibold sm:text-lg">
+                        <span>{seat.title}</span>
+                        <span aria-hidden="true" className={primarySeat ? undefined : "text-emerald-300"}>→</span>
+                      </span>
+                      <span className={`mt-1 block text-sm ${primarySeat ? "text-accent-fg/90" : "text-slate-300"}`}>{seat.detail}</span>
+                      <span className={`mt-2 block break-all font-mono text-xs ${primarySeat ? "text-accent-fg/90" : "text-emerald-300"}`}>
+                        {pending === seat.email ? "Signing in…" : seat.email}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             )}
+            <p className="max-w-xl text-xs leading-relaxed text-slate-400" data-testid="demo-defence">
+              These buttons use ordinary demo-account sign-in, not an authentication bypass. Funding and invoice
+              payment still need sandbox browser approval.
+            </p>
             <a href="#" className="inline-block text-sm text-emerald-300 underline">Normal sign-in / create a GC account</a>
           </section>
         </div>

@@ -1,0 +1,10 @@
+--- 1440px ---
+demo: pageErrors []; consoleErrors []; failedRequests []
+gc-screens: pageErrors []; consoleErrors []; failedRequests []
+owner-screens: pageErrors []; consoleErrors []; failedRequests []
+owner-home: pageErrors []; consoleErrors []; failedRequests []
+--- 390px ---
+demo: pageErrors []; consoleErrors []; failedRequests []
+gc-screens: pageErrors []; consoleErrors []; failedRequests []
+owner-screens: pageErrors []; consoleErrors []; failedRequests []
+owner-home: pageErrors []; consoleErrors []; failedRequests []

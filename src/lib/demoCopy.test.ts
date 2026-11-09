@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { demoDisplayName, demoPeriodLabel, demoProjectDescription, demoProjectName } from "./demoCopy";
+import { demoDisplayName, demoIdentityName, demoPeriodLabel, demoProjectDescription, demoProjectName } from "./demoCopy";
 
 describe("seeded demo names read as real", () => {
   test("drops a demo or seed parenthetical and the old brand suffix", () => {
@@ -18,6 +18,20 @@ describe("seeded demo names read as real", () => {
   test("leaves a real company name alone", () => {
     expect(demoDisplayName("Rosendin Electric, Inc.")).toBe("Rosendin Electric, Inc.");
     expect(demoDisplayName("Bayview Remodeling")).toBe("Bayview Remodeling");
+  });
+});
+
+describe("the demo identity chip names the residential job", () => {
+  test("the shared demo seats read as the GC and owner on the Lopez job", () => {
+    expect(demoIdentityName("Demo GC")).toBe("Bayview Remodeling");
+    expect(demoIdentityName("Demo GC (TradePulse Pay demo)")).toBe("Bayview Remodeling");
+    expect(demoIdentityName("Demo Owner")).toBe("Dana Lopez");
+    expect(demoIdentityName("Demo Owner (Domain Tower B)")).toBe("Dana Lopez");
+  });
+
+  test("a real account name is unchanged", () => {
+    expect(demoIdentityName("Ortiz Plumbing")).toBe("Ortiz Plumbing");
+    expect(demoIdentityName("Rosendin Electric, Inc.")).toBe("Rosendin Electric, Inc.");
   });
 });
 

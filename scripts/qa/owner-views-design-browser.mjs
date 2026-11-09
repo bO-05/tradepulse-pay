@@ -187,7 +187,7 @@ for (const [width, height] of [[1440, 900], [390, 844]]) {
   for (const label of ["Contract to date", "Work completed", "Retainage held", "Paid to date", "Balance to finish"]) {
     check(`${tag} owner trail names ${label}`, homeStructure.trailText.toLowerCase().includes(label.toLowerCase()), homeStructure.trailText.slice(0, 400));
   }
-  check(`${tag} the balance is the hero money figure at text-3xl`, home.moneyFigures[0]?.testid === "owner-job-balance" && (home.moneyFigures[0]?.fontSize ?? 0) >= 24, JSON.stringify(home.moneyFigures.slice(0, 3)));
+  check(`${tag} the paid figure is the hero money figure at text-3xl`, home.moneyFigures[0]?.testid === "owner-job-paid" && (home.moneyFigures[0]?.fontSize ?? 0) >= 24, JSON.stringify(home.moneyFigures.slice(0, 3)));
   check(`${tag} the job status line is not empty`, (homeStructure.jobStatus ?? "").trim().length > 0, String(homeStructure.jobStatus));
   check(`${tag} owner home has no horizontal page overflow`, home.scrollWidth <= home.clientWidth, `${home.scrollWidth} vs ${home.clientWidth}`);
   check(`${tag} owner home has no visible control under 24px`, home.under24.length === 0, JSON.stringify(home.under24));
@@ -210,6 +210,10 @@ for (const [width, height] of [[1440, 900], [390, 844]]) {
       headerText: document.querySelector('[data-testid="owner-pay-app"]')?.querySelector("h3")?.innerText ?? null,
       trailText: document.querySelector('[data-testid="owner-draw-money-trail"]')?.innerText ?? "",
       invoiceText: document.querySelector('[data-testid="owner-invoice-panel"]')?.innerText ?? "",
+      noticeTop: (() => {
+        const el = document.querySelector('[data-testid="read-only-reference"]');
+        return el ? Math.round(el.getBoundingClientRect().top + window.scrollY) : null;
+      })(),
       drawerOpen: document.querySelector('[data-testid="owner-draw-breakdown"]')?.open ?? null,
     };
   });
@@ -217,14 +221,17 @@ for (const [width, height] of [[1440, 900], [390, 844]]) {
   check(`${tag} owner draw opens on the Lopez draw`, /Lopez Kitchen Remodel/.test(drawStructure.pickedProject) && /Draw #1/.test(drawStructure.headerText ?? ""), JSON.stringify(drawStructure));
   check(`${tag} draw page heading is Draws`, draw.h1s.length === 1 && draw.h1s[0] === "Draws", JSON.stringify(draw.h1s));
   check(`${tag} draw money trail is visible`, (draw.drawTrail?.height ?? 0) > 0);
-  for (const label of ["Current payment due", "Contract to date", "Work completed", "Retainage held", "Previous draws"]) {
+  for (const label of ["Paid this draw", "Contract to date", "Work completed", "Retainage held", "Previous draws"]) {
     check(`${tag} draw trail names ${label}`, drawStructure.trailText.toLowerCase().includes(label.toLowerCase()), drawStructure.trailText.slice(0, 400));
   }
-  check(`${tag} current payment due is the hero money figure at text-3xl`, draw.moneyFigures[0]?.testid === "owner-draw-payment-due" && (draw.moneyFigures[0]?.fontSize ?? 0) >= 24, JSON.stringify(draw.moneyFigures.slice(0, 3)));
+  check(`${tag} paid this draw is the hero money figure at text-3xl`, draw.moneyFigures[0]?.testid === "owner-draw-payment-due" && (draw.moneyFigures[0]?.fontSize ?? 0) >= 24, JSON.stringify(draw.moneyFigures.slice(0, 3)));
   check(`${tag} the money trail sits above the numbered summary`, (draw.drawTrail?.top ?? 0) < (draw.summary?.top ?? 0), `${draw.drawTrail?.top} vs ${draw.summary?.top}`);
   check(`${tag} exactly one primary action on the draw`, draw.primary.length === 1, JSON.stringify(draw.primary));
-  check(`${tag} the draw primary is the named invoice action and meets 44px`, /invoice/i.test(draw.primary[0]?.text ?? "") && (draw.primary[0]?.height ?? 0) >= 44, JSON.stringify(draw.primary));
+  check(`${tag} the draw primary is the named PayPal receipt action and meets 44px`, /PayPal receipt/i.test(draw.primary[0]?.text ?? "") && (draw.primary[0]?.height ?? 0) >= 44, JSON.stringify(draw.primary));
   check(`${tag} the draw status words are plain`, draw.statusWords.some((s) => s.code === "paid" && s.label === "Paid"), JSON.stringify(draw.statusWords));
+  check(`${tag} a paid draw never says Current payment due`, !/current payment due/i.test(draw.mainText), draw.mainText.slice(0, 400));
+  check(`${tag} a paid draw names Paid by PayPal with its date`, /Paid by PayPal\s*·\s*Nov 8, 2026/.test(drawStructure.trailText), drawStructure.trailText.slice(0, 200));
+  check(`${tag} the read-only notice sits below the money trail`, (drawStructure.noticeTop ?? 0) > (draw.drawTrail?.top ?? 0), `${drawStructure.noticeTop} vs ${draw.drawTrail?.top}`);
   check(`${tag} the invoice status is never the raw code`, /PayPal status\s+Paid/.test(drawStructure.invoiceText) && !/PAID/.test(drawStructure.invoiceText), drawStructure.invoiceText.slice(0, 200));
   check(`${tag} the breakdown starts collapsed`, drawStructure.drawerOpen === false, String(drawStructure.drawerOpen));
   check(`${tag} owner draw has no horizontal page overflow`, draw.scrollWidth <= draw.clientWidth, `${draw.scrollWidth} vs ${draw.clientWidth}`);
@@ -263,11 +270,13 @@ for (const [width, height] of [[1440, 900], [390, 844]]) {
   const coStructure = await page.evaluate(() => ({
     title: document.querySelector("main h1")?.innerText ?? null,
     amountText: document.querySelector('[data-testid="change-order-amount"]')?.innerText ?? null,
+    amountCardText: document.querySelector('[data-testid="change-order-amount"]')?.closest("section")?.innerText ?? null,
     invoiceLink: (() => {
       const el = document.querySelector('[data-testid="change-order-invoice-link"]');
       if (!el) return null;
       return {
         tag: el.tagName,
+        text: (el.textContent ?? "").trim(),
         href: el.getAttribute("href"),
         className: el.className,
         height: Math.round(el.getBoundingClientRect().height),
@@ -279,6 +288,8 @@ for (const [width, height] of [[1440, 900], [390, 844]]) {
   check(`${tag} CO page has exactly one h1 naming the change order`, co.h1s.length === 1 && /Add under-cabinet lighting/.test(co.h1s[0]), JSON.stringify(co.h1s));
   check(`${tag} CO amount is large and tabular`, (co.moneyFigures[0]?.fontSize ?? 0) >= 24 && co.moneyFigures[0]?.testid === "change-order-amount", JSON.stringify(co.moneyFigures.slice(0, 3)));
   check(`${tag} CO amount is $1,200.00`, /\$1,200\.00/.test(coStructure.amountText ?? ""), String(coStructure.amountText));
+  check(`${tag} a paid CO shows the word Paid and its date beside the amount`, /Paid\s+Nov 8, 2026/.test(coStructure.amountCardText ?? ""), (coStructure.amountCardText ?? "").slice(0, 200));
+  check(`${tag} a paid CO action opens the PayPal receipt`, /PayPal receipt/i.test(coStructure.invoiceLink?.text ?? ""), String(coStructure.invoiceLink?.text));
   check(`${tag} CO status is a plain word`, co.statusWords.some((s) => s.code === "paid" && s.label === "Paid"), JSON.stringify(co.statusWords));
   check(`${tag} CO page never prints the raw status code`, !/PAID/.test(co.mainText) && !/\bpaid\b/.test(co.mainText.replace(/Previously paid/g, "").replace(/paid invoice/g, "")), co.mainText.slice(0, 600));
   check(`${tag} PayPal invoice link is a real link styled as a button`, coStructure.invoiceLink?.tag === "A" && /sandbox\.paypal\.com/.test(coStructure.invoiceLink?.href ?? "") && coStructure.invoiceLink.className.includes("bg-accent") && (coStructure.invoiceLink.height ?? 0) >= 44, JSON.stringify(coStructure.invoiceLink));

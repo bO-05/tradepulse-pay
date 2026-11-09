@@ -52,7 +52,6 @@ export function ProjectPage({ projectId }: { projectId: string }) {
         }
       />
       {archived && <ArchivedBanner projectId={project._id} />}
-      {readOnlyReference && <ReferenceNotice title="Preserved reference job · read-only." />}
       <ProjectMoneyStrip projectId={project._id} />
       <ProjectMoneyTrail
         projectId={project._id}
@@ -60,6 +59,7 @@ export function ProjectPage({ projectId }: { projectId: string }) {
         projectKind={project.projectKind}
         contractValueCents={project.contractValueCents}
       />
+      {readOnlyReference && <ReferenceNotice title="Preserved reference job · read-only." />}
       <ProjectDetailsCard project={project} />
       <OwnerCompanyCard projectId={project._id} />
       <TradePackagesSection

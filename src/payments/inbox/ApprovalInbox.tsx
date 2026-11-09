@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { api } from "../../../convex/_generated/api";
 import { fromDollars, toDollarString } from "../../../convex/lib/money";
 import { readableError } from "../FundMilestone";
@@ -54,6 +54,11 @@ const FLAG_TEXT: Record<string, string> = {
 function flagText(flag: string): string {
   if (flag.startsWith("license_") && flag !== "license_hold") return `License ${flag.slice("license_".length).replace("_", " ")}`;
   return FLAG_TEXT[flag] ?? flag.replace(/_/g, " ");
+}
+
+/** The stored rationale sometimes names a seeded commercial agreement; the home says the plain word. */
+function withoutDemoAgreementId(text: string): string {
+  return text.replace(/\bA401-[A-Z0-9-]+\b/gi, "the subcontract");
 }
 
 function useRun() {
@@ -306,7 +311,7 @@ function ProposalCard({
           {proposal.milestoneName ? <p className="text-xs text-ink-subtle">Milestone: {proposal.milestoneName}</p> : null}
         </div>
       ) : null}
-      <p className="text-xs text-slate-200" data-testid="proposal-rationale">{auditText(reviewText(proposal.rationale))}</p>
+      <p className="text-xs text-slate-200" data-testid="proposal-rationale">{auditText(reviewText(withoutDemoAgreementId(proposal.rationale)))}</p>
       {proposal.editedReason ? (
         <p className="rounded-lg border border-amber-800/60 bg-amber-950/30 px-2 py-1 text-xs text-amber-100" data-testid="proposal-edited-reason">
           <span className="font-semibold">GC reason for the change:</span> {auditText(proposal.editedReason)}
@@ -420,6 +425,60 @@ function RejectPayAppButton({ payAppId }: { payAppId: string }) {
   );
 }
 
+/** The approved total a settled reference decision reports, from stored figures only. */
+function approvedCentsOf(item: InboxItem): number {
+  return item.payApp.finalApproval?.totalCents ?? item.payApp.review?.approvedTotalCents ?? item.payApp.requestedTotalCents;
+}
+
+/** The payout split behind the settled decision, from the proposal the server stored. */
+function payoutSplitOf(item: InboxItem): { retainageCents: number; netCents: number } | null {
+  const proposal = item.proposals.find((p) => p.kind === "payout" && p.split !== null) ?? item.proposals.find((p) => p.split !== null);
+  return proposal?.split ?? null;
+}
+
+/**
+ * The first card on the GC home: the settled residential draw, with one filled action that names
+ * the money. It is a read-only reference, so the action opens the stored decision and receipt
+ * rather than approving it again.
+ */
+function ResidentialDecisionCard({ item }: { item: InboxItem }) {
+  const approvedCents = approvedCentsOf(item);
+  const split = payoutSplitOf(item);
+  const netCents = split?.netCents ?? approvedCents;
+  const shortPeriod = demoPeriodLabel(item.payApp.periodLabel).split("–")[0].trim();
+  return (
+    <article
+      className="rounded-2xl border border-emerald-800 bg-emerald-950/30 p-4"
+      data-testid="inbox-residential-decision"
+      data-payapp-id={item.payApp._id}
+    >
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-200">
+        Residential draw · settled on the sandbox
+      </p>
+      <h2 className="mt-1 text-base font-semibold [overflow-wrap:anywhere]">
+        {demoDisplayName(item.agreement.subcontractorName)} · {shortPeriod}
+      </h2>
+      <p className="mt-1 text-xs text-slate-300">
+        {demoProjectName(item.agreement.projectTitle)} · {payAppStatusLabel(item.payApp.status)} · requested {formatCents(item.payApp.requestedTotalCents)}
+      </p>
+      <div className="mt-2 flex flex-wrap items-center gap-3">
+        <a
+          href={payAppHash(item.payApp._id)}
+          className={PRIMARY_LINK}
+          data-testid="inbox-residential-decision-action"
+        >
+          Approve {formatCents(approvedCents)} and pay {formatCents(netCents)}
+        </a>
+        <span className="text-xs text-slate-400">Read-only record · opens the settled receipt.</span>
+      </div>
+      <p className="mt-2 text-xs text-slate-300">
+        Approved {formatCents(approvedCents)}
+        {split ? ` · ${formatCents(split.retainageCents)} retainage held · ${formatCents(split.netCents)} net` : ""}
+      </p>
+    </article>
+  );
+}
+
 function InboxEntry({ item, primaryProposalId }: { item: InboxItem; primaryProposalId: string | null }) {
   const [showTrace, setShowTrace] = useState(false);
   const decidable = item.payApp.status === "reviewed" && !item.readOnlyReference;
@@ -431,7 +490,7 @@ function InboxEntry({ item, primaryProposalId }: { item: InboxItem; primaryPropo
             {demoDisplayName(item.agreement.subcontractorName)} · {demoPeriodLabel(item.payApp.periodLabel)}
           </h2>
           <p className="text-xs text-slate-400">
-            {item.agreement.agreementNumber} · {demoProjectName(item.agreement.projectTitle)} · status{" "}
+            {demoProjectName(item.agreement.projectTitle)} ·{" "}
             <span data-testid="inbox-payapp-status" data-status={item.payApp.status}>{payAppStatusLabel(item.payApp.status)}</span>
           </p>
           <p className="text-sm text-slate-300" data-testid="inbox-attribution" data-actor={item.payApp.submittedBy.actorType}>{submissionAttribution(item.payApp.submittedBy, item.payApp.judgeDemoFiledBy)}</p>
@@ -518,9 +577,13 @@ export function ApprovalInbox() {
   const history = visible.filter((item) => inboxGroup(item.payApp.status) === "history");
   const historyOpen = active.length === 0 && waiting.length === 0;
   const filtering = search.trim() !== "" || status !== "all";
+  // The settled residential reference card leads the first bucket and carries the one filled
+  // action, so every commercial queue row below it stays secondary.
+  const residentialDecision = visible.find((item) => item.projectKind === "residential" && item.readOnlyReference) ?? null;
   // One clear primary decision: the next actionable proposal in the queue. Everything after it
   // keeps its affordance but is secondary, so the screen never shows competing primaries.
   const primaryProposalId = (() => {
+    if (residentialDecision) return null;
     for (const item of active) {
       if (item.readOnlyReference || item.payApp.status !== "reviewed") continue;
       const next = item.proposals.find((p) => p.status === "pending" && p.kind !== "capture");
@@ -528,13 +591,36 @@ export function ApprovalInbox() {
     }
     return null;
   })();
+  const filterFields = (
+    <>
+      <label className="text-sm">Search loaded applications
+        <input className="mt-1 block w-full rounded-lg border border-slate-600 bg-slate-900 p-2" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Agreement, project, company or pay app ID" />
+      </label>
+      <label className="text-sm">Status
+        <select className="mt-1 block w-full rounded-lg border border-slate-600 bg-slate-900 p-2" value={status} onChange={(e) => setStatus(e.target.value)}>
+          <option value="all">All statuses</option>
+          {["submitted", "under_review", "reviewed", "approved", "approved_as_noted", "revision_requested", "paid", "rejected"].map((s) => <option key={s} value={s}>{payAppStatusLabel(s)}</option>)}
+        </select>
+      </label>
+      {filtering ? (
+        <button
+          type="button"
+          className="self-end rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800"
+          onClick={() => { setSearch(""); setStatus("all"); }}
+        >
+          Clear
+        </button>
+      ) : null}
+    </>
+  );
   return (
     <div className="min-w-0 max-w-6xl mx-auto space-y-4">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div className="space-y-1">
           <h1 className="text-xl font-semibold">Approvals</h1>
           <p className="max-w-2xl text-sm text-slate-400">
-            Review each sub pay app before money moves. Code computes the amounts; you approve, trim or reject.
+            Review each sub pay app before money moves.
+            <span className="hidden sm:inline"> Code computes the amounts; you approve, trim or reject.</span>
           </p>
         </div>
         {items ? (
@@ -544,28 +630,14 @@ export function ApprovalInbox() {
         ) : null}
       </header>
       <ProjectMoneyStrip />
-      {items?.some((item) => item.readOnlyReference) ? <ReferenceNotice title="Preserved reference jobs · read-only." /> : null}
-      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_14rem_auto]">
-        <label className="text-sm">Search loaded applications
-          <input className="mt-1 block w-full rounded-lg border border-slate-600 bg-slate-900 p-2" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Agreement, project, company or pay app ID" />
-        </label>
-        <label className="text-sm">Status
-          <select className="mt-1 block w-full rounded-lg border border-slate-600 bg-slate-900 p-2" value={status} onChange={(e) => setStatus(e.target.value)}>
-            <option value="all">All statuses</option>
-            {["submitted", "under_review", "reviewed", "approved", "approved_as_noted", "revision_requested", "paid", "rejected"].map((s) => <option key={s} value={s}>{payAppStatusLabel(s)}</option>)}
-          </select>
-        </label>
-        {filtering ? (
-          <button
-            type="button"
-            className="self-end rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800"
-            onClick={() => { setSearch(""); setStatus("all"); }}
-          >
-            Clear
-          </button>
-        ) : null}
+      <div className="hidden gap-2 sm:grid sm:grid-cols-[minmax(0,1fr)_14rem_auto]">
+        {filterFields}
       </div>
-      {items && <p className="text-xs text-slate-400">Showing {visible.length} of {items.length} loaded applications. Loads up to 60 recent applications across 200 agreements; open Payments for an older ledger.</p>}
+      {items && (filtering || visible.length !== items.length) && (
+        <p className="text-xs text-slate-400">
+          Showing {visible.length} of {items.length}.
+        </p>
+      )}
       {items === undefined ? (
         <p className="text-sm text-slate-400" role="status">Loading the inbox…</p>
       ) : items.length === 0 ? (
@@ -584,9 +656,10 @@ export function ApprovalInbox() {
         <div className="space-y-6">
           <InboxBucket
             title="Needs your attention"
-            description="Submitted, under review or ready for a decision."
+            description="The settled residential draw first, then submitted and ready-for-decision work."
             items={active}
             primaryProposalId={primaryProposalId}
+            featured={residentialDecision ? <ResidentialDecisionCard item={residentialDecision} /> : undefined}
           />
           <InboxBucket title="Approved · awaiting payment" items={waiting} primaryProposalId={null} />
           {history.length > 0 ? (
@@ -606,6 +679,16 @@ export function ApprovalInbox() {
           ) : null}
         </div>
       )}
+      <details className="rounded-xl border border-slate-800 bg-slate-900/40 sm:hidden" open={filtering} data-testid="inbox-filters">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-3 text-sm text-slate-300 [&::-webkit-details-marker]:hidden">
+          Search and filters
+          <span aria-hidden="true" className="text-xs text-slate-400">Show</span>
+        </summary>
+        <div className="grid gap-2 border-t border-slate-800 p-3">
+          {filterFields}
+        </div>
+      </details>
+      {items?.some((item) => item.readOnlyReference) ? <ReferenceNotice title="Preserved reference jobs · read-only." /> : null}
     </div>
   );
 }
@@ -615,19 +698,22 @@ function InboxBucket({
   description,
   items,
   primaryProposalId,
+  featured,
 }: {
   title: string;
   description?: string;
   items: InboxItem[];
   primaryProposalId: string | null;
+  featured?: ReactNode;
 }) {
-  if (items.length === 0) return null;
+  if (items.length === 0 && featured === undefined) return null;
   return (
     <section aria-label={title} className="space-y-3">
       <div>
         <h2 className="text-base font-semibold">{title} <span className="text-sm font-normal text-slate-400">{items.length}</span></h2>
-        {description ? <p className="text-xs text-slate-400">{description}</p> : null}
+        {description ? <p className="hidden text-xs text-slate-400 sm:block">{description}</p> : null}
       </div>
+      {featured}
       {items.map((item) => <InboxEntry key={item.payApp._id} item={item} primaryProposalId={primaryProposalId} />)}
     </section>
   );

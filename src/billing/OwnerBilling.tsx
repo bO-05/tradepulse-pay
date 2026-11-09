@@ -339,7 +339,7 @@ function History({ app }: { app: Detail }) {
   );
 }
 
-function InvoicePanel({ app, linkVariant = "secondary" }: { app: Detail; linkVariant?: LinkButtonVariant }) {
+function InvoicePanel({ app, linkVariant = "secondary", showPayerLink = true }: { app: Detail; linkVariant?: LinkButtonVariant; showPayerLink?: boolean }) {
   const terms = termsForKind(app.projectKind);
   const refresh = useAction(api.billing.ownerInvoices.refreshOwnerPayAppStatus);
   const resume = useAction(api.billing.ownerInvoices.sendOwnerPayAppInvoice);
@@ -374,7 +374,7 @@ function InvoicePanel({ app, linkVariant = "secondary" }: { app: Detail; linkVar
           PayPal status <StatusPill status={app.paypalInvoiceStatus} />
         </p>
       ) : null}
-      {app.payerViewUrl ? (
+      {showPayerLink && app.payerViewUrl ? (
         <div>
           <LinkButton
             variant={linkVariant}
@@ -502,7 +502,6 @@ function GcOwnerPayApp({ ownerPayAppId }: { ownerPayAppId: string }) {
   return (
     <div className="space-y-4" data-testid="owner-pay-app">
       <AppHeader app={app} />
-      {app.readOnlyReference ? <ReferenceNotice title="Preserved reference job · read-only." /> : null}
       {app.pendingNote ? (
         <p className="rounded-lg border border-amber-700 bg-amber-950/40 px-3 py-2 text-sm text-amber-100" data-testid="owner-pending-note">
           {app.pendingNote} – it contributes $0.00 until you approve it.
@@ -515,6 +514,7 @@ function GcOwnerPayApp({ ownerPayAppId }: { ownerPayAppId: string }) {
       ) : null}
       <RefreshPanel app={app} busy={saving} onRefresh={() => void refreshFigures()} />
       <G702Summary app={app} />
+      {app.readOnlyReference ? <ReferenceNotice title="Preserved reference job · read-only." /> : null}
       <PrimeSheet app={app} amounts={amounts} errors={errors} onAmount={(key, cents) => setAmounts((a) => ({ ...a, [key]: cents }))} />
       <DirectlyInvoicedNote app={app} />
       <div className="flex flex-wrap gap-2">
@@ -623,9 +623,9 @@ function GcProjectOwnerBilling({ projectId }: { projectId: string }) {
   const totals = ownerMoneyTotals(list.rows);
   return (
     <div className="space-y-4">
-      {list.readOnlyReference ? <ReferenceNotice title="Preserved reference job · read-only." /> : null}
       <CommercialReferenceBadge kind={list.projectKind} />
       <ProjectMoneyStrip projectId={projectId} />
+      {list.readOnlyReference ? <ReferenceNotice title="Preserved reference job · read-only." /> : null}
       <dl className="grid gap-3 text-sm sm:grid-cols-3">
         <div>
           <dt className="text-xs text-ink-subtle">{terms.kind === "residential" ? "Contract value" : "Prime contract value"}</dt>
@@ -801,9 +801,10 @@ function OwnerPayAppView({ ownerPayAppId }: { ownerPayAppId: string }) {
   if (app === undefined) return <p className="text-sm text-ink-subtle" role="status">Loading owner pay app…</p>;
   const terms = termsForKind(app.projectKind);
   const residential = terms.kind === "residential";
+  const paid = app.status === "paid";
   const dueNote =
-    app.status === "paid"
-      ? "Paid by PayPal"
+    paid
+      ? `Paid by PayPal${app.paidAt === null ? "" : ` · ${formatDate(app.paidAt)}`}`
       : app.status === "approved_invoiced"
         ? "Invoice sent to you"
         : app.status === "submitted_to_owner"
@@ -812,14 +813,22 @@ function OwnerPayAppView({ ownerPayAppId }: { ownerPayAppId: string }) {
   return (
     <div className="space-y-4" data-testid="owner-pay-app">
       <AppHeader app={app} />
+      {paid && app.payerViewUrl ? (
+        <div>
+          <LinkButton variant="primary" size="md" href={app.payerViewUrl} target="_blank" rel="noreferrer" data-testid="owner-invoice-payer-link">
+            Open the PayPal receipt
+          </LinkButton>
+        </div>
+      ) : null}
       <MoneyTrail
         testId="owner-draw-money-trail"
         ariaLabel="Money trail"
         hero={{
-          label: "Current payment due",
+          label: paid ? "Paid this draw" : "Current payment due",
           valueCents: app.figures.currentPaymentDueCents,
           valueTestId: "owner-draw-payment-due",
           note: dueNote,
+          tone: paid ? "positive" : "default",
         }}
         steps={[
           { label: "Contract to date", valueCents: app.figures.contractSumToDateCents },
@@ -835,6 +844,7 @@ function OwnerPayAppView({ ownerPayAppId }: { ownerPayAppId: string }) {
           { label: residential ? "Previous draws" : "Previous payments", valueCents: app.figures.previousCertificatesCents },
         ]}
       />
+      {app.readOnlyReference ? <ReferenceNotice title="Preserved reference job · read-only." /> : null}
       <div className="flex flex-wrap gap-2">
         {app.controls.approve ? (
           <Button onClick={() => setOpen("approve")} data-testid="owner-pay-app-approve">
@@ -848,7 +858,7 @@ function OwnerPayAppView({ ownerPayAppId }: { ownerPayAppId: string }) {
         ) : null}
       </div>
       {app.controls.approve && app.invoiceBlockedReason ? <p className="text-xs text-amber-200">{app.invoiceBlockedReason}</p> : null}
-      <InvoicePanel app={app} linkVariant={app.controls.approve ? "secondary" : "primary"} />
+      <InvoicePanel app={app} linkVariant={app.controls.approve ? "secondary" : "primary"} showPayerLink={!paid} />
       <G702Summary app={app} />
       <details className="rounded-lg border border-line bg-surface px-3 py-2" data-testid="owner-draw-breakdown">
         <summary className="cursor-pointer py-1 text-sm font-medium text-ink">{terms.breakdown}</summary>
@@ -892,7 +902,6 @@ function OwnerProjectPayApps({ projectId }: { projectId: string }) {
   const current = pickCurrent(list.rows, selected);
   return (
     <div className="space-y-4">
-      {list.readOnlyReference ? <ReferenceNotice title="Preserved reference job · read-only." /> : null}
       <CommercialReferenceBadge kind={list.projectKind} />
       <p className="text-sm" data-testid="owner-prime-retainage">
         Retainage you hold on this contract:{" "}
@@ -930,7 +939,7 @@ export function OwnerPayAppsPage() {
         title={terms.ownerBills}
         description={
           terms.kind === "residential"
-            ? "Your GC's draws on the contract. Approving one sends you a PayPal invoice for this draw."
+            ? "Your GC's draws on the contract, with a PayPal receipt once a draw is paid."
             : "Your GC's pay applications on the prime contract. Approving one sends you a PayPal invoice for the current payment due."
         }
         meta={<CommercialReferenceBadge kind={selectedKind} />}

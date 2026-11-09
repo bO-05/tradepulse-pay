@@ -5,10 +5,11 @@ import { api } from "../../convex/_generated/api";
 import { agreementHash, type Role } from "../auth/navigation";
 import { OWNER_PAY_APPS_HASH } from "../billing/OwnerBilling";
 import { requestNewProject } from "../projects/newProjectRequest";
-import { Button, CommercialReferenceBadge, EmptyState, MoneyTrail, formatCents, formatDate, type MoneyTrailStep } from "../ui";
+import { Button, CommercialReferenceBadge, EmptyState, LinkButton, MoneyTrail, formatCents, formatDate, type MoneyTrailStep } from "../ui";
 import { statusLabelFor } from "../ui/statusLabels";
 import { termsForKind, type Terms } from "../lib/terms";
 import { CHANGE_ORDERS_PAGE_HASH, ChangeOrderRows } from "./ChangeOrders";
+import { ReferenceNotice } from "./ReferenceNotice";
 import { formatDollars } from "./format";
 import { demoDisplayName, demoProjectDescription, demoProjectName } from "../lib/demoCopy";
 import { tradeLineDisplay } from "../lib/tradeLineDisplay";
@@ -47,8 +48,9 @@ function jobStatusSentence(job: OwnerJob, terms: Terms): string {
 /**
  * The owner's read-only “job so far”: approved progress and money, never a payment control.
  *
- * The money is the shared trail: contract, completed, retainage and paid lead to the pinned hook
- * for the balance, which is the hero figure. Every `owner-job-*` hook stays on its own element.
+ * Paid is the headline because that is the outcome the owner checks first; the split beneath it
+ * shows how much came from draws and how much from change orders. The balance, contract and
+ * retainage stay as labeled steps. Every `owner-job-*` hook stays on its own element.
  */
 function OwnerJobSoFar({ job, terms }: { job: OwnerJob; terms: Terms }) {
   const headingId = useId();
@@ -71,7 +73,12 @@ function OwnerJobSoFar({ job, terms }: { job: OwnerJob; terms: Terms }) {
       valueTestId: "owner-job-completed",
     },
     { label: "Retainage held", valueCents: job.retainageHeldCents, valueTestId: "owner-job-retainage" },
-    { label: "Paid to date", valueCents: job.paidToDateCents, valueTestId: "owner-job-paid" },
+    {
+      label: "Balance to finish",
+      valueCents: job.balanceToFinishCents,
+      valueTestId: "owner-job-balance",
+      note: "Includes retainage",
+    },
     {
       label: "Change orders",
       valueCents: job.changeOrdersApprovedCents,
@@ -79,6 +86,10 @@ function OwnerJobSoFar({ job, terms }: { job: OwnerJob; terms: Terms }) {
       note: job.openChangeOrders > 0 ? `${job.openChangeOrders} awaiting your review` : `${formatCents(job.paidChangeOrdersCents)} paid`,
     },
   ];
+  const paidSplit =
+    terms.kind === "residential"
+      ? `${formatCents(job.paidOwnerPayAppsCents)} draw · ${formatCents(job.paidChangeOrdersCents)} change order`
+      : `${formatCents(job.paidOwnerPayAppsCents)} in paid ${terms.ownerBillsLower} · ${formatCents(job.paidChangeOrdersCents)} in paid change orders`;
 
   return (
     <section
@@ -92,12 +103,17 @@ function OwnerJobSoFar({ job, terms }: { job: OwnerJob; terms: Terms }) {
             Job so far
           </h3>
           <p className="text-xs text-slate-400">
-            {terms.kind === "residential" ? "Approved progress and money on the contract." : "Approved progress and money on the prime contract."} Read-only.
+            {terms.kind === "residential" ? "Approved progress and money on the contract." : "Approved progress and money on the prime contract."}
           </p>
         </div>
         <span className="rounded-full border border-emerald-800 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-200">
           {job.basis === "approved" ? "Approved" : job.basis === "submitted" ? "Awaiting your review" : "Not started"}
         </span>
+        {job.latestApplicationNo === null ? null : (
+          <LinkButton variant="primary" size="md" href={OWNER_PAY_APPS_HASH} data-testid="owner-home-open-draw">
+            Open {terms.ownerBill} #{job.latestApplicationNo}
+          </LinkButton>
+        )}
       </div>
 
       <div className="mt-3 grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,2fr)]">
@@ -132,10 +148,11 @@ function OwnerJobSoFar({ job, terms }: { job: OwnerJob; terms: Terms }) {
           testId="owner-money-trail"
           ariaLabel="Money trail"
           hero={{
-            label: "Balance to finish",
-            valueCents: job.balanceToFinishCents,
-            valueTestId: "owner-job-balance",
-            note: "Includes retainage",
+            label: "Paid to date",
+            valueCents: job.paidToDateCents,
+            valueTestId: "owner-job-paid",
+            note: paidSplit,
+            tone: "positive",
           }}
           steps={steps}
           footer={
@@ -143,14 +160,15 @@ function OwnerJobSoFar({ job, terms }: { job: OwnerJob; terms: Terms }) {
               <p className="text-xs text-slate-400" data-testid="owner-job-status">
                 {jobStatusSentence(job, terms)}
               </p>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-xs text-slate-400">
                 Paid to date = {formatCents(job.paidOwnerPayAppsCents)} in paid {terms.ownerBillsLower} + {formatCents(job.paidChangeOrdersCents)} in paid change
-                orders. Figures come from {terms.kind === "residential" ? "draws and paid change orders" : "owner pay apps and paid prime change orders"}; they do not move money.
+                orders.
               </p>
             </div>
           }
         />
       </div>
+      <ReferenceNotice title="Preserved reference job · read-only." />
     </section>
   );
 }

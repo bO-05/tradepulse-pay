@@ -38,6 +38,8 @@ export const payAppViewValidator = v.object({
 
 export const inboxItemValidator = v.object({
   readOnlyReference: v.boolean(),
+  /** The project's vocabulary: the residential job leads the GC home, commercial runs stay below it. */
+  projectKind: v.union(v.literal("residential"), v.literal("commercial")),
   payApp: payAppViewValidator,
   agreement: v.object({
     _id: v.id("agreements"), agreementNumber: v.string(), projectTitle: v.string(), subcontractorName: v.string(),

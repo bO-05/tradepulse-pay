@@ -1,0 +1,119 @@
+{
+  "target": "http://localhost:3150",
+  "assertion": "VAL-JUDGE-013",
+  "screens": [
+    {
+      "screen": "demo",
+      "width": 1440,
+      "identity": null,
+      "company": null,
+      "chromeHasAustinCommercial": false,
+      "chromeHasDomainTowerB": false
+    },
+    {
+      "screen": "gc-home",
+      "width": 1440,
+      "identity": "Bayview Remodeling · gc@demo.tradepulseGeneral contractor",
+      "company": "Bayview Remodeling",
+      "chromeHasAustinCommercial": false,
+      "chromeHasDomainTowerB": false
+    },
+    {
+      "screen": "gc-project",
+      "width": 1440,
+      "identity": "Bayview Remodeling · gc@demo.tradepulseGeneral contractor",
+      "company": "Bayview Remodeling",
+      "chromeHasAustinCommercial": false,
+      "chromeHasDomainTowerB": false
+    },
+    {
+      "screen": "sub-pay-app",
+      "width": 1440,
+      "identity": "Bayview Remodeling · gc@demo.tradepulseGeneral contractor",
+      "company": "Bayview Remodeling",
+      "chromeHasAustinCommercial": false,
+      "chromeHasDomainTowerB": false
+    },
+    {
+      "screen": "owner-home",
+      "width": 1440,
+      "identity": "Dana Lopez · owner@demo.tradepulseOwner",
+      "company": "Dana Lopez",
+      "chromeHasAustinCommercial": false,
+      "chromeHasDomainTowerB": false
+    },
+    {
+      "screen": "owner-draw",
+      "width": 1440,
+      "identity": "Dana Lopez · owner@demo.tradepulseOwner",
+      "company": "Dana Lopez",
+      "chromeHasAustinCommercial": false,
+      "chromeHasDomainTowerB": false
+    },
+    {
+      "screen": "change-order",
+      "width": 1440,
+      "identity": "Dana Lopez · owner@demo.tradepulseOwner",
+      "company": "Dana Lopez",
+      "chromeHasAustinCommercial": false,
+      "chromeHasDomainTowerB": false
+    },
+    {
+      "screen": "demo",
+      "width": 390,
+      "identity": null,
+      "company": null,
+      "chromeHasAustinCommercial": false,
+      "chromeHasDomainTowerB": false
+    },
+    {
+      "screen": "gc-home",
+      "width": 390,
+      "identity": "Bayview Remodeling · gc@demo.tradepulseGeneral contractor",
+      "company": "Bayview Remodeling",
+      "chromeHasAustinCommercial": false,
+      "chromeHasDomainTowerB": false
+    },
+    {
+      "screen": "gc-project",
+      "width": 390,
+      "identity": "Bayview Remodeling · gc@demo.tradepulseGeneral contractor",
+      "company": "Bayview Remodeling",
+      "chromeHasAustinCommercial": false,
+      "chromeHasDomainTowerB": false
+    },
+    {
+      "screen": "sub-pay-app",
+      "width": 390,
+      "identity": "Bayview Remodeling · gc@demo.tradepulseGeneral contractor",
+      "company": "Bayview Remodeling",
+      "chromeHasAustinCommercial": false,
+      "chromeHasDomainTowerB": false
+    },
+    {
+      "screen": "owner-home",
+      "width": 390,
+      "identity": "Dana Lopez · owner@demo.tradepulseOwner",
+      "company": "Dana Lopez",
+      "chromeHasAustinCommercial": false,
+      "chromeHasDomainTowerB": false
+    },
+    {
+      "screen": "owner-draw",
+      "width": 390,
+      "identity": "Dana Lopez · owner@demo.tradepulseOwner",
+      "company": "Dana Lopez",
+      "chromeHasAustinCommercial": false,
+      "chromeHasDomainTowerB": false
+    },
+    {
+      "screen": "change-order",
+      "width": 390,
+      "identity": "Dana Lopez · owner@demo.tradepulseOwner",
+      "company": "Dana Lopez",
+      "chromeHasAustinCommercial": false,
+      "chromeHasDomainTowerB": false
+    }
+  ],
+  "ok": true
+}

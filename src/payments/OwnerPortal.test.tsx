@@ -67,7 +67,10 @@ describe("Owner job so far card", () => {
     expect(html).toContain("$30,000.00"); // balance to finish
     expect(html).toContain("1 awaiting your review");
     expect(html).toContain("Paid to date = $9,500.00 in paid pay apps + $1,850.00 in paid change orders");
-    expect(html).toContain("Read-only");
+    expect(html).not.toContain("they do not move money");
+    expect(html).toContain('data-testid="owner-home-open-draw"');
+    expect(html.match(/bg-accent text-accent-fg/g) ?? []).toHaveLength(1);
+    expect(html).toMatch(/read-only/i);
     expect(html).not.toContain(">Pay now<");
   });
 
@@ -123,14 +126,16 @@ describe("the owner's portfolio leads with the residential job", () => {
     expect((html.match(/data-testid="owner-job-so-far"/g) ?? []).length).toBe(1);
   });
 
-  test("the lead job shows the money trail with every pinned hook and a large balance", () => {
+  test("the lead job shows the money trail with every pinned hook and paid as the headline", () => {
     vi.mocked(useQuery).mockReturnValue([commercial, residential] as never);
     const html = renderToStaticMarkup(<OwnerPortal role="owner" />);
     expect(html).toContain('data-testid="owner-money-trail"');
     for (const hook of ["owner-job-contract", "owner-job-completed", "owner-job-retainage", "owner-job-paid", "owner-job-balance", "owner-job-change-orders"]) {
       expect(html, hook).toContain(`data-testid="${hook}"`);
     }
-    expect(html).toMatch(/data-testid="owner-job-balance"[^>]*text-3xl/);
+    expect(html).toMatch(/data-testid="owner-job-paid"[^>]*text-3xl/);
+    expect(html).toContain(">Paid to date<");
+    expect(html).toContain("$9,500.00 draw · $1,850.00 change order");
     expect(html).toContain(">Balance to finish<");
     expect(html).toContain("Contract to date");
     expect(visibleText(html)).toContain("1 awaiting your review");

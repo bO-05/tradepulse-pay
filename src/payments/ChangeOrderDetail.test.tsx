@@ -76,7 +76,9 @@ describe("change-order invoice screen", () => {
     expect(html).toMatch(/class="[^"]*text-3xl[^"]*"[^>]*data-testid="change-order-amount"/);
     expect(html).toContain("$1,200.00");
     expect(html).toContain('data-status="paid"');
+    expect(html).toContain('data-testid="change-order-paid-state"');
     const rendered = text(html);
+    expect(rendered).toContain("Paid Nov 8, 2026");
     expect(rendered).toContain("Amount");
     expect(rendered).toContain("Details");
     expect(rendered).toContain("Timeline");
@@ -84,10 +86,12 @@ describe("change-order invoice screen", () => {
     expect(rendered).toContain("Contract change order");
   });
 
-  test("the PayPal invoice link is a primary button and the only primary action", () => {
+  test("the paid change order's PayPal receipt link is the primary button and the only primary action", () => {
     const html = renderToStaticMarkup(<ChangeOrderDetail changeOrderId="co_lopez" />);
     expect(html).toContain('data-testid="change-order-invoice-link"');
     expect(primaryCount(html)).toBe(1);
+    expect(text(html)).toContain("Open the PayPal receipt");
+    expect(text(html)).not.toContain("Open the PayPal invoice");
     const linkTag = html.slice(html.indexOf('data-testid="change-order-invoice-link"') - 500, html.indexOf('data-testid="change-order-invoice-link"'));
     expect(linkTag).toContain("<a ");
     expect(linkTag).toContain("bg-accent text-accent-fg");

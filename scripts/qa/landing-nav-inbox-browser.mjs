@@ -58,7 +58,7 @@ try {
   });
   const landingText = landing.text.toLowerCase();
   check("landing leads with the residential GC job story", landingText.includes("residential remodel gcs") && landingText.includes("pay the right amount."));
-  for (const text of ["Catch overbilling early", "Decide with the evidence", "Keep a clean owner trail", "owner or lender", "PayPal sandbox money only"]) {
+  for (const text of ["Catch overbilling early", "Decide with the evidence", "Keep a clean owner trail", "owner or lender", "PayPal sandbox · no real money"]) {
     check(`landing explains ${text}`, landing.text.includes(text), landing.text.slice(0, 1600));
   }
   check("landing offers all three demo seats", landing.roleCards === 3, String(landing.roleCards));
@@ -153,7 +153,7 @@ try {
     text: document.querySelector("main")?.innerText ?? "",
   }));
   check("search returns the two R6-A pay apps", filtered.visible === 2, String(filtered.visible));
-  check("filtered history becomes visible without clearing the search", filtered.text.includes("A401-DEMO-PAY-20261105-07"));
+  check("filtered history becomes visible without clearing the search", filtered.text.includes("Rosendin Electric"), filtered.text.slice(0, 600));
   await page.screenshot({ path: path.join(evidenceDir, "inbox-filtered.png"), fullPage: true });
 
   phase = "phone navigation";

@@ -373,7 +373,12 @@ describe("getProjectMoney project scope", () => {
       projectKind: "residential",
     });
     expect(money.scope.projects).toEqual([
-      { projectId: f.gcA.project.projectId, projectTitle: "Harbor Point Dental Office TI", projectKind: "residential" },
+      {
+        projectId: f.gcA.project.projectId,
+        projectTitle: "Harbor Point Dental Office TI",
+        projectKind: "residential",
+        ownerRetainageBps: 1_000,
+      },
     ]);
 
     // Paid owner app only; the paid $1,200 prime change order is not in this bucket.
@@ -415,6 +420,7 @@ describe("getProjectMoney project scope", () => {
         agreementNumber: expect.any(String),
         payAppId: expect.any(String),
         amountCents: 20_000,
+        retainageBps: 500,
       },
     ]);
     expect(money.ownerRetainageHeldCents).toBe(40_000);
@@ -557,7 +563,7 @@ describe("getProjectMoney portfolio scope", () => {
 
     const own = await f.gcB.admin.as.query(api.billing.projectMoney.getProjectMoney, {});
     expect(own.scope.projects).toEqual([
-      { projectId: f.gcB.project.projectId, projectTitle: "Camelback Suite 400", projectKind: "commercial" },
+      { projectId: f.gcB.project.projectId, projectTitle: "Camelback Suite 400", projectKind: "commercial", ownerRetainageBps: null },
     ]);
     expect(own.collectedFromOwnerCents).toBe(777_000);
     expect(own.paidToSubsCents).toBe(888_000);

@@ -6,7 +6,7 @@ vi.mock("@convex-dev/auth/react", () => ({ useAuthActions: () => ({ signIn: vi.f
 
 test("the signed-out landing shows the residential hero above the sign-in card", () => {
   const html = renderToStaticMarkup(<SignInPage />);
-  for (const text of ["Pay apps for owner-run remodels", "Pay the right amount.", "Catch overbilling early"]) {
+  for (const text of ["Progress draws for owner-run remodels", "Pay the right amount.", "Catch overbilling early"]) {
     expect(html).toContain(text);
   }
   expect(html).toContain('href="#/demo"');

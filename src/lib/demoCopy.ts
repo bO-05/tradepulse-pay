@@ -21,6 +21,18 @@ export function demoDisplayName(name: string): string {
   return out.replace(/\s+/g, " ").trim();
 }
 
+/**
+ * The persistent identity chip on a residential screen. The shared demo login keeps its stored
+ * company name, but the chrome names the job the seat opens: the GC reads Bayview Remodeling and
+ * the owner reads Dana Lopez. Presentation only — stored names, ids and audit rows are unchanged.
+ */
+export function demoIdentityName(name: string): string {
+  const base = demoDisplayName(name);
+  if (/^demo gc$/i.test(base)) return "Bayview Remodeling";
+  if (/^demo owner$/i.test(base)) return "Dana Lopez";
+  return base;
+}
+
 /** A seeded project title without the old demo-run prefix or the words "judge demo". */
 export function demoProjectName(title: string): string {
   return title

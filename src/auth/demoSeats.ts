@@ -29,7 +29,7 @@ export const DEMO_SEATS: readonly DemoSeat[] = [
   {
     testId: "gc",
     email: "gc@demo.tradepulse",
-    title: "General contractor",
+    title: "Sign in as the general contractor",
     detail: "Review a sub's pay app and release sandbox payment.",
     hash: "#/inbox",
   },

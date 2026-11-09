@@ -21,6 +21,7 @@ import { REJECTION_REASON_REQUIRED } from "./decisions";
 import { payAppView, sovMapFor } from "./review";
 import { inboxItemValidator } from "./viewValidators";
 import { isReadOnlyReference } from "../lib/demoReference";
+import { projectKindOf } from "../lib/projectKind";
 
 /**
  * GC approval inbox (architecture §7). The pay agent only creates pending proposals; money moves
@@ -276,6 +277,7 @@ export const listInbox = query({
       }
       items.push({
         readOnlyReference: isReadOnlyReference(project),
+        projectKind: projectKindOf(project),
         payApp: view,
         agreement: {
           _id: agreement._id,

@@ -19,7 +19,7 @@ import { JudgeDemoPage } from "../payments/judgeDemo/JudgeDemoPage";
 import { CompanySettingsPage } from "../company/CompanySettingsPage";
 import { CompliancePage } from "../compliance/CompliancePage";
 import { QueryBoundary } from "../lib/QueryBoundary";
-import { demoDisplayName } from "../lib/demoCopy";
+import { demoDisplayName, demoIdentityName } from "../lib/demoCopy";
 import { NotFoundHomeContext, NotFoundState } from "../ui/NotFoundState";
 import { PeoplePage } from "../people/PeoplePage";
 import { VendorsPage } from "../vendors/VendorsPage";
@@ -170,7 +170,7 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
             >{menuOpen ? "Close menu" : "Menu"}</button>
           </div>
         </div>
-        <p className="mt-1 text-xs text-slate-300 xl:hidden">{ROLE_LABEL[me.role]}{me.companyName ? ` · ${demoDisplayName(me.companyName)}` : ""}</p>
+        <p className="mt-1 text-xs text-slate-300 xl:hidden">{ROLE_LABEL[me.role]}{me.companyName ? ` · ${demoIdentityName(me.companyName)}` : ""}</p>
       <nav
         id="workspace-navigation"
         aria-label="Workspace"
@@ -178,7 +178,7 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
       >
         {me.companyName ? (
           <span className="mb-2 block text-sm font-semibold text-slate-200" data-testid="active-company-name">
-            {demoDisplayName(me.companyName)}
+            {demoIdentityName(me.companyName)}
           </span>
         ) : null}
         <ul className="grid gap-1 sm:grid-cols-2 xl:flex xl:flex-wrap">
@@ -239,7 +239,7 @@ export function RoleShell({ me, procurementApp }: { me: ShellIdentity; procureme
         </ul>
         <div className="mt-3 flex min-w-0 flex-wrap items-center gap-3 border-t border-slate-800 pt-3">
           <span className="min-w-0 [overflow-wrap:anywhere] text-xs text-slate-300" data-testid="signed-in-identity">
-            <span className="font-semibold">{demoDisplayName(me.displayName)}</span>
+            <span className="font-semibold">{demoIdentityName(me.displayName)}</span>
             {me.email ? <span className="text-slate-400"> · {me.email}</span> : null}
             <span className="ml-2 rounded-full border border-slate-700 px-2 py-0.5 text-[10px] uppercase tracking-wide">
               {ROLE_LABEL[me.role]}

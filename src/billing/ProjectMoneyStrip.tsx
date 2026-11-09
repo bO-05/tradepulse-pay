@@ -5,7 +5,7 @@ import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { billingTabHash, ledgerHash, payAppHash } from "../auth/navigation";
 import { termsForKind, type ProjectKind } from "../lib/terms";
-import { Card, formatCents, formatDate } from "../ui";
+import { Card, formatBps, formatCents, formatDate } from "../ui";
 
 /**
  * The GC money strip (architecture §6.2): collected from the owner, paid to subs, subcontract
@@ -57,15 +57,15 @@ function MoneyCell({
   testId: string;
   cents: number;
   href: string;
-  note: string;
-  zeroSentence: string;
+  note: ReactNode;
+  zeroSentence: ReactNode;
   zeroAction: string;
   zeroHref: string;
 }) {
   return (
-    <div className="rounded-lg border border-line bg-surface-sunken p-3">
+    <div className="rounded-lg border border-line bg-surface-sunken p-2.5 sm:p-3">
       <dt className="text-xs font-medium text-ink-subtle">{label}</dt>
-      <dd className="mt-1 text-2xl font-semibold tabular-nums text-ink" data-testid={testId}>
+      <dd className="mt-1 text-xl font-semibold tabular-nums text-ink sm:text-2xl" data-testid={testId}>
         <a href={href} className="rounded hover:underline">
           {formatCents(cents)}
         </a>
@@ -78,7 +78,7 @@ function MoneyCell({
           </a>
         </p>
       ) : (
-        <p className="mt-1 text-xs text-ink-subtle">{note}</p>
+        <div className="mt-1 space-y-0.5 text-xs leading-snug text-ink-subtle">{note}</div>
       )}
     </div>
   );
@@ -120,6 +120,16 @@ export function ProjectMoneyStrip({ projectId, className }: ProjectMoneyStripPro
   const retainageReceipts = money.receipts.retainage;
   const owedReceipts = money.receipts.owed;
   const retainageAgreements = new Set(retainageReceipts.map((entry) => entry.agreementId)).size;
+  // The two rates behind the two retainage figures: the owner's rate on the project(s) and the
+  // subcontract rate on the retainage ledger. Only label a rate when every contributing row agrees.
+  const uniqueBps = (values: Array<number | null | undefined>): number[] =>
+    [...new Set(values.filter((value): value is number => typeof value === "number" && Number.isFinite(value)))];
+  const ownerRates = uniqueBps(scope.projects.map((entry) => entry.ownerRetainageBps));
+  const subRates = uniqueBps(retainageReceipts.map((entry) => entry.retainageBps));
+  // A project-scoped commercial strip keeps the owner word; everything else uses the residential one.
+  const ownerNoun = scope.kind === "project" && projectKind !== "residential" ? "owner" : "homeowner";
+  const ownerRateLabel = ownerRates.length === 1 ? `${formatBps(ownerRates[0])} from the ${ownerNoun}` : null;
+  const subRateLabel = subRates.length === 1 ? `${formatBps(subRates[0])} to the sub` : null;
 
   const paidToSubsHref =
     !portfolio && payoutReceipts.length > 0
@@ -129,8 +139,18 @@ export function ProjectMoneyStrip({ projectId, className }: ProjectMoneyStripPro
   const projectTitleById = new Map<string, string>(scope.projects.map((entry) => [entry.projectId, entry.projectTitle]));
   const receiptProject = (id: string) => (portfolio ? `${projectTitleById.get(id) ?? "Job"} · ` : "");
 
-  const collectedNote = `From ${ownerReceipts.length} paid ${plural(ownerReceipts.length, ownerBillLower, ownerBillPlural)}.`;
-  const paidToSubsNote = `Net of retainage, from ${payoutReceipts.length} successful ${plural(payoutReceipts.length, "payout", "payouts")}.`;
+  const collectedNote = (
+    <>
+      <span className="hidden sm:inline">From {ownerReceipts.length} paid {plural(ownerReceipts.length, ownerBillLower, ownerBillPlural)}.</span>
+      <span className="sm:hidden">{ownerReceipts.length} paid {portfolio ? "app" : ownerBillLower}{ownerReceipts.length === 1 ? "" : "s"}.</span>
+    </>
+  );
+  const paidToSubsNote = (
+    <>
+      <span className="hidden sm:inline">Net of retainage, from {payoutReceipts.length} successful {plural(payoutReceipts.length, "payout", "payouts")}.</span>
+      <span className="sm:hidden">{payoutReceipts.length} {plural(payoutReceipts.length, "payout", "payouts")}, net.</span>
+    </>
+  );
   const retainageNote =
     retainageAgreements > 0
       ? `Held on ${retainageAgreements} subcontract${retainageAgreements === 1 ? "" : "s"}.`
@@ -146,8 +166,8 @@ export function ProjectMoneyStrip({ projectId, className }: ProjectMoneyStripPro
     ownerReceipts.length > 0 || payoutReceipts.length > 0 || retainageReceipts.length > 0 || owedReceipts.length > 0;
 
   return (
-    <Card className={className} data-testid="project-money-strip" title={title} description={description}>
-      <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <Card className={className} data-testid="project-money-strip" title={title} description={<span className="hidden sm:inline">{description}</span>}>
+      <dl className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
         <MoneyCell
           label={collectedLabel(scope.kind, projectKind)}
           testId="project-money-collected"
@@ -155,9 +175,12 @@ export function ProjectMoneyStrip({ projectId, className }: ProjectMoneyStripPro
           href={OWNER_PAY_APPS_HASH}
           note={collectedNote}
           zeroSentence={
-            portfolio
-              ? "No owner pay app has been paid yet."
-              : `No ${ownerBillLower} has been paid yet.`
+            <>
+              <span className="hidden sm:inline">
+                {portfolio ? "No owner pay app has been paid yet." : `No ${ownerBillLower} has been paid yet.`}
+              </span>
+              <span className="sm:hidden">Nothing yet.</span>
+            </>
           }
           zeroAction={portfolio ? "Open owner pay apps" : `Open ${terms.ownerBills.toLowerCase()}`}
           zeroHref={OWNER_PAY_APPS_HASH}
@@ -168,7 +191,7 @@ export function ProjectMoneyStrip({ projectId, className }: ProjectMoneyStripPro
           cents={money.paidToSubsCents}
           href={paidToSubsHref}
           note={paidToSubsNote}
-          zeroSentence="No subcontractor payout has succeeded yet."
+          zeroSentence={<><span className="hidden sm:inline">No subcontractor payout has succeeded yet.</span><span className="sm:hidden">Nothing yet.</span></>}
           zeroAction="Open payments"
           zeroHref="#/payments"
         />
@@ -177,8 +200,18 @@ export function ProjectMoneyStrip({ projectId, className }: ProjectMoneyStripPro
           testId="project-money-retainage"
           cents={money.retainageHeldCents}
           href={billingTabHash("retainage")}
-          note={retainageNote}
-          zeroSentence="No subcontract retainage is held yet."
+          note={
+            <>
+              <span className="block">{subRateLabel ?? <><span className="hidden sm:inline">{retainageNote}</span><span className="sm:hidden">{retainageAgreements} subcontract{retainageAgreements === 1 ? "" : "s"}.</span></>}</span>
+              {money.ownerRetainageHeldCents > 0 ? (
+                <span className="block" data-testid="project-money-owner-retainage">
+                  {formatCents(money.ownerRetainageHeldCents)}
+                  {ownerRateLabel ? ` at ${ownerRateLabel}` : ` held from the ${ownerNoun}`}
+                </span>
+              ) : null}
+            </>
+          }
+          zeroSentence={<><span className="hidden sm:inline">No subcontract retainage is held yet.</span><span className="sm:hidden">Nothing yet.</span></>}
           zeroAction="Open retainage"
           zeroHref={billingTabHash("retainage")}
         />
@@ -188,7 +221,7 @@ export function ProjectMoneyStrip({ projectId, className }: ProjectMoneyStripPro
           cents={money.owedThisWeekCents}
           href="#/billing"
           note={owedNote}
-          zeroSentence="No approved pay app is due this week."
+          zeroSentence={<><span className="hidden sm:inline">No approved pay app is due this week.</span><span className="sm:hidden">Nothing due this week.</span></>}
           zeroAction="Open billing"
           zeroHref="#/billing"
         />
