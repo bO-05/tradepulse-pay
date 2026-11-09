@@ -37,6 +37,21 @@ copy sweep. `activity-log.json` records the measured result:
 - Zero console errors, zero page errors. The recurring `sign-in-options :: net::ERR_ABORTED` probe
   appears twice, as recorded elsewhere.
 
+### Demo data surfaces (VAL-COPY-002)
+
+`demo-data-surfaces.json` records the GC compliance page, the vendor directory and a vendor detail
+page at 1440×900, plus `compliance-1440.png`, `vendors-1440.png` and `vendor-detail-1440.png`:
+
+- Compliance (18 records): vendor names read `Rosendin Electric, Inc.` and `Ortiz Plumbing`, and the
+  seeded run projects read `Sandbox run 20261108-13`; **0 banned hits**.
+- Vendors: the directory lists real company names and contact emails; **0 banned hits**, and the
+  placeholder contact renders `Contact not published`.
+- Vendor detail (Ortiz Plumbing): the payee line reads `sb-****@personal.example.com`, the page
+  says `Maintained by Ortiz Plumbing`, and **0 banned hits**.
+- `seed-scan.txt` records the source scan of the seed files: the only match is a code comment, so no
+  seeded display literal carries `(demo)`, `(seed)`, `Demo Mutual Insurance Co.`, `stand-in` or an
+  example.com address.
+
 `report.json`: **56/56 checks passed** at 1440×900 and 390×844. The checks cover:
 
 - both honest labels are visible verbatim:
@@ -81,6 +96,9 @@ Each screen has a full-page and first-viewport PNG at `1440` and `390`:
   job. The text contains no `AIA`, `G702`, `G703`, `CSI MasterFormat`, `Prime` or
   `Less previous certificates for payment`, and keeps the residential heading/footer.
 - `activity-log-1440.png` and `activity-log.json` — the GC activity/audit feed (VAL-COPY-003).
+- `compliance-1440.png`, `vendors-1440.png`, `vendor-detail-1440.png` and
+  `demo-data-surfaces.json` — the demo-data surfaces (VAL-COPY-002).
+- `seed-scan.txt` — the seed-source scan for user-visible demo literals.
 
 ## Diagnostics
 

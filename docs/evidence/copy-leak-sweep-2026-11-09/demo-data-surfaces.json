@@ -1,0 +1,32 @@
+{
+  "capturedAt": "2026-11-09T12:01:42.913Z",
+  "baseUrl": "http://localhost:3150",
+  "screens": {
+    "GC compliance": {
+      "route": "#/compliance",
+      "chars": 1668,
+      "hits": [],
+      "sample": "Compliance & waivers Certificates of insurance, W-9s and contractor licenses from your subs, checked against each subcontract's insurance terms. All ( 18 ) Pending review ( 0 ) Expiring ( 0 ) Expired ( 0 ) Missing ( 1 ) Not compliant ( 0 ) Compliant ( 17 ) Rosendin Electric, Inc. Sandbox run 20261108-13 Compliant Review records Ortiz Plumbing Lopez Kitchen Remodel (CA) Missing: Certificate of insurance. Missing: W-9. Missing: Contractor license. Missing Review records Rosendin Electric, Inc. Sandbox run 20261107-12 Compliant Review records Rosendin Electric, Inc. Sandbox run 20261106-11 Compliant Review records Rosendin Electric, Inc. Sandbox run 20261106-10 Compliant Review records Rosendin Electric, Inc. Sandbox run 20261106-09 Compliant Review records Rosendin Electric, Inc. Sandbox run 20261105-08 Compliant Review records Rosendin Electric, Inc. Sandbox run 20261105-07 Compliant Review records Rosendin Electric, Inc. Sandbox run 20261105-06 Compliant Review records Rosendin Electric, Inc. Sandbox run 20261104-05 Compliant Review records Rosendin Electric, Inc. Sandbox run 20261104-04 Compliant Review records Rosendin Electric, Inc. Sandbox run 20261101-03 Compliant Review recor"
+    },
+    "GC vendors": {
+      "route": "#/vendors",
+      "chars": 2424,
+      "hits": [],
+      "sample": "Vendors Your company's subcontractor directory. Add bidders to trade packages from here. Export CSV Active Inactive All Search Vendors Vendor Trades Contact License Status Actions Alterman, Inc. 26 00 00 estimating@goalterman.com +1 (512) 454-0326 1000000 Active Shared demo · read-only Bergelectric Corp. 26 00 00 estimating@bergelectric.com +1 (512) 458-1221 85046 Active Shared demo · read-only Clarke Kent Plumbing 22 00 00 dispatch@clarkekentplumbing.com +1 (512) 282-7000 TX-RMP-39182 Active Linked · company account Payee confirmed Shared demo · read-only Daniel's Plumbing & Air Conditioning 22 00 00 service@danielshomeservices.com +1 (512) 490-6733 TX-RMP-38912 Active Shared demo · read-only Dynamic Systems, Inc. 23 00 00 commercial@dynamicsystemsusa.com +1 (512) 443-1566 TX-TACLA-04982C Active Shared demo · read-only FSG 26 00 00 Contact not published +1 (512) 518-5341 — Active Shared demo · read-only Limbach Facility Services LLC 22 00 00 estimating@limbachinc.com +1 (512) 456-3570 TX-RMP-41029 Active Shared demo · read-only Ortiz Plumbing 22 00 00 Contact not published — Active Linked · company account Payee confirmed Shared demo · read-only Prism Electric, Inc. 26 00 00 estim"
+    },
+    "GC vendor detail": {
+      "route": "#/vendors/rd7dht3hyc44g9yq9t057sd5gh8ht828",
+      "chars": 431,
+      "hits": [],
+      "sample": "Vendors Ortiz Plumbing Active Linked · company account Payee confirmed Payee Payouts go only to a payout PayPal email that someone at your company has confirmed. Payout PayPal email sb-****@personal.example.com Confirmed by Demo GC on Nov 8, 2026, 3:19 PM UTC Company profile Maintained by Ortiz Plumbing. Only its admins can change it. Company Ortiz Plumbing Directory details Contact — Email Contact not published Trades 22 00 00"
+    }
+  },
+  "diagnostics": {
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": [
+      "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED",
+      "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED"
+    ]
+  }
+}

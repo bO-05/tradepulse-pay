@@ -1,0 +1,21 @@
+Seed-source scan for user-visible demo literals (VAL-COPY-002)
+================================================================
+Command run from the repository root:
+
+  rg -n "\(demo\)|\(seed\)|\(Demo\)|\(Seed\)|Demo Mutual|stand-in|stand in|verify-required\.invalid|[A-Za-z0-9._%+-]+@(?:[A-Za-z0-9-]+\.)*example\.com" \
+    convex/lib/demoTenancy.ts convex/demoAccounts.ts convex/compliance/demoSeed.ts \
+    convex/demoResidential.ts convex/lib/demoPayees.ts convex/lib/demoReference.ts
+
+Result: 1 hit, a source comment that is never rendered:
+
+  convex/lib/demoTenancy.ts:14
+  * Seeded display names. They intentionally carry no "(demo)"/"(seed)" suffix: a shared sandbox
+
+Every seeded display literal is clean:
+  companies   Demo GC, Rosendin Electric, Inc., TDIndustries, Inc., Clarke Kent Plumbing,
+              Ortiz Plumbing, Demo Owner
+  accounts    the same display names (no seeded account label keeps a "(demo)"/"(seed)" suffix)
+  insurer     Harbor Point Mutual (the compliance COI insurer; the old Demo Mutual name is gone)
+  audit rows  plain titles and descriptions; the old rows are mapped by src/lib/auditCopy.ts
+  payees      resolved from deployment environment variables, never stored as literals here
+  frozen rows only presentation helpers change suffixes; stored financial rows are untouched
