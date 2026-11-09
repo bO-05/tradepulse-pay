@@ -111,9 +111,13 @@ function view(status: Status) {
 }
 
 function renderPage(status: Status): string {
+  return renderView(view(status));
+}
+
+function renderView(record: unknown): string {
   const name = getFunctionName(api.payApps.g703.getPayApp);
   vi.mocked(useQuery).mockImplementation(((fn: unknown) =>
-    getFunctionName(fn as never) === name ? view(status) : undefined) as never);
+    getFunctionName(fn as never) === name ? record : undefined) as never);
   return renderToStaticMarkup(
     <ToastProvider>
       <PayAppPage payAppId={PAY_APP} backHash="#/portal" backLabel="Sub portal" />
@@ -177,5 +181,32 @@ describe("sub pay app primary action by state", () => {
     expect(html).not.toContain('data-testid="payapp-submit"');
     expect(html).not.toContain('data-testid="payapp-revise"');
     expect(html).not.toContain('data-testid="payapp-withdraw"');
+  });
+
+  test("a reviewed record renders the stored requested retainage, never the negative derivation", () => {
+    const base = view("submitted") as unknown as Record<string, unknown>;
+    const reviewed = {
+      ...base,
+      status: "reviewed",
+      basis: "requested",
+      // The reviewed state's summary is the requested G702: 5,400.00 claimed - 270.00 retainage.
+      summary: { ...(base.summary as object), retainageCents: 27_000, currentPaymentDueCents: 513_000 },
+      reviewSuggestedTotalCents: 200_000,
+      approvalHistory: {
+        ...(base.approvalHistory as object),
+        requestedGrossCents: 540_000,
+        approvedGrossCents: null,
+      },
+    };
+    const rendered = text(renderView(reviewed));
+    // Judge the money trail itself: the page's other panels keep their own stored figures.
+    const trail = rendered.slice(rendered.indexOf("Money trail"), rendered.indexOf("Application No. 1"));
+    expect(trail).not.toContain("-$3,130.00");
+    expect(trail).not.toMatch(/-\$[0-9]/);
+    expect(trail).toContain("$5,400.00"); // claimed, stored
+    expect(trail).toContain("$2,000.00"); // review suggestion, stored
+    expect(trail).toContain("$270.00"); // stored requested retainage
+    expect(trail).toContain("$5,130.00"); // requested net, stored
+    expect(trail).toContain("Not withheld yet");
   });
 });

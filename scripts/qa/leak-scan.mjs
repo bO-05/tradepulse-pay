@@ -2,13 +2,16 @@
 /**
  * Copy-leak scan for the judge-facing screens.
  *
- *   node scripts/qa/leak-scan.mjs --url http://localhost:3150
+ *   node scripts/qa/leak-scan.mjs --url http://localhost:3150 [--out docs/evidence/<area>-<date>]
  *
  * The scan signs in through the three demo seats, walks the six GC/sub/owner
  * screens (plus the demo landing), and extracts only text the browser actually
- * renders. Anything inside a closed <details> is skipped, including the contents
- * of "Manual sign-in and sandbox details" on #/demo. The summary line has a
- * closed <details> in its ancestor chain, so it is skipped by the same rule.
+ * renders. Screen 3 has two routes — the Lopez project page and the GC
+ * owner-billing tab with Lopez selected — so the owner-billing tab is scanned at
+ * 1440 and 390 as well. Anything inside a closed <details> is skipped, including
+ * the contents of "Manual sign-in and sandbox details" on #/demo. The summary
+ * line has a closed <details> in its ancestor chain, so it is skipped by the same
+ * rule.
  *
  * Quoted recorded history on the frozen Lopez reference is extracted into its
  * own bucket: it may contain the original commercial vocabulary and must never
@@ -28,7 +31,19 @@ function argValue(name, fallback) {
 }
 
 const BASE_URL = argValue("--url", process.env.REM_BASE_URL || "http://localhost:3150").replace(/\/+$/, "");
+const OUT_DIR = argValue("--out", null);
 const OPEN_DISCLOSURES = process.argv.includes("--open-disclosures");
+
+/** Writes the tracked copy when --out names one; the gitignored evidence/ copy always exists. */
+function writeReport(report) {
+  const file = writeJson("leak-scan.json", report);
+  if (!OUT_DIR) return file;
+  const dir = path.resolve(OUT_DIR);
+  fs.mkdirSync(dir, { recursive: true });
+  const out = path.join(dir, "leak-scan.json");
+  fs.writeFileSync(out, JSON.stringify(report, null, 2), "utf8");
+  return out;
+}
 
 async function selfTest(browser) {
   const page = await browser.newPage();
@@ -143,6 +158,30 @@ function readSettledPayAppId() {
   return id;
 }
 
+/**
+ * Screen 3's second route is project-scoped. The picker sorts the residential job first, so
+ * Lopez is the default, but the scan drives the select explicitly and verifies the job rendered.
+ */
+async function selectLopezOnOwnerBilling(page) {
+  const state = await page.evaluate(() => {
+    const select = document.querySelector('[data-testid="owner-billing-project"]');
+    if (!select) return { picker: false, selected: null };
+    const option = [...select.options].find((o) => /Lopez Kitchen/i.test(o.textContent ?? ""));
+    if (!option) return { picker: true, selected: null };
+    if (select.value !== option.value) {
+      select.value = option.value;
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    return { picker: true, selected: option.value };
+  });
+  if (state.picker && !state.selected) throw new Error("GC owner billing: the Lopez project is not in the picker");
+  await delay(1200);
+  const body = await page.evaluate(() => document.body.innerText);
+  if (!/Lopez Kitchen Remodel/i.test(body)) throw new Error("GC owner billing: the Lopez job did not render");
+  if (!/Money on this job/i.test(body)) throw new Error("GC owner billing: the Lopez money strip did not render");
+  return state;
+}
+
 async function main() {
   const settledPayAppId = readSettledPayAppId();
   const { browser } = await launchBrowser(1440, 900);
@@ -174,7 +213,29 @@ async function main() {
       await delay(1800);
       const body = await page.evaluate(() => document.body.innerText);
       if (!/Lopez Kitchen/i.test(body)) throw new Error("GC Lopez project: Lopez content did not render");
-      screens.push({ name: "GC Lopez project", route: new URL(lopez).hash, ...(await capture(page)) });
+      screens.push({ name: "GC Lopez project", route: new URL(lopez).hash, viewport: 1440, ...(await capture(page)) });
+
+      // Screen 3's second route: the GC owner-billing tab with the Lopez job selected. It is a
+      // distinct composition (project picker, money strip, GC draw detail), so it is scanned at
+      // both judge widths rather than assumed to match the project page.
+      await gotoAndWait(page, "#/billing/owner-billing", "GC owner billing");
+      await selectLopezOnOwnerBilling(page);
+      screens.push({
+        name: "GC Lopez owner billing",
+        route: "#/billing/owner-billing",
+        viewport: 1440,
+        ...(await capture(page)),
+      });
+      await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1 });
+      await gotoAndWait(page, "#/billing/owner-billing", "GC owner billing at 390");
+      await selectLopezOnOwnerBilling(page);
+      screens.push({
+        name: "GC Lopez owner billing",
+        route: "#/billing/owner-billing",
+        viewport: 390,
+        ...(await capture(page)),
+      });
+
       diagnostics["GC inbox"] = { consoleErrors: diag.consoleLogs.filter((l) => l.type === "error"), pageErrors: diag.pageErrors, failedRequests: diag.failedRequests };
       await context.close();
     }
@@ -243,6 +304,7 @@ async function main() {
     return {
       name: screen.name,
       route: screen.route,
+      viewport: screen.viewport ?? 1440,
       appCopyHits: appHits,
       quotedRecordedText: {
         blocks: screen.recordedBlocks,
@@ -266,6 +328,7 @@ async function main() {
   })();
 
   const core = results.filter((r) => r.name !== "Demo landing");
+  const routes = [...new Set(results.map((r) => r.route))];
   const appHits = results.reduce((n, r) => n + r.appCopyHits.length, 0);
   const recordedHits = results.reduce((n, r) => n + r.quotedRecordedText.hits.length, 0);
   const report = {
@@ -275,6 +338,7 @@ async function main() {
     selfTest: self,
     summary: {
       screens: core.length,
+      routes: routes.length,
       screensIncludingDemo: results.length,
       disclosuresOpened: results.reduce((n, r) => n + r.disclosuresOpened, 0),
       appCopyHits: appHits,
@@ -284,7 +348,7 @@ async function main() {
     screens: results,
     diagnostics,
   };
-  const file = writeJson("leak-scan.json", report);
+  const file = writeReport(report);
 
   console.log(`leak-scan ${BASE_URL} (disclosures: ${OPEN_DISCLOSURES ? "open" : "closed"})`);
   console.log(
@@ -298,7 +362,7 @@ async function main() {
     const recorded = r.quotedRecordedText.blocks
       ? `${r.quotedRecordedText.hits.length} hits in ${r.quotedRecordedText.blocks} quoted block(s)`
       : "none";
-    console.log(`  ${r.name} (${r.route}): ${r.appCopyHits.length} app-copy hits; quoted recorded: ${recorded}`);
+    console.log(`  ${r.name} (${r.route} @${r.viewport}): ${r.appCopyHits.length} app-copy hits; quoted recorded: ${recorded}`);
     for (const hit of r.appCopyHits) {
       console.error(`    HIT [${r.name}] ${hit.rule}: "${hit.match}" — …${hit.context}…`);
     }
@@ -307,7 +371,7 @@ async function main() {
     }
   }
   console.log(
-    `summary: ${core.length} core screens + demo (disclosures ${OPEN_DISCLOSURES ? "open" : "closed"}, ${report.summary.disclosuresOpened} opened); ${appHits} app-copy hits; ${report.summary.quotedRecordedBlocks} quoted block(s), ${recordedHits} banned strings inside quoted history (reported, never rewritten)`
+    `summary: ${core.length} core screen visits on ${routes.length} routes + demo (disclosures ${OPEN_DISCLOSURES ? "open" : "closed"}, ${report.summary.disclosuresOpened} opened); ${appHits} app-copy hits; ${report.summary.quotedRecordedBlocks} quoted block(s), ${recordedHits} banned strings inside quoted history (reported, never rewritten)`
   );
   console.log(`evidence: ${file}`);
 

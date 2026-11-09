@@ -20,9 +20,10 @@
  *     never failed or rewritten), and
  *   - no page or console errors.
  *
- * Screens: #/demo, #/inbox, the Lopez project page, the settled Ortiz pay app, #/projects,
- * #/owner-pay-apps and the Lopez change-order invoice. Writes report.json, report.md and
- * screenshots under --out (default docs/evidence/a11y-six-screens-<date>).
+ * Screens: #/demo, #/inbox, screen 3 in both of its routes (the Lopez project page and the GC
+ * owner-billing tab with Lopez selected), the settled Ortiz pay app, #/projects, #/owner-pay-apps
+ * and the Lopez change-order invoice. Writes report.json, report.md and screenshots under --out
+ * (default docs/evidence/a11y-six-screens-<date>).
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -168,6 +169,31 @@ async function resolveLopezHash(context) {
   await page.close();
   if (!href) throw new Error("Could not find the Lopez project link on #/all-projects");
   return href;
+}
+
+/**
+ * Screen 3's second route is project-scoped. The picker sorts the residential job first, but the
+ * audit drives it explicitly so the measured screen is named Lopez rather than relying on order.
+ */
+async function selectLopezOwnerBilling(page) {
+  const state = await page.evaluate(() => {
+    const select = document.querySelector('[data-testid="owner-billing-project"]');
+    if (!select) return { picker: false, selected: null };
+    const option = [...select.options].find((o) => /Lopez Kitchen/i.test(o.textContent ?? ""));
+    if (!option) return { picker: true, selected: null };
+    if (select.value !== option.value) {
+      select.value = option.value;
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    return { picker: true, selected: option.value };
+  });
+  if (state.picker && !state.selected) throw new Error("GC owner billing: the Lopez project is not in the picker");
+  await page.waitForFunction(
+    () => /Money on this job/i.test(document.querySelector('[data-testid="project-money-strip"]')?.innerText ?? ""),
+    { timeout: 30000 },
+  );
+  await delay(1000);
+  return state;
 }
 
 async function resolveChangeOrderHash(context) {
@@ -404,6 +430,9 @@ async function main() {
       // primary is missing, the audit reports that as a failed check instead of timing out.
       { name: "GC home", slug: "gc-home", route: "#/inbox", url: `${BASE_URL}/#/inbox`, context: gcContext, selector: ["#workspace-main", '[data-testid="project-money-strip"]', '[data-testid="inbox-counts"]'], seat: "gc" },
       { name: "Lopez project page", slug: "lopez-project", route: lopezHash, url: `${BASE_URL}/${lopezHash}`, context: gcContext, selector: ["#workspace-main", '[data-testid="project-money-strip"]'], seat: "gc" },
+      // Screen 3's second route: the GC owner-billing tab with the Lopez job selected. It renders a
+      // composition no other audited route renders (project picker, money strip, GC draw detail).
+      { name: "Lopez owner billing", slug: "lopez-owner-billing", route: "#/billing/owner-billing", url: `${BASE_URL}/#/billing/owner-billing`, context: gcContext, selector: ["#workspace-main", '[data-testid="gc-owner-billing"]', '[data-testid="project-money-strip"]'], seat: "gc", prepare: selectLopezOwnerBilling },
       { name: "Sub pay app", slug: "sub-pay-app", route: `#/pay-apps/${settledPayAppId}`, url: `${BASE_URL}/#/pay-apps/${settledPayAppId}`, context: subContext, selector: ["#workspace-main", '[data-testid="payapp-number"]'], seat: "sub" },
       { name: "Owner home", slug: "owner-home", route: "#/projects", url: `${BASE_URL}/#/projects`, context: ownerContext, selector: ["#workspace-main", '[data-testid="owner-job-so-far"]'], seat: "owner" },
       { name: "Owner draw", slug: "owner-draw", route: "#/owner-pay-apps", url: `${BASE_URL}/#/owner-pay-apps`, context: ownerContext, selector: ["#workspace-main", '[data-testid="owner-documents"]'], seat: "owner" },
@@ -419,6 +448,7 @@ async function main() {
         await page.setViewport({ width: viewport.width, height: viewport.height, deviceScaleFactor: 1 });
         await page.goto(screen.url, { waitUntil: "networkidle0", timeout: 60000 });
         await waitForScreen(page, screen.selector);
+        if (screen.prepare) await screen.prepare(page);
         // New screenshots and a clean disclosure state per viewport.
         const closed = await auditState(page, screen, viewport, "closed");
         // Dedicated trail crops for VAL-JUDGE-004's three surfaces (plus the owner draw).
@@ -504,6 +534,19 @@ async function main() {
         if (screen.slug === "lopez-project") {
           check(`Lopez project page @${viewport.width}: the shared GC money trail is present`, closed.measured.strings.gcMoneyTrail);
         }
+        if (screen.slug === "lopez-owner-billing") {
+          check(`Lopez owner billing @${viewport.width}: the money strip is present`, closed.measured.strings.moneyStrip !== null);
+          check(
+            `Lopez owner billing @${viewport.width}: the strip is scoped to the Lopez job`,
+            /Money on this job/i.test(closed.measured.strings.moneyStrip ?? ""),
+            String(closed.measured.strings.moneyStrip ?? "").slice(0, 120),
+          );
+          check(
+            `Lopez owner billing @${viewport.width}: the Lopez job is selected`,
+            /Lopez Kitchen Remodel/i.test(closed.measured.strings.pageText),
+            closed.measured.strings.pageText.slice(0, 200),
+          );
+        }
         if (screen.slug === "sub-pay-app") {
           check(`Sub pay app @${viewport.width}: the shared money trail is present`, closed.measured.strings.payappMoneyTrail);
           check(`Sub pay app @${viewport.width}: retainage reads as a word plus a figure`, /retainage/i.test(closed.measured.strings.payappRetainage ?? "") && /\$/.test(closed.measured.strings.payappRetainage ?? ""), String(closed.measured.strings.payappRetainage));
@@ -568,7 +611,7 @@ async function main() {
     `- Target: ${BASE_URL}`,
     `- Generated: ${report.generatedAt}`,
     `- axe-core: ${AXE_VERSION}`,
-    `- Screens: ${report.summary.screens} (demo + six judge screens), at 1440x900 and 390x844`,
+    `- Screens: ${report.summary.screens} visits (demo + six judge screens; screen 3 in both of its routes), at 1440x900 and 390x844`,
     `- Checks: ${report.summary.checks} run, ${report.summary.failedChecks} failed`,
     `- Serious/critical axe violations: ${report.summary.seriousCriticalAxeViolations}`,
     `- App-copy leak hits: ${report.summary.appCopyHits}`,

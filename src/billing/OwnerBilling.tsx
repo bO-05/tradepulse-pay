@@ -936,6 +936,7 @@ function OwnerProjectPayApps({ projectId }: { projectId: string }) {
         </h3>
         <ProjectDocumentsList
           projectId={projectId}
+          projectKind={list.projectKind}
           emptyAction={
             current ? (
               <DocumentDownloadButton

@@ -7,6 +7,7 @@ import type { DocumentKind } from "../../convex/documents/kinds";
 import { downloadBlob } from "../billing/sovFile";
 import { getErrorMessage } from "../lib/errors";
 import { fetchAuthenticatedFile } from "../lib/storedFile";
+import { termsForKind, type ProjectKind } from "../lib/terms";
 import { Button, EmptyState, formatDate, type ButtonVariant } from "../ui";
 import type { ButtonSize } from "../ui/Button";
 
@@ -96,7 +97,17 @@ export function DocumentDownloadButton({
 }
 
 /** The documents already generated on a project that the caller may download. */
-export function ProjectDocumentsList({ projectId, emptyAction }: { projectId: string; emptyAction?: ReactNode }) {
+export function ProjectDocumentsList({
+  projectId,
+  projectKind,
+  emptyAction,
+}: {
+  projectId: string;
+  /** The project's kind; a missing kind keeps the commercial wording byte-for-byte. */
+  projectKind?: ProjectKind | null;
+  emptyAction?: ReactNode;
+}) {
+  const terms = termsForKind(projectKind);
   const data = useQuery(api.documents.documents.listDocuments, { projectId });
   const fetchDocument = useFetchDocument();
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -112,7 +123,11 @@ export function ProjectDocumentsList({ projectId, emptyAction }: { projectId: st
     return (
       <EmptyState
         title="No documents yet"
-        description="PDFs and CSV exports appear here once someone downloads them from a pay app, change order, owner pay app or subcontract."
+        description={
+          terms.kind === "residential"
+            ? "PDFs and CSV exports appear here once someone downloads them from a pay app, draw, change order or subcontract."
+            : "PDFs and CSV exports appear here once someone downloads them from a pay app, change order, owner pay app or subcontract."
+        }
         headingLevel={3}
         action={emptyAction}
       />

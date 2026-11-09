@@ -107,3 +107,66 @@ describe("the sub pay app money trail", () => {
     expect(shared).toContain("export function MoneyTrail");
   });
 });
+
+/**
+ * A reviewed application whose requested net ($5,130.00) is larger than the review suggestion
+ * ($2,000.00) and whose stored requested retainage is $270.00. Deriving the period retainage as
+ * `suggested - requested net` rendered this state as -$3,130.00 before the fix.
+ */
+function reviewedView(status: "reviewed" | "revision_requested" | "rejected" | "approved") {
+  const approved = status === "approved" ? 400_000 : null;
+  return {
+    status,
+    approvalHistory: {
+      submittedAt: 1_763_000_000_000,
+      reviewedAt: 1_763_000_060_000,
+      approvedAt: null,
+      approvedBy: null,
+      requestedGrossCents: 540_000,
+      approvedGrossCents: approved,
+      reason: null,
+    },
+    reviewSuggestedTotalCents: 200_000,
+    summary:
+      approved === null
+        ? { retainageCents: 27_000, currentPaymentDueCents: 513_000 }
+        : { retainageCents: 20_000, currentPaymentDueCents: 380_000 },
+  };
+}
+
+describe("the sub pay app money trail in every status", () => {
+  test.each(["reviewed", "revision_requested", "rejected"] as const)(
+    "a %s app shows the stored requested retainage and says it is not withheld yet",
+    (status) => {
+      const rendered = text(render(reviewedView(status)));
+      // No figure on the trail may be negative, and the old fabricated figure is gone.
+      expect(rendered).not.toMatch(/-\$[0-9]/);
+      expect(rendered).not.toContain("-$3,130.00");
+      expect(rendered).toContain("$5,400.00"); // claimed, stored
+      expect(rendered).toContain("$2,000.00"); // the rules suggestion, stored
+      expect(rendered).toContain("$270.00"); // stored requested retainage (5,400.00 - 5,130.00)
+      expect(rendered).toContain("$5,130.00"); // requested net, stored
+      expect(rendered).toContain("GC approved —"); // not decided yet, stored null
+      expect(rendered).toContain("Not withheld yet");
+      expect(rendered).toContain("Retainage on this draw: $270.00. Not withheld yet");
+      expect(rendered).not.toContain("This draw withheld");
+      expect(rendered).not.toContain("Withheld");
+    },
+  );
+
+  test("an approved app shows the stored approved retainage as actually withheld", () => {
+    const rendered = text(render(reviewedView("approved")));
+    expect(rendered).toContain("$4,000.00");
+    expect(rendered).toContain("$200.00");
+    expect(rendered).toContain("$3,800.00");
+    expect(rendered).toContain("This draw withheld $200.00.");
+    expect(rendered).not.toMatch(/-\$[0-9]/);
+  });
+
+  test("the paid reference keeps its stored retainage and its wording", () => {
+    const rendered = text(render());
+    expect(rendered).toContain("Total retainage held to date: $200.00.");
+    expect(rendered).toContain("This draw withheld $200.00.");
+    expect(rendered).toContain("Withheld");
+  });
+});

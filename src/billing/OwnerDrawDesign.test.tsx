@@ -110,11 +110,14 @@ function routeQueries(kind: Kind, status: DrawStatus, portfolio: "mixed" | Kind 
   const projectsQuery = getFunctionName(api.billing.ownerPayApps.ownerBillingProjects);
   const listQuery = getFunctionName(api.billing.ownerPayApps.listOwnerPayApps);
   const detailQuery = getFunctionName(api.billing.ownerPayApps.getOwnerPayApp);
+  const documentsQuery = getFunctionName(api.documents.documents.listDocuments);
   vi.mocked(useQuery).mockImplementation(((fn: unknown) => {
     const name = getFunctionName(fn as never);
     if (name === projectsQuery) return projects(portfolio);
     if (name === listQuery) return list(kind);
     if (name === detailQuery) return draw(kind, status);
+    // The documents panel is empty on the demo reference; its copy is kind-keyed.
+    if (name === documentsQuery) return { documents: [], truncated: false };
     return undefined;
   }) as never);
 }
@@ -217,5 +220,23 @@ describe("owner draw screen", () => {
     expect(rendered).toContain("Previous payments");
     expect(rendered).toContain("Commercial reference job");
     expect(rendered).not.toContain("Draw breakdown");
+  });
+
+  test("the owner draw's empty documents state speaks Draw, never owner pay app", () => {
+    routeQueries("residential", "paid");
+    const rendered = text(renderPage());
+    expect(rendered).toContain("No documents yet");
+    expect(rendered).toContain("downloads them from a pay app, draw, change order or subcontract.");
+    // VAL-LANG-003's named pair: the residential flow never says "owner pay app".
+    expect(rendered).not.toContain("owner pay app");
+    expect(rendered).not.toContain("Owner pay app");
+  });
+
+  test("a commercial draw keeps the documents empty-state wording byte-for-byte", () => {
+    routeQueries("commercial", "paid", "commercial");
+    const rendered = text(renderPage());
+    expect(rendered).toContain(
+      "PDFs and CSV exports appear here once someone downloads them from a pay app, change order, owner pay app or subcontract.",
+    );
   });
 });

@@ -8,7 +8,12 @@ export type PayAppView = NonNullable<FunctionReturnType<typeof api.payApps.g703.
 /**
  * The sub pay app's money trail, built on the shared `MoneyTrail` primitive (no local copy of the
  * component). Every figure is a stored cent from `payApps.g703.getPayApp`: the claimed gross, the
- * rules recommendation, the GC's approved gross, this draw's retainage and the net payment due.
+ * rules recommendation, the GC's approved gross, this app's retainage and the net payment due.
+ *
+ * The retainage is the stored G702 figure for the view's basis — the requested summary until the GC
+ * decides, the approved summary after that. It is never derived from the review suggestion or the
+ * requested net: that subtraction rendered a negative "Retainage this draw" on reviewed apps, and on
+ * a later application it would include the previous certificates.
  *
  * The net payment is the hero — the largest number on the page and the only step with its own row
  * on a phone — because that is the number the trade opened the page for.
@@ -19,10 +24,13 @@ export function PayAppMoneyTrail({ view, terms }: { view: PayAppView; terms: Ter
   const approved = view.approvalHistory.approvedGrossCents;
   const retainage = view.summary.retainageCents;
   const net = view.summary.currentPaymentDueCents;
-  const grossThisApp = approved ?? suggested;
-  const periodRetainage = grossThisApp !== null ? grossThisApp - net : null;
+  // `summary` is the requested G702 until the GC approves; the same approved basis that produces
+  // `approvedGrossCents` produces the approved retainage. `decided` therefore names the state whose
+  // stored retainage was actually withheld.
+  const decided = approved !== null;
   const residential = terms.kind === "residential";
   const paid = view.status === "paid";
+  const appWord = residential ? "draw" : "application";
 
   const steps: MoneyTrailStep[] = [
     { label: "Claimed", valueCents: claimed, note: "Billed by the sub" },
@@ -30,19 +38,12 @@ export function PayAppMoneyTrail({ view, terms }: { view: PayAppView; terms: Ter
       ? [{ label: "Review suggests", valueCents: suggested, note: "Rules check only" }]
       : []),
     { label: "GC approved", valueCents: approved, note: approved === null ? "Not decided yet" : "Final amount" },
-    periodRetainage !== null
-      ? {
-          label: residential ? "Retainage this draw" : "Retainage this app",
-          valueCents: periodRetainage,
-          tone: periodRetainage > 0 ? ("warning" as const) : ("default" as const),
-          note: periodRetainage > 0 ? "Withheld" : "Nothing withheld",
-        }
-      : {
-          label: "Total retainage held",
-          valueCents: retainage,
-          tone: retainage > 0 ? ("warning" as const) : ("default" as const),
-          note: retainage > 0 ? "Withheld" : "Nothing withheld",
-        },
+    {
+      label: residential ? "Retainage this draw" : "Retainage this app",
+      valueCents: retainage,
+      tone: decided && retainage > 0 ? ("warning" as const) : ("default" as const),
+      note: decided ? (retainage > 0 ? "Withheld" : "Nothing withheld") : "Not withheld yet",
+    },
   ];
 
   const netStep: MoneyTrailStep = {
@@ -55,9 +56,9 @@ export function PayAppMoneyTrail({ view, terms }: { view: PayAppView; terms: Ter
   const footer = (
     <>
       <p className="text-xs text-ink-subtle" data-testid="payapp-retainage-total">
-        Total retainage held to date: {formatCents(retainage)}
-        {residential ? "." : " (G702 line 5)."}
-        {periodRetainage !== null ? ` This ${residential ? "draw" : "application"} withheld ${formatCents(periodRetainage)}.` : ""}
+        {decided
+          ? `Total retainage held to date: ${formatCents(retainage)}${residential ? "." : " (G702 line 5)."} This ${appWord} withheld ${formatCents(retainage)}.`
+          : `Retainage on this ${appWord}: ${formatCents(retainage)}. Not withheld yet; the GC has not approved this ${appWord}.`}
       </p>
       {suggested !== null && approved !== null && suggested !== approved ? (
         <p className="text-xs text-ink-subtle" data-testid="payapp-money-trail-edit">

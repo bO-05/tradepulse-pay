@@ -25,7 +25,7 @@
     {
       "name": "[1440] net figure is the largest money figure",
       "ok": true,
-      "detail": "[{\"text\":\"$3,800.00\",\"fontSize\":30,\"testid\":null,\"label\":\"Net this draw\",\"top\":616,\"right\":1378,\"inClosedDetails\":false},{\"text\":\"$5,400.00\",\"fontSize\":18,\"testid\":null,\"label\":\"Claimed\",\"top\":718,\"right\":364,\"inClosedDetails\":false},{\"text\":\"$2,000.00\",\"fontSize\":18,\"testid\":null,\"label\":\"→Review suggests\",\"top\":718,\"right\":703,\"inClosedDetails\":false}]"
+      "detail": "[{\"text\":\"$3,800.00\",\"fontSize\":30,\"testid\":null,\"label\":\"Net this draw\",\"top\":554,\"right\":1378,\"inClosedDetails\":false},{\"text\":\"$5,400.00\",\"fontSize\":18,\"testid\":null,\"label\":\"Claimed\",\"top\":656,\"right\":364,\"inClosedDetails\":false},{\"text\":\"$2,000.00\",\"fontSize\":18,\"testid\":null,\"label\":\"→Review suggests\",\"top\":656,\"right\":703,\"inClosedDetails\":false}]"
     },
     {
       "name": "[1440] net figure is at least text-2xl (24px)",
@@ -60,7 +60,7 @@
     {
       "name": "[1440] money trail sits above the application detail",
       "ok": true,
-      "detail": "505 vs 1842"
+      "detail": "443 vs 1854"
     },
     {
       "name": "[1440] breakdown is a collapsed disclosure",
@@ -110,7 +110,7 @@
     {
       "name": "[1440] net figure is inside the first viewport",
       "ok": true,
-      "detail": "616 vs 900"
+      "detail": "554 vs 900"
     },
     {
       "name": "[1440] no visible control under 24px",
@@ -195,7 +195,7 @@
     {
       "name": "[390] net figure is the largest money figure",
       "ok": true,
-      "detail": "[{\"text\":\"$3,800.00\",\"fontSize\":30,\"testid\":null,\"label\":\"Net this draw\",\"top\":641,\"right\":340,\"inClosedDetails\":false},{\"text\":\"$5,400.00\",\"fontSize\":18,\"testid\":null,\"label\":\"Claimed\",\"top\":743,\"right\":178,\"inClosedDetails\":false},{\"text\":\"$2,000.00\",\"fontSize\":18,\"testid\":null,\"label\":\"→Review suggests\",\"top\":743,\"right\":344,\"inClosedDetails\":false}]"
+      "detail": "[{\"text\":\"$3,800.00\",\"fontSize\":30,\"testid\":null,\"label\":\"Net this draw\",\"top\":539,\"right\":340,\"inClosedDetails\":false},{\"text\":\"$5,400.00\",\"fontSize\":18,\"testid\":null,\"label\":\"Claimed\",\"top\":641,\"right\":178,\"inClosedDetails\":false},{\"text\":\"$2,000.00\",\"fontSize\":18,\"testid\":null,\"label\":\"→Review suggests\",\"top\":641,\"right\":344,\"inClosedDetails\":false}]"
     },
     {
       "name": "[390] net figure is at least text-2xl (24px)",
@@ -230,7 +230,7 @@
     {
       "name": "[390] money trail sits above the application detail",
       "ok": true,
-      "detail": "514 vs 2570"
+      "detail": "412 vs 2506"
     },
     {
       "name": "[390] breakdown is a collapsed disclosure",
@@ -280,7 +280,7 @@
     {
       "name": "[390] net figure is inside the first viewport",
       "ok": true,
-      "detail": "641 vs 844"
+      "detail": "539 vs 844"
     },
     {
       "name": "[390] no visible control under 24px",
@@ -359,7 +359,7 @@
           "fontSize": 30,
           "testid": null,
           "label": "Net this draw",
-          "top": 616,
+          "top": 554,
           "right": 1378,
           "inClosedDetails": false
         },
@@ -368,7 +368,7 @@
           "fontSize": 18,
           "testid": null,
           "label": "Claimed",
-          "top": 718,
+          "top": 656,
           "right": 364,
           "inClosedDetails": false
         },
@@ -377,7 +377,7 @@
           "fontSize": 18,
           "testid": null,
           "label": "→Review suggests",
-          "top": 718,
+          "top": 656,
           "right": 703,
           "inClosedDetails": false
         },
@@ -386,7 +386,7 @@
           "fontSize": 18,
           "testid": null,
           "label": "→GC approved",
-          "top": 718,
+          "top": 656,
           "right": 1043,
           "inClosedDetails": false
         },
@@ -395,7 +395,7 @@
           "fontSize": 18,
           "testid": null,
           "label": "→Retainage this draw",
-          "top": 718,
+          "top": 656,
           "right": 1382,
           "inClosedDetails": false
         },
@@ -404,7 +404,7 @@
           "fontSize": 16,
           "testid": null,
           "label": "(8)This draw",
-          "top": 2506,
+          "top": 2518,
           "right": 1395,
           "inClosedDetails": true
         },
@@ -413,7 +413,7 @@
           "fontSize": 14,
           "testid": null,
           "label": "Retainage held this period",
-          "top": 1067,
+          "top": 1055,
           "right": 714,
           "inClosedDetails": false
         },
@@ -422,7 +422,7 @@
           "fontSize": 14,
           "testid": null,
           "label": "Retainage still held on this agreement",
-          "top": 1067,
+          "top": 1055,
           "right": 1395,
           "inClosedDetails": false
         },
@@ -431,7 +431,7 @@
           "fontSize": 14,
           "testid": null,
           "label": "Amount",
-          "top": 1265,
+          "top": 1253,
           "right": 708,
           "inClosedDetails": false
         },
@@ -440,7 +440,7 @@
           "fontSize": 14,
           "testid": null,
           "label": "Amount",
-          "top": 1436,
+          "top": 1424,
           "right": 708,
           "inClosedDetails": false
         },
@@ -449,7 +449,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 2188,
+          "top": 2200,
           "right": 801,
           "inClosedDetails": true
         },
@@ -458,7 +458,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 2188,
+          "top": 2200,
           "right": 895,
           "inClosedDetails": true
         },
@@ -467,7 +467,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 2188,
+          "top": 2200,
           "right": 1143,
           "inClosedDetails": true
         },
@@ -476,7 +476,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 2188,
+          "top": 2200,
           "right": 1318,
           "inClosedDetails": true
         },
@@ -485,7 +485,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 2188,
+          "top": 2200,
           "right": 1395,
           "inClosedDetails": true
         },
@@ -494,7 +494,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 2197,
+          "top": 2209,
           "right": 1013,
           "inClosedDetails": true
         },
@@ -503,7 +503,7 @@
           "fontSize": 14,
           "testid": null,
           "label": "(1)Original contract sum",
-          "top": 2210,
+          "top": 2222,
           "right": 1395,
           "inClosedDetails": true
         },
@@ -512,7 +512,7 @@
           "fontSize": 14,
           "testid": null,
           "label": "(2)Net change by change orders",
-          "top": 2247,
+          "top": 2259,
           "right": 1395,
           "inClosedDetails": true
         },
@@ -521,7 +521,7 @@
           "fontSize": 14,
           "testid": null,
           "label": "(3)Contract sum to date",
-          "top": 2284,
+          "top": 2296,
           "right": 1395,
           "inClosedDetails": true
         },
@@ -530,7 +530,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 2297,
+          "top": 2309,
           "right": 801,
           "inClosedDetails": true
         },
@@ -539,7 +539,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 2297,
+          "top": 2309,
           "right": 895,
           "inClosedDetails": true
         },
@@ -548,7 +548,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 2297,
+          "top": 2309,
           "right": 1143,
           "inClosedDetails": true
         },
@@ -557,7 +557,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 2297,
+          "top": 2309,
           "right": 1318,
           "inClosedDetails": true
         },
@@ -566,7 +566,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 2297,
+          "top": 2309,
           "right": 1395,
           "inClosedDetails": true
         },
@@ -575,7 +575,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 2306,
+          "top": 2318,
           "right": 1013,
           "inClosedDetails": true
         },
@@ -584,7 +584,7 @@
           "fontSize": 14,
           "testid": null,
           "label": "(4)Total work completed to date",
-          "top": 2321,
+          "top": 2333,
           "right": 1395,
           "inClosedDetails": true
         },
@@ -593,7 +593,7 @@
           "fontSize": 14,
           "testid": null,
           "label": "(5)Retainage (5% by line, rounded per line)",
-          "top": 2358,
+          "top": 2370,
           "right": 1395,
           "inClosedDetails": true
         },
@@ -602,7 +602,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 2386,
+          "top": 2398,
           "right": 801,
           "inClosedDetails": true
         },
@@ -611,7 +611,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 2386,
+          "top": 2398,
           "right": 895,
           "inClosedDetails": true
         },
@@ -620,7 +620,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 2386,
+          "top": 2398,
           "right": 1143,
           "inClosedDetails": true
         },
@@ -629,7 +629,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 2386,
+          "top": 2398,
           "right": 1318,
           "inClosedDetails": true
         },
@@ -638,7 +638,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 2386,
+          "top": 2398,
           "right": 1395,
           "inClosedDetails": true
         },
@@ -647,7 +647,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 2395,
+          "top": 2407,
           "right": 1013,
           "inClosedDetails": true
         },
@@ -656,7 +656,7 @@
           "fontSize": 14,
           "testid": null,
           "label": "(5a)On completed work",
-          "top": 2395,
+          "top": 2407,
           "right": 1395,
           "inClosedDetails": true
         },
@@ -665,7 +665,7 @@
           "fontSize": 14,
           "testid": null,
           "label": "(6)Total earned less retainage",
-          "top": 2432,
+          "top": 2444,
           "right": 1395,
           "inClosedDetails": true
         },
@@ -674,7 +674,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 2440,
+          "top": 2452,
           "right": 801,
           "inClosedDetails": true
         },
@@ -683,7 +683,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 2440,
+          "top": 2452,
           "right": 895,
           "inClosedDetails": true
         },
@@ -692,7 +692,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 2440,
+          "top": 2452,
           "right": 1021,
           "inClosedDetails": true
         },
@@ -701,7 +701,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 2440,
+          "top": 2452,
           "right": 1143,
           "inClosedDetails": true
         },
@@ -710,7 +710,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 2440,
+          "top": 2452,
           "right": 1318,
           "inClosedDetails": true
         },
@@ -719,7 +719,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 2440,
+          "top": 2452,
           "right": 1395,
           "inClosedDetails": true
         },
@@ -728,7 +728,7 @@
           "fontSize": 14,
           "testid": null,
           "label": "(7)Previously paid",
-          "top": 2469,
+          "top": 2481,
           "right": 1395,
           "inClosedDetails": true
         },
@@ -737,7 +737,7 @@
           "fontSize": 14,
           "testid": null,
           "label": "(9)Balance to finish, including retainage",
-          "top": 2547,
+          "top": 2559,
           "right": 1395,
           "inClosedDetails": true
         }
@@ -790,12 +790,17 @@
         },
         {
           "text": "$4,000.00",
-          "index": 72,
+          "index": 71,
           "testid": null
         },
         {
           "text": "$0.00",
-          "index": 73,
+          "index": 72,
+          "testid": null
+        },
+        {
+          "text": "$4,000.00",
+          "index": 74,
           "testid": null
         },
         {
@@ -804,58 +809,58 @@
           "testid": null
         },
         {
-          "text": "$4,000.00",
-          "index": 76,
-          "testid": null
-        },
-        {
           "text": "$0.00",
-          "index": 78,
+          "index": 77,
           "testid": null
         },
         {
           "text": "$200.00",
-          "index": 79,
+          "index": 78,
           "testid": null
         },
         {
           "text": "$3,500.00",
+          "index": 84,
+          "testid": null
+        },
+        {
+          "text": "$0.00",
           "index": 85,
           "testid": null
         },
         {
           "text": "$0.00",
-          "index": 86,
+          "index": 87,
           "testid": null
         },
         {
           "text": "$0.00",
-          "index": 88,
-          "testid": null
-        },
-        {
-          "text": "$0.00",
-          "index": 90,
+          "index": 89,
           "testid": null
         },
         {
           "text": "$3,500.00",
-          "index": 92,
+          "index": 91,
           "testid": null
         },
         {
           "text": "$0.00",
-          "index": 93,
+          "index": 92,
           "testid": null
         },
         {
           "text": "$1,500.00",
+          "index": 97,
+          "testid": null
+        },
+        {
+          "text": "$0.00",
           "index": 98,
           "testid": null
         },
         {
           "text": "$0.00",
-          "index": 99,
+          "index": 100,
           "testid": null
         },
         {
@@ -864,27 +869,27 @@
           "testid": null
         },
         {
-          "text": "$0.00",
-          "index": 102,
+          "text": "$1,500.00",
+          "index": 103,
           "testid": null
         },
         {
-          "text": "$1,500.00",
+          "text": "$0.00",
           "index": 104,
           "testid": null
         },
         {
-          "text": "$0.00",
+          "text": "$9,000.00",
           "index": 105,
           "testid": null
         },
         {
-          "text": "$9,000.00",
+          "text": "$0.00",
           "index": 106,
           "testid": null
         },
         {
-          "text": "$0.00",
+          "text": "$4,000.00",
           "index": 107,
           "testid": null
         },
@@ -894,68 +899,63 @@
           "testid": null
         },
         {
-          "text": "$4,000.00",
-          "index": 109,
+          "text": "$5,000.00",
+          "index": 110,
           "testid": null
         },
         {
-          "text": "$5,000.00",
+          "text": "$200.00",
           "index": 111,
           "testid": null
         },
         {
-          "text": "$200.00",
-          "index": 112,
-          "testid": null
-        },
-        {
           "text": "$9,000.00",
-          "index": 116,
+          "index": 115,
           "testid": null
         },
         {
           "text": "$0.00",
-          "index": 118,
+          "index": 117,
           "testid": null
         },
         {
           "text": "$9,000.00",
-          "index": 120,
+          "index": 119,
           "testid": null
         },
         {
           "text": "$4,000.00",
-          "index": 122,
+          "index": 121,
           "testid": null
         },
         {
           "text": "$200.00",
-          "index": 124,
+          "index": 123,
           "testid": null
         },
         {
           "text": "$200.00",
-          "index": 126,
+          "index": 125,
           "testid": null
         },
         {
           "text": "$3,800.00",
-          "index": 128,
+          "index": 127,
           "testid": null
         },
         {
           "text": "$0.00",
-          "index": 130,
+          "index": 129,
           "testid": null
         },
         {
           "text": "$3,800.00",
-          "index": 132,
+          "index": 131,
           "testid": null
         },
         {
           "text": "$5,200.00",
-          "index": 134,
+          "index": 133,
           "testid": null
         }
       ],
@@ -968,7 +968,7 @@
         }
       ],
       "trail": {
-        "top": 505,
+        "top": 443,
         "right": 1416,
         "width": 1392,
         "height": 337,
@@ -979,7 +979,7 @@
         "fontSize": 30,
         "testid": null,
         "label": "Net this draw",
-        "top": 616,
+        "top": 554,
         "right": 1378,
         "inClosedDetails": false
       },
@@ -1009,28 +1009,28 @@
         }
       },
       "payment": {
-        "top": 858,
+        "top": 846,
         "right": 1416,
         "width": 1392,
         "height": 278,
         "inClosedDetails": false
       },
       "waiver": {
-        "top": 1152,
+        "top": 1140,
         "right": 1416,
         "width": 1392,
         "height": 395,
         "inClosedDetails": false
       },
       "meta": {
-        "top": 1842,
+        "top": 1854,
         "right": 374,
         "width": 329,
         "height": 20,
         "inClosedDetails": false
       },
       "moreActionsOpen": false,
-      "paymentText": "Payment\n\nPaid $3,800.00\n\nPaid\nNov 8, 2026, 4:18 PM UTC\n\nTo [sandbox email] · from Rough-in\n\nPayPal payout batch\nD5V7XEN5YZH4C\nCopy\n\nStatus as recorded Nov 8, 2026, 4:18 PM UTC from PayPal API responses and webhooks. It is not a live PayPal balance; refreshing asks PayPal again and records the answer.\n\nRetainage held this period\n$200.00\nRetainage still held on this agreement\n$200.00\n\nRetainage held is withheld from approved work. A retainage release is a separate recorded payout; releasing it in this demo does not certify project closeout.",
+      "paymentText": "Payment\n\nPaid $3,800.00\n\nPaid\nNov 8, 2026, 4:18 PM UTC\n\nTo sb-****@personal.example.com · from Rough-in\n\nPayPal payout batch\nD5V7XEN5YZH4C\nCopy\n\nStatus as recorded Nov 8, 2026, 4:18 PM UTC from PayPal API responses and webhooks. It is not a live PayPal balance; refreshing asks PayPal again and records the answer.\n\nRetainage held this period\n$200.00\nRetainage still held on this agreement\n$200.00\n\nRetainage held is withheld from approved work. A retainage release is a separate recorded payout; releasing it in this demo does not certify project closeout.",
       "controls": 19,
       "under24": []
     },
@@ -1049,7 +1049,7 @@
           "fontSize": 30,
           "testid": null,
           "label": "Net this draw",
-          "top": 641,
+          "top": 539,
           "right": 340,
           "inClosedDetails": false
         },
@@ -1058,7 +1058,7 @@
           "fontSize": 18,
           "testid": null,
           "label": "Claimed",
-          "top": 743,
+          "top": 641,
           "right": 178,
           "inClosedDetails": false
         },
@@ -1067,7 +1067,7 @@
           "fontSize": 18,
           "testid": null,
           "label": "→Review suggests",
-          "top": 743,
+          "top": 641,
           "right": 344,
           "inClosedDetails": false
         },
@@ -1076,7 +1076,7 @@
           "fontSize": 18,
           "testid": null,
           "label": "→GC approved",
-          "top": 831,
+          "top": 729,
           "right": 178,
           "inClosedDetails": false
         },
@@ -1085,7 +1085,7 @@
           "fontSize": 18,
           "testid": null,
           "label": "→Retainage this draw",
-          "top": 848,
+          "top": 746,
           "right": 344,
           "inClosedDetails": false
         },
@@ -1094,7 +1094,7 @@
           "fontSize": 16,
           "testid": null,
           "label": "(8)This draw",
-          "top": 3496,
+          "top": 3432,
           "right": 357,
           "inClosedDetails": true
         },
@@ -1103,7 +1103,7 @@
           "fontSize": 14,
           "testid": null,
           "label": "Retainage held this period",
-          "top": 1303,
+          "top": 1235,
           "right": 357,
           "inClosedDetails": false
         },
@@ -1112,7 +1112,7 @@
           "fontSize": 14,
           "testid": null,
           "label": "Retainage still held on this agreement",
-          "top": 1351,
+          "top": 1283,
           "right": 357,
           "inClosedDetails": false
         },
@@ -1121,7 +1121,7 @@
           "fontSize": 14,
           "testid": null,
           "label": "Amount",
-          "top": 1613,
+          "top": 1545,
           "right": 357,
           "inClosedDetails": false
         },
@@ -1130,7 +1130,7 @@
           "fontSize": 14,
           "testid": null,
           "label": "Amount",
-          "top": 1865,
+          "top": 1797,
           "right": 357,
           "inClosedDetails": false
         },
@@ -1139,7 +1139,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 3175,
+          "top": 3111,
           "right": 460,
           "inClosedDetails": true
         },
@@ -1148,7 +1148,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 3175,
+          "top": 3111,
           "right": 541,
           "inClosedDetails": true
         },
@@ -1157,7 +1157,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 3175,
+          "top": 3111,
           "right": 762,
           "inClosedDetails": true
         },
@@ -1166,7 +1166,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 3175,
+          "top": 3111,
           "right": 920,
           "inClosedDetails": true
         },
@@ -1175,7 +1175,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 3175,
+          "top": 3111,
           "right": 993,
           "inClosedDetails": true
         },
@@ -1184,7 +1184,7 @@
           "fontSize": 14,
           "testid": null,
           "label": "(1)Original contract sum",
-          "top": 3180,
+          "top": 3116,
           "right": 357,
           "inClosedDetails": true
         },
@@ -1193,7 +1193,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 3183,
+          "top": 3119,
           "right": 659,
           "inClosedDetails": true
         },
@@ -1202,7 +1202,7 @@
           "fontSize": 14,
           "testid": null,
           "label": "(2)Net change by change orders",
-          "top": 3217,
+          "top": 3153,
           "right": 357,
           "inClosedDetails": true
         },
@@ -1211,7 +1211,7 @@
           "fontSize": 14,
           "testid": null,
           "label": "(3)Contract sum to date",
-          "top": 3254,
+          "top": 3190,
           "right": 357,
           "inClosedDetails": true
         },
@@ -1220,7 +1220,7 @@
           "fontSize": 14,
           "testid": null,
           "label": "(4)Total work completed to date",
-          "top": 3291,
+          "top": 3227,
           "right": 357,
           "inClosedDetails": true
         },
@@ -1229,7 +1229,7 @@
           "fontSize": 14,
           "testid": null,
           "label": "(5)Retainage (5% by line, rounded per line)",
-          "top": 3328,
+          "top": 3264,
           "right": 357,
           "inClosedDetails": true
         },
@@ -1238,7 +1238,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 3332,
+          "top": 3268,
           "right": 460,
           "inClosedDetails": true
         },
@@ -1247,7 +1247,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 3332,
+          "top": 3268,
           "right": 541,
           "inClosedDetails": true
         },
@@ -1256,7 +1256,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 3332,
+          "top": 3268,
           "right": 762,
           "inClosedDetails": true
         },
@@ -1265,7 +1265,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 3332,
+          "top": 3268,
           "right": 920,
           "inClosedDetails": true
         },
@@ -1274,7 +1274,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 3332,
+          "top": 3268,
           "right": 993,
           "inClosedDetails": true
         },
@@ -1283,7 +1283,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 3340,
+          "top": 3276,
           "right": 659,
           "inClosedDetails": true
         },
@@ -1292,7 +1292,7 @@
           "fontSize": 14,
           "testid": null,
           "label": "(5a)On completed work",
-          "top": 3385,
+          "top": 3321,
           "right": 357,
           "inClosedDetails": true
         },
@@ -1301,7 +1301,7 @@
           "fontSize": 14,
           "testid": null,
           "label": "(6)Total earned less retainage",
-          "top": 3422,
+          "top": 3358,
           "right": 357,
           "inClosedDetails": true
         },
@@ -1310,7 +1310,7 @@
           "fontSize": 14,
           "testid": null,
           "label": "(7)Previously paid",
-          "top": 3459,
+          "top": 3395,
           "right": 357,
           "inClosedDetails": true
         },
@@ -1319,7 +1319,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 3469,
+          "top": 3405,
           "right": 460,
           "inClosedDetails": true
         },
@@ -1328,7 +1328,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 3469,
+          "top": 3405,
           "right": 541,
           "inClosedDetails": true
         },
@@ -1337,7 +1337,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 3469,
+          "top": 3405,
           "right": 762,
           "inClosedDetails": true
         },
@@ -1346,7 +1346,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 3469,
+          "top": 3405,
           "right": 920,
           "inClosedDetails": true
         },
@@ -1355,7 +1355,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 3469,
+          "top": 3405,
           "right": 993,
           "inClosedDetails": true
         },
@@ -1364,7 +1364,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 3477,
+          "top": 3413,
           "right": 659,
           "inClosedDetails": true
         },
@@ -1373,7 +1373,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 3522,
+          "top": 3458,
           "right": 460,
           "inClosedDetails": true
         },
@@ -1382,7 +1382,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 3522,
+          "top": 3458,
           "right": 541,
           "inClosedDetails": true
         },
@@ -1391,7 +1391,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 3522,
+          "top": 3458,
           "right": 667,
           "inClosedDetails": true
         },
@@ -1400,7 +1400,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 3522,
+          "top": 3458,
           "right": 762,
           "inClosedDetails": true
         },
@@ -1409,7 +1409,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 3522,
+          "top": 3458,
           "right": 920,
           "inClosedDetails": true
         },
@@ -1418,7 +1418,7 @@
           "fontSize": 14,
           "testid": null,
           "label": null,
-          "top": 3522,
+          "top": 3458,
           "right": 993,
           "inClosedDetails": true
         },
@@ -1427,7 +1427,7 @@
           "fontSize": 14,
           "testid": null,
           "label": "(9)Balance to finish, including retainage",
-          "top": 3537,
+          "top": 3473,
           "right": 357,
           "inClosedDetails": true
         }
@@ -1480,12 +1480,17 @@
         },
         {
           "text": "$4,000.00",
-          "index": 72,
+          "index": 71,
           "testid": null
         },
         {
           "text": "$0.00",
-          "index": 73,
+          "index": 72,
+          "testid": null
+        },
+        {
+          "text": "$4,000.00",
+          "index": 74,
           "testid": null
         },
         {
@@ -1494,58 +1499,58 @@
           "testid": null
         },
         {
-          "text": "$4,000.00",
-          "index": 76,
-          "testid": null
-        },
-        {
           "text": "$0.00",
-          "index": 78,
+          "index": 77,
           "testid": null
         },
         {
           "text": "$200.00",
-          "index": 79,
+          "index": 78,
           "testid": null
         },
         {
           "text": "$3,500.00",
+          "index": 84,
+          "testid": null
+        },
+        {
+          "text": "$0.00",
           "index": 85,
           "testid": null
         },
         {
           "text": "$0.00",
-          "index": 86,
+          "index": 87,
           "testid": null
         },
         {
           "text": "$0.00",
-          "index": 88,
-          "testid": null
-        },
-        {
-          "text": "$0.00",
-          "index": 90,
+          "index": 89,
           "testid": null
         },
         {
           "text": "$3,500.00",
-          "index": 92,
+          "index": 91,
           "testid": null
         },
         {
           "text": "$0.00",
-          "index": 93,
+          "index": 92,
           "testid": null
         },
         {
           "text": "$1,500.00",
+          "index": 97,
+          "testid": null
+        },
+        {
+          "text": "$0.00",
           "index": 98,
           "testid": null
         },
         {
           "text": "$0.00",
-          "index": 99,
+          "index": 100,
           "testid": null
         },
         {
@@ -1554,27 +1559,27 @@
           "testid": null
         },
         {
-          "text": "$0.00",
-          "index": 102,
+          "text": "$1,500.00",
+          "index": 103,
           "testid": null
         },
         {
-          "text": "$1,500.00",
+          "text": "$0.00",
           "index": 104,
           "testid": null
         },
         {
-          "text": "$0.00",
+          "text": "$9,000.00",
           "index": 105,
           "testid": null
         },
         {
-          "text": "$9,000.00",
+          "text": "$0.00",
           "index": 106,
           "testid": null
         },
         {
-          "text": "$0.00",
+          "text": "$4,000.00",
           "index": 107,
           "testid": null
         },
@@ -1584,68 +1589,63 @@
           "testid": null
         },
         {
-          "text": "$4,000.00",
-          "index": 109,
+          "text": "$5,000.00",
+          "index": 110,
           "testid": null
         },
         {
-          "text": "$5,000.00",
+          "text": "$200.00",
           "index": 111,
           "testid": null
         },
         {
-          "text": "$200.00",
-          "index": 112,
-          "testid": null
-        },
-        {
           "text": "$9,000.00",
-          "index": 116,
+          "index": 115,
           "testid": null
         },
         {
           "text": "$0.00",
-          "index": 118,
+          "index": 117,
           "testid": null
         },
         {
           "text": "$9,000.00",
-          "index": 120,
+          "index": 119,
           "testid": null
         },
         {
           "text": "$4,000.00",
-          "index": 122,
+          "index": 121,
           "testid": null
         },
         {
           "text": "$200.00",
-          "index": 124,
+          "index": 123,
           "testid": null
         },
         {
           "text": "$200.00",
-          "index": 126,
+          "index": 125,
           "testid": null
         },
         {
           "text": "$3,800.00",
-          "index": 128,
+          "index": 127,
           "testid": null
         },
         {
           "text": "$0.00",
-          "index": 130,
+          "index": 129,
           "testid": null
         },
         {
           "text": "$3,800.00",
-          "index": 132,
+          "index": 131,
           "testid": null
         },
         {
           "text": "$5,200.00",
-          "index": 134,
+          "index": 133,
           "testid": null
         }
       ],
@@ -1658,7 +1658,7 @@
         }
       ],
       "trail": {
-        "top": 514,
+        "top": 412,
         "right": 374,
         "width": 358,
         "height": 502,
@@ -1669,7 +1669,7 @@
         "fontSize": 30,
         "testid": null,
         "label": "Net this draw",
-        "top": 641,
+        "top": 539,
         "right": 340,
         "inClosedDetails": false
       },
@@ -1699,28 +1699,28 @@
         }
       },
       "payment": {
-        "top": 1032,
+        "top": 980,
         "right": 374,
         "width": 358,
-        "height": 416,
+        "height": 400,
         "inClosedDetails": false
       },
       "waiver": {
-        "top": 1464,
+        "top": 1396,
         "right": 374,
         "width": 358,
         "height": 589,
         "inClosedDetails": false
       },
       "meta": {
-        "top": 2570,
+        "top": 2506,
         "right": 357,
         "width": 324,
         "height": 20,
         "inClosedDetails": false
       },
       "moreActionsOpen": false,
-      "paymentText": "Payment\n\nPaid $3,800.00\n\nPaid\nNov 8, 2026, 4:18 PM UTC\n\nTo [sandbox email] · from Rough-in\n\nPayPal payout batch\nD5V7XEN5YZH4C\nCopy\n\nStatus as recorded Nov 8, 2026, 4:18 PM UTC from PayPal API responses and webhooks. It is not a live PayPal balance; refreshing asks PayPal again and records the answer.\n\nRetainage held this period\n$200.00\nRetainage still held on this agreement\n$200.00\n\nRetainage held is withheld from approved work. A retainage release is a separate recorded payout; releasing it in this demo does not certify project closeout.",
+      "paymentText": "Payment\n\nPaid $3,800.00\n\nPaid\nNov 8, 2026, 4:18 PM UTC\n\nTo sb-****@personal.example.com · from Rough-in\n\nPayPal payout batch\nD5V7XEN5YZH4C\nCopy\n\nStatus as recorded Nov 8, 2026, 4:18 PM UTC from PayPal API responses and webhooks. It is not a live PayPal balance; refreshing asks PayPal again and records the answer.\n\nRetainage held this period\n$200.00\nRetainage still held on this agreement\n$200.00\n\nRetainage held is withheld from approved work. A retainage release is a separate recorded payout; releasing it in this demo does not certify project closeout.",
       "controls": 11,
       "under24": []
     }
@@ -1732,6 +1732,7 @@
       "pageErrors": [],
       "failedRequests": [],
       "ignoredAborts": [
+        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED",
         "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED"
       ]
     },
@@ -1741,7 +1742,6 @@
       "pageErrors": [],
       "failedRequests": [],
       "ignoredAborts": [
-        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED",
         "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED"
       ]
     }
