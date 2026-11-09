@@ -57,6 +57,8 @@
       "dueDate": "2026-10-15",
       "submittedAt": "2026-11-08T15:57:44.084Z",
       "requestedCents": 540000,
+      "requestedFixturesSetCents": 140000,
+      "requestedFiguresNote": "Requested claim recorded from the submitted pay app: 540000 ($5,400.00) total, with 400000 on Rough-in and 140000 on Fixtures set. These are the requested figures; they are not the decided G703 view.",
       "requestedLines": [
         {
           "lineNo": 1,
@@ -70,7 +72,7 @@
           "lineNo": 2,
           "description": "Fixtures set",
           "sovLineId": "qs7cns3ky3dgaea7s2njzryht98ht4s3",
-          "workThisPeriodCents": 0,
+          "workThisPeriodCents": 140000,
           "scheduledValueCents": 350000,
           "note": null
         },
@@ -83,6 +85,25 @@
           "note": null
         }
       ],
+      "decidedG703Lines": [
+        {
+          "lineNo": 1,
+          "description": "Rough-in",
+          "workThisPeriodCents": 400000
+        },
+        {
+          "lineNo": 2,
+          "description": "Fixtures set",
+          "workThisPeriodCents": 0,
+          "note": "Decided view: the flagged $1,400.00 is cut to $0.00."
+        },
+        {
+          "lineNo": 3,
+          "description": "Final",
+          "workThisPeriodCents": 0
+        }
+      ],
+      "decidedG703Note": "Decided G703 view captured after the GC's approval. It is not the requested claim: the Fixtures set line reads 0 here because the GC cut it to $0.00.",
       "review": {
         "engine": "Mistral mistral-large-4",
         "provider": "Mistral",
@@ -396,7 +417,7 @@
     {
       "step": 9,
       "name": "Money strip inputs recomputed from stored rows",
-      "queryStatus": "billing/projectMoney and the money strip UI are pending features; cells were recomputed per architecture §6.1 from stored rows.",
+      "queryStatus": "Recorded during the settlement run by recomputing the cells from stored rows per architecture §6.1, before billing/projectMoney and the money strip UI shipped. The shipped query and the ProjectMoneyStrip component read the same stored rows; these are the reference values, not a UI capture.",
       "project": {
         "scope": {
           "kind": "project",
@@ -547,12 +568,12 @@
     "retainageCents": 20000,
     "netPaidCents": 380000,
     "drawCurrentPaymentDueCents": 360000,
-    "drawTradeLineToDateCents": null,
+    "drawTradeLineToDateCents": "not captured",
     "changeOrderCents": 120000,
     "surfaces": {
       "subPayApp": "Sub payment panel shows Paid $3,800.00 and retainage held $200.00 (13-sub-payapp-paid.png)",
       "gcPayApp": "GC pay app shows $4,000.00 approved, $200.00 retainage, $3,800.00 net (03-approved.png, 06-payout-receipt.png)",
-      "ownerDraw": "Owner draw shows the $4,000.00 trade line to date and $3,600.00 current payment due after 10% owner retainage (10-draw-paid.png)"
+      "ownerDraw": "Owner draw row (10-draw-paid.png): status paid, currentPaymentDueCents 360000 ($3,600.00) after 10% owner retainage. The per-line trade-to-date figure was not captured as a number in this report (drawTradeLineToDateCents: not captured)."
     }
   },
   "evidenceScreenshots": [
@@ -602,11 +623,11 @@
     }
   ],
   "limitations": [
-    "The conditional waiver was signed by 'Marisol Ortiz' (the name entered for the Ortiz demonstration signer). The validation contract's VAL-RES-005 names 'Luis Ortiz'; the product has no path to change a recorded signature (signWaiver returns the existing signature for the same amount), so the row cannot be renamed without editing audit data.",
+    "The conditional waiver was signed by 'Marisol Ortiz', the seeded Ortiz contact and the name VAL-RES-005 expects. A signed waiver is immutable in-product (signWaiver returns the existing signature for the same amount), so the recorded name stands; the settlement is never re-run to change it.",
     "Immediately after funding, the Rough-in milestone and its funding row were funded/authorized. The settled payout later captured the authorization, so the milestone now reads paid; the authorization id remains stored.",
     "The pre-signing missing-waiver screenshot could not be captured because the in-app browser pane collapsed; the exact blocker code and message were read from the rendered payment panel and are recorded in step 4, together with the post-signing gate output. The runbook's sourcing clause allows the run log for the held state.",
     "PayPal invoice payments do not surface a capture id in the owner pay app or change order rows; the PayPal checkout order id and the PAID invoice status are recorded instead.",
-    "docs/evidence is matched by the repository's 'evidence/' gitignore rule, so the PNGs stay as local mission artefacts; the JSON report is committed."
+    "The 11 PNGs and this report are tracked in git under docs/evidence/settlement/ and ship with the tree. The repository's ignore rule anchors only the scratch /evidence/ directory."
   ],
   "noSecrets": "No OAuth tokens, cookies, auth frames, card numbers, client secrets or unmasked payee emails are recorded in this report."
 }

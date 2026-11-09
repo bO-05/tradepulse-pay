@@ -67,21 +67,20 @@ every assertion when run alone, and the failing URL answers in under a second ov
 - **B2 (fixed).** The gate now covers the closeout retainage release: the sub signs from the same
   panel, the release refuses until the balance is covered, and a changed balance asks for a new
   signature. The final-payout path outside retainage is unchanged.
-- **Block 1 (partial).** The Demo company now carries a residential reference job, "Lopez Kitchen
-  Remodel", created by the demo seed itself (`convex/demoResidential.ts`, called from `reseedAndRelink`):
-  an `$86,500` prime value, four prime SOV lines, a 10% retainage hold and a billing day, so
-  the GC's **New owner pay app** opens a homeowner draw with real lines. The owner-billing panel also
-  keeps three running totals: billed and awaiting the owner, approved but not yet paid, and paid by the
-  owner. Still open: milestone draws on the prime side, and a GC collected/paid/owed view across
-  subcontractors. The demo still leads with the commercial run.
+- **Block 1 (shipped after this record).** The residential reference job is settled and read-only: the
+  Ortiz subcontract, the flagged pay app with the exact `$1,400.00` line cut, the conditional waiver, the
+  net payout, paid Draw #1, the paid change order and the four-cell money strip on the GC home, the project
+  page and the owner-billing tab. The demo now leads with the residential Lopez job; the commercial Rosendin
+  reference is labeled "Commercial reference job". Still open: a separate prime-milestone schedule that
+  creates owner draws automatically. See [`docs/evidence/settlement/README.md`](./evidence/settlement/README.md).
 - **B5 (partial).** The subcontract states that the sub's signature and acceptance happen outside the
   app; there is no in-app sub acceptance step.
 - **B13 (fixed, real limit).** The review eval is self-authored. The score is now labelled as agreement
   with this app's rules, with a rules-only baseline printed in the doc, the scorecard and the app, but
   a perfect score still cannot show that the rules are right.
-- **B10 (fixed, real limit).** Signing evidence records the statement hash, the server-observed IP and
-  the user agent. A proxy or VPN changes the address; identity comes from the authenticated,
-  email-verified session.
+- **B10 (fixed, real limit).** Signing evidence records the statement hash, the address header the request
+  carried (with its source label, or "unavailable") and the user agent. A proxy or VPN changes that address;
+  identity comes from the authenticated, email-verified session.
 - **Owner settings outside the code.** The PayPal sandbox merchant still shows the default store name;
   the demo video, YouTube upload and Devpost submission are the owner's tasks.
 

@@ -33,10 +33,13 @@ Read-only checks can run independently; only **one designated writer** may run t
 | Recovery branch | https://github.com/bO-05/tradepulse-pay/tree/recovery/stabilize-2026-11-01 |
 | Reference frontend publication | `635d0934-2b12-49c6-bb12-69037b3673ba` |
 | Observed reference main asset | `index-RGkj5_mO.js` |
-| GC login | `gc@demo.tradepulse` / `TradePulseDemo!2026` |
-| Subcontractor login | `sub1@demo.tradepulse` / `TradePulseDemo!2026` |
-| Owner login | `owner@demo.tradepulse` / `TradePulseDemo!2026` |
-| Optional other-sub read-only isolation comparison | `sub2@demo.tradepulse` / `TradePulseDemo!2026` |
+| GC login | `gc@demo.tradepulse` |
+| Subcontractor login | `sub1@demo.tradepulse` |
+| Owner login | `owner@demo.tradepulse` |
+| Optional other-sub read-only isolation comparison | `sub2@demo.tradepulse` |
+
+Sign in from **#/demo**; the collapsed **Manual sign-in and sandbox details** block holds the shared demo
+password and test card. These are intentional public demo credentials, not personal accounts.
 
 The matching source is on the recovery branch, **not the older `main` branch**. If the app is updated, record the new
 observed fingerprint and ask the commissioning owner to associate it with the correct commit before final certification.
@@ -146,7 +149,7 @@ These are the verified November 1 values, not a guarantee against changes by oth
 | Honest claim / approved gross | `$2,000` / `$2,000` |
 | Honest payout / retained | `$1,800` / `$200` |
 | Adversarial claim | `$13,500` |
-| Model recommendation / GC-edited gross | `$320` / `$288` |
+| Rules-review recommendation / GC-edited gross | `$320` / `$288` |
 | Adversarial payout / retained | `$259.20` / `$28.80` |
 | Total captured gross | `$2,288` |
 | Progress payouts before retainage release | `$2,059.20` |
@@ -295,7 +298,7 @@ real money, but it is not read-only.
 
 ### Fresh-run oracles, not hard-coded historical AI output
 
-Do not assume the new model recommends exactly `$320` or the approved adversarial gross will be `$288`.
+Do not assume the rules review recommends exactly `$320` or the approved adversarial gross will be `$288`.
 Those numbers belong to the reference run. Record this run's actual recommendation, GC edit, reasoning summary
 and code-enforced results; investigate contradictions rather than dismissing them as model variability.
 

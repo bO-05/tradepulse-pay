@@ -53,25 +53,26 @@ Live Mistral / `mistral-large-4` on the recovery dev deployment, run
 
 | Metric | Result |
 | :--- | ---: |
-| Cases | 24 / 24 |
-| Lines | 71 |
-| Issue lines | 15 |
-| Line accuracy | 100% |
-| Issue precision | 100% |
-| Issue recall | 100% |
-| Issue F1 | 100% |
-| Macro F1 | 100% |
+| Cases matched | 24 / 24 |
+| Lines scored | 71 |
+| Issue lines in the fixtures | 15 |
+| Provider | Mistral · `mistral-large-4` on every fixture |
 
-All 24 fixtures reported `Mistral · mistral-large-4`, not the offline fallback. The scorecard is
-generated at `evals/results/pay-app-review-scorecard.md` and the full JSON result is next to it. The
-scorecard is only evidence for the run named in its header; a later deploy or a different model is a
-different run. An offline rules-engine run with no provider key also passes 24/24; the provenance
-line distinguishes the two.
+24 of 24 fixtures reproduced the expected verdicts, zero holds and both flags on this app's own
+fixtures. The suite does not publish a precision or recall percentage as a quality claim: the
+expected verdicts were written by the same author as the rules, so a perfect match measures
+agreement with those rules, not accuracy against an independent adjudication or a real pay
+application. Read the per-verdict TP/FP/FN counts and the case list in the scorecard instead.
+
+The scorecard is generated at `evals/results/pay-app-review-scorecard.md` and the full JSON result
+is next to it. The scorecard is only evidence for the run named in its header; a later deploy or a
+different model is a different run. An offline rules-engine run with no provider key also matches
+24/24; the provenance line distinguishes the two.
 
 ## Rules-only baseline
 
-The deterministic rules engine scores **24/24 cases and 100% line agreement** on these fixtures by
-construction, because each expected verdict is what that engine produces. The baseline is the point of
+The deterministic rules engine matches **24/24 cases** on these fixtures by construction, because
+each expected verdict is what that engine produces. The baseline is the point of
 the number:
 
 - A model below the baseline disagrees with the rules on a hand-picked case. That is a useful defect
@@ -118,5 +119,5 @@ labeled `mixed`, never claimed as a model run.
   fixture and its expected verdict together.
 - The suite checks verdicts and flags, not the prose quality of a reason or the final dollar total
   against an independent estimator.
-- A 100% offline score is a regression check on the rules, not evidence that a live model is
+- A perfect offline score is a regression check on the rules, not evidence that a live model is
   accurate; read the provider/model line and the per-verdict counts.

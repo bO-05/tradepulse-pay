@@ -13,16 +13,17 @@ mockup. Do not assume it is ready because its developer reports passing tests.
 
 This is a shared recovery-development application connected to PayPal **sandbox**, not production.
 
-| User | Email | Password |
-| --- | --- | --- |
-| General contractor, GC | `gc@demo.tradepulse` | `TradePulseDemo!2026` |
-| Subcontractor | `sub4@demo.tradepulse` | `TradePulseDemo!2026` |
-| Project Owner | `owner@demo.tradepulse` | `TradePulseDemo!2026` |
+| User | Email |
+| --- | --- |
+| General contractor, GC | `gc@demo.tradepulse` |
+| Subcontractor (Ortiz Plumbing) | `sub4@demo.tradepulse` |
+| Project Owner | `owner@demo.tradepulse` |
 
-These are intentional public demo credentials, not personal accounts. Use ordinary sign-in. Do not reset their
-passwords. Use separate isolated browser contexts/profiles for simultaneous users. Two tabs, and often two private
-windows, share authentication; they are not independent users. If isolation is unavailable, sign out between roles
-and report that you could not test simultaneous sessions.
+These seats sign in from **#/demo**; open the collapsed **Manual sign-in and sandbox details** block there for the
+shared demo password and the test card. These are intentional public demo credentials, not personal accounts. Use
+ordinary sign-in. Do not reset their passwords. Use separate isolated browser contexts/profiles for simultaneous
+users. Two tabs, and often two private windows, share authentication; they are not independent users. If isolation is
+unavailable, sign out between roles and report that you could not test simultaneous sessions.
 
 ## Permission boundary for this first round
 

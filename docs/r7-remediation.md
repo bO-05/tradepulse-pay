@@ -5,7 +5,16 @@ Audit: external R7 retest and usefulness verdict (kept in the ignored `docs/exte
 Branch: `main` since 2026-11-06, when `recovery/stabilize-2026-11-01` was fast-forwarded onto it; the recovery branch is frozen at `e4682a7` as a backup.
 First deployed code commit: `991b865`. Every code commit after that has been deployed to all three hosts; `docs/audit-entry.md` explains how to confirm which commit a host is serving.
 
-This file maps every R7 finding to code, tests and what is still open. It does not turn the R7 verdict into a pass. The product is a tested PayPal-sandbox build, not a real-money production service, and the residential/ICP gaps the audit ranked as the biggest score lever are only partly addressed.
+This file maps every R7 finding to code, tests and what is still open. It does not turn the R7 verdict into a pass. The product is a tested PayPal-sandbox build, not a real-money production service. The residential gaps this record originally ranked as the biggest score lever were closed in R8; the addendum below says what shipped.
+
+## R8 addendum (2026-11-10)
+
+The residential gaps this record lists as open are now shipped on the demo company's Lopez Kitchen
+Remodel: a real Ortiz Plumbing subcontract with three milestones and 5% retainage, a settled pay app
+with a line-specific cut, a signed conditional waiver with evidence, a PayPal capture and payout net of
+retainage, paid homeowner Draw #1, a paid change order, and the GC money strip. Lopez is read-only; the
+guided demo remains the write sandbox. Evidence: [`docs/evidence/settlement/README.md`](./evidence/settlement/README.md).
+The N-10 rows below describe the shipped per-line cut.
 
 ## Short result
 
@@ -21,7 +30,7 @@ Fixed in code with regression tests:
 - **B7 (display only).** The agreement ledger, owner summary and dashboard show `10% → 5% after 50% complete` and use the applied rate for the retainage cap.
 - **B12 (mostly).** Dev/sponsor strings are gone from user-facing screens: no KERNEL, no "live Convex data / AG Studio", no "recovery build", no `verify-required.invalid` e-mail, no "AI amount" column. Attribution reads "Explanation by Mistral Large (rules set the amount)". Contact e-mails that are `.invalid` are hidden.
 - **Sub visibility.** The sub sees the review's suggested gross (`reviewSuggestedTotalCents`) and the approval-history bullet even though per-line review notes stay GC-only.
-- **N-10 (new runs only, approved by the owner).** The guided demo's edit reason names line 2 and the excluded seismic bracing, and promises no lien waiver or resubmit path. Existing runs are unchanged.
+- **N-10 (new runs only, approved by the owner).** `convex/judgeDemo/scenario.ts` `demoLineCut` finds the line the rules review flags as `excluded_scope` and cuts exactly that line's own requested dollars to `$0.00`; the reason names the line, quotes the cut and states that no other line is reduced. The guided driver (`src/payments/judgeDemo/useJudgeDemoDriver.ts`) approves through `api.payApps.decisions.decidePayApp` with one per-line `override` on that line only; every other line stays at the review's recommended amount. The old flat-90% `demoEditedApprovalCents` path is deleted. Runs created before the fix keep their stored decision and `editedAmountCents` and resume without a second decision, so the change applies to new runs only.
 - **Landing and accessibility.** Signed-out `/` now shows the residential hero beside/above the sign-in card with a link to `#/demo`. The Owner home has zero text-contrast violations in the new measurement. `#/company-settings` resolves to the real company page instead of Not found.
 - **B2.** The opt-in gate now covers the closeout retainage release: the sub signs a retainage waiver from the same panel, the release refuses with `LIEN_WAIVER_MISSING` until the balance is covered, and a changed balance asks for a new signature. Gate-off behaviour is unchanged.
 - **B10.** A lien-waiver signature now carries real evidence: the statement is built and hashed by the server, shown verbatim in a review step, redeemed once through an HTTP route that records the IP, the trusted header and the browser, and the signing mutation refuses to write a waiver without it.
@@ -32,7 +41,7 @@ Fixed in code with regression tests:
 Partial or deferred in this round:
 
 - **B5 (subcontract executed before sub acceptance)** is partial. The step now says "Record the GC's execution" and states that the sub's signature and acceptance happen outside the app and are not replaced by the record. There is still no in-app sub acceptance step.
-- **Block 1 (residential reference job)** is partial. The Demo company now carries a second, ordinary project, "Lopez Kitchen Remodel": a residential kitchen with an $86,500 prime value, a 10% retainage hold, a monthly billing day and the Demo owner as a project member, seeded by `convex/demoResidential.ts`. That turns the GC's "New owner pay app" button on for a homeowner draw, which the commercial walkthrough could not do because it has no prime contract value. The owner-billing panel also gained a three-line running total (billed and awaiting the owner, approved but not yet paid, paid by the owner) computed from the same rows it lists, in `src/billing/ownerMoney.ts`. Still open: milestone draws on the prime side, and a GC "collected / paid out / owed" view across subcontractors.
+- **Block 1 (residential reference job)** shipped after this record (R8, 2026-11-08). The Demo company's Lopez Kitchen Remodel is now a settled, read-only residential reference: the Ortiz Plumbing subcontract with three milestones, the flagged `$5,400.00` pay app cut by exactly `$1,400.00` on the Fixtures set line, the signed conditional waiver, the `$4,000.00` gross / `$200.00` retainage / `$3,800.00` net payout, paid Draw #1, the paid `$1,200.00` change order and the four-cell money strip. The owner-billing panel keeps its three-line running total from the same stored rows (`src/billing/ownerMoney.ts`). See [`docs/evidence/settlement/README.md`](./evidence/settlement/README.md). Still open: a separate prime-milestone schedule that creates owner draws automatically, and in-app subcontract acceptance by the sub.
 - **Owner "Test Store"** is a PayPal sandbox merchant setting, not app code.
 
 ## Finding map
@@ -53,8 +62,8 @@ Status meanings: **Fixed** = code and regression tests in this branch. **Partial
 | B10 | P3 | Weak waiver evidence | Fixed | `convex/lib/waiverStatement.ts` builds the statement and hashes it; `convex/waiverEvidence.ts` issues a single-use hashed ticket and refuses a swapped, reused or expired one; `convex/waiverEvidenceHttp.ts` (route `/api/waivers/evidence`) is the only writer and records the SHA-256, IP, trusted header, user agent and time; `api.lienWaivers.signWaiver` now requires matching, unspent, unexpired evidence and writes the hash and address into the audit text; `src/billing/LienWaiverPanel.tsx` shows the exact statement before the signature; `convex/billing/payGate.test.ts` covers the lifecycle and the refusals. |
 | B11 | P3 | Gate disable is silent to the sub | Fixed | `convex/lienWaivers.ts` accepts a reason, records it in the audit log and notifies the sub company; `src/payments/LienWaiverGateCard.tsx` asks for the reason in the confirm dialog; `convex/billing/payGate.test.ts` asserts the notification. |
 | B12 | P2 | Dev/sponsor copy leaks | Fixed (mostly) | `src/lib/aiProvenance.ts` centralises attribution; `PayAppReviews`, `PayAppDecision`, `DashboardFallback`, `PaymentsDashboard`, `StudioDashboard`, `LicenseCheck`, `PayAppEvalPanel`, `ReferenceNotice`, the judge-demo screens, `PackageBidders` and `BidLevelingMatrixView` were rewritten. The G703 column is "Recommended amount". Remaining "Test Store" is a PayPal sandbox merchant name. |
-| B13 | P3 | Eval honesty | Fixed (framing and baseline) | `docs/pay-app-review-eval.md` states that every metric is agreement with this app's rules, adds a rules-only baseline section (24/24 and 100% by construction) and explains what that baseline cannot detect; `scripts/qa/pay-app-review-scorecard.mjs` renames the headline metric to line agreement and prints the baseline in the markdown and the console; `src/dashboard/PayAppEvalPanel.tsx` says the same on screen. No eval case or rule changed. |
-| N-10 | P2 (demo) | Canned guided-demo override reason | Fixed (new runs only) | `src/payments/judgeDemo/useJudgeDemoDriver.ts` names line 2 and the excluded seismic bracing. `src/payments/judgeDemo/driverCopy.test.ts` forbids waiver/resubmit/90% wording. |
+| B13 | P3 | Eval honesty | Fixed (framing and baseline) | `docs/pay-app-review-eval.md` states that every metric is agreement with this app's rules, adds a rules-only baseline section (24/24 by construction) and explains what that baseline cannot detect; `scripts/qa/pay-app-review-scorecard.mjs` renames the headline metric to line agreement and prints the baseline in the markdown and the console; `src/dashboard/PayAppEvalPanel.tsx` says the same on screen. No eval case or rule changed. |
+| N-10 | P2 (demo) | Canned guided-demo override reason | Fixed (new runs only) | `convex/judgeDemo/scenario.ts` `demoLineCut` selects the line whose review verdict is `excluded_scope` and returns that line's own requested dollars as `cutCents`, `approvedCents: 0`, and a reason naming the line and the exact dollars. `src/payments/judgeDemo/useJudgeDemoDriver.ts` sends one `api.payApps.decisions.decidePayApp` per-line `override` for that line; every other line stays at the review's recommended cents, so the approved gross is the review total minus exactly the flagged line. `demoEditedApprovalCents` (flat 90%) is gone. Existing runs keep their stored decision and `editedAmountCents`; only new runs take the new path. `convex/judgeDemo/scenario.test.ts`, `convex/judgeDemo/runs.test.ts` and `src/payments/judgeDemo/driverCopy.test.ts` cover the cut, the per-line decision and the absence of the old path. |
 | Owner contrast | P2 | 15 serious axe contrast nodes on Owner home | Fixed | `src/payments/OwnerPortal.tsx` lifts the 11–12 px slate-500 text to slate-400. `scripts/qa/owner-landing-browser.mjs` measures every visible text/background pair on the signed-in Owner home and reports 0 violations. |
 | Root `/` | P2 | Signed-out root is only a sign-in card | Fixed | `src/auth/ResidentialHero.tsx` is shared by `#/demo` and `src/auth/AuthLayout.tsx`; `SignInPage` passes it as `hero`. The page keeps one `h1` (the hero) and the card title becomes `h2`. |
 | Route/nav | P3 | `#/company-settings` is Not found; nav naming differs | Fixed | `src/auth/navigation.ts` resolves `/company-settings` to the company page; `navigation.test.ts` covers every role. The GC nav still says "Payment reports" because that is the page title; the Owner nav says "Reports". |
@@ -101,8 +110,9 @@ This changes no deployed backend or financial data. It moves the public default 
 
 ## Not done
 
-- Block 1 second half: owner milestone draws and the GC collected/paid/owed view across subcontractors.
-  The residential reference job and the owner-billing running totals now ship (`convex/demoResidential.ts`,
-  `src/billing/ownerMoney.ts`).
+- A separate prime-milestone schedule that creates owner draws automatically. The residential reference
+  job, the Ortiz settlement, the money strip and the owner-billing running totals ship
+  (`convex/demoResidential.ts`, `convex/billing/projectMoney.ts`, `src/billing/ownerMoney.ts`,
+  `src/billing/ProjectMoneyStrip.tsx`); see [`docs/evidence/settlement/README.md`](./evidence/settlement/README.md).
 - Statutory California waiver forms, PayPal multiparty, QuickBooks.
 - Production deployment, YouTube upload, Devpost submission, a new guided run, PayPal popup, live Owner-invoice retry and any financial write on a new run. Those remain owner decisions.

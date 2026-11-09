@@ -33,11 +33,11 @@ TradePulse Pay connects a subcontract's schedule of values to PayPal sandbox aut
 net payouts, retainage and Owner change-order invoices. AI reviews the work claimed and proposes actions,
 but deterministic code computes the amounts and the GC retains approval authority.
 
-In the verified example, an intentionally overbilled $13,500 claim received a real Mistral recommendation of
-$320. The guided-demo GC explicitly edited that to $288; the change is shown against the recommendation, with
-the GC's per-line reasons when entered. PayPal confirmed the capture and the $259.20 net payout. A separate
-honest claim, a $1,850 Owner invoice and a $228.80 retainage release also settled. These are real sandbox
-receipts for partial progress, not full payment of the $55,000 subcontract.
+In the verified example, an intentionally overbilled $13,500 claim received a rules-review recommendation of
+$320, with Mistral explaining the evidence. The guided-demo GC explicitly edited that to $288; the change is
+shown against the recommendation, with the GC's per-line reasons when entered. PayPal confirmed the capture and the $259.20 net payout. A separate honest claim, a $1,850 Owner invoice
+and a $228.80 retainage release also settled. These are real sandbox receipts for partial progress, not
+full payment of the $55,000 subcontract.
 
 ### PayPal APIs used
 
@@ -46,8 +46,8 @@ receipts for partial progress, not full payment of the $55,000 subcontract.
 - **Invoicing v2:** Owner change-order invoices and payment status.
 - **Webhooks:** signature verification and replay-safe event ids.
 - **PayPal JS SDK:** funding and checkout buttons.
-- **Agent Toolkit:** read-only tools in the pay agent (`get_order`, `list_transactions`, `get_invoice`,
-  `list_disputes` and the other read-only tools in `@paypal/agent-toolkit`).
+- **Agent Toolkit:** read-only tools in the pay agent (`list_invoices`, `get_invoice`, `get_order`,
+  `list_transactions`).
 
 ### AI used
 
@@ -63,10 +63,12 @@ contract-scope-aware: it flags **excluded scope** and **out-of-sequence** billin
 not only arithmetic. A mid-size GC without a Textura/GCPay contract can pay an approved subcontractor through
 PayPal Payouts instead of waiting for a 30–60 day check run.
 
-The lien-waiver gate is a release control, not a form. An unconditional waiver cannot be signed while other
-pay apps are still outstanding, and releasing retainage requires a separate signed waiver for exactly the
-amount released. Each signature is tied to a server-observed record: the statement text's SHA-256, the
-timestamp, the address and the browser string that posted it.
+The lien-waiver gate is an opt-in release control, not a form. When an agreement enables it, the sub signs a
+conditional waiver for the payment being released and, if the agreement asks for it and an earlier payment
+exists, an unconditional waiver for that prior payment. Releasing retainage requires a separate signed waiver
+for exactly the amount released. Each signature is tied to recorded evidence: the statement text's SHA-256, the
+timestamp, the request's forwarded-address header when present (with the header source the route recorded) and
+the browser string that posted it. When no address header is available, the record says so.
 
 ### Potential impact
 
@@ -100,10 +102,11 @@ idempotency and evidence that names both its successes and its limits.
 
 ### What's next
 
-The largest remaining gap is demo depth, not plumbing: the residential reference job now ships with a
-prime value and four schedule-of-values lines, but it has no milestone draws and no GC "collected /
-paid out / owed" strip. After that: an in-app subcontract acceptance step for the sub, and real-company
-validation beyond synthetic fixtures.
+The residential reference job is settled end to end: Lopez carries the Ortiz subcontract, the settled
+pay app with its line-specific cut, the signed conditional waiver, the net payout, paid Draw #1, the paid
+change order and the four-cell GC money strip. The largest remaining gap is a separate prime-milestone
+schedule that creates owner draws automatically and an in-app subcontract acceptance step for the sub,
+plus real-company validation beyond synthetic fixtures.
 Owner-side items: complete AgentID registration, keep the Mistral and KERNEL services funded through
 judging, and obtain a legitimate Studio license extension if its editor is demonstrated.
 
@@ -112,9 +115,10 @@ judging, and obtain a legitimate Studio license extension if its editor is demon
 The submitted loop is the residential GC's own: job setup with a prime value, a subcontract with an SOV and
 milestones, milestone funding, sub pay-app review, PayPal capture and payout, lien waivers with signing
 evidence, and owner billing per period. A milestone-style draw uses the same owner sheet: enter that draw's
-amount on the relevant prime line and submit it. Not built, and stated here as roadmap rather than claimed:
-a separate prime-milestone schedule that creates owner draws automatically, a collected/paid-out/owed view
-across subcontractors, and in-app subcontract acceptance by the sub.
+amount on the relevant prime line and submit it. The settled Lopez reference shows the whole loop: the Ortiz
+pay app with a line-specific cut, the conditional waiver, the net payout, paid Draw #1, the paid change order
+and the four-cell GC money strip. Not built, and stated here as roadmap rather than claimed: a separate
+prime-milestone schedule that creates owner draws automatically, and in-app subcontract acceptance by the sub.
 
 ### Built with
 
@@ -127,11 +131,11 @@ AgentID and AG Studio integration code exists, but neither is enabled on the hos
 
 1. Open the demo guide: **https://tradepulse-pay.asynchronope.tech/#/demo**. No signup is needed.
    The same build is also at **https://cheery-axolotl-689.convex.site/#/demo**.
-2. Sign in as any role with the shared demo password:
+2. Sign in as any role from `#/demo`; the collapsed **Manual sign-in and sandbox details** block holds the
+   shared demo password:
    - GC: `gc@demo.tradepulse`
-   - Subcontractor: `sub1@demo.tradepulse`
+   - Subcontractor: `sub4@demo.tradepulse` (Ortiz Plumbing, the settled Lopez pay app)
    - Owner: `owner@demo.tradepulse`
-   - Password: `TradePulseDemo!2026`
 3. Shortest proof path: open the pinned reference run
    **https://tradepulse-pay.asynchronope.tech/#/judge-demo/nx74k1sdcnsmqzvkr97kf0ts598hch6p**,
    then the ledger, the AI review and the PayPal receipt IDs. It is read-only and already settled.

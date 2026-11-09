@@ -116,15 +116,19 @@ describe("README", () => {
     expect(README).not.toMatch(/https:\/\/brainy-skunk-440/);
   });
 
-  test("leads with tested recovery judge access and distinguishes production and unresolved AgentID setup", () => {
+  test("leads with the residential GC and a judge-video slot, without internal deployment names", () => {
     const intro = README.slice(0, README.indexOf("\n---\n"));
+    expect(intro).toContain("owner-run residential remodel GC");
+    expect(intro).toContain("Demo video:");
     expect(intro).toContain("https://tradepulse-pay.asynchronope.tech/#/demo");
-    expect(intro).toContain("https://cheery-axolotl-689.convex.site/#/demo");
     expect(intro).toContain("not production");
     expect(intro).toContain("owner-approved client registration");
-    expect(intro).toContain("earnest-mongoose-745");
     expect(intro).not.toContain("settlement is not");
     expect(intro).not.toContain("AgentID billing-agent sign-in works on the live URL");
+    for (const internal of ["cheery-axolotl-689", "earnest-mongoose-745", "exuberant-boar-323", "brainy-skunk-440"]) {
+      expect(README, internal).not.toContain(internal);
+    }
+    expect(README).not.toContain("TradePulseDemo!2026");
   });
 
   test("states the MIT license, matching LICENSE", () => {

@@ -4,6 +4,12 @@ This file is the build log for the **earlier** TradePulse Pro submission to the 
 Hackathon: autonomous subcontractor procurement, RFQs and bid leveling. It is kept as history for the
 existing-project disclosure in the PayPal submission and is not the log for the build under review.
 
+> **Correction (2026-11-10).** Metrics in this September log that claimed perfect precision and
+> recall, or full rubric coverage, were self-reported against hand-built fixtures by the same author.
+> They are corrected below to fixture counts and are not accuracy measurements or claims about the
+> current TradePulse Pay build. Several named scripts are legacy pre-authentication scripts and are
+> not verification commands (see the README's "Legacy checks and scripts").
+
 The PayPal-era log is [docs/recovery-progress.md](./docs/recovery-progress.md); the reviewer entry
 point is [docs/audit-entry.md](./docs/audit-entry.md); the judged demo is
 <https://tradepulse-pay.asynchronope.tech/#/demo>.
@@ -104,7 +110,7 @@ Completed Milestone P0, P1, and P2 boost architecture implementations:
    - Hackathon verification: tests/verify_setup.py passes 100% across all 5 tests.
 
 ### 2026-09-10 - resilience_coordination_and_pm_queue
-Delivered 5 high-impact winning features fulfilling 100% of the hackathon judging rubric:
+Delivered 5 features aimed at the hackathon judging criteria (no claim of full rubric coverage):
 1. Zero-Cloud Localhost Standalone Resilience:
    - Created standaloneStore.ts with full commercial MEP dataset across Divisions 26, 23, and 22, including contractors, RFIs, bids, files, audit logs, and cross-trade clashes.
    - Built seamless fallback in App.tsx: opening http://localhost:5173/ immediately displays complete interactive data with zero loading hang even if external Convex cloud or VITE_CONVEX_URL is unreachable.
@@ -215,7 +221,7 @@ Completed enterprise LLM routing and resilient AgentMail webhook integrations:
 3. Test & Build Integrity:
    - 27/27 domain and sponsor tests passing (`tests/test_tradepulse.py`).
    - 5/5 setup verification tests passing (`tests/verify_setup.py`).
-   - `npm run benchmark`: 6/6 suites passed with 100% precision.
+   - `npm run benchmark`: 6/6 suites passed on its own hand-built fixtures.
 
 ### 2026-09-12 - chief_estimator_evals_and_trace_telemetry
 1. Certified Professional Estimator Ground-Truth Dataset:
@@ -287,7 +293,7 @@ Completed enterprise LLM routing and resilient AgentMail webhook integrations:
 4. Comprehensive Verification:
    - `npm run build`: 1,675 modules bundled with 0 errors.
    - `python tests/test_tradepulse.py`: All 32 automated tests passed.
-   - `node scripts/run-expert-evals.mjs`: 10/10 ground-truth cases passed (0.00% MAPE, 100% recall).
+   - `node scripts/run-expert-evals.mjs`: 10/10 hand-written cases matched (0.00% MAPE on that fixture set).
    - `node scripts/run-real-world-benchmark.mjs`: 6/6 suites passed with 0 mocked fallbacks.
    - `node scripts/verify-real-world-edge-cases.mjs`: 15/15 edge cases passed.
    - `node scripts/verify-real-world-quotes.mjs`: Passed across diverse trades.
@@ -312,7 +318,7 @@ Completed enterprise LLM routing and resilient AgentMail webhook integrations:
    - Authored `scripts/verify-deep-real-world.mjs` (17 real-world lifecycle cases including Denver CO non-Texas scenario, 100% pass).
    - `npm run build`: 1,675 modules bundled with 0 TypeScript compiler errors.
    - `python tests/test_tradepulse.py`: All 32 domain and architecture tests pass.
-   - `node scripts/run-expert-evals.mjs`: 10/10 ASPE/AGC ground-truth cases pass (0% MAPE, 100% recall).
+   - `node scripts/run-expert-evals.mjs`: 10/10 hand-written ASPE/AGC-style cases matched (0% MAPE on that fixture set).
 
 ### 2026-09-12 - real_world_failure_mode_deep_investigation_and_audit
 1. Deployment URL Architecture Audit & Clarification:
@@ -332,7 +338,7 @@ Completed enterprise LLM routing and resilient AgentMail webhook integrations:
    - `npm run build`: 1,675 modules bundled with 0 errors in 14.37s.
    - `python tests/test_tradepulse.py`: 33/33 tests passed (+1 new real-world file extraction & location test).
    - `node scripts/test-real-world-proposals.mjs`: 10/10 edge-case tests passed.
-   - `npm run benchmark`: 6/6 benchmark suites passed with 100% precision and zero mocked fallbacks.
+   - `npm run benchmark`: 6/6 benchmark suites passed on their own fixtures with zero mocked fallbacks.
    - `npm run evals`: 10/10 ASPE/AGC ground-truth cases achieved 100% parity with 0.00% MAPE.
 
 ### 2026-09-13 - authentic_web_documents_and_live_contractor_verification
@@ -359,7 +365,7 @@ Completed enterprise LLM routing and resilient AgentMail webhook integrations:
 4. End-to-End Build, Benchmark & Evals Verification:
    - `npm run build` (`tsc -b && vite build`): Bundled cleanly into `dist/` with 0 TypeScript compiler errors.
    - `npm run evals`: 10/10 Chief Estimator ASPE/AGC ground-truth cases achieved 100% parity with 0.00% MAPE.
-   - `npm run benchmark`: 6/6 real-world benchmark suites passed with 100% precision and zero mocked fallbacks.
+   - `npm run benchmark`: 6/6 real-world benchmark suites passed on their own fixtures with zero mocked fallbacks.
    - `python tests/test_tradepulse.py`: 33/33 domain, architecture, and robustness tests passed.
 
 ### 2026-09-13 - authentic_construction_pdf_generation_and_decompression_pipeline
@@ -388,8 +394,8 @@ Completed enterprise LLM routing and resilient AgentMail webhook integrations:
    - `python tests/test_tradepulse.py`: All 33 tests passed.
    - `node scripts/test-all-urls-v2.mjs`: 33/33 external contractor websites and state licensing registries returned HTTP 200 OK.
    - `node scripts/test-pdf-extraction.mjs`: 8/8 construction PDFs extracted with non-trivial text.
-   - `npm run evals`: 10/10 ASPE/AGC ground-truth cases passed (0.00% MAPE, 100% recall).
-   - `npm run benchmark`: 6/6 real-world benchmark suites passed with 100% precision and zero mocked fallbacks.
+   - `npm run evals`: 10/10 hand-written ASPE/AGC-style cases matched (0.00% MAPE on that fixture set).
+   - `npm run benchmark`: 6/6 real-world benchmark suites passed on their own fixtures with zero mocked fallbacks.
 
 ### 2026-09-13 - complete_eradication_of_demo_entities_and_live_production_deployment
 1. Complete Elimination of Legacy Demo Entities & Synthetic Mocks:
@@ -404,8 +410,8 @@ Completed enterprise LLM routing and resilient AgentMail webhook integrations:
    - Live Production Static File Routing: 16/16 PDF endpoints on `https://brainy-skunk-440.convex.site` return HTTP 200 OK with valid `%PDF` binary headers.
    - External Contractor Domains & State Licensing Registries: 33/33 URLs return HTTP 200 OK via automated live testing (`scripts/test-all-urls-v2.mjs`).
    - Python Automated Test Suite (`tests/test_tradepulse.py`): 33/33 tests passed (100%).
-   - Empirical Real-World Benchmark Suite (`npm run benchmark`): 6/6 suites passed with 100% precision.
-   - Chief Estimator ASPE/AGC Ground-Truth Evaluation Matrix (`npm run evals`): 10/10 cases passed with 0.00% MAPE and 100% recall.
+   - Empirical Real-World Benchmark Suite (`npm run benchmark`): 6/6 suites passed on their own fixtures.
+   - Chief Estimator ASPE/AGC Ground-Truth Evaluation Matrix (`npm run evals`): 10/10 hand-written cases matched (0.00% MAPE on that fixture set).
 
 ### 2026-09-14 - claude_sonnet_5_upgrade_live_model_diagnostics_and_production_certification
 1. Complete Upgrade from Retired Claude 3.5 Sonnet to Claude Sonnet 5:
@@ -423,8 +429,8 @@ Completed enterprise LLM routing and resilient AgentMail webhook integrations:
 4. Production Deployment & Full End-to-End Certification:
    - Backend deployed to production cloud via `npx convex deploy -y` (`https://brainy-skunk-440.convex.cloud`).
    - Frontend built (`tsc -b && vite build`) and uploaded to production static hosting via `npx @convex-dev/static-hosting upload --build --prod` (`https://brainy-skunk-440.convex.site`).
-   - Production Benchmark (`node scripts/run-real-world-benchmark.mjs --prod`): 6/6 suites passed (100% precision, zero mock fallbacks).
-   - Production Evals (`node scripts/run-expert-evals.mjs --prod`): 10/10 cases passed (0.00% MAPE, $0 delta across all 10 cases, 100% scope recall, 100% scope precision).
+   - Production Benchmark (`node scripts/run-real-world-benchmark.mjs --prod`): 6/6 suites passed on their own fixtures (zero mock fallbacks).
+   - Production Evals (`node scripts/run-expert-evals.mjs --prod`): 10/10 hand-written cases matched (0.00% MAPE, $0 delta across the ten cases on that fixture set).
    - Production Bundle Inspection (`node scripts/inspect-live-prod.mjs`): 0 legacy mock strings in the live production JavaScript bundle.
 
 ### 2026-09-14 - production_synchronization_scanned_pdf_error_boundaries_and_zero_mock_audit

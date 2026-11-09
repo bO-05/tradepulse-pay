@@ -4,8 +4,8 @@ One-time PayPal **sandbox** settlement of the Lopez Kitchen Remodel reference jo
 2026-11-08 against deployment `dev:cheery-axolotl-689`. No real money moved.
 
 Machine-readable report: [`settlement-report.json`](./settlement-report.json). It records every step,
-the PayPal order/authorization/capture/payout ids, integer cents, and the stored-query outputs. It
-contains no tokens, cookies, auth frames, card fields or unmasked payee emails.
+the PayPal order/authorization/capture/payout ids, integer cents, and the stored rows behind the
+money-strip cells. It contains no tokens, cookies, auth frames, card fields or unmasked payee emails.
 
 ## Result in one line
 
@@ -34,15 +34,22 @@ order was invoiced and paid (invoice `INV2-RCJ4-Z8GD-4A33-TDJC`).
 
 ## Known gaps
 
-- The pre-signing missing-waiver blocker was read from the rendered payment panel but its screenshot
-  (`04-waiver-blocked.png`) was lost when the in-app browser pane collapsed. The exact codes and
-  messages are in `settlement-report.json` step 4.
-- The waiver stores `signedByName: "Marisol Ortiz"`; the validation contract names `"Luis Ortiz"`. The
-  product has no path to change a recorded signature, so the row was left as signed rather than edited.
+- **`04-waiver-blocked.png` was not captured.** `settlement-report.json` step 4 records
+  `"screenshot": null` for the pre-signing state. The blockers were read from the rendered payment panel
+  and are quoted here from that step: codes `COMPLIANCE_HOLD` and `LIEN_WAIVER_MISSING`, with messages
+  "Payment on hold: missing certificate of insurance; missing W-9; missing contractor license" and
+  "Lien waiver: the sub has not signed the conditional waiver for $4,000.00." The post-signing gate
+  output is recorded in the same step; no screenshot of either state is implied.
+- The waiver stores `signedByName: "Marisol Ortiz"`, the seeded Ortiz contact and the name `VAL-RES-005`
+  expects. A signed waiver is immutable in-product (`signWaiver` returns the existing signature when the
+  amount matches), so the recorded name stands and the settlement is never re-run to change it.
 - The Rough-in milestone read `funded` right after funding and now reads `paid` because the same run
   captured the authorization; the authorization id remains on the funding row.
-- The money strip query/UI are pending features, so the four cells were recomputed from stored rows per
-  architecture §6.1.
+- Step 9 recorded the four money-strip cells by recomputing them from stored rows before the
+  `billing/projectMoney` query and the strip UI shipped. The shipped query and the `ProjectMoneyStrip`
+  component read the same stored rows; step 9 is the reference value, not a UI capture.
+- Step 2 records the requested claim (`540000` total, with `140000` on the Fixtures set line) separately
+  from the decided G703 view, where the Fixtures set line reads `0` after the cut.
 
-The repository ignore rule is anchored to the scratch directory (`/evidence/`), so the PNGs above are
-committed alongside this report and ship with the tree.
+The 11 PNGs above are tracked in git under `docs/evidence/settlement/` and ship with the tree. The
+repository's ignore rule anchors only the scratch `/evidence/` directory.

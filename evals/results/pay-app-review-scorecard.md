@@ -1,5 +1,10 @@
 # Pay-App Review Eval Scorecard
 
+> **Correction (2026-11-10):** The labels below ("line accuracy", "issue precision", "issue recall")
+> are computed against expected verdicts written by the same author as the rules. They measure
+> agreement with this app's rules, not accuracy against an independent adjudication. See
+> [`docs/pay-app-review-eval.md`](../../docs/pay-app-review-eval.md).
+
 **Run ID**: `eval_payapp_1793864125712`  
 **Timestamp**: `2026-11-05T07:39:28.584Z`  
 **Deployment**: `cheery-axolotl-689`  

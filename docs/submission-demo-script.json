@@ -16,7 +16,7 @@
   },
   {
     "scene": "review",
-    "caption": "Overbilled claim $13,500 → model recommendation $320 → GC-approved $288",
+    "caption": "Overbilled claim $13,500 → rules-review recommendation $320 → GC-approved $288",
     "narration": "Here is the deliberately overbilled application. The claim was thirteen thousand five hundred dollars. Mistral identified overbilling, excluded scope and out of sequence work. Code computed a three hundred twenty dollar recommendation. The demo general contractor explicitly edited that to two hundred eighty eight dollars before approval. The model never decides the payable dollars by itself."
   },
   {

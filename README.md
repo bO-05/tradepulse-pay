@@ -1,14 +1,29 @@
 # TradePulse Pay
 
-**General contractors pay subcontractors only for verified progress.** A subcontractor files a pay application; the rules engine checks each line against the awarded contract, and the configured model explains the evidence; code computes every dollar; the GC approves; PayPal holds, captures, pays out net of retainage, and invoices the Owner.
+**For the owner-run residential remodel GC.** TradePulse Pay runs the money side of a kitchen, addition or whole-home job. The GC funds a trade's milestone through PayPal, the sub files a pay app, the rules engine checks every line against the awarded scope, the configured model explains the evidence, code computes every dollar, and the GC approves before PayPal captures and pays net of retainage. The homeowner then pays a draw or change order by PayPal invoice, and one strip shows collected, paid out, retained and owed.
 
-[**Open the judge demo →**](https://tradepulse-pay.asynchronope.tech/#/demo) · [.convex.site mirror](https://cheery-axolotl-689.convex.site/#/demo) · [judge walkthrough](./docs/judge-guide.md) · [source on `main`](https://github.com/bO-05/tradepulse-pay/tree/main) · MIT licensed.
+[**Open the judge demo →**](https://tradepulse-pay.asynchronope.tech/#/demo) · [judge walkthrough](./docs/judge-guide.md) · [settled Lopez evidence](./docs/evidence/settlement/README.md) · [source on `main`](https://github.com/bO-05/tradepulse-pay/tree/main) · MIT licensed.
 
-> **Try it in two minutes:** open the demo page and pick a seat: GC, subcontractor or owner. Each button signs in to a shared demo account through ordinary password sign-in, and the page prints the manual password for anyone who signs in by hand. PayPal sandbox only; synthetic data; no real money.
+> **Demo video:** _[video link to be added by the submitter]_  
+> <!-- Replace the placeholder above with the public video URL after it is uploaded and checked in a signed-out browser. -->
+
+> **Try it in two minutes:** open `#/demo` and pick a seat: GC, subcontractor or owner. The Subcontractor seat lands on Ortiz Plumbing's settled Lopez pay app. Each button signs in through ordinary password sign-in; the page keeps the shared password, test card, mirror, commit hash and notes in one collapsed **Manual sign-in and sandbox details** block. PayPal sandbox only; synthetic data; no real money.
 
 | Reports: money position | Pay app: claim to settlement |
 | --- | --- |
 | ![Money position by agreement](./docs/screenshots/reports-money-chart.png) | ![Pay app money trail](./docs/screenshots/pay-app-money-trail.png) |
+
+## The settled residential reference: Lopez Kitchen Remodel
+
+The demo company carries one complete kitchen job. **Bayview Remodeling** is the GC, **Dana Lopez** is the homeowner, and the contract is **$86,500.00**. Sandbox money actually moved:
+
+- **Ortiz Plumbing's $5,400.00 claim** was flagged by the rules review on the Fixtures set line. The GC cut exactly that **$1,400.00** line to **$0.00** and approved **$4,000.00**.
+- **5% retainage** held **$200.00**; PayPal paid Ortiz **$3,800.00** net (payout batch `D5V7XEN5YZH4C`).
+- **Homeowner Draw #1** was approved and paid by PayPal invoice: **$3,600.00** after 10% owner retainage (`INV2-5ZNS-USY8-KBFD-L3B9`).
+- **The $1,200.00 "Add under-cabinet lighting" change order** was invoiced and paid (`INV2-RCJ4-Z8GD-4A33-TDJC`).
+- **The money strip** shows collected from owners, paid to subs, retainage held and owed this week on the GC home, the Lopez project page and the owner-billing tab.
+
+Lopez is a **read-only reference**: every write path refuses with `READ_ONLY_REFERENCE`. The Guided demo is the resettable write sandbox. Ids, cents and screenshots are in [`docs/evidence/settlement/`](./docs/evidence/settlement/README.md).
 
 ### PayPal APIs used
 
@@ -28,25 +43,25 @@
 
 **How it differs from Procore Pay / GCPay / Textura:** review is contract-scope-aware, so it flags excluded scope and out-of-sequence billing, not only arithmetic. A mid-size GC can pay an approved subcontractor through PayPal Payouts instead of a 30–60 day check run.
 
-**Known limits:** this is the tested recovery-dev build, **not production**; `earnest-mongoose-745` is untouched. PayPal is sandbox-only: one platform account is the merchant for GC, sub and Owner money, and fees are not yet modelled. A production launch needs PayPal multiparty with the GC as seller, a fee ledger, dispute handling and legal review. Email verification is allowlisted to test inboxes on this deployment. AgentID sign-in needs **owner-approved client registration**, so it is hidden on this hosted demo, and the licensed AG Studio editor is not enabled. `main` carries this build; the pre-recovery TradePulse Pay work is preserved on `paypal-hackathon`, and `recovery/stabilize-2026-11-01` is frozen at the handoff commit as a backup. See the [R5 remediation record](./docs/r5-remediation.md) and the [R6 remediation record](./docs/r6-remediation.md) for what is fixed and what remains a real-money blocker. Sandbox and synthetic data only. See [recovery status](#recovery-status), [what changed since Oct 1](#what-changed-since-oct-1), and the [documentation index](./docs/README.md).
+**Known limits:** this is the tested sandbox build, **not production**. PayPal is sandbox-only: one platform account is the merchant for GC, sub and Owner money, and fees are not yet modelled. A production launch needs PayPal multiparty with the GC as seller, a fee ledger, dispute handling and legal review. Email verification is allowlisted to test inboxes on this deployment. AgentID sign-in needs **owner-approved client registration**, so it is hidden on this hosted demo, and the licensed AG Studio editor is not enabled. `main` carries this build; the pre-recovery TradePulse Pay work is preserved on `paypal-hackathon`. See the [R5 remediation record](./docs/r5-remediation.md) and the [R6 remediation record](./docs/r6-remediation.md) for what is fixed and what remains a real-money blocker. Sandbox and synthetic data only. See [recovery status](#recovery-status), [what changed since Oct 1](#what-changed-since-oct-1), and the [documentation index](./docs/README.md).
 
 ---
 
 ## The problem
 
-A general contractor (GC) awards a subcontract, then pays it out over months. Every month the subcontractor files a pay application ("we are 40% done with rough-in, pay us $X"). The GC has to check each line against the schedule of values, catch overbilling and billing for excluded scope, hold back retainage (usually 10%), confirm the sub's license is still active, and then actually move the money. Today this is spreadsheets, email and manual bank transfers. Overbilling slips through, retainage is tracked by hand, and change orders are invoiced separately.
+An owner-run residential remodel GC runs a handful of kitchen, addition and whole-home jobs. Every month each trade files a pay application ("we are 40% done with rough-in, pay us $X"). The GC has to check each line against the schedule of values, catch overbilling and billing for excluded scope, hold back retainage, confirm the trade's license is still active, collect a lien waiver, and then actually move the money. Today this is spreadsheets, email and manual bank transfers. Overbilling slips through, retainage is tracked by hand, and the homeowner's draw is invoiced separately.
 
 ## The pitch
 
 TradePulse Pay takes the contract the GC just awarded in TradePulse Pro and runs the money side:
 
-1. **Execute the agreement.** Code generates the schedule of values (SOV) from the awarded bid and four funding milestones. Excluded scope stays in the comparison/notes, not the awarded contract sum or ordinary SOV.
+1. **Execute the agreement.** Code generates the schedule of values (SOV) from the awarded bid with milestone funding and the agreed retainage. Excluded scope stays in the comparison/notes, not the awarded contract sum or ordinary SOV.
 2. **Fund a milestone.** The GC approves a PayPal `AUTHORIZE` order. The money is held, not captured.
 3. **Sub files a pay application**, either a person or the sub's **billing agent** signed in with AgentID.
 4. **Rules review with model explanations.** The rules engine returns per-line verdicts (ok, overbilled, excluded scope, front-loaded, out of sequence) and **code computes every dollar** from the SOV; the configured Mistral or Anthropic model explains the evidence and cannot author or change an amount. KERNEL checks the sub's California license (CSLB) in a hosted browser.
 5. **Pay agent proposes**, the GC approves. The agent can only insert proposals (capture, payout, hold, reschedule). Money moves only after the GC approves: PayPal captures from the authorization, pays the sub net of retainage through Payouts, and credits the retainage ledger.
-6. **Change orders** are invoiced to the Owner with PayPal Invoicing. **Retainage** is released at closeout as one payout of the ledger balance.
-7. **Dashboard.** A live ledger dashboard shows payments, pay apps, retainage and change orders. A licensed AG Studio view adds layout editing and model-backed chat; the basic React view works without a Studio license.
+6. **Owner draws and change orders** are invoiced to the homeowner with PayPal Invoicing. **Retainage** is released at closeout as one payout of the ledger balance.
+7. **One set of numbers.** The money strip shows collected from owners, paid to subs, retainage held and owed this week, and each number links to its receipts. A live ledger dashboard shows payments, pay apps, retainage and change orders. A licensed AG Studio view adds layout editing and model-backed chat; the basic React view works without a Studio license.
 
 ---
 
@@ -130,7 +145,7 @@ npm ci
 
 Names marked `# optional` in `.env.example` are not required for a backend push. Live AI still needs a funded provider. `AI_PROVIDER` selects one provider; the app does not silently spend credits with another provider after a failure. Without an explicit selection, a configured Mistral key takes precedence over Anthropic. [`docs/prod-env-names.md`](./docs/prod-env-names.md) is a historical production reconciliation, not proof of current settings; inspect names with `npx convex env list --names-only`.
 
-Keep real values in a secrets file outside the repo. The setup scripts read it, pipe each value to `npx convex env set` on stdin and print names only. They refuse the frozen `brainy-skunk-440` deployment.
+Keep real values in a secrets file outside the repo. The setup scripts read it, pipe each value to `npx convex env set` on stdin and print names only. They refuse the frozen legacy deployment.
 
 ### 3. Convex deployment (sandbox setup)
 
@@ -281,7 +296,7 @@ Funded authorizations are watched hourly (`convex/crons.ts`): after the 3-day ho
 
 ## 📮 API collection (Postman) and APIMatic log
 
-- Postman v2.1 collection: [`docs/postman/TradePulse-Pay.postman_collection.json`](./docs/postman/TradePulse-Pay.postman_collection.json), with the sandbox environment [`docs/postman/TradePulse-Pay-sandbox.postman_environment.json`](./docs/postman/TradePulse-Pay-sandbox.postman_environment.json). It covers `/api/health`, `/llms.txt`, an unsigned `/paypal/webhook` replay (documented 400, recorded `verified=false`, one row per event id), `/ai/studio`, and the PayPal sandbox calls the app makes (OAuth token, AUTHORIZE order, authorize, capture, void, payout, payout batch, invoice create/send/get, webhook signature verification). The environment file holds variable names only, with every value empty. Non-secret defaults (`convexSite` = the dev deployment `https://exuberant-boar-323.convex.site`, `paypalBase` = the PayPal sandbox, the replay event id, the payout `sender_batch_id` and the webhook auth algorithm) are collection variables, and a collection pre-request script uses them whenever the environment value is empty. Set your own values locally: `convexSite` for your deployment's `.convex.site` URL, and your sandbox `clientId` / `clientSecret` for the PayPal folder.
+- Postman v2.1 collection: [`docs/postman/TradePulse-Pay.postman_collection.json`](./docs/postman/TradePulse-Pay.postman_collection.json), with the sandbox environment [`docs/postman/TradePulse-Pay-sandbox.postman_environment.json`](./docs/postman/TradePulse-Pay-sandbox.postman_environment.json). It covers `/api/health`, `/llms.txt`, an unsigned `/paypal/webhook` replay (documented 400, recorded `verified=false`, one row per event id), `/ai/studio`, and the PayPal sandbox calls the app makes (OAuth token, AUTHORIZE order, authorize, capture, void, payout, payout batch, invoice create/send/get, webhook signature verification). The environment file holds variable names only, with every value empty. Non-secret defaults (`convexSite` = the dev deployment, `paypalBase` = the PayPal sandbox, the replay event id, the payout `sender_batch_id` and the webhook auth algorithm) are collection variables, and a collection pre-request script uses them whenever the environment value is empty. Set your own values locally: `convexSite` for your deployment's `.convex.site` URL, and your sandbox `clientId` / `clientSecret` for the PayPal folder.
 - Run the TradePulse endpoints from the CLI (pass `--env-var` for each value you set; drop the `convexSite` flag to use the dev default):
 
   ```bash
@@ -338,13 +353,13 @@ Signed in as the GC, the **Procurement** area is the original TradePulse Pro app
 
 ## Recovery status
 
-This is the tested, isolated recovery-dev build, not production. Production `earnest-mongoose-745` has **not** been replaced or re-certified, and the earlier TradePulse Pro submission on `brainy-skunk-440` is frozen and does not run this code. AgentID on recovery still requires owner-approved client registration; normal demo password sign-in works. The original dev deployment's newer cloud-only waiver implementation remains protected and is not recovered by this branch.
+This is the tested, isolated sandbox build, not production. The production deployment has **not** been replaced or re-certified, and the earlier TradePulse Pro submission is frozen and does not run this code. AgentID still requires owner-approved client registration; ordinary demo password sign-in works. The original dev deployment's newer cloud-only waiver implementation remains protected and is not recovered by this branch.
 
 **Verified recovery proof:** real Mistral review and proposal tools, two COMPLETED PayPal captures, two SUCCESS progress payouts, a PAID Owner invoice and a SUCCESS retainage release were independently checked on November 1, 2026. These are partial-progress demo payments, not completion of the entire contract. See [recovery status and evidence](./docs/recovery-progress.md) and the [sanitized audit-fix handoff](./docs/external-audit-fixes.md).
 
 ### Two static addresses, one backend
 
-The frontend is served from **https://tradepulse-pay.asynchronope.tech** (Cloudflare Pages project `tradepulse-pay`) and the original **https://cheery-axolotl-689.convex.site** mirror. The DNS record is `tradepulse-pay` CNAME `tradepulse-pay.pages.dev`, proxied. Both hosts serve the same `dist`; the footer and `/version.json` show the commit. Backend functions, webhooks, `/api/health`, Convex Auth and AgentID callbacks stay on `cheery-axolotl-689.convex.site`. `CONVEX_SITE_URL` is unchanged because the protected reference run checks it.
+The frontend is served from **https://tradepulse-pay.asynchronope.tech** (Cloudflare Pages project `tradepulse-pay`) and a legacy static mirror that serves the same `dist`. The DNS record is `tradepulse-pay` CNAME `tradepulse-pay.pages.dev`, proxied. Both hosts serve the same build; the footer and `/version.json` show the commit. Backend functions, webhooks, `/api/health`, Convex Auth and AgentID callbacks stay on the configured `CONVEX_SITE_URL` origin, which is unchanged because the protected reference run checks it.
 
 `npm run deploy:all` verifies the dev deployment, `CONVEX_SITE_URL`, a clean tree and that the checkout is `main` or the frozen recovery branch, pushes the backend with `convex dev --once`, builds once with the deployment URLs, uploads that build to both static hosts, and refuses to finish unless both `/version.json` files match the git commit. It deliberately does not use `npx convex deploy`, which would target the project's production deployment when `CONVEX_DEPLOYMENT` is set. `deploy` and `deploy:site` are static-only uploads to the deployment in `.env.local`; the static-hosting package's own `deploy` subcommand is not used because it hardcodes `--prod`.
 

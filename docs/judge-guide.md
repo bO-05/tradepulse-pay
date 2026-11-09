@@ -12,8 +12,10 @@ This is the tested recovery-dev sandbox, not production. The guide signs into or
 | Subcontractor | `sub4@demo.tradepulse` | Settled Lopez Kitchen Remodel pay app (Ortiz Plumbing) |
 | Owner | `owner@demo.tradepulse` | Home, change orders, invoice payment |
 
-All three use `TradePulseDemo!2026`. Use isolated browser contexts/profiles for simultaneous roles;
-two tabs or private windows can share one login and are not sufficient isolation.
+Open **#/demo** and choose a seat. The collapsed **Manual sign-in and sandbox details** block holds the
+shared demo password, the test card, the mirror URL, the commit hash, the Recovery-dev note and the
+Studio license note; this guide does not repeat the password. Use isolated browser contexts/profiles
+for simultaneous roles; two tabs or private windows can share one login and are not sufficient isolation.
 Do not put personal information or real payment details in these shared accounts.
 The app does not require your own PayPal, model, AgentID or Studio account for the core demonstration.
 
@@ -21,7 +23,7 @@ For independent QA, give a new reviewer the [blind first-use brief](./browser-au
 then the [detailed browser audit playbook](./browser-agent-audit.md). Those are audit assignments,
 not claims that the independent checks have already passed.
 
-## Two-minute inspection, no new payment
+## Commercial reference: two-minute inspection, no new payment
 
 1. Enter as GC. In **Guided demo**, select `A401-DEMO-PAY-20261101-02` from the run history.
    Direct bookmark: https://tradepulse-pay.asynchronope.tech/#/judge-demo/nx74k1sdcnsmqzvkr97kf0ts598hch6p
@@ -41,7 +43,7 @@ The November 1 independent PayPal check verified:
 | Contract award | `$55,000`, seismic bracing excluded |
 | Mobilization authorization | `$5,500`, partially captured |
 | Honest pay-app gross | `$2,000`, capture COMPLETED; net payout `$1,800` SUCCESS |
-| Overbilled pay-app gross | `$288` after model recommendation and explicit GC edit; net payout `$259.20` SUCCESS |
+| Overbilled pay-app gross | `$288` after the rules-review recommendation and an explicit GC edit; net payout `$259.20` SUCCESS |
 | Owner change-order invoice | `$1,850`, PAID |
 | Retainage release | `$228.80`, SUCCESS |
 | Agreement totals after release | Captured `$2,288`; paid `$2,288`; retainage held `$0` |
@@ -50,22 +52,27 @@ This is a real sandbox settlement of **partial progress**, not completion of the
 The `$1,850` Owner revenue is separate from the subcontract sum. Historical proof and limitations are in
 [recovery progress](./recovery-progress.md). Live state can change when public demo users act.
 
-## Residential reference job
+## Residential reference job (start here)
 
-The Demo company also carries an ordinary residential job, **Lopez Kitchen Remodel**: an `$86,500`
-prime value, four prime schedule-of-values lines, a `10%` retainage hold and a monthly billing day.
-It is created by the demo seed itself, so a reseed or a fresh database has it without a manual
-command.
+**Lopez Kitchen Remodel** is the settled residential reference: the GC is **Bayview Remodeling**, the
+homeowner is **Dana Lopez**, and the contract is **$86,500.00**. It is a read-only reference now:
+every write path refuses with `READ_ONLY_REFERENCE`, and the UI shows the reference notice instead of
+write controls. Inspect it rather than editing it.
 
-1. As GC, open **Billing → Owner billing**, pick **Lopez Kitchen Remodel**, and press **New owner pay app**.
-   The commercial walkthrough could not do this because it has no prime contract value.
-2. The draft opens with the four prime lines and `$86,500` scheduled. Save this period's amounts and
-   submit it to the owner. Above the list, the panel keeps three running totals: billed and awaiting the
-   owner, approved but not yet paid, and paid by the owner.
-3. As Owner, open the same job to approve it or request changes.
+1. As GC, open **Billing → Owner billing**, pick **Lopez Kitchen Remodel**, and inspect **Draw #1**:
+   `$5,400.00` requested, `$4,000.00` approved, `$3,600.00` paid by PayPal invoice after 10% owner
+   retainage, with `paypalInvoiceId` and `paidAt` stored. The four prime lines and the Ortiz trade line
+   total `$86,500.00` in scheduled values.
+2. Open the Ortiz Plumbing pay app. The rules review flagged the Fixtures set line; the GC cut exactly
+   that `$1,400.00` line to `$0.00` and approved `$4,000.00`. The payout receipt shows `$4,000.00`
+   gross, `$200.00` retainage and `$3,800.00` net.
+3. Inspect the paid **"Add under-cabinet lighting"** change order (`$1,200.00`) and its PayPal invoice.
+4. On the GC home (`#/inbox`), the Lopez project page and the owner-billing tab, read the **money
+   strip**: collected from owners, paid to subs, retainage held and owed this week. Each number links
+   to its receipts.
 
-Milestone draws and a GC collected/paid/owed strip are not built; [the R7 record](./r7-remediation.md)
-lists them as open.
+Evidence, exact ids and the run log are in [`docs/evidence/settlement/`](./evidence/settlement/README.md).
+The guided demo (below) is the only write sandbox; do not try to fund, approve or pay on Lopez.
 
 ## Hands-on run, approximately 5–10 minutes
 
@@ -116,14 +123,15 @@ The judged flow is the residential GC's own loop, not a commercial-only demo:
 1. Create the job with a prime contract value, retainage rate and billing day (Quick start does this).
 2. Invite subs, take bids, and execute a subcontract with a schedule of values and milestones.
 3. Fund a milestone, let the sub file a pay app, review it line by line, approve it, capture and pay out.
-4. Bill the owner from **Billing → Owner billing**: one owner pay app per period, with running totals for
+4. Bill the homeowner from **Billing → Owner billing**: one draw per period, with running totals for
    billed, approved and paid. A draw-by-milestone job uses the same sheet: enter that draw's amount on the
    relevant prime line and submit it.
 5. Sign or require lien waivers, including the closeout retainage release.
+6. Read the money strip on the GC home, the project page and the owner-billing tab: collected from owners,
+   paid to subs, retainage held and owed this week, each linked to its receipts.
 
-Not built, and not claimed: a separate prime-milestone schedule that creates owner draws automatically, a
-collected/paid-out/owed view across subcontractors on one screen, and in-app subcontract acceptance by the
-sub. `docs/r7-remediation.md` lists all three as open.
+Not built, and not claimed: a separate prime-milestone schedule that creates owner draws automatically,
+and in-app subcontract acceptance by the sub. `docs/r7-remediation.md` lists both as open.
 
 ## Integration boundaries
 

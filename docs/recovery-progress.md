@@ -30,8 +30,10 @@ The managed cloud workspace is unavailable. GitHub is the recoverable source bas
   out-of-sequence verdicts, their precedence, stored materials, missing funding tranches, review
   flags, zero progress, prior baselines and a prompt-injection note.
 - Live Mistral `mistral-large-4` run `eval_payapp_1793864125712` scored **24/24 cases, 71 lines and
-  15 issue lines** with **100% line accuracy, issue precision/recall/F1 and macro F1**. All fixtures
-  reported Mistral, not the offline fallback.
+  15 issue lines** on fixtures whose expected verdicts were written alongside the rules. That is a
+  regression result (agreement with this app's rules), not an accuracy estimate; see
+  [pay-app-review-eval.md](./pay-app-review-eval.md). All fixtures reported Mistral, not the offline
+  fallback.
 - The run is recorded in `evalRuns.reviewMetrics` with per-verdict TP/FP/FN counts. Scorecard:
   `evals/results/pay-app-review-scorecard.md`; JSON:
   `evals/results/pay-app-review-scorecard-2026-11-05T07-39-28-584Z.json`.
@@ -172,7 +174,7 @@ The final authenticated provider smoke passed live procurement inference and the
 
 - Real guest approval authorized **$5,500** on sandbox order `0WV193651L210315U`, authorization `94G95136J6812154U`.
 - The honest $2,000 pay app received a real Mistral Large 4 review and agent trace. Its capture `4HL52442UH4760109` is `COMPLETED`; payout batch `7VG6NTD87W2JJ` is `SUCCESS` for **$1,800**, with $200 retainage.
-- The overbilled $13,500 claim received a real Mistral recommendation of **$320**. The authenticated guided-demo GC action edited it to **$288** before approval. Capture `9X249756PN047684B` is `COMPLETED`; payout batch `RFQ4YLNXPXL8S` is `SUCCESS` for **$259.20**, with $28.80 retainage. Its reschedule proposal remains pending, not silently approved.
+- The overbilled $13,500 claim received a rules-review recommendation of **$320**, explained by Mistral. The authenticated guided-demo GC action edited it to **$288** before approval. Capture `9X249756PN047684B` is `COMPLETED`; payout batch `RFQ4YLNXPXL8S` is `SUCCESS` for **$259.20**, with $28.80 retainage. Its reschedule proposal remains pending, not silently approved.
 - The Owner signed in separately, opened its own app invoice link and paid the **$1,850** PayPal invoice `INV2-34SZ-2MQV-HYR9-TCRG` with synthetic guest details and the public test card. PayPal confirmed `PAID`; the Owner row updated. Evidence: `evidence/recovery-settlement-2026-11-01T17-27-07-740Z/report.json`.
 - The GC explicitly used optional **Release retainage**. Batch `SUQPHFZK3KLSG` settled `SUCCESS` for **$228.80**; no separate top-up was needed after the Owner invoice payment. Evidence: `evidence/recovery-settlement-2026-11-01T17-39-45-168Z/report.json`.
 - Independent PayPal GETs matched **all seven** stored authorization/capture/payout/invoice records. The independent ledger recomputation had no mismatches or attention items: `evidence/recovery-paypal-2026-11-01T17-41-24-718Z/report.json`.
@@ -256,9 +258,13 @@ The final ledger fix counts only confirmed `COMPLETED` captures as collected cas
   identity protection, bookmarks and invitation-recipient correction:
   `evidence/recovery-user-journey-2026-11-01T19-46-17-505Z/report.json`.
 
-## Local checks
+## Historical recovery-era checks
 
-Run from the repository root:
+These checks were written for the isolated recovery dev deployment and the pre-residential commercial
+flow. They are kept as a record, not as this release's gate: the release gate is the command set in
+`AGENTS.md` / `services.yaml`, and the residential reference evidence lives under `docs/evidence/`.
+`recovery-user-journey.mjs` still drives the pre-residential flow and is **not** part of this release
+gate. Run from the repository root:
 
 ```powershell
 npm test -- --maxWorkers=2
@@ -275,7 +281,10 @@ node scripts/qa/recovery-user-journey.mjs
 node scripts/qa/recovery-firecrawl-smoke.mjs
 ```
 
-The browser smoke scripts use the public demo accounts only and create fresh browser contexts. Their default modes do not perform business writes. The AI script inspects the existing recovery fixture and verifies provenance and pending proposals; its explicit `--submit` flag permits a fixture-scoped draft/submission if none exists. The provider script makes two real, potentially billable Mistral calls using a temporary public demo session held only in memory.
+The browser smoke scripts use the public demo accounts only and create fresh browser contexts. Their
+default modes do not perform business writes. They target the isolated recovery dev host named in each
+command; do not point them at a production deployment, and do not read them as coverage of the
+residential loop. The AI script inspects the existing recovery fixture and verifies provenance and pending proposals; its explicit `--submit` flag permits a fixture-scoped draft/submission if none exists. The provider script makes two real, potentially billable Mistral calls using a temporary public demo session held only in memory.
 
 The user-journey script's `--concurrency` mode creates one additional unfunded fixture agreement.
 Its `--signup` mode creates a new account in one exact already-owned allowlisted inbox and refuses to overwrite it;

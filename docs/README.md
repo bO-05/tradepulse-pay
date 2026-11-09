@@ -15,7 +15,7 @@ Source: `main` is the canonical branch and carries the current build. `recovery/
 - [Pay-app questions](./pay-app-questions.md) — the sub “Question this amount” thread, who can read or post, and why it never edits the figures.
 - [Owner job so far](./owner-job-so-far.md) — the Owner's read-only progress and money summary, what basis it uses, and what it deliberately does not show.
 - [Landing, navigation and inbox focus](./landing-navigation-inbox.md) — the residential landing story, the GC primary/More nav split, and the inbox buckets.
-- [Pay-app review evaluation](./pay-app-review-eval.md) — the 24-case verdict suite, precision/recall definitions and the reproducible scorecard command.
+- [Pay-app review evaluation](./pay-app-review-eval.md) — the 24-case verdict suite, how agreement with the app's rules is measured, and the reproducible scorecard command.
 - [Browser audit start](./browser-audit-start.md) — a blind, read-only first-use brief for an independent reviewer.
 - [Browser audit playbook](./browser-agent-audit.md) — the detailed role, route, and evidence checklist after the blind pass.
 - [Guard audit](./guard-audit.md) — every public Convex function and the role guard it calls.
@@ -23,6 +23,7 @@ Source: `main` is the canonical branch and carries the current build. `recovery/
 
 ## Evidence and recovery
 
+- [Settlement evidence](./evidence/settlement/README.md) — the stored rows and screenshots behind the settled Lopez reference, with the known gaps stated.
 - [Recovery progress](./recovery-progress.md) — what was recovered, what is verified, and what remains owner-only.
 - [External audit fixes](./external-audit-fixes.md) — sanitized retest handoffs. The raw audit folders stay private.
 - [R5 remediation](./r5-remediation.md) — finding-by-finding R5 status, including the payment and onboarding work that remains open.
