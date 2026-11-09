@@ -89,4 +89,19 @@ test("guide never silently replaces an existing signed-in account", () => {
   expect(html).toContain("Your current account will not be replaced");
   expect(html).toContain("Open your workspace");
   expect(html).not.toContain('data-testid="demo-enter-gc"');
+  const workspace = [...html.matchAll(/<a\b[^>]*>[^<]*<\/a>/g)].map((m) => m[0]).find((tag) => tag.includes("Open your workspace"));
+  expect(workspace).toContain('href="#/"');
+});
+
+test("the normal sign-in link opens the app's real sign-in form instead of a dead href", () => {
+  const html = renderToStaticMarkup(<DemoAccessPage />);
+  // No dead hash links anywhere on the public demo page (the brand, the workspace link and the
+  // secondary sign-in link all navigate to "#/", which is the real sign-in form when signed out).
+  expect(html).not.toContain('href="#"');
+  const signInLink = [...html.matchAll(/<a\b[^>]*>[^<]*<\/a>/g)]
+    .map((match) => match[0])
+    .find((tag) => tag.includes("Normal sign-in / create a GC account"));
+  expect(signInLink).toContain('href="#/"');
+  // The three seat buttons are untouched by this change.
+  expect(html.match(/data-testid="demo-enter-(gc|sub|owner)"/g) ?? []).toHaveLength(3);
 });

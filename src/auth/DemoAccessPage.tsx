@@ -38,7 +38,7 @@ export function DemoAccessPage() {
     <main className="min-h-screen bg-slate-950 text-slate-100 px-5 py-8 sm:px-10 sm:py-10" data-testid="demo-access-page">
       <div className="mx-auto max-w-6xl">
         <header className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-700 pb-5">
-          <a href="#" className="text-lg font-bold tracking-tight">TradePulse Pay</a>
+          <a href="#/" className="text-lg font-bold tracking-tight">TradePulse Pay</a>
           <span className="font-mono text-xs uppercase tracking-widest text-amber-200">Residential remodel GCs · PayPal sandbox</span>
         </header>
 
@@ -68,7 +68,7 @@ export function DemoAccessPage() {
               <div className="rounded-xl border border-emerald-800 bg-emerald-950/30 p-5 space-y-3">
                 <p>You are already signed in. Your current account will not be replaced.</p>
                 <div className="flex flex-wrap gap-4 text-sm text-emerald-300">
-                  <a href="#" className="underline">Open your workspace</a>
+                  <a href="#/" className="underline">Open your workspace</a>
                   <button type="button" className="underline" onClick={async () => { await signOutAndReset(); window.location.hash = DEMO_ACCESS_HASH; }}>Sign out to choose a demo role</button>
                 </div>
               </div>
@@ -107,7 +107,12 @@ export function DemoAccessPage() {
               These buttons use ordinary demo-account sign-in, not an authentication bypass. Funding and invoice
               payment still need sandbox browser approval.
             </p>
-            <a href="#" className="inline-flex min-h-6 items-center text-sm text-emerald-300 underline">Normal sign-in / create a GC account</a>
+            {/*
+             * The ordinary sign-in form is the app root: when nobody is signed in, AuthGate renders
+             * SignInPage there (with "Create account"); when someone is signed in, "#/" resolves to
+             * the role's home. A bare href="#" would be a dead link on the public demo page.
+             */}
+            <a href="#/" className="inline-flex min-h-6 items-center text-sm text-emerald-300 underline">Normal sign-in / create a GC account</a>
           </section>
         </div>
 

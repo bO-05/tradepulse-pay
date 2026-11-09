@@ -130,6 +130,16 @@ for (const [width, height] of [[1440, 900], [390, 844]]) {
   check(`[${width}] role buttons meet the 44px primary-action floor`, landing.seats.every((s) => s.height >= 44), JSON.stringify(landing.seats.map((s) => s.height)));
   const rosendinLinks = landing.links.filter((link) => /rosendin|sub1@|judge-demo/i.test(`${link.text} ${link.href}`));
   check(`[${width}] link census shows no Rosendin seat or commercial run`, rosendinLinks.length === 0, JSON.stringify(rosendinLinks));
+  // A bare "#" is a dead link: it reloads the demo page and never opens the sign-in form. "#/" is
+  // the app root, which renders the real sign-in form (with "create account") when signed out.
+  const deadLinks = landing.links.filter((link) => link.href === "#" || link.href === "" || link.href === "#/home");
+  check(`[${width}] demo page has no dead hash links`, deadLinks.length === 0, JSON.stringify(deadLinks));
+  const normalSignIn = landing.links.find((link) => link.text === "Normal sign-in / create a GC account");
+  check(
+    `[${width}] the normal sign-in link navigates to the sign-in form instead of href="#"`,
+    normalSignIn?.href === "#/",
+    JSON.stringify(normalSignIn),
+  );
   for (const item of MANUAL_ITEMS) {
     check(`[${width}] ${item.label} is not rendered before the disclosure opens`, !landing.innerText.includes(item.value));
   }
