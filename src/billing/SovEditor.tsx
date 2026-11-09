@@ -55,7 +55,7 @@ export function SovPage({
       </p>
     );
   }
-  if (sov === null) return <p role="status">Schedule of values not found or not available to this account. <a href="#/home" className="underline">Back to home</a></p>;
+  if (sov === null) return <p role="status">Schedule of values not found or not available to this account. <a href={backHash} className="underline">Back to the agreement</a></p>;
   return (
     <div className="max-w-5xl space-y-4">
       <SovEditor sov={sov} />

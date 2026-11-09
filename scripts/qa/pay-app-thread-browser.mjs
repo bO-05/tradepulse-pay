@@ -97,6 +97,9 @@ try {
   }
   await sub.waitForSelector('[data-testid="pay-app-thread"]', { visible: true, timeout: 60_000 });
   await sub.waitForFunction(() => !document.body.innerText.includes("Loading pay application"));
+  // The review runs asynchronously after submission and adds its own row to the money trail.
+  // Settle it before the first snapshot so a later review cannot look like a thread side effect.
+  await sub.waitForFunction(() => /REVIEW SUGGESTS/i.test(document.body.innerText), { timeout: 120_000 });
 
   phase = "sub reads the disposable thread";
   const subBefore = await threadSnapshot(sub);
@@ -238,8 +241,8 @@ async function openNewPayApp(page, settledHash) {
     await page.goto(`${site}/${found.href}`, { waitUntil: "domcontentloaded" });
     await page.waitForSelector('[data-testid="g703-sheet"]', { timeout: 45_000 });
   } else {
-    await page.waitForSelector('[role="dialog"]', { timeout: 15_000 });
-    await clickText(page, "Create draft", '[role="dialog"]');
+    await page.waitForSelector('[role="alertdialog"]', { timeout: 15_000 });
+    await clickText(page, "Create draft", '[role="alertdialog"]');
     await page.waitForFunction(() => /^#\/pay-apps\/[a-z0-9]+$/.test(location.hash), { timeout: 60_000 });
     await page.waitForSelector('[data-testid="g703-sheet"]', { timeout: 45_000 });
   }
@@ -258,16 +261,22 @@ async function submitDraft(page, amountText) {
   if (!line) throw new Error("the draft G703 has no line 1");
   const inputs = await line.$$("input");
   if (inputs.length === 0) throw new Error("line 1 has no money input");
-  await inputs[0].click({ clickCount: 3 });
-  await inputs[0].type(amountText);
-  await page.keyboard.press("Tab");
+  // The money input is a controlled masked field; a native setter plus an input event is the
+  // reliable way to hand it a full amount without racing its keystroke mask.
+  await page.evaluate((input, text) => {
+    input.focus();
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+    setter.call(input, text);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.blur();
+  }, inputs[0], amountText);
   await page.waitForFunction(() => {
     const submit = document.querySelector('[data-testid="payapp-submit"]');
     return submit !== null && !submit.disabled;
   }, { timeout: 30_000 });
   await page.click('[data-testid="payapp-submit"]');
-  await page.waitForSelector('[role="dialog"]', { timeout: 15_000 });
-  await clickText(page, "Submit pay app", '[role="dialog"]');
+  await page.waitForSelector('[role="alertdialog"]', { timeout: 15_000 });
+  await clickText(page, "Submit pay app", '[role="alertdialog"]');
   await page.waitForFunction(() => document.querySelector('[data-testid="g703-sheet"]') !== null && !document.body.innerText.includes("Not submitted"), { timeout: 60_000 });
   await page.waitForSelector('[data-testid="pay-app-thread"]', { visible: true, timeout: 60_000 });
 }
@@ -278,8 +287,8 @@ async function withdrawDraft(page) {
   }
   await page.waitForSelector('[data-testid="payapp-withdraw"]', { timeout: 45_000 });
   await page.click('[data-testid="payapp-withdraw"]');
-  await page.waitForSelector('[role="dialog"]', { timeout: 15_000 });
-  await clickText(page, "Withdraw pay app", '[role="dialog"]');
+  await page.waitForSelector('[role="alertdialog"]', { timeout: 15_000 });
+  await clickText(page, "Withdraw pay app", '[role="alertdialog"]');
   await page.waitForFunction(() => /withdrawn/i.test(document.body.innerText), { timeout: 60_000 });
   const status = await page.evaluate(() => document.body.innerText);
   return /withdrawn/i.test(status) ? "withdrawn" : status.slice(0, 400);
