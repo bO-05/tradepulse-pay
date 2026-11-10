@@ -72,7 +72,7 @@
     "convex-test": "^0.0.58",
     "postcss": "^8.5.2",
     "puppeteer-core": "^25.11.0",
-    "tailwindcss": "^3.4.17",
+    "tailwindcss": "^4.3.5",
     "typescript": "^5.7.3",
     "unpdf": "^1.8.1",
     "vite": "^6.1.0",
