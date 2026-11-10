@@ -1,0 +1,188 @@
+{
+  "storedRecordCount": 18,
+  "commercialRecordCount": 17,
+  "residentialRecordCount": 1,
+  "paidOrtiz": {
+    "agreementNumber": "SC-22-ORTIZ-0001",
+    "finalApprovalTotalCents": 400000,
+    "payAppId": "ph7434a59sqck3nysgt6teqh0h8hvx1h",
+    "projectId": "q97f6pmh2d5qn733jmh5pg4c3x8hr9sn",
+    "projectKind": "residential",
+    "requestedTotalCents": 540000,
+    "status": "paid"
+  },
+  "guidedRunsStored": 11,
+  "guidedPayAppIdsBehindCommercial": [
+    "ph7eyyr8bjqbts7yd6gys5tqdx8hpq64",
+    "ph73363j955992e4sj7b9zzeah8hpv5q",
+    "ph77xv9jnj6vb16qdf8x97wgq58hpk3n",
+    "ph7chs95hyw8h3m6hp193pjghn8hpyg6",
+    "ph700be475tytmh4ay4083y0ps8hspfc",
+    "ph7ayjenxg206ybxhg384tyes18hregt"
+  ],
+  "missingGuidedPayApps": [],
+  "records": [
+    {
+      "agreementNumber": "SC-22-ORTIZ-0001",
+      "finalApprovalTotalCents": 400000,
+      "payAppId": "ph7434a59sqck3nysgt6teqh0h8hvx1h",
+      "projectId": "q97f6pmh2d5qn733jmh5pg4c3x8hr9sn",
+      "projectKind": "residential",
+      "requestedTotalCents": 540000,
+      "status": "paid"
+    },
+    {
+      "agreementNumber": "A401-DEMO-PAY-20261107-12",
+      "finalApprovalTotalCents": 28800,
+      "payAppId": "ph7ayjenxg206ybxhg384tyes18hregt",
+      "projectId": "q973wjajzh5rerrrdwa6rfwb0d8hrmvj",
+      "projectKind": "commercial",
+      "requestedTotalCents": 1350000,
+      "status": "paid"
+    },
+    {
+      "agreementNumber": "A401-DEMO-PAY-20261107-12",
+      "finalApprovalTotalCents": 200000,
+      "payAppId": "ph700be475tytmh4ay4083y0ps8hspfc",
+      "projectId": "q973wjajzh5rerrrdwa6rfwb0d8hrmvj",
+      "projectKind": "commercial",
+      "requestedTotalCents": 200000,
+      "status": "paid"
+    },
+    {
+      "agreementNumber": "A401-DEMO-PAY-20261106-10",
+      "finalApprovalTotalCents": null,
+      "payAppId": "ph7chs95hyw8h3m6hp193pjghn8hpyg6",
+      "projectId": "q979yn93kh8fj4e038jjm1r68s8hqzbs",
+      "projectKind": "commercial",
+      "requestedTotalCents": 1350000,
+      "status": "reviewed"
+    },
+    {
+      "agreementNumber": "A401-DEMO-PAY-20261106-10",
+      "finalApprovalTotalCents": null,
+      "payAppId": "ph77xv9jnj6vb16qdf8x97wgq58hpk3n",
+      "projectId": "q979yn93kh8fj4e038jjm1r68s8hqzbs",
+      "projectKind": "commercial",
+      "requestedTotalCents": 200000,
+      "status": "reviewed"
+    },
+    {
+      "agreementNumber": "A401-DEMO-PAY-20261106-09",
+      "finalApprovalTotalCents": null,
+      "payAppId": "ph73363j955992e4sj7b9zzeah8hpv5q",
+      "projectId": "q97cewe6sj8j0a9jec4w0wb32x8hpw93",
+      "projectKind": "commercial",
+      "requestedTotalCents": 1350000,
+      "status": "reviewed"
+    },
+    {
+      "agreementNumber": "A401-DEMO-PAY-20261106-09",
+      "finalApprovalTotalCents": null,
+      "payAppId": "ph7eyyr8bjqbts7yd6gys5tqdx8hpq64",
+      "projectId": "q97cewe6sj8j0a9jec4w0wb32x8hpw93",
+      "projectKind": "commercial",
+      "requestedTotalCents": 200000,
+      "status": "reviewed"
+    },
+    {
+      "agreementNumber": "A401-DEMO-PAY-20261105-08",
+      "finalApprovalTotalCents": 28800,
+      "payAppId": "ph72w1maj711z2zr7cw3zz83rs8hn63h",
+      "projectId": "q97dq4hqzy6xc6eaks32jqjb1d8hm786",
+      "projectKind": "commercial",
+      "requestedTotalCents": 1350000,
+      "status": "paid"
+    },
+    {
+      "agreementNumber": "A401-DEMO-PAY-20261105-08",
+      "finalApprovalTotalCents": 200000,
+      "payAppId": "ph7bhnd7383j5wj8gakzmjt22d8hnrfw",
+      "projectId": "q97dq4hqzy6xc6eaks32jqjb1d8hm786",
+      "projectKind": "commercial",
+      "requestedTotalCents": 200000,
+      "status": "paid"
+    },
+    {
+      "agreementNumber": "A401-DEMO-PAY-20261105-07",
+      "finalApprovalTotalCents": 28800,
+      "payAppId": "ph761s6d1kd6ah9b0q74ph32ss8hnjtp",
+      "projectId": "q9728ekyzqrb8sm290r6px1b5s8hn23q",
+      "projectKind": "commercial",
+      "requestedTotalCents": 1350000,
+      "status": "paid"
+    },
+    {
+      "agreementNumber": "A401-DEMO-PAY-20261105-07",
+      "finalApprovalTotalCents": 200000,
+      "payAppId": "ph7f5h66zqqfcr6170j1r493bd8hnwkm",
+      "projectId": "q9728ekyzqrb8sm290r6px1b5s8hn23q",
+      "projectKind": "commercial",
+      "requestedTotalCents": 200000,
+      "status": "paid"
+    },
+    {
+      "agreementNumber": "A401-DEMO-PAY-20261104-05",
+      "finalApprovalTotalCents": 28800,
+      "payAppId": "ph7b70myszz62jcwpx7kq9z9658hjn5c",
+      "projectId": "q976783y6b341f223g014a1ex98hk5sq",
+      "projectKind": "commercial",
+      "requestedTotalCents": 1350000,
+      "status": "paid"
+    },
+    {
+      "agreementNumber": "A401-DEMO-PAY-20261104-05",
+      "finalApprovalTotalCents": 200000,
+      "payAppId": "ph751jbwv6sxh282f3mpbtwdrh8hkwph",
+      "projectId": "q976783y6b341f223g014a1ex98hk5sq",
+      "projectKind": "commercial",
+      "requestedTotalCents": 200000,
+      "status": "paid"
+    },
+    {
+      "agreementNumber": "A401-DEMO-PAY-20261104-04",
+      "finalApprovalTotalCents": 28800,
+      "payAppId": "ph728x8x8v25whds6eqtdd7ech8hj5qa",
+      "projectId": "q979e21crr1hbsvnndq2y0198d8hjava",
+      "projectKind": "commercial",
+      "requestedTotalCents": 1350000,
+      "status": "paid"
+    },
+    {
+      "agreementNumber": "A401-DEMO-PAY-20261104-04",
+      "finalApprovalTotalCents": 200000,
+      "payAppId": "ph7a66t9yq3k6b9hqmkwyzkexh8hjjwa",
+      "projectId": "q979e21crr1hbsvnndq2y0198d8hjava",
+      "projectKind": "commercial",
+      "requestedTotalCents": 200000,
+      "status": "paid"
+    },
+    {
+      "agreementNumber": "A401-DEMO-PAY-20261101-02",
+      "finalApprovalTotalCents": 28800,
+      "payAppId": "ph7fh2dpqnx82kq1dn3gwcp8yx8hcem6",
+      "projectId": "q9751tqcjsbd11myp8x25c08hs8hdj94",
+      "projectKind": "commercial",
+      "requestedTotalCents": 1350000,
+      "status": "paid"
+    },
+    {
+      "agreementNumber": "A401-DEMO-PAY-20261101-02",
+      "finalApprovalTotalCents": 200000,
+      "payAppId": "ph72dz348hz9fdsbrj7t46qrgd8hdd3c",
+      "projectId": "q9751tqcjsbd11myp8x25c08hs8hdj94",
+      "projectKind": "commercial",
+      "requestedTotalCents": 200000,
+      "status": "paid"
+    },
+    {
+      "agreementNumber": "A401-DEMO-PAYREVIEW-MISTRAL1",
+      "finalApprovalTotalCents": null,
+      "payAppId": "ph70bynf8n2k5mdjbejb4snk398hceqx",
+      "projectId": "q97anv03rwnw3whb3abfeqa5v98hdys0",
+      "projectKind": "commercial",
+      "requestedTotalCents": 3000000,
+      "status": "reviewed"
+    }
+  ]
+}

@@ -445,12 +445,14 @@ function ResidentialDecisionCard({ item }: { item: InboxItem }) {
   const approvedCents = approvedCentsOf(item);
   const split = payoutSplitOf(item);
   const netCents = split?.netCents ?? approvedCents;
+  const paid = item.payApp.status === "paid";
   const shortPeriod = demoPeriodLabel(item.payApp.periodLabel).split("–")[0].trim();
   return (
     <article
       className="rounded-2xl border border-emerald-800 bg-emerald-950/30 p-4"
       data-testid="inbox-residential-decision"
       data-payapp-id={item.payApp._id}
+      data-project-kind={item.projectKind}
     >
       <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-200">
         Residential draw · settled on the sandbox
@@ -467,9 +469,11 @@ function ResidentialDecisionCard({ item }: { item: InboxItem }) {
           className={PRIMARY_LINK}
           data-testid="inbox-residential-decision-action"
         >
-          Approve {formatCents(approvedCents)} and pay {formatCents(netCents)}
+          {paid ? "View paid receipt" : `Approve ${formatCents(approvedCents)} and pay ${formatCents(netCents)}`}
         </a>
-        <span className="text-xs text-slate-400">Read-only record · opens the settled receipt.</span>
+        <span className="text-xs text-slate-400">
+          {paid ? "Read-only record · opens the settled receipt." : "Opens the pay application for your decision."}
+        </span>
       </div>
       <p className="mt-2 text-xs text-slate-300">
         Approved {formatCents(approvedCents)}
@@ -483,7 +487,12 @@ function InboxEntry({ item, primaryProposalId }: { item: InboxItem; primaryPropo
   const [showTrace, setShowTrace] = useState(false);
   const decidable = item.payApp.status === "reviewed" && !item.readOnlyReference;
   return (
-    <article className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4" data-testid="inbox-entry" data-payapp-id={item.payApp._id}>
+    <article
+      className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4"
+      data-testid="inbox-entry"
+      data-payapp-id={item.payApp._id}
+      data-project-kind={item.projectKind}
+    >
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-1 [overflow-wrap:anywhere]">
           <h2 className="text-base font-semibold">
@@ -577,14 +586,24 @@ export function ApprovalInbox() {
   const history = visible.filter((item) => inboxGroup(item.payApp.status) === "history");
   const historyOpen = active.length === 0 && waiting.length === 0;
   const filtering = search.trim() !== "" || status !== "all";
-  // The settled residential reference card leads the first bucket and carries the one filled
-  // action, so every commercial queue row below it stays secondary.
-  const residentialDecision = visible.find((item) => item.projectKind === "residential" && item.readOnlyReference) ?? null;
-  // One clear primary decision: the next actionable proposal in the queue. Everything after it
-  // keeps its affordance but is secondary, so the screen never shows competing primaries.
+  // The server keeps its newest-first contract. Only the client partitions the records, using the
+  // stored project kind: every residential record renders before the commercial disclosure.
+  const residential = visible.filter((item) => item.projectKind === "residential");
+  const commercial = visible.filter((item) => item.projectKind !== "residential");
+  const residentialActive = residential.filter((item) => inboxGroup(item.payApp.status) === "active");
+  const residentialWaiting = residential.filter((item) => inboxGroup(item.payApp.status) === "waiting");
+  const residentialHistory = residential.filter((item) => inboxGroup(item.payApp.status) === "history");
+  // The paid residential reference card leads the page and carries the one filled receipt action.
+  const residentialDecision = residential.find((item) => item.readOnlyReference && item.payApp.status === "paid") ?? null;
+  // Prefer the next residential decision when no paid receipt leads. Commercial proposals remain
+  // reachable in their disclosure, but never compete with the residential primary action.
   const primaryProposalId = (() => {
     if (residentialDecision) return null;
-    for (const item of active) {
+    const decisionQueue = [
+      ...residentialActive,
+      ...commercial.filter((item) => inboxGroup(item.payApp.status) === "active"),
+    ];
+    for (const item of decisionQueue) {
       if (item.readOnlyReference || item.payApp.status !== "reviewed") continue;
       const next = item.proposals.find((p) => p.status === "pending" && p.kind !== "capture");
       if (next) return next._id;
@@ -656,24 +675,44 @@ export function ApprovalInbox() {
         <div className="space-y-6">
           <InboxBucket
             title="Needs your attention"
-            description="The settled residential draw first, then submitted and ready-for-decision work."
-            items={active}
+            description="Residential work leads; commercial reference records are grouped below."
+            items={residentialActive}
             primaryProposalId={primaryProposalId}
             featured={residentialDecision ? <ResidentialDecisionCard item={residentialDecision} /> : undefined}
           />
-          <InboxBucket title="Approved · awaiting payment" items={waiting} primaryProposalId={null} />
-          {history.length > 0 ? (
+          <InboxBucket title="Approved · awaiting payment" items={residentialWaiting} primaryProposalId={null} />
+          {residentialHistory.length > 0 ? (
             <details className="group rounded-2xl border border-slate-800 bg-slate-900/40" open={historyOpen} data-testid="inbox-history">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
                 <span>
                   <span className="text-base font-semibold">History</span>
-                  <span className="ml-2 text-xs text-slate-400">{history.length} paid, rejected or revised</span>
+                  <span className="ml-2 text-xs text-slate-400">{residentialHistory.length} paid, rejected or revised</span>
                 </span>
                 <span aria-hidden="true" className="text-xs text-slate-400 group-open:hidden">Show</span>
                 <span aria-hidden="true" className="hidden text-xs text-slate-400 group-open:inline">Hide</span>
               </summary>
               <div className="space-y-3 border-t border-slate-800 p-3">
-                {history.map((item) => <InboxEntry key={item.payApp._id} item={item} primaryProposalId={null} />)}
+                {residentialHistory.map((item) => <InboxEntry key={item.payApp._id} item={item} primaryProposalId={null} />)}
+              </div>
+            </details>
+          ) : null}
+          {commercial.length > 0 ? (
+            <details
+              className="group rounded-2xl border border-slate-800 bg-slate-900/40"
+              open={filtering}
+              data-testid="inbox-commercial"
+              data-record-count={commercial.length}
+            >
+              <summary
+                className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden"
+                data-testid="inbox-commercial-summary"
+              >
+                <span className="text-base font-semibold">Commercial reference job ({commercial.length})</span>
+                <span aria-hidden="true" className="text-xs text-slate-400 group-open:hidden">Show</span>
+                <span aria-hidden="true" className="hidden text-xs text-slate-400 group-open:inline">Hide</span>
+              </summary>
+              <div className="space-y-3 border-t border-slate-800 p-3">
+                {commercial.map((item) => <InboxEntry key={item.payApp._id} item={item} primaryProposalId={primaryProposalId} />)}
               </div>
             </details>
           ) : null}

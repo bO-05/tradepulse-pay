@@ -208,17 +208,24 @@ describe("the GC approval inbox", () => {
     expect(primaryElements(html)).toHaveLength(1);
   });
 
-  test("the settled residential draw is the first card and the one filled action names the money", () => {
+  test("the paid residential draw leads with a receipt and commercial records stay in one collapsed section", () => {
     mockQueries([inboxItem(), residentialSettledItem()]);
     const html = renderToStaticMarkup(<ApprovalInbox />);
     const residential = html.indexOf('data-testid="inbox-residential-decision"');
-    const commercial = html.indexOf('data-testid="inbox-entry"');
+    const commercial = html.indexOf('data-testid="inbox-commercial"');
     expect(residential).toBeGreaterThan(-1);
     expect(residential).toBeLessThan(commercial);
     expect(html.indexOf("Needs your attention")).toBeLessThan(residential);
     expect(html).toContain('data-testid="inbox-residential-decision-action"');
-    expect(html).toContain("Approve $4,000.00 and pay $3,800.00");
+    expect(html).toContain("View paid receipt");
+    expect(html).toContain('href="#/pay-apps/payapp_lopez_draw"');
+    expect(html).not.toContain("Approve $4,000.00 and pay $3,800.00");
     expect(primaryElements(html)).toHaveLength(1);
+    expect(html).toContain("Commercial reference job (1)");
+    expect(html.match(/data-testid="inbox-commercial"/g)).toHaveLength(1);
+    const detailsStart = html.lastIndexOf("<details", commercial);
+    const detailsTag = html.slice(detailsStart, html.indexOf(">", detailsStart) + 1);
+    expect(detailsTag).not.toContain(" open");
     const card = html.slice(residential, html.indexOf("</article>", residential));
     expect(card).not.toContain("A401-");
     expect(card).not.toContain("status");
@@ -234,6 +241,60 @@ describe("the GC approval inbox", () => {
     expect(html.split('data-testid="approve-proposal"').length - 1).toBeGreaterThan(0);
     const firstApprove = html.match(/<button[^>]*data-testid="approve-proposal"[^>]*>/)?.[0] ?? "";
     expect(firstApprove).not.toContain("bg-accent");
+  });
+
+  test("a decidable residential pay app keeps its approval action and stored amounts", () => {
+    const pending = inboxItem({
+      projectKind: "residential",
+      proposals: [proposal({ amountCents: 400_000, split: { retainageCents: 20_000, netCents: 380_000 } })],
+    });
+    mockQueries([pending]);
+    const html = renderToStaticMarkup(<ApprovalInbox />);
+    expect(html).toContain("Approve capture + payout");
+    expect(html).toMatch(/data-testid="proposal-amount"[^>]*>\$4,000\.00<\/dd>/);
+    expect(html).toMatch(/data-testid="proposal-retainage"[^>]*>\$200\.00<\/dd>/);
+    expect(html).toMatch(/data-testid="proposal-net"[^>]*>\$3,800\.00<\/dd>/);
+    expect(html).not.toContain("View paid receipt");
+    expect(html).not.toContain('data-testid="inbox-commercial"');
+    const primaryApprove = html.match(/<button[^>]*data-testid="approve-proposal"[^>]*>/)?.[0] ?? "";
+    expect(primaryApprove).toContain("bg-accent");
+    expect(primaryElements(html)).toHaveLength(1);
+  });
+
+  test("the paid history entry stays reachable without offering another approval or primary", () => {
+    mockQueries([residentialSettledItem()]);
+    const html = renderToStaticMarkup(<ApprovalInbox />);
+    expect(html.match(/data-payapp-id="payapp_lopez_draw"/g)).toHaveLength(2);
+    expect(html).toContain('data-testid="inbox-history"');
+    expect(html.match(/View paid receipt/g)).toHaveLength(1);
+    expect(html).not.toContain("Approve $4,000.00 and pay $3,800.00");
+    expect(html).not.toContain('data-testid="approve-proposal"');
+    expect(primaryElements(html)).toHaveLength(1);
+  });
+
+  test("every commercial status shares one counted disclosure after all residential records", () => {
+    const waiting = inboxItem({
+      payApp: { ...inboxItem().payApp, _id: "payapp_waiting", status: "approved" },
+      agreement: { ...inboxItem().agreement, _id: "agreement_waiting", agreementNumber: "A401-DEMO-PAY-20261106-09" },
+    });
+    const settled = inboxItem({
+      payApp: { ...inboxItem().payApp, _id: "payapp_commercial_paid", status: "paid" },
+      agreement: { ...inboxItem().agreement, _id: "agreement_commercial_paid", agreementNumber: "A401-DEMO-PAY-20261109-19" },
+    });
+    mockQueries([inboxItem(), waiting, settled, residentialSettledItem()]);
+    const html = renderToStaticMarkup(<ApprovalInbox />);
+    const residentialHistory = html.indexOf('data-testid="inbox-history"');
+    const commercial = html.indexOf('data-testid="inbox-commercial"');
+    expect(residentialHistory).toBeGreaterThan(-1);
+    expect(residentialHistory).toBeLessThan(commercial);
+    expect(html).toContain("Commercial reference job (3)");
+    expect(html.match(/data-testid="inbox-commercial"/g)).toHaveLength(1);
+    const commercialHtml = html.slice(commercial, html.indexOf('data-testid="inbox-filters"', commercial));
+    for (const id of ["payapp_1", "payapp_waiting", "payapp_commercial_paid"]) {
+      expect(commercialHtml).toContain(`data-payapp-id="${id}"`);
+    }
+    expect(commercialHtml).not.toContain("payapp_lopez_draw");
+    expect(primaryElements(html)).toHaveLength(1);
   });
 
   test("removes the duplicate jump-to-approve affordance while keeping its pinned hook", () => {

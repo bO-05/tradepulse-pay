@@ -139,13 +139,41 @@ for (const [width, height] of widths) {
     await delay(300);
     const inbox = await readPage(page);
     const inboxStrip = await readStrip(page);
-    report.measurements.push({ screen: "inbox", width, hash: inbox.hash, identity: inbox.identity, strip: inboxStrip });
+    const landingPriority = await page.evaluate(() => {
+      const visible = (el) => !el.closest("details:not([open])") && (typeof el.checkVisibility === "function" ? el.checkVisibility({ checkVisibilityCSS: true }) : el.getClientRects().length > 0);
+      const commercial = document.querySelector('[data-testid="inbox-commercial"]');
+      const records = [...document.querySelectorAll('[data-testid="inbox-residential-decision"], [data-testid="inbox-entry"]')].map((el) => ({
+        projectKind: el.getAttribute("data-project-kind"),
+        insideCommercial: el.closest('[data-testid="inbox-commercial"]') !== null,
+      }));
+      const firstCommercial = records.findIndex((record) => record.projectKind === "commercial");
+      const action = document.querySelector('[data-testid="inbox-residential-decision-action"]');
+      return {
+        actionText: action?.textContent.trim() ?? null,
+        actionHref: action?.getAttribute("href") ?? null,
+        commercialOpen: commercial?.open === true,
+        commercialTitle: commercial?.querySelector("summary > span")?.textContent.trim() ?? null,
+        commercialRecords: commercial?.querySelectorAll('[data-testid="inbox-entry"]').length ?? 0,
+        commercialVisible: [...(commercial?.querySelectorAll('[data-testid="inbox-entry"]') ?? [])].filter(visible).length,
+        residentialLeads: firstCommercial === -1 || records.slice(firstCommercial).every((record) => record.projectKind !== "residential"),
+        allCommercialInside: records.filter((record) => record.projectKind === "commercial").every((record) => record.insideCommercial),
+        paidApproveCount: [...document.querySelectorAll("a, button")].filter((el) => /^Approve .* and pay /.test(el.textContent.trim())).length,
+        primaryCount: [...document.querySelectorAll("a, button")].filter((el) => visible(el) && /\bbg-accent\b/.test(el.className) && /\btext-accent-fg\b/.test(el.className)).length,
+        pageHeight: document.documentElement.scrollHeight,
+      };
+    });
+    report.measurements.push({ screen: "inbox", width, hash: inbox.hash, identity: inbox.identity, strip: inboxStrip, landingPriority });
     check(`${tag} GC seat lands on #/inbox`, inbox.hash === "#/inbox", inbox.hash);
     check(`${tag} GC identity chrome names Bayview Remodeling`, /bayview remodeling/i.test(inbox.identity), inbox.identity);
     check(`${tag} inbox strip shows four money cells`, inboxStrip.labels.length === 4, JSON.stringify(inboxStrip.labels));
     check(`${tag} inbox strip uses the neutral portfolio label`, inboxStrip.labels[0] === "Collected from owners", JSON.stringify(inboxStrip.labels));
     check(`${tag} inbox strip renders four dollar values`, [inboxStrip.collected, inboxStrip.paidSubs, inboxStrip.retainage, inboxStrip.owed].every((v) => /^\$[\d,]+\.\d{2}$/.test(v ?? "")), JSON.stringify(inboxStrip));
     check(`${tag} GC home shows the residential decision`, /residential draw · settled on the sandbox/i.test(inbox.text) && /ortiz plumbing/i.test(inbox.text), inbox.text.slice(0, 300));
+    check(`${tag} paid residential action is View paid receipt`, landingPriority.actionText === "View paid receipt" && landingPriority.actionHref === `#/pay-apps/${settledPayAppId}`, JSON.stringify(landingPriority));
+    check(`${tag} no paid representation offers approve-and-pay`, landingPriority.paidApproveCount === 0, String(landingPriority.paidApproveCount));
+    check(`${tag} residential records lead every commercial record`, landingPriority.residentialLeads && landingPriority.allCommercialInside, JSON.stringify(landingPriority));
+    check(`${tag} commercial records share one counted collapsed section`, !landingPriority.commercialOpen && landingPriority.commercialVisible === 0 && landingPriority.commercialTitle === `Commercial reference job (${landingPriority.commercialRecords})`, JSON.stringify(landingPriority));
+    check(`${tag} GC landing keeps exactly one primary action`, landingPriority.primaryCount === 1, String(landingPriority.primaryCount));
     await page.screenshot({ path: path.join(outDir, `hosted-inbox-${width}.png`), fullPage: false });
 
     // ---- GC home -> Projects -> Lopez project page ---------------------------------------
@@ -184,6 +212,7 @@ for (const [width, height] of widths) {
     await clickHref(page, "#/inbox");
     await page.waitForFunction(() => location.hash === "#/inbox", { timeout: 60000 });
     await page.waitForSelector('[data-testid="inbox-residential-decision-action"]', { timeout: 60000 });
+    await page.waitForFunction(() => document.querySelector('[data-testid="inbox-residential-decision-action"]')?.textContent.trim() === "View paid receipt", { timeout: 60000 });
     await page.click('[data-testid="inbox-residential-decision-action"]');
     await page.waitForFunction((want) => location.hash === want, { timeout: 60000 }, `#/pay-apps/${settledPayAppId}`);
     await page.waitForSelector('[data-testid="payapp-money-trail"]', { timeout: 60000 });

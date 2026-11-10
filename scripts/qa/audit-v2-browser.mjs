@@ -182,6 +182,12 @@ try {
 
   // Inbox: provenance and a copyable payout batch.
   await open(gc.page, "#/inbox", '[data-testid="inbox-entry"]');
+  await gc.page.evaluate(() => {
+    for (const selector of ['[data-testid="inbox-history"]', '[data-testid="inbox-commercial"]']) {
+      const disclosure = document.querySelector(selector);
+      if (disclosure && !disclosure.open) disclosure.querySelector("summary")?.click();
+    }
+  });
   await gc.page.waitForFunction(() => document.body.innerText.includes("PayPal payout batch"), { timeout: 45000 });
   const inboxText = await bodyText(gc.page);
   check("inbox payment names its recorded provenance", inboxText.includes("not a live PayPal query"));

@@ -18,9 +18,11 @@ if (!localDev && !/^https:\/\/[a-z0-9.-]+(?::\d+)?$/i.test(site)) {
   throw new Error("--url must be an https origin or http://localhost:<port>.");
 }
 const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-const evidenceDir = path.join(root, "evidence", `landing-nav-inbox-browser-${stamp}`);
+const evidenceDir = process.argv.includes("--out")
+  ? path.resolve(process.argv[process.argv.indexOf("--out") + 1])
+  : path.join(root, "evidence", `landing-nav-inbox-browser-${stamp}`);
 fs.mkdirSync(evidenceDir, { recursive: true });
-const report = { target: site, checks: [], pageErrors: [], consoleErrors: [] };
+const report = { target: site, checks: [], measurements: [], pageErrors: [], consoleErrors: [] };
 const check = (name, ok, detail = "") => {
   report.checks.push({ name, ok, detail });
   if (!ok) throw new Error(`${name}${detail ? `: ${detail}` : ""}`);
@@ -30,7 +32,7 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const browser = await puppeteer.launch({
   executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
   headless: true,
-  defaultViewport: { width: 1450, height: 1200 },
+  defaultViewport: { width: 1440, height: 900 },
 });
 const context = await browser.createBrowserContext();
 const page = await context.newPage();
@@ -115,15 +117,30 @@ try {
 
   phase = "approval inbox";
   const inbox = await page.evaluate(() => {
+    const visible = (el) => {
+      if (el.closest("details:not([open])")) return false;
+      return typeof el.checkVisibility === "function" ? el.checkVisibility({ checkVisibilityCSS: true }) : el.getClientRects().length > 0;
+    };
     const entries = [...document.querySelectorAll('[data-testid="inbox-entry"]')];
-    // Scope the History disclosure by its own test id: "main details" now matches the money
-    // strip's receipts panel too, and measuring whichever <details> comes first was ambiguous.
+    // Scope each disclosure by its own test id: the money strip has a receipts panel too.
     const historySelector = '[data-testid="inbox-history"]';
+    const commercialSelector = '[data-testid="inbox-commercial"]';
     const history = document.querySelector(historySelector);
+    const commercial = document.querySelector(commercialSelector);
+    const action = document.querySelector('[data-testid="inbox-residential-decision-action"]');
+    const records = [...document.querySelectorAll('[data-testid="inbox-residential-decision"], [data-testid="inbox-entry"]')].map((el) => ({
+      payAppId: el.getAttribute("data-payapp-id"),
+      projectKind: el.getAttribute("data-project-kind"),
+      top: Math.round(el.getBoundingClientRect().top + scrollY),
+      visible: visible(el),
+      insideCommercial: el.closest(commercialSelector) !== null,
+    }));
+    const firstCommercial = records.findIndex((record) => record.projectKind === "commercial");
+    const primaries = [...document.querySelectorAll("a, button")].filter((el) => visible(el) && /\bbg-accent\b/.test(el.className) && /\btext-accent-fg\b/.test(el.className));
     return {
       counts: document.querySelector('[data-testid="inbox-counts"]')?.textContent.trim() ?? "",
       entries: entries.length,
-      visible: entries.filter((el) => el.getClientRects().length > 0).length,
+      visible: entries.filter(visible).length,
       labels: entries.map((el) => el.querySelector('[data-testid="inbox-payapp-status"]')?.textContent.trim() ?? ""),
       groups: [...document.querySelectorAll("main section[aria-label] > div > h2")].map((el) => el.textContent.trim()),
       history: history
@@ -132,8 +149,25 @@ try {
             tag: history.tagName.toLowerCase(),
             open: history.open,
             label: history.querySelector("summary")?.textContent.trim() ?? "",
+            records: history.querySelectorAll('[data-testid="inbox-entry"]').length,
           }
         : null,
+      commercial: commercial
+        ? {
+            selector: commercialSelector,
+            open: commercial.open,
+            title: commercial.querySelector("summary > span")?.textContent.trim() ?? "",
+            declaredCount: Number(commercial.getAttribute("data-record-count")),
+            records: commercial.querySelectorAll('[data-testid="inbox-entry"]').length,
+            visibleRecords: [...commercial.querySelectorAll('[data-testid="inbox-entry"]')].filter(visible).length,
+          }
+        : null,
+      records,
+      residentialLeads: firstCommercial === -1 || records.slice(firstCommercial).every((record) => record.projectKind !== "residential"),
+      action: action ? { text: action.textContent.trim(), href: action.getAttribute("href") } : null,
+      paidApproveActions: [...document.querySelectorAll("a, button")].filter((el) => /^Approve .* and pay /.test(el.textContent.trim())).map((el) => el.textContent.trim()),
+      primaryCount: primaries.length,
+      pageHeight: document.documentElement.scrollHeight,
       chips: [...document.querySelectorAll("main h1, main h2")].map((el) => el.textContent.trim()),
     };
   });
@@ -145,38 +179,94 @@ try {
   const [, activeCount, waitingCount, historyCount] = match?.map(Number) ?? [];
   check("inbox bucket counts add up to the loaded entries", activeCount + waitingCount + historyCount === inbox.entries, JSON.stringify(inbox));
   check("open work is rendered before settled history", inbox.chips.some((text) => text.startsWith("Needs your attention")) || activeCount === 0, JSON.stringify(inbox.chips));
-  check("settled applications are grouped, not repeated at full height", historyCount === 0 || inbox.history !== null, JSON.stringify(inbox.history));
+  check("residential history keeps its existing disclosure", inbox.history !== null, JSON.stringify(inbox.history));
   if (historyCount > 0 && activeCount + waitingCount > 0) {
     check("history is collapsed while open work exists", inbox.history?.open === false, JSON.stringify(inbox.history));
-  } else if (historyCount > 0) {
-    check("history opens when it is the only work left", inbox.history?.open === true, JSON.stringify(inbox.history));
+  } else if (inbox.history) {
+    check("history opens when it is the only residential work left", inbox.history.open === true, JSON.stringify(inbox.history));
   }
+  check("paid residential card offers its receipt", inbox.action?.text === "View paid receipt" && inbox.action?.href?.startsWith("#/pay-apps/"), JSON.stringify(inbox.action));
+  check("no paid representation offers approve-and-pay", inbox.paidApproveActions.length === 0, JSON.stringify(inbox.paidApproveActions));
+  check("residential records precede every commercial record", inbox.residentialLeads, JSON.stringify(inbox.records));
+  check("commercial records share one collapsed disclosure", inbox.commercial?.open === false && inbox.commercial.visibleRecords === 0, JSON.stringify(inbox.commercial));
+  check("commercial disclosure has the real count", inbox.commercial?.title === `Commercial reference job (${inbox.commercial.records})` && inbox.commercial.declaredCount === inbox.commercial.records, JSON.stringify(inbox.commercial));
+  check("every commercial entry is inside that disclosure", inbox.records.filter((record) => record.projectKind === "commercial").length === inbox.commercial?.records && inbox.records.filter((record) => record.projectKind === "commercial").every((record) => record.insideCommercial), JSON.stringify(inbox.records));
+  check("the collapsed landing keeps one primary action", inbox.primaryCount === 1, String(inbox.primaryCount));
   check("status codes are shown as readable labels", !inbox.labels.some((label) => /_/.test(label)), JSON.stringify(inbox.labels));
+  report.measurements.push({ screen: "inbox-collapsed", width: 1440, height: 900, pageHeight: inbox.pageHeight, commercial: inbox.commercial, records: inbox.records });
   await page.screenshot({ path: path.join(evidenceDir, "inbox-buckets.png"), fullPage: true });
+
+  await page.click('[data-testid="inbox-history"] > summary');
+  await page.waitForFunction(() => document.querySelector('[data-testid="inbox-history"]')?.open === true);
+  const paidHistory = await page.evaluate(() => {
+    const history = document.querySelector('[data-testid="inbox-history"]');
+    const paid = history?.querySelector('[data-payapp-id]');
+    return {
+      records: history?.querySelectorAll('[data-testid="inbox-entry"]').length ?? 0,
+      payAppId: paid?.getAttribute("data-payapp-id") ?? null,
+      status: paid?.querySelector('[data-testid="inbox-payapp-status"]')?.textContent.trim() ?? "",
+      approveActions: [...(paid?.querySelectorAll("a, button") ?? [])].filter((el) => /^Approve/i.test(el.textContent.trim())).map((el) => el.textContent.trim()),
+      primaryActions: [...(paid?.querySelectorAll("a, button") ?? [])].filter((el) => /\bbg-accent\b/.test(el.className) && /\btext-accent-fg\b/.test(el.className)).length,
+    };
+  });
+  check("paid history entry remains reachable", paidHistory.records > 0 && paidHistory.status === "Paid", JSON.stringify(paidHistory));
+  check("paid history entry has no approval or primary action", paidHistory.approveActions.length === 0 && paidHistory.primaryActions === 0, JSON.stringify(paidHistory));
+  await page.screenshot({ path: path.join(evidenceDir, "inbox-paid-history.png"), fullPage: true });
+  await page.click('[data-testid="inbox-history"] > summary');
+  await page.waitForFunction(() => document.querySelector('[data-testid="inbox-history"]')?.open === false);
+
+  await page.click('[data-testid="inbox-commercial"] > summary');
+  await page.waitForFunction(() => document.querySelector('[data-testid="inbox-commercial"]')?.open === true);
+  const expanded = await page.evaluate(() => {
+    const commercial = document.querySelector('[data-testid="inbox-commercial"]');
+    const visible = (el) => !el.closest("details:not([open])") && (typeof el.checkVisibility === "function" ? el.checkVisibility({ checkVisibilityCSS: true }) : el.getClientRects().length > 0);
+    return {
+      records: commercial?.querySelectorAll('[data-testid="inbox-entry"]').length ?? 0,
+      visibleRecords: [...(commercial?.querySelectorAll('[data-testid="inbox-entry"]') ?? [])].filter(visible).length,
+      primaryCount: [...document.querySelectorAll("a, button")].filter((el) => visible(el) && /\bbg-accent\b/.test(el.className) && /\btext-accent-fg\b/.test(el.className)).length,
+      pageHeight: document.documentElement.scrollHeight,
+    };
+  });
+  check("expanding the commercial disclosure reveals every counted record", expanded.records === inbox.commercial?.records && expanded.visibleRecords === expanded.records, JSON.stringify(expanded));
+  check("the expanded commercial disclosure still has one primary", expanded.primaryCount === 1, String(expanded.primaryCount));
+  report.measurements.push({ screen: "inbox-commercial-open", width: 1440, height: 900, ...expanded });
+  await page.screenshot({ path: path.join(evidenceDir, "inbox-commercial-open.png"), fullPage: true });
+  await page.click('[data-testid="inbox-commercial"] > summary');
+  await page.waitForFunction(() => document.querySelector('[data-testid="inbox-commercial"]')?.open === false);
 
   phase = "inbox filter";
   await page.type('input[placeholder^="Agreement, project"]', "A401-DEMO-PAY-20261105-07");
   await delay(500);
   await page.waitForFunction(() => {
-    const visible = [...document.querySelectorAll('[data-testid="inbox-entry"]')].filter((el) => el.getClientRects().length > 0);
+    const visible = [...document.querySelectorAll('[data-testid="inbox-entry"]')].filter((el) => !el.closest("details:not([open])") && el.getClientRects().length > 0);
     return visible.length === 2;
   });
   const filtered = await page.evaluate(() => ({
-    visible: [...document.querySelectorAll('[data-testid="inbox-entry"]')].filter((el) => el.getClientRects().length > 0).length,
+    visible: [...document.querySelectorAll('[data-testid="inbox-entry"]')].filter((el) => !el.closest("details:not([open])") && el.getClientRects().length > 0).length,
     text: document.querySelector("main")?.innerText ?? "",
+    commercialOpen: document.querySelector('[data-testid="inbox-commercial"]')?.open === true,
+    commercialTitle: document.querySelector('[data-testid="inbox-commercial"] summary > span')?.textContent.trim() ?? "",
   }));
   check("search returns the two R6-A pay apps", filtered.visible === 2, String(filtered.visible));
+  check("commercial search opens the counted disclosure", filtered.commercialOpen && filtered.commercialTitle === "Commercial reference job (2)", JSON.stringify(filtered));
   check("filtered history becomes visible without clearing the search", filtered.text.includes("Rosendin Electric"), filtered.text.slice(0, 600));
   await page.screenshot({ path: path.join(evidenceDir, "inbox-filtered.png"), fullPage: true });
+  await page.evaluate(() => [...document.querySelectorAll("button")].find((button) => button.textContent.trim() === "Clear" && button.getClientRects().length > 0)?.click());
+  await page.waitForFunction(() => document.querySelector('[data-testid="inbox-commercial"]')?.open === false && document.querySelector('[data-testid="inbox-residential-decision-action"]')?.textContent.trim() === "View paid receipt");
 
   phase = "phone navigation";
-  await page.setViewport({ width: 390, height: 900 });
+  await page.setViewport({ width: 390, height: 844 });
   await delay(300);
   const phone = await page.evaluate(() => ({
     overflow: document.documentElement.scrollWidth - window.innerWidth,
+    pageHeight: document.documentElement.scrollHeight,
+    commercialOpen: document.querySelector('[data-testid="inbox-commercial"]')?.open === true,
+    primaryCount: [...document.querySelectorAll("a, button")].filter((el) => !el.closest("details:not([open])") && el.getClientRects().length > 0 && /\bbg-accent\b/.test(el.className) && /\btext-accent-fg\b/.test(el.className)).length,
     menuVisible: [...document.querySelectorAll("button")].some((b) => b.textContent.trim() === "Menu" && b.getClientRects().length > 0),
   }));
   check("phone layout does not overflow horizontally", phone.overflow <= 1, String(phone.overflow));
+  check("phone keeps commercial records collapsed with one primary", !phone.commercialOpen && phone.primaryCount === 1, JSON.stringify(phone));
+  report.measurements.push({ screen: "inbox-collapsed", width: 390, height: 844, pageHeight: phone.pageHeight, primaryCount: phone.primaryCount });
   check("phone menu control is visible", phone.menuVisible);
   await page.evaluate(() => [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Menu")?.click());
   await page.waitForFunction(() => document.querySelector("#workspace-navigation")?.getClientRects().length > 0);

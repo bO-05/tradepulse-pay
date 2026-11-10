@@ -1,0 +1,804 @@
+{
+  "phase": "after",
+  "baseUrl": "http://localhost:3150",
+  "captures": [
+    {
+      "width": 1440,
+      "height": 900,
+      "closed": {
+        "hash": "#/inbox",
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "pageHeight": 1175,
+        "scrollWidth": 1440,
+        "clientWidth": 1440,
+        "records": [
+          {
+            "testId": "inbox-residential-decision",
+            "payAppId": "ph7434a59sqck3nysgt6teqh0h8hvx1h",
+            "projectKind": "residential",
+            "heading": "Ortiz Plumbing · Pay app #1",
+            "top": 745,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7434a59sqck3nysgt6teqh0h8hvx1h",
+            "projectKind": "residential",
+            "heading": "Ortiz Plumbing · Pay app #1 – period ending Oct 15, 2026",
+            "top": 1006,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7ayjenxg206ybxhg384tyes18hregt",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 2 · billing agent",
+            "top": 1080,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph700be475tytmh4ay4083y0ps8hspfc",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 1",
+            "top": 2710,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7chs95hyw8h3m6hp193pjghn8hpyg6",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 2 · billing agent",
+            "top": 4025,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph77xv9jnj6vb16qdf8x97wgq58hpk3n",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 1",
+            "top": 6175,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph73363j955992e4sj7b9zzeah8hpv5q",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 2 · billing agent",
+            "top": 7983,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7eyyr8bjqbts7yd6gys5tqdx8hpq64",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 1",
+            "top": 10132,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph72w1maj711z2zr7cw3zz83rs8hn63h",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 2 · billing agent",
+            "top": 11956,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7bhnd7383j5wj8gakzmjt22d8hnrfw",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 1",
+            "top": 13618,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph761s6d1kd6ah9b0q74ph32ss8hnjtp",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 2 · billing agent",
+            "top": 14934,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7f5h66zqqfcr6170j1r493bd8hnwkm",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 1",
+            "top": 16612,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7b70myszz62jcwpx7kq9z9658hjn5c",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 2 · billing agent",
+            "top": 17927,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph751jbwv6sxh282f3mpbtwdrh8hkwph",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 1",
+            "top": 19525,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph728x8x8v25whds6eqtdd7ech8hj5qa",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 2 · billing agent",
+            "top": 20841,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7a66t9yq3k6b9hqmkwyzkexh8hjjwa",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 1",
+            "top": 22451,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7fh2dpqnx82kq1dn3gwcp8yx8hcem6",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 2 · billing agent",
+            "top": 23798,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph72dz348hz9fdsbrj7t46qrgd8hdd3c",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 1",
+            "top": 25354,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph70bynf8n2k5mdjbejb4snk398hceqx",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Pay app #1 – period ending Nov 25, 2026",
+            "top": 26710,
+            "visible": false
+          }
+        ],
+        "primaryActions": [
+          {
+            "text": "View paid receipt",
+            "href": "#/pay-apps/ph7434a59sqck3nysgt6teqh0h8hvx1h",
+            "testId": "inbox-residential-decision-action",
+            "primary": true
+          }
+        ],
+        "paidApproveActions": [],
+        "receiptActions": [
+          {
+            "text": "View paid receipt",
+            "href": "#/pay-apps/ph7434a59sqck3nysgt6teqh0h8hvx1h",
+            "testId": "inbox-residential-decision-action",
+            "primary": true
+          }
+        ],
+        "history": {
+          "open": false,
+          "text": "History1 paid, rejected or revisedShowHide"
+        },
+        "commercial": {
+          "open": false,
+          "title": "Commercial reference job (17)ShowHide",
+          "declaredCount": 17,
+          "records": 17,
+          "visibleRecords": 0
+        }
+      },
+      "closedScreenshot": "docs\\evidence\\gc-landing-priority-2026-11-10\\after-gc-landing-1440.png",
+      "open": {
+        "hash": "#/inbox",
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "pageHeight": 27954,
+        "scrollWidth": 1440,
+        "clientWidth": 1440,
+        "records": [
+          {
+            "testId": "inbox-residential-decision",
+            "payAppId": "ph7434a59sqck3nysgt6teqh0h8hvx1h",
+            "projectKind": "residential",
+            "heading": "Ortiz Plumbing · Pay app #1",
+            "top": 745,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7434a59sqck3nysgt6teqh0h8hvx1h",
+            "projectKind": "residential",
+            "heading": "Ortiz Plumbing · Pay app #1 – period ending Oct 15, 2026",
+            "top": 1006,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7ayjenxg206ybxhg384tyes18hregt",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 2 · billing agent",
+            "top": 1080,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph700be475tytmh4ay4083y0ps8hspfc",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 1",
+            "top": 2710,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7chs95hyw8h3m6hp193pjghn8hpyg6",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 2 · billing agent",
+            "top": 4025,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph77xv9jnj6vb16qdf8x97wgq58hpk3n",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 1",
+            "top": 6175,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph73363j955992e4sj7b9zzeah8hpv5q",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 2 · billing agent",
+            "top": 7983,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7eyyr8bjqbts7yd6gys5tqdx8hpq64",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 1",
+            "top": 10132,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph72w1maj711z2zr7cw3zz83rs8hn63h",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 2 · billing agent",
+            "top": 11956,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7bhnd7383j5wj8gakzmjt22d8hnrfw",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 1",
+            "top": 13618,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph761s6d1kd6ah9b0q74ph32ss8hnjtp",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 2 · billing agent",
+            "top": 14934,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7f5h66zqqfcr6170j1r493bd8hnwkm",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 1",
+            "top": 16612,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7b70myszz62jcwpx7kq9z9658hjn5c",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 2 · billing agent",
+            "top": 17927,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph751jbwv6sxh282f3mpbtwdrh8hkwph",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 1",
+            "top": 19525,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph728x8x8v25whds6eqtdd7ech8hj5qa",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 2 · billing agent",
+            "top": 20841,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7a66t9yq3k6b9hqmkwyzkexh8hjjwa",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 1",
+            "top": 22451,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7fh2dpqnx82kq1dn3gwcp8yx8hcem6",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 2 · billing agent",
+            "top": 23798,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph72dz348hz9fdsbrj7t46qrgd8hdd3c",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 1",
+            "top": 25354,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph70bynf8n2k5mdjbejb4snk398hceqx",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Pay app #1 – period ending Nov 25, 2026",
+            "top": 26710,
+            "visible": true
+          }
+        ],
+        "primaryActions": [
+          {
+            "text": "View paid receipt",
+            "href": "#/pay-apps/ph7434a59sqck3nysgt6teqh0h8hvx1h",
+            "testId": "inbox-residential-decision-action",
+            "primary": true
+          }
+        ],
+        "paidApproveActions": [],
+        "receiptActions": [
+          {
+            "text": "View paid receipt",
+            "href": "#/pay-apps/ph7434a59sqck3nysgt6teqh0h8hvx1h",
+            "testId": "inbox-residential-decision-action",
+            "primary": true
+          }
+        ],
+        "history": {
+          "open": false,
+          "text": "History1 paid, rejected or revisedShowHide"
+        },
+        "commercial": {
+          "open": true,
+          "title": "Commercial reference job (17)ShowHide",
+          "declaredCount": 17,
+          "records": 17,
+          "visibleRecords": 17
+        }
+      },
+      "openScreenshot": "docs\\evidence\\gc-landing-priority-2026-11-10\\after-gc-landing-1440-commercial-open.png",
+      "diagnostics": {
+        "pageErrors": [],
+        "consoleErrors": [],
+        "failedRequests": [],
+        "ignoredAborts": [
+          "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED",
+          "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED"
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "closed": {
+        "hash": "#/inbox",
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "pageHeight": 1166,
+        "scrollWidth": 390,
+        "clientWidth": 390,
+        "records": [
+          {
+            "testId": "inbox-residential-decision",
+            "payAppId": "ph7434a59sqck3nysgt6teqh0h8hvx1h",
+            "projectKind": "residential",
+            "heading": "Ortiz Plumbing · Pay app #1",
+            "top": 654,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7434a59sqck3nysgt6teqh0h8hvx1h",
+            "projectKind": "residential",
+            "heading": "Ortiz Plumbing · Pay app #1 – period ending Oct 15, 2026",
+            "top": 943,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7ayjenxg206ybxhg384tyes18hregt",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 2 · billing agent",
+            "top": 1017,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph700be475tytmh4ay4083y0ps8hspfc",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 1",
+            "top": 4362,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7chs95hyw8h3m6hp193pjghn8hpyg6",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 2 · billing agent",
+            "top": 7359,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph77xv9jnj6vb16qdf8x97wgq58hpk3n",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 1",
+            "top": 11937,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph73363j955992e4sj7b9zzeah8hpv5q",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 2 · billing agent",
+            "top": 15260,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7eyyr8bjqbts7yd6gys5tqdx8hpq64",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 1",
+            "top": 19694,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph72w1maj711z2zr7cw3zz83rs8hn63h",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 2 · billing agent",
+            "top": 23050,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7bhnd7383j5wj8gakzmjt22d8hnrfw",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 1",
+            "top": 26683,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph761s6d1kd6ah9b0q74ph32ss8hnjtp",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 2 · billing agent",
+            "top": 29648,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7f5h66zqqfcr6170j1r493bd8hnwkm",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 1",
+            "top": 33729,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7b70myszz62jcwpx7kq9z9658hjn5c",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 2 · billing agent",
+            "top": 36774,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph751jbwv6sxh282f3mpbtwdrh8hkwph",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 1",
+            "top": 40375,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph728x8x8v25whds6eqtdd7ech8hj5qa",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 2 · billing agent",
+            "top": 43292,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7a66t9yq3k6b9hqmkwyzkexh8hjjwa",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 1",
+            "top": 47001,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7fh2dpqnx82kq1dn3gwcp8yx8hcem6",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 2 · billing agent",
+            "top": 50366,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph72dz348hz9fdsbrj7t46qrgd8hdd3c",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 1",
+            "top": 53274,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph70bynf8n2k5mdjbejb4snk398hceqx",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Pay app #1 – period ending Nov 25, 2026",
+            "top": 56175,
+            "visible": false
+          }
+        ],
+        "primaryActions": [
+          {
+            "text": "View paid receipt",
+            "href": "#/pay-apps/ph7434a59sqck3nysgt6teqh0h8hvx1h",
+            "testId": "inbox-residential-decision-action",
+            "primary": true
+          }
+        ],
+        "paidApproveActions": [],
+        "receiptActions": [
+          {
+            "text": "View paid receipt",
+            "href": "#/pay-apps/ph7434a59sqck3nysgt6teqh0h8hvx1h",
+            "testId": "inbox-residential-decision-action",
+            "primary": true
+          }
+        ],
+        "history": {
+          "open": false,
+          "text": "History1 paid, rejected or revisedShowHide"
+        },
+        "commercial": {
+          "open": false,
+          "title": "Commercial reference job (17)ShowHide",
+          "declaredCount": 17,
+          "records": 17,
+          "visibleRecords": 0
+        }
+      },
+      "closedScreenshot": "docs\\evidence\\gc-landing-priority-2026-11-10\\after-gc-landing-390.png",
+      "open": {
+        "hash": "#/inbox",
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "pageHeight": 58392,
+        "scrollWidth": 390,
+        "clientWidth": 390,
+        "records": [
+          {
+            "testId": "inbox-residential-decision",
+            "payAppId": "ph7434a59sqck3nysgt6teqh0h8hvx1h",
+            "projectKind": "residential",
+            "heading": "Ortiz Plumbing · Pay app #1",
+            "top": 654,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7434a59sqck3nysgt6teqh0h8hvx1h",
+            "projectKind": "residential",
+            "heading": "Ortiz Plumbing · Pay app #1 – period ending Oct 15, 2026",
+            "top": 943,
+            "visible": false
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7ayjenxg206ybxhg384tyes18hregt",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 2 · billing agent",
+            "top": 1017,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph700be475tytmh4ay4083y0ps8hspfc",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 1",
+            "top": 4362,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7chs95hyw8h3m6hp193pjghn8hpyg6",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 2 · billing agent",
+            "top": 7359,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph77xv9jnj6vb16qdf8x97wgq58hpk3n",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 1",
+            "top": 11937,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph73363j955992e4sj7b9zzeah8hpv5q",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 2 · billing agent",
+            "top": 15260,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7eyyr8bjqbts7yd6gys5tqdx8hpq64",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 1",
+            "top": 19694,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph72w1maj711z2zr7cw3zz83rs8hn63h",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 2 · billing agent",
+            "top": 23050,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7bhnd7383j5wj8gakzmjt22d8hnrfw",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 1",
+            "top": 26683,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph761s6d1kd6ah9b0q74ph32ss8hnjtp",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 2 · billing agent",
+            "top": 29648,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7f5h66zqqfcr6170j1r493bd8hnwkm",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 1",
+            "top": 33729,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7b70myszz62jcwpx7kq9z9658hjn5c",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 2 · billing agent",
+            "top": 36774,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph751jbwv6sxh282f3mpbtwdrh8hkwph",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 1",
+            "top": 40375,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph728x8x8v25whds6eqtdd7ech8hj5qa",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 2 · billing agent",
+            "top": 43292,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7a66t9yq3k6b9hqmkwyzkexh8hjjwa",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 1",
+            "top": 47001,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph7fh2dpqnx82kq1dn3gwcp8yx8hcem6",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 2 · billing agent",
+            "top": 50366,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph72dz348hz9fdsbrj7t46qrgd8hdd3c",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Period 1",
+            "top": 53274,
+            "visible": true
+          },
+          {
+            "testId": "inbox-entry",
+            "payAppId": "ph70bynf8n2k5mdjbejb4snk398hceqx",
+            "projectKind": "commercial",
+            "heading": "Rosendin Electric, Inc. · Pay app #1 – period ending Nov 25, 2026",
+            "top": 56175,
+            "visible": true
+          }
+        ],
+        "primaryActions": [
+          {
+            "text": "View paid receipt",
+            "href": "#/pay-apps/ph7434a59sqck3nysgt6teqh0h8hvx1h",
+            "testId": "inbox-residential-decision-action",
+            "primary": true
+          }
+        ],
+        "paidApproveActions": [],
+        "receiptActions": [
+          {
+            "text": "View paid receipt",
+            "href": "#/pay-apps/ph7434a59sqck3nysgt6teqh0h8hvx1h",
+            "testId": "inbox-residential-decision-action",
+            "primary": true
+          }
+        ],
+        "history": {
+          "open": false,
+          "text": "History1 paid, rejected or revisedShowHide"
+        },
+        "commercial": {
+          "open": true,
+          "title": "Commercial reference job (17)ShowHide",
+          "declaredCount": 17,
+          "records": 17,
+          "visibleRecords": 17
+        }
+      },
+      "openScreenshot": "docs\\evidence\\gc-landing-priority-2026-11-10\\after-gc-landing-390-commercial-open.png",
+      "diagnostics": {
+        "pageErrors": [],
+        "consoleErrors": [],
+        "failedRequests": [],
+        "ignoredAborts": [
+          "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED",
+          "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED"
+        ]
+      }
+    }
+  ]
+}

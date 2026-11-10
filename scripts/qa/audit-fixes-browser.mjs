@@ -103,8 +103,16 @@ try {
   await shot(gc.page, "gc-reference-ledger-360.png");
   stage = "inbox";
   await layout(gc.page, "GC", "#/inbox", '[data-testid="inbox-entry"]');
+  check("paid residential card leads with a receipt and collapsed commercial records", await gc.page.evaluate(() => {
+    const commercial = document.querySelector('[data-testid="inbox-commercial"]');
+    return document.querySelector('[data-testid="inbox-residential-decision-action"]')?.textContent.trim() === "View paid receipt" &&
+      commercial?.open === false && commercial.querySelector("summary > span")?.textContent.trim() === `Commercial reference job (${commercial.querySelectorAll('[data-testid="inbox-entry"]').length})`;
+  }));
   await gc.page.type('input[placeholder^="Agreement, project"]', "A401-DEMO-PAY-20261101-02");
-  await gc.page.waitForFunction(() => document.querySelectorAll('[data-testid="inbox-entry"]').length === 2);
+  await gc.page.waitForFunction(() => {
+    const commercial = document.querySelector('[data-testid="inbox-commercial"]');
+    return commercial?.open === true && commercial.getAttribute("data-record-count") === "2" && commercial.querySelectorAll('[data-testid="inbox-entry"]').length === 2;
+  });
   check("inbox filters reference and truthful stand-ins", await gc.page.evaluate(() => {
     const text = document.querySelector("main").innerText;
     return text.includes("demo stand-in") && !text.includes("unknown owner") && !text.includes("Submitted by gc@");

@@ -1,0 +1,635 @@
+{
+  "target": "http://localhost:3150",
+  "settledPayAppId": "ph7434a59sqck3nysgt6teqh0h8hvx1h",
+  "checks": [
+    {
+      "name": "[1440] demo page has no dead hash links",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[1440] GC seat lands on #/inbox",
+      "ok": true,
+      "detail": "#/inbox"
+    },
+    {
+      "name": "[1440] GC identity chrome names Bayview Remodeling",
+      "ok": true,
+      "detail": "Bayview Remodeling · gc@demo.tradepulseGeneral contractor"
+    },
+    {
+      "name": "[1440] inbox strip shows four money cells",
+      "ok": true,
+      "detail": "[\"Collected from owners\",\"Paid to subs\",\"Retainage held\",\"Owed this week\"]"
+    },
+    {
+      "name": "[1440] inbox strip uses the neutral portfolio label",
+      "ok": true,
+      "detail": "[\"Collected from owners\",\"Paid to subs\",\"Retainage held\",\"Owed this week\"]"
+    },
+    {
+      "name": "[1440] inbox strip renders four dollar values",
+      "ok": true,
+      "detail": "{\"present\":true,\"text\":\"Money across your jobs\\n\\nAcross every job where you are the general contractor: collected from owners, paid to subs, retainage held and owed this week.\\n\\nCollected from owners\\n$3,600.00\\nFrom 1 paid owner pay app.\\nPaid to subs\\n$17,070.40\\nNet of retainage, from 17 successful payouts.\\nRetainage held\\n$657.60\\nHeld on 7 subcontracts.\\n$400.00 at 10% from the homeowner\\nOwed this week\\n$0.00\\n\\nNo approved pay app is due this week. Open billing\\n\\nReceipts behind these numbers\",\"labels\":[\"Collected from owners\",\"Paid to subs\",\"Retainage held\",\"Owed this week\"],\"collected\":\"$3,600.00\",\"paidSubs\":\"$17,070.40\",\"retainage\":\"$657.60\",\"owed\":\"$0.00\",\"top\":333}"
+    },
+    {
+      "name": "[1440] GC home shows the residential decision",
+      "ok": true,
+      "detail": "Approvals\n\nReview each sub pay app before money moves. Code computes the amounts; you approve, trim or reject.\n\n5 open · 0 awaiting payment · 13 in history\n\nMoney across your jobs\n\nAcross every job where you are the general contractor: collected from owners, paid to subs, retainage held and owed thi"
+    },
+    {
+      "name": "[1440] paid residential action is View paid receipt",
+      "ok": true,
+      "detail": "{\"actionText\":\"View paid receipt\",\"actionHref\":\"#/pay-apps/ph7434a59sqck3nysgt6teqh0h8hvx1h\",\"commercialOpen\":false,\"commercialTitle\":\"Commercial reference job (17)\",\"commercialRecords\":17,\"commercialVisible\":0,\"residentialLeads\":true,\"allCommercialInside\":true,\"paidApproveCount\":0,\"primaryCount\":1,\"pageHeight\":1175}"
+    },
+    {
+      "name": "[1440] no paid representation offers approve-and-pay",
+      "ok": true,
+      "detail": "0"
+    },
+    {
+      "name": "[1440] residential records lead every commercial record",
+      "ok": true,
+      "detail": "{\"actionText\":\"View paid receipt\",\"actionHref\":\"#/pay-apps/ph7434a59sqck3nysgt6teqh0h8hvx1h\",\"commercialOpen\":false,\"commercialTitle\":\"Commercial reference job (17)\",\"commercialRecords\":17,\"commercialVisible\":0,\"residentialLeads\":true,\"allCommercialInside\":true,\"paidApproveCount\":0,\"primaryCount\":1,\"pageHeight\":1175}"
+    },
+    {
+      "name": "[1440] commercial records share one counted collapsed section",
+      "ok": true,
+      "detail": "{\"actionText\":\"View paid receipt\",\"actionHref\":\"#/pay-apps/ph7434a59sqck3nysgt6teqh0h8hvx1h\",\"commercialOpen\":false,\"commercialTitle\":\"Commercial reference job (17)\",\"commercialRecords\":17,\"commercialVisible\":0,\"residentialLeads\":true,\"allCommercialInside\":true,\"paidApproveCount\":0,\"primaryCount\":1,\"pageHeight\":1175}"
+    },
+    {
+      "name": "[1440] GC landing keeps exactly one primary action",
+      "ok": true,
+      "detail": "1"
+    },
+    {
+      "name": "[1440] Lopez project page is a job route",
+      "ok": true,
+      "detail": "#/all-projects/q97f6pmh2d5qn733jmh5pg4c3x8hr9sn"
+    },
+    {
+      "name": "[1440] Lopez page names Bayview Remodeling",
+      "ok": true,
+      "detail": "All projects\nLopez Kitchen Remodel\n\nBayview Remodeling · Dana Lopez · El Cerrito, CA\n\nActive\nContract value\n$86,500.00\nRetainage: 10%\nBilling day: 15\nOpen billing\nMoney on this job\n\nCollected from the homeowner, paid to subs, retainage held and owed this week.\n\nCollected from homeowner\n$3,600.00\nFrom 1 paid draw.\nPaid to subs\n$3,800.00\nNet of retainage, from 1 successful payout.\nRetainage held\n$20"
+    },
+    {
+      "name": "[1440] Lopez page names Dana Lopez",
+      "ok": true,
+      "detail": "All projects\nLopez Kitchen Remodel\n\nBayview Remodeling · Dana Lopez · El Cerrito, CA\n\nActive\nContract value\n$86,500.00\nRetainage: 10%\nBilling day: 15\nOpen billing\nMoney on this job\n\nCollected from the homeowner, paid to subs, retainage held and owed this week.\n\nCollected from homeowner\n$3,600.00\nFrom 1 paid draw.\nPaid to subs\n$3,800.00\nNet of retainage, from 1 successful payout.\nRetainage held\n$20"
+    },
+    {
+      "name": "[1440] Lopez page shows $86,500.00",
+      "ok": true,
+      "detail": "All projects\nLopez Kitchen Remodel\n\nBayview Remodeling · Dana Lopez · El Cerrito, CA\n\nActive\nContract value\n$86,500.00\nRetainage: 10%\nBilling day: 15\nOpen billing\nMoney on this job\n\nCollected from the homeowner, paid to subs, retainage held and owed this week.\n\nCollected from homeowner\n$3,600.00\nFrom 1 paid draw.\nPaid to subs\n$3,800.00\nNet of retainage, from 1 successful payout.\nRetainage held\n$200.00\n5% to the sub\n$400.00 at 10% from the homeowner\nOwed this week\n$0.00\n\nNo approved pay app is due this week. Open billing\n\nReceipts behind these numbers\nMoney trail\n\nThe owner's position on this j"
+    },
+    {
+      "name": "[1440] Lopez page shows the money strip",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] Lopez strip uses the homeowner label",
+      "ok": true,
+      "detail": "[\"Collected from homeowner\",\"Paid to subs\",\"Retainage held\",\"Owed this week\"]"
+    },
+    {
+      "name": "[1440] Lopez strip paid to subs is $3,800.00",
+      "ok": true,
+      "detail": "$3,800.00"
+    },
+    {
+      "name": "[1440] Lopez strip retainage held is $200.00",
+      "ok": true,
+      "detail": "$200.00"
+    },
+    {
+      "name": "[1440] Lopez strip collected from the homeowner is $3,600.00",
+      "ok": true,
+      "detail": "$3,600.00"
+    },
+    {
+      "name": "[1440] Lopez money strip sits above the fold",
+      "ok": true,
+      "detail": "435 vs 900"
+    },
+    {
+      "name": "[1440] Lopez page shows the read-only reference notice",
+      "ok": true,
+      "detail": "Preserved reference job · read-only."
+    },
+    {
+      "name": "[1440] Lopez page offers no new-draw control",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] Lopez page has no dead hash links",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[1440] GC reaches the settled Ortiz pay app",
+      "ok": true,
+      "detail": "#/pay-apps/ph7434a59sqck3nysgt6teqh0h8hvx1h"
+    },
+    {
+      "name": "[1440] Ortiz money trail shows $5,400.00",
+      "ok": true,
+      "detail": "Money trail\n\nEvery figure is computed from the schedule of values. PayPal settles only after the GC approves.\n\nNET THIS DRAW\n$3,800.00\nPaid by PayPal\nCLAIMED\n$5,400.00\nBilled by the sub\n→REVIEW SUGGESTS\n$2,000.00\nRules check only\n→GC APPROVED\n$4,000.00\nFinal amount\n→RETAINAGE THIS DRAW\n$200.00\nWithh"
+    },
+    {
+      "name": "[1440] Ortiz money trail shows $4,000.00",
+      "ok": true,
+      "detail": "Money trail\n\nEvery figure is computed from the schedule of values. PayPal settles only after the GC approves.\n\nNET THIS DRAW\n$3,800.00\nPaid by PayPal\nCLAIMED\n$5,400.00\nBilled by the sub\n→REVIEW SUGGESTS\n$2,000.00\nRules check only\n→GC APPROVED\n$4,000.00\nFinal amount\n→RETAINAGE THIS DRAW\n$200.00\nWithh"
+    },
+    {
+      "name": "[1440] Ortiz money trail shows $200.00",
+      "ok": true,
+      "detail": "Money trail\n\nEvery figure is computed from the schedule of values. PayPal settles only after the GC approves.\n\nNET THIS DRAW\n$3,800.00\nPaid by PayPal\nCLAIMED\n$5,400.00\nBilled by the sub\n→REVIEW SUGGESTS\n$2,000.00\nRules check only\n→GC APPROVED\n$4,000.00\nFinal amount\n→RETAINAGE THIS DRAW\n$200.00\nWithh"
+    },
+    {
+      "name": "[1440] Ortiz money trail shows $3,800.00",
+      "ok": true,
+      "detail": "Money trail\n\nEvery figure is computed from the schedule of values. PayPal settles only after the GC approves.\n\nNET THIS DRAW\n$3,800.00\nPaid by PayPal\nCLAIMED\n$5,400.00\nBilled by the sub\n→REVIEW SUGGESTS\n$2,000.00\nRules check only\n→GC APPROVED\n$4,000.00\nFinal amount\n→RETAINAGE THIS DRAW\n$200.00\nWithh"
+    },
+    {
+      "name": "[1440] Ortiz payout receipt shows the PayPal batch",
+      "ok": true,
+      "detail": "Payment\n\nPays the sub's confirmed PayPal payee the approved current payment due, captured from a funded milestone.\n\nApproved gross\n$4,000.00\nRetainage held\n$200.00\nNet to sub\n$3,800.00\n\nAlready paid\n\nCompliance override by Demo GC on Nov 8, 2026: Demo Ortiz Plumbing bidder has no compliance records "
+    },
+    {
+      "name": "[1440] Ortiz pay app shows the read-only notice",
+      "ok": true,
+      "detail": "Preserved reference job · read-only."
+    },
+    {
+      "name": "[1440] Ortiz pay app has no dead hash links",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[1440] the agreement link resolves to a ledger",
+      "ok": true,
+      "detail": "#/payments/jn77jrsvkvmwzj69tpyx7gj2f98htcnv"
+    },
+    {
+      "name": "[1440] the ledger names Ortiz Plumbing",
+      "ok": true,
+      "detail": "Preserved demo run · read-only.\n← Payments\n\nSC-22-ORTIZ-0001\n\nOrtiz Plumbing payment ledger\n\nLopez Kitchen Remodel · Plumbing · Retainage 5%\n\nEXECUTED\nSubcontract PDF\nRetainage CSV\nContract sum to date\n$9,000.00\nBilled\n$4,000.00\nPaid\n$3,800.00\nRetainage held\n$200.00\nBalance\n$5,000.00\n\nBalance = contract sum to date − (paid + retainage held). Paid is the net of successful payouts and retainage rele"
+    },
+    {
+      "name": "[1440] the ledger shows the $9,000.00 contract",
+      "ok": true,
+      "detail": "Preserved demo run · read-only.\n← Payments\n\nSC-22-ORTIZ-0001\n\nOrtiz Plumbing payment ledger\n\nLopez Kitchen Remodel · Plumbing · Retainage 5%\n\nEXECUTED\nSubcontract PDF\nRetainage CSV\nContract sum to date\n$9,000.00\nBilled\n$4,000.00\nPaid\n$3,800.00\nRetainage held\n$200.00\nBalance\n$5,000.00\n\nBalance = contract sum to date − (paid + retainage held). Paid is the net of successful payouts and retainage releases.\n\nRemaining authorization\n$0.00\nCaptured\n$4,000.00\nCaptured, not paid out\n$0.00\nRetainage released\n$0.00\nOwner change-order invoices unpaid (project income)\n$0.00\nOwner change-order income paid ("
+    },
+    {
+      "name": "[1440] the ledger has no dead hash links",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[1440] a commercial project is reachable from the GC project list",
+      "ok": true,
+      "detail": "#/all-projects/q9751tqcjsbd11myp8x25c08hs8hdj94"
+    },
+    {
+      "name": "[1440] commercial project page shows the Commercial reference job badge",
+      "ok": true,
+      "detail": "Commercial reference job"
+    },
+    {
+      "name": "[1440] commercial project keeps commercial wording",
+      "ok": true,
+      "detail": "All projects\nSandbox run 20261101-02\n\nAustin Commercial, LP · Austin, TX\n\nActive\nCommercial reference job\nContract value\n—\nRetainage: —\nBilling day: —\nOpen billing\nMoney on this job\n\nCollected from the owner, paid to subs, retainage held and owed this week.\n\nCollected from owner\n$0.00\n\nNo pay app has been paid yet. Open owner pay apps\n\nPaid to subs\n$2,288.00\nNet of retainage, from 3 successful payouts.\nRetainage held\n$0.00\n\nNo subcontract retainage is held yet. Open retainage\n\nOwed this week\n$0.00\n\nNo approved pay app is due this week. Open billing\n\nReceipts behind these numbers\nPreserved refe"
+    },
+    {
+      "name": "[1440] zero page errors",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[1440] zero console errors",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[1440] zero failed requests",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[390] demo page has no dead hash links",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[390] GC seat lands on #/inbox",
+      "ok": true,
+      "detail": "#/inbox"
+    },
+    {
+      "name": "[390] GC identity chrome names Bayview Remodeling",
+      "ok": true,
+      "detail": "Bayview Remodeling · gc@demo.tradepulseGeneral contractor"
+    },
+    {
+      "name": "[390] inbox strip shows four money cells",
+      "ok": true,
+      "detail": "[\"Collected from owners\",\"Paid to subs\",\"Retainage held\",\"Owed this week\"]"
+    },
+    {
+      "name": "[390] inbox strip uses the neutral portfolio label",
+      "ok": true,
+      "detail": "[\"Collected from owners\",\"Paid to subs\",\"Retainage held\",\"Owed this week\"]"
+    },
+    {
+      "name": "[390] inbox strip renders four dollar values",
+      "ok": true,
+      "detail": "{\"present\":true,\"text\":\"Money across your jobs\\n\\nCollected from owners\\n$3,600.00\\n1 paid app.\\nPaid to subs\\n$17,070.40\\n17 payouts, net.\\nRetainage held\\n$657.60\\n7 subcontracts.\\n$400.00 at 10% from the homeowner\\nOwed this week\\n$0.00\\n\\nNothing due this week. Open billing\\n\\nReceipts behind these numbers\",\"labels\":[\"Collected from owners\",\"Paid to subs\",\"Retainage held\",\"Owed this week\"],\"collected\":\"$3,600.00\",\"paidSubs\":\"$17,070.40\",\"retainage\":\"$657.60\",\"owed\":\"$0.00\",\"top\":258}"
+    },
+    {
+      "name": "[390] GC home shows the residential decision",
+      "ok": true,
+      "detail": "Approvals\n\nReview each sub pay app before money moves.\n\n5 open · 0 awaiting payment · 13 in history\n\nMoney across your jobs\n\nCollected from owners\n$3,600.00\n1 paid app.\nPaid to subs\n$17,070.40\n17 payouts, net.\nRetainage held\n$657.60\n7 subcontracts.\n$400.00 at 10% from the homeowner\nOwed this week\n$0"
+    },
+    {
+      "name": "[390] paid residential action is View paid receipt",
+      "ok": true,
+      "detail": "{\"actionText\":\"View paid receipt\",\"actionHref\":\"#/pay-apps/ph7434a59sqck3nysgt6teqh0h8hvx1h\",\"commercialOpen\":false,\"commercialTitle\":\"Commercial reference job (17)\",\"commercialRecords\":17,\"commercialVisible\":0,\"residentialLeads\":true,\"allCommercialInside\":true,\"paidApproveCount\":0,\"primaryCount\":1,\"pageHeight\":1166}"
+    },
+    {
+      "name": "[390] no paid representation offers approve-and-pay",
+      "ok": true,
+      "detail": "0"
+    },
+    {
+      "name": "[390] residential records lead every commercial record",
+      "ok": true,
+      "detail": "{\"actionText\":\"View paid receipt\",\"actionHref\":\"#/pay-apps/ph7434a59sqck3nysgt6teqh0h8hvx1h\",\"commercialOpen\":false,\"commercialTitle\":\"Commercial reference job (17)\",\"commercialRecords\":17,\"commercialVisible\":0,\"residentialLeads\":true,\"allCommercialInside\":true,\"paidApproveCount\":0,\"primaryCount\":1,\"pageHeight\":1166}"
+    },
+    {
+      "name": "[390] commercial records share one counted collapsed section",
+      "ok": true,
+      "detail": "{\"actionText\":\"View paid receipt\",\"actionHref\":\"#/pay-apps/ph7434a59sqck3nysgt6teqh0h8hvx1h\",\"commercialOpen\":false,\"commercialTitle\":\"Commercial reference job (17)\",\"commercialRecords\":17,\"commercialVisible\":0,\"residentialLeads\":true,\"allCommercialInside\":true,\"paidApproveCount\":0,\"primaryCount\":1,\"pageHeight\":1166}"
+    },
+    {
+      "name": "[390] GC landing keeps exactly one primary action",
+      "ok": true,
+      "detail": "1"
+    },
+    {
+      "name": "[390] Lopez project page is a job route",
+      "ok": true,
+      "detail": "#/all-projects/q97f6pmh2d5qn733jmh5pg4c3x8hr9sn"
+    },
+    {
+      "name": "[390] Lopez page names Bayview Remodeling",
+      "ok": true,
+      "detail": "All projects\nLopez Kitchen Remodel\n\nBayview Remodeling · Dana Lopez · El Cerrito, CA\n\nActive\nContract value\n$86,500.00\nRetainage: 10%\nBilling day: 15\nOpen billing\nMoney on this job\n\nCollected from homeowner\n$3,600.00\n1 paid draw.\nPaid to subs\n$3,800.00\n1 payout, net.\nRetainage held\n$200.00\n5% to the sub\n$400.00 at 10% from the homeowner\nOwed this week\n$0.00\n\nNothing due this week. Open billing\n\nRe"
+    },
+    {
+      "name": "[390] Lopez page names Dana Lopez",
+      "ok": true,
+      "detail": "All projects\nLopez Kitchen Remodel\n\nBayview Remodeling · Dana Lopez · El Cerrito, CA\n\nActive\nContract value\n$86,500.00\nRetainage: 10%\nBilling day: 15\nOpen billing\nMoney on this job\n\nCollected from homeowner\n$3,600.00\n1 paid draw.\nPaid to subs\n$3,800.00\n1 payout, net.\nRetainage held\n$200.00\n5% to the sub\n$400.00 at 10% from the homeowner\nOwed this week\n$0.00\n\nNothing due this week. Open billing\n\nRe"
+    },
+    {
+      "name": "[390] Lopez page shows $86,500.00",
+      "ok": true,
+      "detail": "All projects\nLopez Kitchen Remodel\n\nBayview Remodeling · Dana Lopez · El Cerrito, CA\n\nActive\nContract value\n$86,500.00\nRetainage: 10%\nBilling day: 15\nOpen billing\nMoney on this job\n\nCollected from homeowner\n$3,600.00\n1 paid draw.\nPaid to subs\n$3,800.00\n1 payout, net.\nRetainage held\n$200.00\n5% to the sub\n$400.00 at 10% from the homeowner\nOwed this week\n$0.00\n\nNothing due this week. Open billing\n\nReceipts behind these numbers\nMoney trail\n\nThe owner's position on this job: the contract, the latest draw, retainage and what the owner has paid.\n\nCONTRACT\n$86,500.00\nLopez Kitchen Remodel\n→DRAW #1\n$3,"
+    },
+    {
+      "name": "[390] Lopez page shows the money strip",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] Lopez strip uses the homeowner label",
+      "ok": true,
+      "detail": "[\"Collected from homeowner\",\"Paid to subs\",\"Retainage held\",\"Owed this week\"]"
+    },
+    {
+      "name": "[390] Lopez strip paid to subs is $3,800.00",
+      "ok": true,
+      "detail": "$3,800.00"
+    },
+    {
+      "name": "[390] Lopez strip retainage held is $200.00",
+      "ok": true,
+      "detail": "$200.00"
+    },
+    {
+      "name": "[390] Lopez strip collected from the homeowner is $3,600.00",
+      "ok": true,
+      "detail": "$3,600.00"
+    },
+    {
+      "name": "[390] Lopez page shows the read-only reference notice",
+      "ok": true,
+      "detail": "Preserved reference job · read-only."
+    },
+    {
+      "name": "[390] Lopez page offers no new-draw control",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] Lopez page has no dead hash links",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[390] GC reaches the settled Ortiz pay app",
+      "ok": true,
+      "detail": "#/pay-apps/ph7434a59sqck3nysgt6teqh0h8hvx1h"
+    },
+    {
+      "name": "[390] Ortiz money trail shows $5,400.00",
+      "ok": true,
+      "detail": "Money trail\n\nEvery figure is computed from the schedule of values. PayPal settles only after the GC approves.\n\nNET THIS DRAW\n$3,800.00\nPaid by PayPal\nCLAIMED\n$5,400.00\nBilled by the sub\n→REVIEW SUGGESTS\n$2,000.00\nRules check only\n→GC APPROVED\n$4,000.00\nFinal amount\n→RETAINAGE THIS DRAW\n$200.00\nWithh"
+    },
+    {
+      "name": "[390] Ortiz money trail shows $4,000.00",
+      "ok": true,
+      "detail": "Money trail\n\nEvery figure is computed from the schedule of values. PayPal settles only after the GC approves.\n\nNET THIS DRAW\n$3,800.00\nPaid by PayPal\nCLAIMED\n$5,400.00\nBilled by the sub\n→REVIEW SUGGESTS\n$2,000.00\nRules check only\n→GC APPROVED\n$4,000.00\nFinal amount\n→RETAINAGE THIS DRAW\n$200.00\nWithh"
+    },
+    {
+      "name": "[390] Ortiz money trail shows $200.00",
+      "ok": true,
+      "detail": "Money trail\n\nEvery figure is computed from the schedule of values. PayPal settles only after the GC approves.\n\nNET THIS DRAW\n$3,800.00\nPaid by PayPal\nCLAIMED\n$5,400.00\nBilled by the sub\n→REVIEW SUGGESTS\n$2,000.00\nRules check only\n→GC APPROVED\n$4,000.00\nFinal amount\n→RETAINAGE THIS DRAW\n$200.00\nWithh"
+    },
+    {
+      "name": "[390] Ortiz money trail shows $3,800.00",
+      "ok": true,
+      "detail": "Money trail\n\nEvery figure is computed from the schedule of values. PayPal settles only after the GC approves.\n\nNET THIS DRAW\n$3,800.00\nPaid by PayPal\nCLAIMED\n$5,400.00\nBilled by the sub\n→REVIEW SUGGESTS\n$2,000.00\nRules check only\n→GC APPROVED\n$4,000.00\nFinal amount\n→RETAINAGE THIS DRAW\n$200.00\nWithh"
+    },
+    {
+      "name": "[390] Ortiz payout receipt shows the PayPal batch",
+      "ok": true,
+      "detail": "Payment\n\nPays the sub's confirmed PayPal payee the approved current payment due, captured from a funded milestone.\n\nApproved gross\n$4,000.00\nRetainage held\n$200.00\nNet to sub\n$3,800.00\n\nAlready paid\n\nCompliance override by Demo GC on Nov 8, 2026: Demo Ortiz Plumbing bidder has no compliance records "
+    },
+    {
+      "name": "[390] Ortiz pay app shows the read-only notice",
+      "ok": true,
+      "detail": "Preserved reference job · read-only."
+    },
+    {
+      "name": "[390] Ortiz pay app has no dead hash links",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[390] the agreement link resolves to a ledger",
+      "ok": true,
+      "detail": "#/payments/jn77jrsvkvmwzj69tpyx7gj2f98htcnv"
+    },
+    {
+      "name": "[390] the ledger names Ortiz Plumbing",
+      "ok": true,
+      "detail": "Preserved demo run · read-only.\n← Payments\n\nSC-22-ORTIZ-0001\n\nOrtiz Plumbing payment ledger\n\nLopez Kitchen Remodel · Plumbing · Retainage 5%\n\nEXECUTED\nSubcontract PDF\nRetainage CSV\nContract sum to date\n$9,000.00\nBilled\n$4,000.00\nPaid\n$3,800.00\nRetainage held\n$200.00\nBalance\n$5,000.00\n\nBalance = contract sum to date − (paid + retainage held). Paid is the net of successful payouts and retainage rele"
+    },
+    {
+      "name": "[390] the ledger shows the $9,000.00 contract",
+      "ok": true,
+      "detail": "Preserved demo run · read-only.\n← Payments\n\nSC-22-ORTIZ-0001\n\nOrtiz Plumbing payment ledger\n\nLopez Kitchen Remodel · Plumbing · Retainage 5%\n\nEXECUTED\nSubcontract PDF\nRetainage CSV\nContract sum to date\n$9,000.00\nBilled\n$4,000.00\nPaid\n$3,800.00\nRetainage held\n$200.00\nBalance\n$5,000.00\n\nBalance = contract sum to date − (paid + retainage held). Paid is the net of successful payouts and retainage releases.\n\nRemaining authorization\n$0.00\nCaptured\n$4,000.00\nCaptured, not paid out\n$0.00\nRetainage released\n$0.00\nOwner change-order invoices unpaid (project income)\n$0.00\nOwner change-order income paid ("
+    },
+    {
+      "name": "[390] the ledger has no dead hash links",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[390] a commercial project is reachable from the GC project list",
+      "ok": true,
+      "detail": "#/all-projects/q9751tqcjsbd11myp8x25c08hs8hdj94"
+    },
+    {
+      "name": "[390] commercial project page shows the Commercial reference job badge",
+      "ok": true,
+      "detail": "Commercial reference job"
+    },
+    {
+      "name": "[390] commercial project keeps commercial wording",
+      "ok": true,
+      "detail": "All projects\nSandbox run 20261101-02\n\nAustin Commercial, LP · Austin, TX\n\nActive\nCommercial reference job\nContract value\n—\nRetainage: —\nBilling day: —\nOpen billing\nMoney on this job\n\nCollected from owner\n$0.00\n\nNothing yet. Open owner pay apps\n\nPaid to subs\n$2,288.00\n3 payouts, net.\nRetainage held\n$0.00\n\nNothing yet. Open retainage\n\nOwed this week\n$0.00\n\nNothing due this week. Open billing\n\nReceipts behind these numbers\nPreserved reference job · read-only.\nProject details\nOwner\n—\nAddress\nAustin, TX\nState\n—\nContract value\n—\nRetainage\n—\nBilling day\n—\nStart date\n—\nSubstantial completion\n—\nOwner c"
+    },
+    {
+      "name": "[390] zero page errors",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[390] zero console errors",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[390] zero failed requests",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "pinned Rosendin reference run shows the Commercial reference job badge",
+      "ok": true,
+      "detail": "Commercial reference job"
+    },
+    {
+      "name": "guided demo has zero page errors",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "guided demo has zero console errors",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "guided demo has zero failed requests",
+      "ok": true,
+      "detail": "[]"
+    }
+  ],
+  "measurements": [
+    {
+      "screen": "inbox",
+      "width": 1440,
+      "hash": "#/inbox",
+      "identity": "Bayview Remodeling · gc@demo.tradepulseGeneral contractor",
+      "strip": {
+        "present": true,
+        "text": "Money across your jobs\n\nAcross every job where you are the general contractor: collected from owners, paid to subs, retainage held and owed this week.\n\nCollected from owners\n$3,600.00\nFrom 1 paid owner pay app.\nPaid to subs\n$17,070.40\nNet of retainage, from 17 successful payouts.\nRetainage held\n$657.60\nHeld on 7 subcontracts.\n$400.00 at 10% from the homeowner\nOwed this week\n$0.00\n\nNo approved pay app is due this week. Open billing\n\nReceipts behind these numbers",
+        "labels": [
+          "Collected from owners",
+          "Paid to subs",
+          "Retainage held",
+          "Owed this week"
+        ],
+        "collected": "$3,600.00",
+        "paidSubs": "$17,070.40",
+        "retainage": "$657.60",
+        "owed": "$0.00",
+        "top": 333
+      },
+      "landingPriority": {
+        "actionText": "View paid receipt",
+        "actionHref": "#/pay-apps/ph7434a59sqck3nysgt6teqh0h8hvx1h",
+        "commercialOpen": false,
+        "commercialTitle": "Commercial reference job (17)",
+        "commercialRecords": 17,
+        "commercialVisible": 0,
+        "residentialLeads": true,
+        "allCommercialInside": true,
+        "paidApproveCount": 0,
+        "primaryCount": 1,
+        "pageHeight": 1175
+      }
+    },
+    {
+      "screen": "lopez-project",
+      "width": 1440,
+      "hash": "#/all-projects/q97f6pmh2d5qn733jmh5pg4c3x8hr9sn",
+      "strip": {
+        "present": true,
+        "text": "Money on this job\n\nCollected from the homeowner, paid to subs, retainage held and owed this week.\n\nCollected from homeowner\n$3,600.00\nFrom 1 paid draw.\nPaid to subs\n$3,800.00\nNet of retainage, from 1 successful payout.\nRetainage held\n$200.00\n5% to the sub\n$400.00 at 10% from the homeowner\nOwed this week\n$0.00\n\nNo approved pay app is due this week. Open billing\n\nReceipts behind these numbers",
+        "labels": [
+          "Collected from homeowner",
+          "Paid to subs",
+          "Retainage held",
+          "Owed this week"
+        ],
+        "collected": "$3,600.00",
+        "paidSubs": "$3,800.00",
+        "retainage": "$200.00",
+        "owed": "$0.00",
+        "top": 435
+      },
+      "identity": "Bayview Remodeling · gc@demo.tradepulseGeneral contractor"
+    },
+    {
+      "screen": "ortiz-pay-app",
+      "width": 1440,
+      "hash": "#/pay-apps/ph7434a59sqck3nysgt6teqh0h8hvx1h",
+      "trail": "Money trail\n\nEvery figure is computed from the schedule of values. PayPal settles only after the GC approves.\n\nNET THIS DRAW\n$3,800.00\nPaid by PayPal\nCLAIMED\n$5,400.00\nBilled by the sub\n→REVIEW SUGGESTS\n$2,000.00\nRules check only\n→GC APPROVED\n$4,000.00\nFinal amount\n→RETAINAGE THIS DRAW\n$200.00\nWithheld\n\nTotal retainage held to date: $200.00. This draw withheld $200.00.\n\nThe GC approved $2,000.00 above the review suggestion. Per-line reasons, when entered, are under the GC decision below."
+    },
+    {
+      "screen": "agreement-ledger",
+      "width": 1440,
+      "hash": "#/payments/jn77jrsvkvmwzj69tpyx7gj2f98htcnv"
+    },
+    {
+      "screen": "commercial-project",
+      "width": 1440,
+      "hash": "#/all-projects/q9751tqcjsbd11myp8x25c08hs8hdj94",
+      "badge": "Commercial reference job"
+    },
+    {
+      "screen": "inbox",
+      "width": 390,
+      "hash": "#/inbox",
+      "identity": "Bayview Remodeling · gc@demo.tradepulseGeneral contractor",
+      "strip": {
+        "present": true,
+        "text": "Money across your jobs\n\nCollected from owners\n$3,600.00\n1 paid app.\nPaid to subs\n$17,070.40\n17 payouts, net.\nRetainage held\n$657.60\n7 subcontracts.\n$400.00 at 10% from the homeowner\nOwed this week\n$0.00\n\nNothing due this week. Open billing\n\nReceipts behind these numbers",
+        "labels": [
+          "Collected from owners",
+          "Paid to subs",
+          "Retainage held",
+          "Owed this week"
+        ],
+        "collected": "$3,600.00",
+        "paidSubs": "$17,070.40",
+        "retainage": "$657.60",
+        "owed": "$0.00",
+        "top": 258
+      },
+      "landingPriority": {
+        "actionText": "View paid receipt",
+        "actionHref": "#/pay-apps/ph7434a59sqck3nysgt6teqh0h8hvx1h",
+        "commercialOpen": false,
+        "commercialTitle": "Commercial reference job (17)",
+        "commercialRecords": 17,
+        "commercialVisible": 0,
+        "residentialLeads": true,
+        "allCommercialInside": true,
+        "paidApproveCount": 0,
+        "primaryCount": 1,
+        "pageHeight": 1166
+      }
+    },
+    {
+      "screen": "lopez-project",
+      "width": 390,
+      "hash": "#/all-projects/q97f6pmh2d5qn733jmh5pg4c3x8hr9sn",
+      "strip": {
+        "present": true,
+        "text": "Money on this job\n\nCollected from homeowner\n$3,600.00\n1 paid draw.\nPaid to subs\n$3,800.00\n1 payout, net.\nRetainage held\n$200.00\n5% to the sub\n$400.00 at 10% from the homeowner\nOwed this week\n$0.00\n\nNothing due this week. Open billing\n\nReceipts behind these numbers",
+        "labels": [
+          "Collected from homeowner",
+          "Paid to subs",
+          "Retainage held",
+          "Owed this week"
+        ],
+        "collected": "$3,600.00",
+        "paidSubs": "$3,800.00",
+        "retainage": "$200.00",
+        "owed": "$0.00",
+        "top": 412
+      },
+      "identity": "Bayview Remodeling · gc@demo.tradepulseGeneral contractor"
+    },
+    {
+      "screen": "ortiz-pay-app",
+      "width": 390,
+      "hash": "#/pay-apps/ph7434a59sqck3nysgt6teqh0h8hvx1h",
+      "trail": "Money trail\n\nEvery figure is computed from the schedule of values. PayPal settles only after the GC approves.\n\nNET THIS DRAW\n$3,800.00\nPaid by PayPal\nCLAIMED\n$5,400.00\nBilled by the sub\n→REVIEW SUGGESTS\n$2,000.00\nRules check only\n→GC APPROVED\n$4,000.00\nFinal amount\n→RETAINAGE THIS DRAW\n$200.00\nWithheld\n\nTotal retainage held to date: $200.00. This draw withheld $200.00.\n\nThe GC approved $2,000.00 above the review suggestion. Per-line reasons, when entered, are under the GC decision below."
+    },
+    {
+      "screen": "agreement-ledger",
+      "width": 390,
+      "hash": "#/payments/jn77jrsvkvmwzj69tpyx7gj2f98htcnv"
+    },
+    {
+      "screen": "commercial-project",
+      "width": 390,
+      "hash": "#/all-projects/q9751tqcjsbd11myp8x25c08hs8hdj94",
+      "badge": "Commercial reference job"
+    }
+  ],
+  "diagnostics": [
+    {
+      "width": 1440,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [],
+      "ignoredAborts": [
+        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED"
+      ]
+    },
+    {
+      "width": 390,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [],
+      "ignoredAborts": [
+        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED",
+        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED"
+      ]
+    },
+    {
+      "width": "guided-demo",
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [],
+      "ignoredAborts": [
+        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED"
+      ]
+    }
+  ],
+  "guidedDemo": {
+    "pinnedReferenceBadge": "Commercial reference job",
+    "freshRunId": null,
+    "freshAgreementHref": null,
+    "freshRunSkipped": true
+  },
+  "checksRun": 89,
+  "failures": 0
+}
