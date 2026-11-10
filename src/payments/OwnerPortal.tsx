@@ -168,7 +168,7 @@ function OwnerJobSoFar({ job, terms }: { job: OwnerJob; terms: Terms }) {
           }
         />
       </div>
-      <ReferenceNotice title="Preserved reference job · read-only." />
+      <ReferenceNotice kind={terms.kind} />
     </section>
   );
 }

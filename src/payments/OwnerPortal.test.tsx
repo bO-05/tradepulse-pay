@@ -94,6 +94,8 @@ describe("Owner job so far card", () => {
     expect(rendered).toContain("Contract sum to date");
     expect(rendered).toContain("No change orders on this project yet.");
     expect(rendered).toContain("Funded milestones");
+    expect(rendered).toContain("Settled sandbox record · read-only.");
+    expect(rendered).not.toContain("Preserved reference job");
     expect(rendered).not.toContain("Owner pay app");
     expect(rendered).not.toContain("Prime");
     expect(rendered).not.toContain("tranche");
@@ -106,6 +108,8 @@ describe("Owner job so far card", () => {
     expect(html).toContain("Prime contract sum to date");
     expect(html).toContain("Retainage you hold on the prime contract");
     expect(html).toContain("Commercial reference job");
+    expect(html).toContain("Preserved reference job · read-only.");
+    expect(html).not.toContain("Settled sandbox record · read-only.");
   });
 });
 

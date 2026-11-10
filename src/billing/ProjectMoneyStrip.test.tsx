@@ -200,9 +200,13 @@ describe("residential and commercial wording", () => {
     ]);
     // The additive residential fields do not change the established commercial structure or copy.
     expect(cell(html, "project-money-collected").text).toBe("$3,600.00");
+    expect(cell(html, "project-money-retainage").text).toBe("$200.00");
     expect(html).not.toContain('data-testid="project-money-retainage-held-from-you"');
-    expect(html).toContain('data-testid="project-money-owner-retainage"');
-    expect(plain(html)).toContain("$400.00 held from the owner");
+    // The approved follow-up removes the nested homeowner caption from every non-residential cell.
+    expect(html).not.toContain('data-testid="project-money-owner-retainage"');
+    expect(plain(html)).not.toContain("$400.00 held from the owner");
+    expect(plain(html)).not.toContain("from the homeowner");
+    expect(plain(html)).toContain("5% to the sub");
     expect(plain(html)).toContain("Money on this job");
     expect(plain(html)).not.toContain("Money on this job · Lopez Kitchen Remodel");
     expect(plain(html)).toContain("Collected from the owner, paid to subs, retainage held and owed this week.");
@@ -222,10 +226,33 @@ describe("residential and commercial wording", () => {
       "Owed this week",
     ]);
     expect(html).not.toContain('data-testid="project-money-retainage-held-from-you"');
+    // The retained portfolio branch also carries no nested owner-retainage caption.
+    expect(html).not.toContain('data-testid="project-money-owner-retainage"');
+    expect(plain(html)).not.toContain("at 10% from the homeowner");
+    expect(plain(html)).not.toContain("held from the owner");
     expect(plain(html)).toContain("Money across your jobs");
     expect(plain(html)).toContain("Across every job where you are the general contractor");
     expect(plain(html)).toContain("including the separate commercial reference job");
     expect(plain(html)).toContain("Lopez Kitchen Remodel · Owner pay app #1");
+  });
+
+  test("the sub-retainage cell never nests the owner caption, and Lopez keeps its separate cell", () => {
+    const residential = render(money({ collectedWithChangeOrders: 480_000 }), PROJECT_ID);
+    const subStart = residential.indexOf('data-testid="project-money-retainage"');
+    const separateStart = residential.indexOf('data-testid="project-money-retainage-held-from-you"');
+    const ownerCaption = residential.indexOf('data-testid="project-money-owner-retainage"');
+    expect(subStart).toBeGreaterThan(-1);
+    expect(separateStart).toBeGreaterThan(subStart);
+    // Exactly one caption, and it lives inside the directed "Retainage held from you" cell.
+    expect(residential.match(/data-testid="project-money-owner-retainage"/g)).toHaveLength(1);
+    expect(ownerCaption).toBeGreaterThan(separateStart);
+    expect(plain(residential)).toContain("$400.00 at 10% from the homeowner");
+
+    for (const html of [render(money({ kind: "commercial" }), PROJECT_ID), render(money({ scope: "portfolio" }), undefined)]) {
+      expect(html).not.toContain('data-testid="project-money-owner-retainage"');
+      expect(plain(html)).not.toContain("at 10% from the homeowner");
+      expect(plain(html)).not.toContain("from the homeowner");
+    }
   });
 });
 

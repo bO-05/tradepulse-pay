@@ -302,9 +302,7 @@ function PayAppScreen({ view, backHash, backLabel }: { view: PayAppView; backHas
       ) : null}
 
       {view.status !== "draft" ? <PayAppMoneyTrail view={view} terms={terms} /> : null}
-      {view.readOnlyReference ? (
-        <ReferenceNotice title="Preserved reference job · read-only." />
-      ) : null}
+      {view.readOnlyReference ? <ReferenceNotice kind={view.projectKind} /> : null}
       {view.status !== "draft" && view.viewerRole === "gc" ? <GcReviewPanel key={view.review?.reviewedAt ?? 0} view={view} /> : null}
       {view.status !== "draft" ? <PaymentPanel payAppId={view._id} projectKind={view.projectKind} /> : null}
       {view.status !== "draft" ? <LienWaiverPanel payAppId={view._id} /> : null}

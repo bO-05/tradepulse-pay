@@ -140,7 +140,9 @@ function residentialSettledItem() {
   };
 }
 
-function mockQueries(items: unknown) {
+function mockQueries(items: unknown, projects: Array<Record<string, unknown>> = [
+  { _id: LOPEZ_ID, title: "Lopez Kitchen Remodel", projectKind: "residential", partyRole: "gc" },
+]) {
   const inboxQuery = getFunctionName(api.payApps.proposals.listInbox);
   const projectsQuery = getFunctionName(api.billing.ownerPayApps.ownerBillingProjects);
   const moneyQuery = getFunctionName(api.billing.projectMoney.getProjectMoney);
@@ -148,13 +150,20 @@ function mockQueries(items: unknown) {
   vi.mocked(useQuery).mockImplementation(((fn: unknown, args?: { projectId?: string }) => {
     const name = getFunctionName(fn as never);
     if (name === inboxQuery) return items;
-    if (name === projectsQuery) {
-      return [{ _id: LOPEZ_ID, title: "Lopez Kitchen Remodel", projectKind: "residential", partyRole: "gc" }];
-    }
+    if (name === projectsQuery) return projects;
     if (name === moneyQuery) return args?.projectId === LOPEZ_ID ? lopezMoney() : portfolioMoney();
     return undefined;
   }) as never);
 }
+
+/** Visible text with the markup removed, collapsed to single spaces. */
+const plain = (html: string) => html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+
+/** The project-money query calls the page made, with their arguments. */
+const moneyCalls = () =>
+  vi.mocked(useQuery).mock.calls.filter(
+    ([fn]) => getFunctionName(fn as never) === getFunctionName(api.billing.projectMoney.getProjectMoney),
+  );
 
 /** Elements carrying the shared primary Button variant class, matched as a whole class token. */
 const primaryElements = (html: string) =>
@@ -168,14 +177,17 @@ beforeEach(() => {
 });
 
 describe("the GC approval inbox", () => {
-  test("leads with the five-cell Lopez strip and labels the separate portfolio strip", () => {
+  test("leads with the one five-cell Lopez strip and no portfolio strip", () => {
     mockQueries([]);
     const html = renderToStaticMarkup(<ApprovalInbox />);
-    expect(html.match(/data-testid="project-money-strip"/g)).toHaveLength(2);
-    const lopez = html.indexOf("Money on this job · Lopez Kitchen Remodel");
-    const portfolio = html.indexOf("Money across your jobs");
-    expect(lopez).toBeGreaterThan(-1);
-    expect(lopez).toBeLessThan(portfolio);
+    // The no-projectId portfolio mount is gone: exactly one strip, scoped to Lopez.
+    expect(html.match(/data-testid="project-money-strip"/g)).toHaveLength(1);
+    expect(html).toContain("Money on this job · Lopez Kitchen Remodel");
+    expect(html).toContain('data-money-scope="project"');
+    expect(html).not.toContain("Money across your jobs");
+    expect(html).not.toContain(">Collected from owners<");
+    expect(html).not.toContain("$17,070.40");
+    expect(html).not.toContain("$657.60");
     expect(html).toContain(">Collected from homeowner<");
     expect(html).toContain(">Retainage you hold<");
     expect(html).toContain(">Retainage held from you<");
@@ -183,12 +195,68 @@ describe("the GC approval inbox", () => {
     expect(html).toContain("$3,800.00");
     expect(html).toContain("$200.00");
     expect(html).toContain("$400.00");
-    expect(html).toContain(">Collected from owners<");
-    expect(html).toContain("$17,070.40");
-    expect(html).toContain("including the separate commercial reference job");
-    const moneyQuery = getFunctionName(api.billing.projectMoney.getProjectMoney);
-    const moneyCalls = vi.mocked(useQuery).mock.calls.filter(([fn]) => getFunctionName(fn as never) === moneyQuery);
-    expect(moneyCalls).toHaveLength(2);
+    expect(html).toContain("$0.00");
+    const calls = moneyCalls();
+    expect(calls).toHaveLength(1);
+    expect((calls[0][1] as { projectId?: string } | undefined)?.projectId).toBe(LOPEZ_ID);
+  });
+
+  test("a commercial-only landing renders no strip and makes no project-money query", () => {
+    mockQueries([inboxItem()], []);
+    const html = renderToStaticMarkup(<ApprovalInbox />);
+    expect(html).not.toContain('data-testid="project-money-strip"');
+    expect(html).not.toContain("Money on this job");
+    expect(html).not.toContain("Money across your jobs");
+    expect(moneyCalls()).toHaveLength(0);
+    // The commercial work stays reachable and the landing keeps one usable primary.
+    expect(html).toContain('data-testid="inbox-commercial"');
+    expect(html).toContain("Commercial reference job (1)");
+    expect(html).toContain('data-testid="inbox-commercial-decision-action"');
+    expect(primaryElements(html)).toHaveLength(1);
+  });
+
+  test("the workload header counts only the commercial partition", () => {
+    const residentialPending = inboxItem({
+      projectKind: "residential",
+      payApp: { ...inboxItem().payApp, _id: "payapp_residential_pending", status: "submitted" },
+      agreement: { ...inboxItem().agreement, _id: "agreement_residential_pending", projectTitle: "Lopez Kitchen Remodel" },
+    });
+    const secondCommercial = inboxItem({
+      payApp: { ...inboxItem().payApp, _id: "payapp_2" },
+      agreement: { ...inboxItem().agreement, _id: "agreement_2" },
+    });
+    mockQueries([inboxItem(), secondCommercial, residentialPending]);
+    const html = renderToStaticMarkup(<ApprovalInbox />);
+    // Two commercial active rows, one residential active row: the header names the commercial
+    // partition only, while the residential bucket keeps its own attention count.
+    expect(plain(html)).toContain("2 open in commercial reference");
+    expect(plain(html)).toContain("Needs your attention 1");
+    expect(html).toContain("Needs your attention <span");
+    expect(plain(html)).not.toContain("3 open in commercial reference");
+  });
+
+  test("read-only notices are keyed by the stored project kind", () => {
+    mockQueries([residentialSettledItem(), inboxItem({ readOnlyReference: true })]);
+    const html = renderToStaticMarkup(<ApprovalInbox />);
+    expect(html.match(/data-testid="read-only-reference"/g)).toHaveLength(2);
+    expect(html).toContain("Settled sandbox record · read-only.");
+    expect(html).toContain("Preserved reference job · read-only.");
+  });
+
+  test("a residential-only inbox never uses the commercial reference-job wording", () => {
+    mockQueries([residentialSettledItem()]);
+    const html = renderToStaticMarkup(<ApprovalInbox />);
+    expect(html).toContain("Settled sandbox record · read-only.");
+    expect(html).not.toContain("Preserved reference job · read-only.");
+    expect(plain(html)).not.toContain("Reference job");
+    expect(html.match(/data-testid="read-only-reference"/g)).toHaveLength(1);
+  });
+
+  test("a commercial-only inbox keeps the commercial reference-job wording", () => {
+    mockQueries([inboxItem({ readOnlyReference: true })], []);
+    const html = renderToStaticMarkup(<ApprovalInbox />);
+    expect(html).toContain("Preserved reference job · read-only.");
+    expect(html).not.toContain("Settled sandbox record · read-only.");
   });
 
   test("uses an EmptyState with one sentence and one button when there is nothing to review", () => {

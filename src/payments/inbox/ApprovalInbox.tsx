@@ -12,6 +12,7 @@ import { payAppHash, ledgerHash } from "../../auth/navigation";
 import { Button, EmptyState, MoneyTrail, StatusPill, TextInput, statusLabel } from "../../ui";
 import { ReceiptId } from "../ReceiptId";
 import { ReferenceNotice } from "../ReferenceNotice";
+import { readOnlyTitle } from "../../lib/referenceCopy";
 import { isAIReviewProvider } from "../../lib/aiProvenance";
 import { demoDisplayName, demoPeriodLabel, demoProjectName } from "../../lib/demoCopy";
 import { maskSandboxEmail } from "../../lib/demoPrivacy";
@@ -520,7 +521,9 @@ function InboxEntry({ item, primaryProposalId }: { item: InboxItem; primaryPropo
                 stays for the pinned test-id baseline. */}
             <button type="button" hidden tabIndex={-1} aria-hidden="true" data-testid="jump-to-approve" />
           </div>
-          {item.readOnlyReference && <p className="text-xs text-amber-200">Settled reference · read-only</p>}
+          {item.readOnlyReference && (
+            <p className="text-xs text-amber-200">{readOnlyTitle(item.projectKind)}</p>
+          )}
         </div>
         {!item.readOnlyReference && ["submitted", "under_review", "reviewed"].includes(item.payApp.status) ? <RejectPayAppButton payAppId={item.payApp._id} /> : null}
       </header>
@@ -590,7 +593,6 @@ export function ApprovalInbox() {
   const visible = filtered ?? [];
   const active = visible.filter((item) => inboxGroup(item.payApp.status) === "active");
   const waiting = visible.filter((item) => inboxGroup(item.payApp.status) === "waiting");
-  const history = visible.filter((item) => inboxGroup(item.payApp.status) === "history");
   const historyOpen = active.length === 0 && waiting.length === 0;
   const filtering = search.trim() !== "" || status !== "all";
   // The server keeps its newest-first contract. Only the client partitions the records, using the
@@ -598,6 +600,9 @@ export function ApprovalInbox() {
   const residential = visible.filter((item) => item.projectKind === "residential");
   const commercial = visible.filter((item) => item.projectKind !== "residential");
   const residentialActive = residential.filter((item) => inboxGroup(item.payApp.status) === "active");
+  // The workload header counts only the commercial partition: a residential active row belongs to
+  // "Needs your attention", and the bell's unread count is a separate metric entirely.
+  const commercialActive = commercial.filter((item) => inboxGroup(item.payApp.status) === "active");
   const residentialWaiting = residential.filter((item) => inboxGroup(item.payApp.status) === "waiting");
   const residentialHistory = residential.filter((item) => inboxGroup(item.payApp.status) === "history");
   // The paid residential reference card leads the page and carries the one filled receipt action.
@@ -657,12 +662,11 @@ export function ApprovalInbox() {
         </div>
         {items ? (
           <p role="status" className="text-xs text-slate-400" data-testid="inbox-counts">
-            {active.length} open · {waiting.length} awaiting payment · {history.length} in history
+            {commercialActive.length} open in commercial reference
           </p>
         ) : null}
       </header>
       {residentialProject ? <ProjectMoneyStrip projectId={residentialProject._id} /> : null}
-      <ProjectMoneyStrip />
       <div className="hidden gap-2 sm:grid sm:grid-cols-[minmax(0,1fr)_14rem_auto]">
         {filterFields}
       </div>
@@ -752,7 +756,12 @@ export function ApprovalInbox() {
           {filterFields}
         </div>
       </details>
-      {items?.some((item) => item.readOnlyReference) ? <ReferenceNotice title="Preserved reference jobs · read-only." /> : null}
+      {items?.some((item) => item.readOnlyReference && item.projectKind === "residential") ? (
+        <ReferenceNotice kind="residential" />
+      ) : null}
+      {items?.some((item) => item.readOnlyReference && item.projectKind !== "residential") ? (
+        <ReferenceNotice kind="commercial" />
+      ) : null}
     </div>
   );
 }

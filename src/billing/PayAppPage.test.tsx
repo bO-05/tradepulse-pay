@@ -291,3 +291,29 @@ describe("sub pay app primary action by state", () => {
     expect(rendered).not.toContain("Conservative review suggested gross");
   });
 });
+
+describe("the pay app read-only notice is keyed by project kind", () => {
+  test("a settled residential record reads as a settled sandbox record", () => {
+    const html = renderView({ ...(view("paid") as unknown as Record<string, unknown>), readOnlyReference: true });
+    expect(html).toContain('data-testid="read-only-reference"');
+    expect(html).toContain("Settled sandbox record · read-only.");
+    expect(html).not.toContain("Preserved reference job · read-only.");
+  });
+
+  test("a commercial or missing-kind record keeps the reference-job wording", () => {
+    const commercial = renderView({
+      ...(view("paid") as unknown as Record<string, unknown>),
+      projectKind: "commercial",
+      readOnlyReference: true,
+    });
+    expect(commercial).toContain("Preserved reference job · read-only.");
+    expect(commercial).not.toContain("Settled sandbox record · read-only.");
+    const missingKind = renderView({
+      ...(view("paid") as unknown as Record<string, unknown>),
+      projectKind: undefined,
+      readOnlyReference: true,
+    });
+    expect(missingKind).toContain("Preserved reference job · read-only.");
+    expect(missingKind).not.toContain("Settled sandbox record · read-only.");
+  });
+});

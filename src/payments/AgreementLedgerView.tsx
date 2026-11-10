@@ -70,7 +70,7 @@ export function AgreementLedgerView({ agreementId, backHash }: { agreementId: st
 
   return (
     <div className="max-w-5xl space-y-6">
-      {ledger.readOnlyReference && <ReferenceNotice />}
+      {ledger.readOnlyReference && <ReferenceNotice kind={agreement.projectKind} />}
       <section className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
         <div className="flex flex-col items-start justify-between gap-4 sm:flex-row">
           <div className="min-w-0">

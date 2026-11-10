@@ -6,6 +6,7 @@ import { firstProjectSetupError } from "../../../convex/lib/projectSetup";
 import { gcProjectHash, GC_PROJECTS_HASH } from "../../auth/navigation";
 import { getErrorMessage } from "../../lib/errors";
 import { demoProjectName } from "../../lib/demoCopy";
+import { readOnlyReason as referenceReadOnlyReason } from "../../lib/referenceCopy";
 import { Button, Card, ConfirmDialog, focusFirstInvalid, useToast } from "../../ui";
 import { ReferenceNotice } from "../../payments/ReferenceNotice";
 import { ArchivedBanner, ProjectHeader } from "./ProjectPage";
@@ -46,13 +47,13 @@ export function ProjectSettingsPage({ projectId }: { projectId: string }) {
       />
       <h2 className="text-lg font-semibold">Project settings</h2>
       {archived && <ArchivedBanner projectId={project._id} />}
-      {readOnlyReference && <ReferenceNotice title="Preserved reference job · read-only." />}
+      {readOnlyReference && <ReferenceNotice kind={project.projectKind} />}
       <SettingsForm
         key={project._id}
         project={project}
         companyDefaultBps={companyData.company.defaultRetainageBps}
         readOnly={readOnly}
-        readOnlyReason={archived ? "Restore the project to edit these settings." : "This preserved reference job is read-only."}
+        readOnlyReason={archived ? "Restore the project to edit these settings." : referenceReadOnlyReason(project.projectKind)}
       />
       <PrimeLinesCard projectId={project._id} readOnly={readOnly} />
       {!readOnly && <ArchiveCard project={project} />}

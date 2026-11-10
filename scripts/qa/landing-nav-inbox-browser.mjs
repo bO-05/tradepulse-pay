@@ -79,6 +79,11 @@ try {
   await page.click('[data-testid="demo-enter-gc"]');
   await page.waitForFunction(() => location.hash === "#/inbox", { timeout: 45_000 });
   await page.waitForSelector('[data-testid="inbox-counts"]');
+  // The strip resolves from its own query; measure the settled cells, not the loading card.
+  await page.waitForFunction(() => {
+    const value = document.querySelector('[data-testid="project-money-collected"]')?.innerText?.trim() ?? "";
+    return /^\$[\d,]+\.\d{2}$/.test(value);
+  }, { timeout: 60_000 });
 
   phase = "GC navigation";
   const nav = await page.evaluate(() => {
@@ -128,9 +133,13 @@ try {
     const history = document.querySelector(historySelector);
     const commercial = document.querySelector(commercialSelector);
     const action = document.querySelector('[data-testid="inbox-residential-decision-action"]');
+    const strips = [...document.querySelectorAll('[data-testid="project-money-strip"]')];
+    const stripValue = (id) => strips[0]?.querySelector(`[data-testid="${id}"]`)?.innerText?.trim() ?? null;
+    const statusOf = (el) => el.querySelector('[data-testid="inbox-payapp-status"]')?.getAttribute("data-status") ?? null;
     const records = [...document.querySelectorAll('[data-testid="inbox-residential-decision"], [data-testid="inbox-entry"]')].map((el) => ({
       payAppId: el.getAttribute("data-payapp-id"),
       projectKind: el.getAttribute("data-project-kind"),
+      status: statusOf(el),
       top: Math.round(el.getBoundingClientRect().top + scrollY),
       visible: visible(el),
       insideCommercial: el.closest(commercialSelector) !== null,
@@ -140,9 +149,26 @@ try {
     return {
       counts: document.querySelector('[data-testid="inbox-counts"]')?.textContent.trim() ?? "",
       entries: entries.length,
+      entryStatuses: entries.map(statusOf),
+      entryKinds: entries.map((el) => el.getAttribute("data-project-kind")),
       visible: entries.filter(visible).length,
       labels: entries.map((el) => el.querySelector('[data-testid="inbox-payapp-status"]')?.textContent.trim() ?? ""),
       groups: [...document.querySelectorAll("main section[aria-label] > div > h2")].map((el) => el.textContent.trim()),
+      strips: {
+        count: strips.length,
+        scopes: strips.map((el) => el.getAttribute("data-money-scope")),
+        titles: strips.map((el) => el.querySelector("h2")?.innerText.trim() ?? null),
+        labels: [...(strips[0]?.querySelectorAll("dt") ?? [])].map((dt) => dt.innerText.trim()),
+        values: ["project-money-collected", "project-money-paid-subs", "project-money-retainage", "project-money-retainage-held-from-you", "project-money-owed"].map(stripValue),
+        ownerCaptions: strips.flatMap((el) => {
+          const subCell = el.querySelector('[data-testid="project-money-retainage"]')?.closest("div.rounded-lg") ?? null;
+          return [...el.querySelectorAll('[data-testid="project-money-owner-retainage"]')].map((caption) => ({
+            insideSubRetainageCell: subCell !== null && subCell.contains(caption),
+          }));
+        }),
+        top: strips[0] ? Math.round(strips[0].getBoundingClientRect().top + scrollY) : null,
+        pageHasPortfolioWords: /Money across your jobs|Collected from owners/.test(document.body.innerText),
+      },
       history: history
         ? {
             selector: historySelector,
@@ -174,10 +200,25 @@ try {
   console.log(
     `history disclosure measured: ${inbox.history ? `${inbox.history.selector} (<${inbox.history.tag}>) "${inbox.history.label}" open=${inbox.history.open}` : "not present"}`,
   );
-  const match = inbox.counts.match(/^(\d+) open · (\d+) awaiting payment · (\d+) in history$/);
-  check("inbox reports its three buckets", match !== null, inbox.counts);
-  const [, activeCount, waitingCount, historyCount] = match?.map(Number) ?? [];
+  const ACTIVE_STATUSES = new Set(["submitted", "under_review", "reviewed"]);
+  const WAITING_STATUSES = new Set(["approved", "approved_as_noted"]);
+  const activeCount = inbox.entryStatuses.filter((status) => ACTIVE_STATUSES.has(status)).length;
+  const waitingCount = inbox.entryStatuses.filter((status) => WAITING_STATUSES.has(status)).length;
+  const historyCount = inbox.entryStatuses.filter((status) => !ACTIVE_STATUSES.has(status) && !WAITING_STATUSES.has(status)).length;
+  // The header is the commercial partition's active workload, not every active row.
+  const commercialActive = inbox.entryStatuses.filter(
+    (status, index) => inbox.entryKinds[index] !== "residential" && ACTIVE_STATUSES.has(status),
+  ).length;
+  const headerMatch = inbox.counts.match(/^(\d+) open in commercial reference$/);
+  check("the workload header names the commercial reference", headerMatch !== null, inbox.counts);
+  check("the workload header counts only the commercial active partition", Number(headerMatch?.[1]) === commercialActive, `${inbox.counts} vs ${commercialActive} commercial active`);
   check("inbox bucket counts add up to the loaded entries", activeCount + waitingCount + historyCount === inbox.entries, JSON.stringify(inbox));
+  check("the GC landing renders exactly one money strip", inbox.strips.count === 1, JSON.stringify(inbox.strips));
+  check("the one strip is the Lopez project scope", inbox.strips.scopes[0] === "project" && /Money on this job · Lopez Kitchen Remodel/.test(inbox.strips.titles[0] ?? ""), JSON.stringify(inbox.strips));
+  check("no portfolio strip or its copy survives", !inbox.strips.scopes.includes("portfolio") && !inbox.strips.pageHasPortfolioWords, JSON.stringify(inbox.strips));
+  check("the Lopez strip has the five directed cells and stored values", JSON.stringify(inbox.strips.labels) === JSON.stringify(["Collected from homeowner", "Paid to subs", "Retainage you hold", "Retainage held from you", "Owed this week"]) && JSON.stringify(inbox.strips.values) === JSON.stringify(["$4,800.00", "$3,800.00", "$200.00", "$400.00", "$0.00"]), JSON.stringify(inbox.strips));
+  check("the owner caption lives only in the directed owner cell", inbox.strips.ownerCaptions.length === 1 && inbox.strips.ownerCaptions[0].insideSubRetainageCell === false, JSON.stringify(inbox.strips.ownerCaptions));
+  check("the money strip leads the work content", inbox.strips.top !== null && (inbox.records[0] === undefined || inbox.strips.top < inbox.records[0].top), JSON.stringify({ strip: inbox.strips.top, firstRecord: inbox.records[0]?.top }));
   check("open work is rendered before settled history", inbox.chips.some((text) => text.startsWith("Needs your attention")) || activeCount === 0, JSON.stringify(inbox.chips));
   check("residential history keeps its existing disclosure", inbox.history !== null, JSON.stringify(inbox.history));
   if (historyCount > 0 && activeCount + waitingCount > 0) {

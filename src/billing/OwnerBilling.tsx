@@ -524,7 +524,7 @@ function GcOwnerPayApp({ ownerPayAppId }: { ownerPayAppId: string }) {
       ) : null}
       <RefreshPanel app={app} busy={saving} onRefresh={() => void refreshFigures()} />
       <G702Summary app={app} />
-      {app.readOnlyReference ? <ReferenceNotice title="Preserved reference job · read-only." /> : null}
+      {app.readOnlyReference ? <ReferenceNotice kind={app.projectKind} /> : null}
       <PrimeSheet app={app} amounts={amounts} errors={errors} onAmount={(key, cents) => setAmounts((a) => ({ ...a, [key]: cents }))} />
       <DirectlyInvoicedNote app={app} />
       <div className="flex flex-wrap gap-2">
@@ -635,7 +635,7 @@ function GcProjectOwnerBilling({ projectId }: { projectId: string }) {
     <div className="space-y-4">
       <CommercialReferenceBadge kind={list.projectKind} />
       <ProjectMoneyStrip projectId={projectId} />
-      {list.readOnlyReference ? <ReferenceNotice title="Preserved reference job · read-only." /> : null}
+      {list.readOnlyReference ? <ReferenceNotice kind={list.projectKind} /> : null}
       <dl className="grid gap-3 text-sm sm:grid-cols-3">
         <div>
           <dt className="text-xs text-ink-subtle">{terms.kind === "residential" ? "Contract value" : "Prime contract value"}</dt>
@@ -854,7 +854,7 @@ function OwnerPayAppView({ ownerPayAppId }: { ownerPayAppId: string }) {
           { label: residential ? "Previous draws" : "Previous payments", valueCents: app.figures.previousCertificatesCents },
         ]}
       />
-      {app.readOnlyReference ? <ReferenceNotice title="Preserved reference job · read-only." /> : null}
+      {app.readOnlyReference ? <ReferenceNotice kind={app.projectKind} /> : null}
       <div className="flex flex-wrap gap-2">
         {app.controls.approve ? (
           <Button onClick={() => setOpen("approve")} data-testid="owner-pay-app-approve">

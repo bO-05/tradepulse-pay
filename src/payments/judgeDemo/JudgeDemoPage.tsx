@@ -123,7 +123,7 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
           order to the Owner.
         </p>
         {run?.readOnlyReference && <CommercialReferenceBadge kind="commercial" />}
-        {run?.readOnlyReference && <ReferenceNotice />}
+        {run?.readOnlyReference && <ReferenceNotice kind="commercial" />}
         <p className="text-xs text-amber-200">
           The two pay apps label which party each filing represents. PayPal approval
           and the Owner's invoice payment are real browser steps and are never faked. The guided run stops after invoice submission;

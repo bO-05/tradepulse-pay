@@ -61,10 +61,13 @@ beforeEach(() => {
 });
 
 describe("project settings write controls", () => {
-  test("a preserved reference job renders its fields and prime lines read-only with the notice", () => {
+  test("a settled residential reference renders its fields and prime lines read-only with the notice", () => {
     const html = render(true);
     expect(html).toContain('data-testid="read-only-reference"');
-    expect(html).toContain("This preserved reference job is read-only.");
+    expect(html).toContain("Settled sandbox record · read-only.");
+    expect(html).toContain("This settled sandbox record is read-only.");
+    expect(html).not.toContain("Preserved reference job · read-only.");
+    expect(html).not.toContain("This preserved reference job is read-only.");
     // The fields and the lines are still readable.
     expect(html).toContain("Lopez Kitchen Remodel");
     expect(html).toContain("Demolition, rough-in and permits");

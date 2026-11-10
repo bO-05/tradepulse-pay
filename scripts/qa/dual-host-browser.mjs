@@ -161,7 +161,7 @@ try {
     await open(gc.page, site, `#/judge-demo/${DEMO_RUN}`);
     await gc.page.waitForSelector('[data-testid="read-only-reference"]', { timeout: 45000 });
     const judgeText = await bodyText(gc.page);
-    check(`${hostLabel} opens the pinned read-only run`, judgeText.includes(REFERENCE_AGREEMENT) && judgeText.includes("Preserved demo run"));
+    check(`${hostLabel} opens the pinned read-only run`, judgeText.includes(REFERENCE_AGREEMENT) && judgeText.includes("Preserved reference job · read-only."));
     check(`${hostLabel} does not offer a new run on the reference`, !judgeText.includes("Start guided demo"));
 
     const archiveResponses = [];

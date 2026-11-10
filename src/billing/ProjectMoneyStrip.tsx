@@ -10,9 +10,11 @@ import { Card, formatBps, formatCents, formatDate } from "../ui";
 
 /**
  * The GC money strip: collected from the owner, paid to subs, subcontract retainage held,
- * owner retainage held from the GC and approved work owed this week. Every figure is the stored
- * cents `billing/projectMoney.getProjectMoney` returned — this component adds no money math, it
- * only labels the buckets and links each one to the rows behind it.
+ * owner retainage held from the GC (residential only, as its own directed cell) and approved work
+ * owed this week. Every figure is the stored cents `billing/projectMoney.getProjectMoney` returned —
+ * this component adds no money math, it only labels the buckets and links each one to the rows
+ * behind it. The sub-retainage cell is sub-side only on every variant; the homeowner caption never
+ * nests inside it.
  *
  * Omit `projectId` for the portfolio scope (the GC home). Portfolio keeps the neutral plural
  * "Collected from owners"; a project scope uses the kind-keyed singular, so commercial jobs never
@@ -234,15 +236,7 @@ export function ProjectMoneyStrip({ projectId, className }: ProjectMoneyStripPro
           cents={money.retainageHeldCents}
           href={billingTabHash("retainage")}
           note={
-            <>
-              <span className="block">{subRateLabel ?? <><span className="hidden sm:inline">{retainageNote}</span><span className="sm:hidden">{retainageAgreements} subcontract{retainageAgreements === 1 ? "" : "s"}.</span></>}</span>
-              {!residentialProject && money.ownerRetainageHeldCents > 0 ? (
-                <span className="block" data-testid="project-money-owner-retainage">
-                  {formatCents(money.ownerRetainageHeldCents)}
-                  {ownerRateLabel ? ` at ${ownerRateLabel}` : ` held from the ${ownerNoun}`}
-                </span>
-              ) : null}
-            </>
+            <span className="block">{subRateLabel ?? <><span className="hidden sm:inline">{retainageNote}</span><span className="sm:hidden">{retainageAgreements} subcontract{retainageAgreements === 1 ? "" : "s"}.</span></>}</span>
           }
           zeroSentence={<><span className="hidden sm:inline">No subcontract retainage is held yet.</span><span className="sm:hidden">Nothing yet.</span></>}
           zeroAction="Open retainage"

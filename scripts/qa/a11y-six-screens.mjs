@@ -546,7 +546,14 @@ async function main() {
         }
         if (screen.slug === "gc-home") {
           check(`GC home @${viewport.width}: money strip is present`, closed.measured.strings.moneyStrip !== null);
-          check(`GC home @${viewport.width}: retainage carries the word held`, /Retainage held/i.test(closed.measured.strings.retainageLabels.join(" ")), JSON.stringify(closed.measured.strings.retainageLabels));
+          // The Lopez strip is the only strip on the GC home, so retainage reads in both directions:
+          // the sub cell says "Retainage you hold" and the separate owner cell says "Retainage held from you".
+          check(
+            `GC home @${viewport.width}: retainage is labeled in both directions`,
+            /Retainage you hold/i.test(closed.measured.strings.retainageLabels.join(" ")) &&
+              /Retainage held from you/i.test(closed.measured.strings.moneyStrip ?? ""),
+            JSON.stringify(closed.measured.strings.retainageLabels),
+          );
           const empty = screenReport.emptyState?.[viewport.width];
           check(`GC home @${viewport.width}: the reachable empty state uses EmptyState with one action`, !!empty?.ok, JSON.stringify(empty));
         }

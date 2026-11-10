@@ -201,6 +201,8 @@ describe("owner draw screen", () => {
     expect(rendered).toContain("[demo inbox]@example.com");
     // The one-line read-only notice sits below the money, not above the draw.
     expect(html.indexOf('data-testid="read-only-reference"')).toBeGreaterThan(html.indexOf('data-testid="owner-draw-money-trail"'));
+    expect(rendered).toContain("Settled sandbox record · read-only.");
+    expect(rendered).not.toContain("Preserved reference job");
     expect(rendered).not.toContain("Approving one sends you");
   });
 

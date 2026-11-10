@@ -59,7 +59,7 @@ export function ProjectPage({ projectId }: { projectId: string }) {
         projectKind={project.projectKind}
         contractValueCents={project.contractValueCents}
       />
-      {readOnlyReference && <ReferenceNotice title="Preserved reference job · read-only." />}
+      {readOnlyReference && <ReferenceNotice kind={project.projectKind} />}
       <ProjectDetailsCard project={project} />
       <OwnerCompanyCard projectId={project._id} />
       <TradePackagesSection

@@ -77,7 +77,7 @@ async function clickLeadingStripCell(page, testId) {
 async function returnToInbox(page) {
   await clickHref(page, "#/inbox");
   await page.waitForFunction(() => location.hash === "#/inbox", { timeout: 60000 });
-  await waitForMoney(page, 2);
+  await waitForMoney(page);
 }
 
 /** Wait until every expected strip's independent query has resolved. */
@@ -114,6 +114,12 @@ async function readStrip(page, index = 0) {
       retainage: value("project-money-retainage"),
       ownerRetainage: value("project-money-retainage-held-from-you"),
       owed: value("project-money-owed"),
+      ownerCaption: rootEl?.querySelector('[data-testid="project-money-owner-retainage"]')?.innerText?.trim() ?? null,
+      ownerCaptionInsideSubCell: (() => {
+        const subCell = rootEl?.querySelector('[data-testid="project-money-retainage"]')?.closest("div.rounded-lg") ?? null;
+        const caption = rootEl?.querySelector('[data-testid="project-money-owner-retainage"]') ?? null;
+        return subCell !== null && caption !== null && subCell.contains(caption);
+      })(),
       hrefs: {
         collected: href("project-money-collected"),
         paidSubs: href("project-money-paid-subs"),
@@ -172,16 +178,17 @@ for (const [width, height] of widths) {
     await page.waitForFunction(() => location.hash === "#/inbox", { timeout: 60000 });
     await page.waitForSelector('[data-testid="project-money-strip"]', { timeout: 60000 });
     await page.waitForSelector('[data-testid="inbox-residential-decision"]', { timeout: 60000 });
-    await waitForMoney(page, 2);
+    await waitForMoney(page);
     await delay(300);
     const inbox = await readPage(page);
     const inboxStrip = await readStrip(page);
-    const portfolioStrip = await readStrip(page, 1);
     const landingPriority = await page.evaluate(() => {
       const visible = (el) => !el.closest("details:not([open])") && (typeof el.checkVisibility === "function" ? el.checkVisibility({ checkVisibilityCSS: true }) : el.getClientRects().length > 0);
       const commercial = document.querySelector('[data-testid="inbox-commercial"]');
+      const strips = [...document.querySelectorAll('[data-testid="project-money-strip"]')];
       const records = [...document.querySelectorAll('[data-testid="inbox-residential-decision"], [data-testid="inbox-entry"]')].map((el) => ({
         projectKind: el.getAttribute("data-project-kind"),
+        status: el.querySelector('[data-testid="inbox-payapp-status"]')?.getAttribute("data-status") ?? null,
         insideCommercial: el.closest('[data-testid="inbox-commercial"]') !== null,
       }));
       const firstCommercial = records.findIndex((record) => record.projectKind === "commercial");
@@ -195,12 +202,19 @@ for (const [width, height] of widths) {
         commercialVisible: [...(commercial?.querySelectorAll('[data-testid="inbox-entry"]') ?? [])].filter(visible).length,
         residentialLeads: firstCommercial === -1 || records.slice(firstCommercial).every((record) => record.projectKind !== "residential"),
         allCommercialInside: records.filter((record) => record.projectKind === "commercial").every((record) => record.insideCommercial),
+        activeCommercial: records.filter((record) => record.projectKind === "commercial" && ["submitted", "under_review", "reviewed"].includes(record.status ?? "")).length,
         paidApproveCount: [...document.querySelectorAll("a, button")].filter((el) => /^Approve .* and pay /.test(el.textContent.trim())).length,
         primaryCount: [...document.querySelectorAll("a, button")].filter((el) => visible(el) && /\bbg-accent\b/.test(el.className) && /\btext-accent-fg\b/.test(el.className)).length,
+        stripCount: strips.length,
+        stripScopes: strips.map((el) => el.getAttribute("data-money-scope")),
+        stripTitles: strips.map((el) => el.querySelector("h2")?.innerText.trim() ?? null),
+        portfolioWords: /Money across your jobs|Collected from owners/.test(document.body.innerText),
+        counts: document.querySelector('[data-testid="inbox-counts"]')?.textContent.trim() ?? "",
+        bellBadge: document.querySelector('[data-testid="notification-badge"]')?.textContent?.trim() ?? null,
         pageHeight: document.documentElement.scrollHeight,
       };
     });
-    report.measurements.push({ screen: "inbox", width, hash: inbox.hash, identity: inbox.identity, strip: inboxStrip, portfolioStrip, landingPriority });
+    report.measurements.push({ screen: "inbox", width, hash: inbox.hash, identity: inbox.identity, strip: inboxStrip, landingPriority });
     check(`${tag} GC seat lands on #/inbox`, inbox.hash === "#/inbox", inbox.hash);
     check(`${tag} GC identity chrome names Bayview Remodeling`, /bayview remodeling/i.test(inbox.identity), inbox.identity);
     check(
@@ -220,11 +234,29 @@ for (const [width, height] of widths) {
       JSON.stringify(inboxStrip.hrefs),
     );
     check(
-      `${tag} portfolio strip keeps four cells, the neutral plural and the commercial reference label`,
-      portfolioStrip.scope === "portfolio" && JSON.stringify(portfolioStrip.labels) === JSON.stringify(["Collected from owners", "Paid to subs", "Retainage held", "Owed this week"]) && /includ(?:es|ing) the separate commercial reference job/i.test(portfolioStrip.text),
-      JSON.stringify(portfolioStrip),
+      `${tag} Lopez owner retainage appears only as the directed separate cell`,
+      inboxStrip.ownerCaption?.includes("$400.00") === true && inboxStrip.ownerCaptionInsideSubCell === false,
+      JSON.stringify({ ownerCaption: inboxStrip.ownerCaption, insideSubCell: inboxStrip.ownerCaptionInsideSubCell }),
     );
-    check(`${tag} portfolio strip renders four dollar values`, [portfolioStrip.collected, portfolioStrip.paidSubs, portfolioStrip.retainage, portfolioStrip.owed].every((v) => /^\$[\d,]+\.\d{2}$/.test(v ?? "")), JSON.stringify(portfolioStrip));
+    check(
+      `${tag} the GC landing renders exactly one money strip, scoped to Lopez`,
+      landingPriority.stripCount === 1 && landingPriority.stripScopes[0] === "project" && /Money on this job · Lopez Kitchen Remodel/.test(landingPriority.stripTitles[0] ?? ""),
+      JSON.stringify({ count: landingPriority.stripCount, scopes: landingPriority.stripScopes, titles: landingPriority.stripTitles }),
+    );
+    check(
+      `${tag} no portfolio strip, title or commercial sandbox figures remain`,
+      !landingPriority.stripScopes.includes("portfolio") && !landingPriority.portfolioWords && !inbox.text.includes("Money across your jobs") && !inbox.text.includes("Collected from owners") && !inbox.text.includes("$17,070.40"),
+      JSON.stringify({ scopes: landingPriority.stripScopes, portfolioWords: landingPriority.portfolioWords }),
+    );
+    const headerMatch = landingPriority.counts.match(/^(\d+) open in commercial reference$/);
+    check(
+      `${tag} the workload header counts only the commercial active partition`,
+      headerMatch !== null && Number(headerMatch[1]) === landingPriority.activeCommercial,
+      JSON.stringify({ counts: landingPriority.counts, activeCommercial: landingPriority.activeCommercial }),
+    );
+    check(`${tag} the workload header reads 5 open in commercial reference`, landingPriority.counts === "5 open in commercial reference", landingPriority.counts);
+    check(`${tag} Needs your attention stays at 0`, /Needs your attention\s+0/.test(inbox.text), inbox.text.slice(0, 400));
+    check(`${tag} the notification bell still reads 34 unread`, landingPriority.bellBadge === "34", String(landingPriority.bellBadge));
     check(`${tag} inbox has no horizontal overflow`, inbox.scrollWidth === inbox.clientWidth, `${inbox.scrollWidth} vs ${inbox.clientWidth}`);
     check(`${tag} GC home shows the residential decision`, /residential draw · settled on the sandbox/i.test(inbox.text) && /ortiz plumbing/i.test(inbox.text), inbox.text.slice(0, 300));
     check(`${tag} paid residential action is View paid receipt`, landingPriority.actionText === "View paid receipt" && landingPriority.actionHref === `#/pay-apps/${settledPayAppId}`, JSON.stringify(landingPriority));
@@ -311,7 +343,7 @@ for (const [width, height] of widths) {
     );
     check(`${tag} Lopez project page has no horizontal overflow`, project.scrollWidth === project.clientWidth, `${project.scrollWidth} vs ${project.clientWidth}`);
     if (width === 1440) check(`${tag} Lopez money strip sits above the fold`, (projectStrip.top ?? 9999) < project.innerHeight, `${projectStrip.top} vs ${project.innerHeight}`);
-    check(`${tag} Lopez page shows the read-only reference notice`, /read-only/i.test(project.readOnlyNotice ?? ""), String(project.readOnlyNotice));
+    check(`${tag} Lopez page shows the settled-record read-only notice`, project.readOnlyNotice === "Settled sandbox record · read-only.", String(project.readOnlyNotice));
     check(`${tag} Lopez page offers no new-draw control`, project.newDraw === false);
     check(`${tag} Lopez page has no dead hash links`, project.deadLinks.length === 0, JSON.stringify(project.deadLinks));
     await page.screenshot({ path: path.join(outDir, `hosted-lopez-${width}.png`), fullPage: false });
@@ -341,7 +373,7 @@ for (const [width, height] of widths) {
       check(`${tag} Ortiz money trail shows ${amount}`, `${payApp.trail}\n${payApp.text}`.includes(amount), payApp.trail.slice(0, 300));
     }
     check(`${tag} Ortiz payout receipt shows the PayPal batch`, payApp.payment.includes("PayPal payout batch") && payApp.payment.includes("D5V7XEN5YZH4C"), payApp.payment.slice(0, 300));
-    check(`${tag} Ortiz pay app shows the read-only notice`, /read-only/i.test(payApp.readOnlyNotice ?? ""), String(payApp.readOnlyNotice));
+    check(`${tag} Ortiz pay app shows the settled-record read-only notice`, payApp.readOnlyNotice === "Settled sandbox record · read-only.", String(payApp.readOnlyNotice));
     check(`${tag} Ortiz pay app has no dead hash links`, !payApp.links.some((href) => href === "#" || href === "#/home"), JSON.stringify(payApp.links.filter((href) => href === "#" || href === "#/home")));
     await page.screenshot({ path: path.join(outDir, `hosted-ortiz-pay-app-${width}.png`), fullPage: false });
 
@@ -376,6 +408,7 @@ for (const [width, height] of widths) {
     const commercial = await readPage(page);
     report.measurements.push({ screen: "commercial-project", width, hash: commercial.hash, badge: commercial.badge });
     check(`${tag} commercial project page shows the Commercial reference job badge`, /commercial reference job/i.test(commercial.badge ?? ""), String(commercial.badge));
+    check(`${tag} commercial project keeps the reference-job read-only copy`, commercial.readOnlyNotice === null || commercial.readOnlyNotice === "Preserved reference job · read-only.", String(commercial.readOnlyNotice));
     check(`${tag} commercial project keeps commercial wording`, /Collected from owner/.test(commercial.text) && /Retainage held/.test(commercial.text) && !/Collected from homeowner/.test(commercial.text) && !/Retainage you hold/.test(commercial.text), commercial.text.slice(0, 600));
     await page.screenshot({ path: path.join(outDir, `hosted-commercial-${width}.png`), fullPage: false });
   } catch (error) {
@@ -425,7 +458,11 @@ for (const [width, height] of widths) {
     result.pinnedReferenceBadge = await page.evaluate(
       () => document.querySelector('[data-testid="commercial-reference-badge"]')?.innerText ?? null,
     );
+    result.pinnedReferenceNotice = await page.evaluate(
+      () => document.querySelector('[data-testid="read-only-reference"]')?.innerText?.trim() ?? null,
+    );
     check("pinned Rosendin reference run shows the Commercial reference job badge", /commercial reference job/i.test(result.pinnedReferenceBadge ?? ""), String(result.pinnedReferenceBadge));
+    check("pinned Rosendin reference run keeps the commercial read-only copy", result.pinnedReferenceNotice === "Preserved reference job · read-only.", String(result.pinnedReferenceNotice));
     await page.screenshot({ path: path.join(outDir, "hosted-guided-demo-reference.png"), fullPage: false });
 
     // Start a fresh run; it must be a new run, not the frozen reference.

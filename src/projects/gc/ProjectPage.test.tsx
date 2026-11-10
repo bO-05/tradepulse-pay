@@ -116,15 +116,23 @@ beforeEach(() => {
 });
 
 describe("a preserved reference job on the project page", () => {
-  test("offers neither the settings nor the People link and shows the reference notice", () => {
+  test("offers neither the settings nor the People link and shows the settled-record notice", () => {
     const html = render(true);
     expect(html).toContain('data-testid="read-only-reference"');
-    expect(html).toContain("Preserved reference job · read-only.");
+    expect(html).toContain("Settled sandbox record · read-only.");
+    expect(html).not.toContain("Preserved reference job · read-only.");
     expect(html).not.toContain("#/all-projects/project_lopez/settings");
     expect(html).not.toContain("#/people/project_lopez");
     expect(html).not.toContain(">Project settings<");
     expect(html).not.toContain(">People<");
     expect(html).not.toContain("Open in Procurement");
+  });
+
+  test("a frozen commercial project keeps the reference-job notice", () => {
+    const html = render(true, "commercial");
+    expect(html).toContain('data-testid="read-only-reference"');
+    expect(html).toContain("Preserved reference job · read-only.");
+    expect(html).not.toContain("Settled sandbox record · read-only.");
   });
 
   test("mounts the job-scoped money strip above the project details", () => {
