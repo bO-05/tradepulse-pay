@@ -89,7 +89,10 @@ export function PaymentsWorkspace() {
               >
                 <AgreementTable
                   agreements={commercial}
-                  testId="payments-commercial-agreements"
+                  // A mixed result set adds `payments-commercial-agreements` so both tables stay
+                  // addressable; when every row is commercial the only table keeps the
+                  // pre-existing `payments-agreements` id, which commercial-only seats depend on.
+                  testId={residential.length > 0 ? "payments-commercial-agreements" : "payments-agreements"}
                   label="Commercial agreement payment ledgers"
                 />
               </CommercialReferenceDisclosure>

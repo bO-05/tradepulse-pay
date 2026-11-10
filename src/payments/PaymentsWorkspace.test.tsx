@@ -97,6 +97,8 @@ describe("GC Payments worklist partition", () => {
     const residentialTable = between(html, 'data-testid="payments-agreements"', "</table>");
     expect(residentialTable).toContain('href="#/payments/agreement_ortiz"');
     expect(inside).toContain('data-testid="payments-commercial-agreements"');
+    expect(inside).not.toContain('data-testid="payments-agreements"');
+    expect(html.match(/data-testid="payments-agreements"/g) ?? []).toHaveLength(1);
 
     // Every original agreement link survives exactly once.
     const hrefs = html.match(/href="#\/payments\/agreement_[a-z0-9]+"/g) ?? [];
@@ -118,7 +120,7 @@ describe("GC Payments worklist partition", () => {
     expect(inside.indexOf("Commercial One")).toBeLessThan(inside.indexOf("Commercial Two"));
   });
 
-  test("a commercial-only result set keeps every agreement in one closed counted disclosure", () => {
+  test("a commercial-only result set keeps the legacy payments-agreements table inside one closed counted disclosure", () => {
     mockAgreements([
       agreement("agreement_rosendin", "commercial", {
         agreementNumber: "SC-24-ROSENDIN-0001",
@@ -131,7 +133,19 @@ describe("GC Payments worklist partition", () => {
     const html = renderToStaticMarkup(<PaymentsWorkspace />);
 
     expect(html).toContain("Commercial reference job (2)");
-    expect(html).not.toContain('data-testid="payments-agreements"');
+    expect(html).toContain('data-record-count="2"');
+    const disclosure = html.indexOf('data-testid="payments-commercial"');
+    expect(html.match(/data-testid="payments-commercial"/g) ?? []).toHaveLength(1);
+    expect(detailsTag(html, disclosure)).not.toContain(" open");
+
+    // The only table keeps the pre-existing id, inside the closed disclosure. The additive
+    // mixed-state id is not required when the whole authorized result set is commercial.
+    const inside = between(html, 'data-testid="payments-commercial"', "</details>");
+    expect(inside).toContain('data-testid="payments-agreements"');
+    expect(html.match(/data-testid="payments-agreements"/g) ?? []).toHaveLength(1);
+    expect(html).not.toContain('data-testid="payments-commercial-agreements"');
+
+    // Every original agreement link is still restored on expansion.
     expect(html.match(/href="#\/payments\/agreement_(rosendin|run20)"/g) ?? []).toHaveLength(2);
   });
 
