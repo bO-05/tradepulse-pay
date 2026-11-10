@@ -33,6 +33,14 @@ import puppeteer from "puppeteer-core";
 import { AxePuppeteer } from "@axe-core/puppeteer";
 import { REPO_ROOT, attachDiagnostics, delay } from "./lib.mjs";
 import { DEMO_COMMIT_RULE, RULES, extractText, openDisclosures, scanText } from "./copy-rules.mjs";
+import {
+  captureEvidenceScreenshot,
+  maskEmailsInPage,
+  safeEvidenceLine,
+  sanitizeForEvidence,
+  writeEvidenceJson,
+  writeEvidenceText,
+} from "./evidence-privacy.mjs";
 
 const require = createRequire(import.meta.url);
 const AXE_SOURCE = fs.readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
@@ -64,8 +72,9 @@ const report = {
   failures: [],
 };
 const check = (name, ok, detail = "") => {
-  report.checks.push({ name, ok, detail: redact(detail) });
-  if (!ok) report.failures.push({ name, detail });
+  const safeDetail = redact(detail);
+  report.checks.push({ name, ok, detail: safeDetail });
+  if (!ok) report.failures.push({ name, detail: safeDetail });
 };
 
 function readSettledPayAppId() {
@@ -93,31 +102,21 @@ const DEMO_PASSWORD = readDemoPassword();
 const REDACTED_PASSWORD = "[demo password redacted]";
 
 /** Recursively replaces the demo password in everything written to the evidence report. */
-function redact(value) {
+function redactSecret(value) {
   if (typeof value === "string") return value.split(DEMO_PASSWORD).join(REDACTED_PASSWORD);
-  if (Array.isArray(value)) return value.map(redact);
+  if (Array.isArray(value)) return value.map(redactSecret);
   if (value && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, redact(child)]));
+    return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, redactSecret(child)]));
   }
   return value;
 }
 
-/** Screenshots are evidence, so even the published demo-seat addresses are masked. */
-async function maskEmailsForEvidence(page) {
-  await page.evaluate(() => {
-    const email = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
-    const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-    while (walk.nextNode()) {
-      const parent = walk.currentNode.parentElement;
-      if (!parent || ["SCRIPT", "STYLE"].includes(parent.tagName)) continue;
-      walk.currentNode.textContent = walk.currentNode.textContent.replace(email, "[masked email]");
-    }
-    for (const control of document.querySelectorAll("input, textarea")) {
-      control.value = control.value.replace(email, "[masked email]");
-      const placeholder = control.getAttribute("placeholder");
-      if (placeholder) control.setAttribute("placeholder", placeholder.replace(email, "[masked email]"));
-    }
-  });
+/**
+ * Every report value is evidence: the demo credential is redacted and every email-shaped value is
+ * masked, recursively, before it can reach report.json, report.md or stdout.
+ */
+function redact(value) {
+  return sanitizeForEvidence(redactSecret(value));
 }
 
 function browserPath() {
@@ -375,6 +374,8 @@ async function emptyStateCheck(page, width, screenshotPath) {
   if (!(await setSearchValue(page, "zzz-no-such-application"))) return { ok: false, reason: "search input not found" };
   await page.waitForFunction(() => document.body.innerText.includes("No applications match these filters"), { timeout: 10000 }).catch(() => {});
   await delay(500);
+  // The search re-render can restore raw values, so mask again before measuring and capturing.
+  await maskEmailsInPage(page);
   const result = await page.evaluate(() => {
     const visible = (el) => (typeof el.checkVisibility === "function" ? el.checkVisibility() : el.getClientRects().length > 0);
     const empty = [...document.querySelectorAll(".border-dashed")].filter(visible).find((el) => /No applications match these filters/.test(el.innerText));
@@ -390,7 +391,7 @@ async function emptyStateCheck(page, width, screenshotPath) {
       descriptions,
     };
   });
-  if (screenshotPath) await page.screenshot({ path: screenshotPath, fullPage: true });
+  if (screenshotPath) await captureEvidenceScreenshot(page, screenshotPath, { fullPage: true });
   await setSearchValue(page, "");
   await page.waitForFunction(() => !document.body.innerText.includes("No applications match these filters"), { timeout: 10000 }).catch(() => {});
   await delay(500);
@@ -398,14 +399,16 @@ async function emptyStateCheck(page, width, screenshotPath) {
 }
 
 async function auditState(page, screen, viewport, state) {
+  // Mask after the state has settled and before anything is measured. The target text, page text,
+  // axe run and capture must all describe the same masked DOM the evidence persists.
+  await maskEmailsInPage(page);
   const measured = await measure(page, screen.name, viewport.width);
   const axe = await axeScan(page);
   const extracted = await extractText(page);
   const appHits = leakText(extracted.appText, screen.route);
   const recordedHits = leakText(extracted.recordedText, screen.route);
   const shot = path.join(OUT_DIR, `${screen.slug}-${viewport.width}-${state}.png`);
-  await maskEmailsForEvidence(page);
-  await page.screenshot({ path: shot, fullPage: true });
+  await captureEvidenceScreenshot(page, shot, { fullPage: true });
   const prefix = `${screen.name} @${viewport.width} ${state}`;
 
   check(`${prefix}: no horizontal overflow`, measured.scrollWidth <= measured.innerWidth + 1, `${measured.scrollWidth} vs ${measured.innerWidth}`);
@@ -482,7 +485,7 @@ async function main() {
           const trail = await page.$(`[data-testid="${trailTestId}"]`);
           if (trail) {
             trailScreenshot = path.join(OUT_DIR, `${screen.slug}-${viewport.width}-money-trail.png`);
-            await trail.screenshot({ path: trailScreenshot });
+            await captureEvidenceScreenshot(page, trailScreenshot, { element: trail });
             trailScreenshot = path.relative(REPO_ROOT, trailScreenshot);
           }
         }
@@ -511,10 +514,9 @@ async function main() {
             }
           });
           await delay(400);
-          const manualMeasured = await measure(page, screen.name, viewport.width);
-          const manualAxe = await axeScan(page);
-          // The manual block is public to judges, but the committed screenshot must not
-          // reproduce the credential. Mask it in the DOM after measuring and before capture.
+          // The manual block is public to judges, but neither the committed screenshot nor the
+          // persisted measurements may reproduce the credential or an address. Mask both before
+          // measuring, then the capture wrapper re-masks and verifies before the screenshot.
           await page.evaluate(
             (secret, replacement) => {
               const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -527,8 +529,11 @@ async function main() {
             DEMO_PASSWORD,
             "••••••••",
           );
+          await maskEmailsInPage(page);
+          const manualMeasured = await measure(page, screen.name, viewport.width);
+          const manualAxe = await axeScan(page);
           const manualShot = path.join(OUT_DIR, `${screen.slug}-${viewport.width}-manual-open.png`);
-          await page.screenshot({ path: manualShot, fullPage: true });
+          await captureEvidenceScreenshot(page, manualShot, { fullPage: true });
           check(`Demo landing @${viewport.width} manual-open: no serious or critical axe violation`, manualAxe.seriousCritical.length === 0, JSON.stringify(manualAxe.seriousCritical));
           check(`Demo landing @${viewport.width} manual-open: every visible target is at least 24px tall`, manualMeasured.under24.length === 0, JSON.stringify(manualMeasured.under24));
           check(`Demo landing @${viewport.width} manual-open: exactly one primary action`, manualMeasured.primaries.length === 1, JSON.stringify(manualMeasured.primaries));
@@ -630,7 +635,8 @@ async function main() {
     screenshots: fs.readdirSync(OUT_DIR).filter((file) => file.endsWith(".png")).length,
   };
 
-  fs.writeFileSync(path.join(OUT_DIR, "report.json"), JSON.stringify(report, null, 2), "utf8");
+  // Both artifacts are generated from redacted data and written through the fail-closed writers.
+  writeEvidenceJson(path.join(OUT_DIR, "report.json"), report);
   const lines = [
     "# Accessibility and cross-screen design gate",
     "",
@@ -678,23 +684,23 @@ async function main() {
   const quoted = report.screens.flatMap((s) => s.states.flatMap((st) => [...st.closed.quotedRecordedHits, ...st.open.quotedRecordedHits].map((h) => ({ screen: s.name, width: st.viewport, ...h }))));
   if (quoted.length === 0) lines.push("None.");
   else for (const hit of quoted.slice(0, 30)) lines.push(`- ${hit.screen} @${hit.width}: ${hit.rule}: \`${hit.match}\` — ${hit.context}`);
-  fs.writeFileSync(path.join(OUT_DIR, "report.md"), lines.join("\n") + "\n", "utf8");
+  writeEvidenceText(path.join(OUT_DIR, "report.md"), lines.join("\n") + "\n");
 
-  console.log(`a11y-six-screens ${BASE_URL}`);
-  console.log(`axe-core ${AXE_VERSION}; ${report.summary.screens} screens x ${VIEWPORTS.length} viewports x 2 disclosure states`);
-  console.log(`checks: ${report.summary.checks} run, ${report.checks.filter((c) => c.ok).length} passed, ${report.failures.length} failed`);
-  console.log(`serious/critical axe: ${seriousCritical}; app-copy leak hits: ${appHits}; states with exactly one primary: ${primaries}/${states.length}`);
-  for (const failure of report.failures) console.error(`  FAIL ${failure.name}${failure.detail ? `: ${failure.detail}` : ""}`);
+  console.log(safeEvidenceLine(`a11y-six-screens ${BASE_URL}`));
+  console.log(safeEvidenceLine(`axe-core ${AXE_VERSION}; ${report.summary.screens} screens x ${VIEWPORTS.length} viewports x 2 disclosure states`));
+  console.log(safeEvidenceLine(`checks: ${report.summary.checks} run, ${report.checks.filter((c) => c.ok).length} passed, ${report.failures.length} failed`));
+  console.log(safeEvidenceLine(`serious/critical axe: ${seriousCritical}; app-copy leak hits: ${appHits}; states with exactly one primary: ${primaries}/${states.length}`));
+  for (const failure of report.failures) console.error(safeEvidenceLine(`  FAIL ${failure.name}${failure.detail ? `: ${failure.detail}` : ""}`));
   for (const screen of report.screens) {
     const state = screen.states[0]?.closed;
     const primary = state?.measured.primaries[0];
-    console.log(`  ${screen.name} (${screen.route}) primary=${primary ? `${primary.testId ?? primary.tag} "${primary.text}" ${primary.height}px` : "none"}`);
+    console.log(safeEvidenceLine(`  ${screen.name} (${screen.route}) primary=${primary ? `${primary.testId ?? primary.tag} "${primary.text}" ${primary.height}px` : "none"}`));
   }
-  console.log(`evidence: ${OUT_DIR}`);
+  console.log(safeEvidenceLine(`evidence: ${OUT_DIR}`));
   if (report.failures.length > 0) process.exitCode = 1;
 }
 
 main().catch((error) => {
-  console.error(`a11y-six-screens could not run: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+  console.error(safeEvidenceLine(`a11y-six-screens could not run: ${error instanceof Error ? error.stack ?? error.message : String(error)}`));
   process.exitCode = 2;
 });

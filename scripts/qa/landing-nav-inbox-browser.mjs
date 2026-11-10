@@ -2,11 +2,25 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import puppeteer from "puppeteer-core";
+import {
+  captureEvidenceScreenshot,
+  maskEmailsInPage,
+  maskEmailText,
+  printEvidence,
+  sanitizeForEvidence,
+  writeEvidenceJson,
+} from "./evidence-privacy.mjs";
 
 /**
  * Read-only acceptance for the residential landing copy, the split GC navigation and the
  * approval-inbox buckets. It signs into the shared demo GC, reads screens, and never approves,
  * rejects, pays or starts a guided run.
+ *
+ * Every DOM-derived value is masked before it leaves the page: measurements are extracted from
+ * the masked DOM the capture shows, details/diagnostics/failures are sanitized recursively, every
+ * screenshot goes through the fail-closed capture wrapper, and report.json plus stdout are written
+ * through the fail-closed serializer. A surviving email-shaped value refuses the artifact instead
+ * of persisting it.
  */
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const site = process.argv.includes("--url")
@@ -23,11 +37,21 @@ const evidenceDir = process.argv.includes("--out")
   : path.join(root, "evidence", `landing-nav-inbox-browser-${stamp}`);
 fs.mkdirSync(evidenceDir, { recursive: true });
 const report = { target: site, checks: [], measurements: [], pageErrors: [], consoleErrors: [] };
+/** DOM-derived details are evidence, so they are masked before they can reach the report. */
+const evidenceDetail = (detail) => (typeof detail === "string" ? maskEmailText(detail) : sanitizeForEvidence(detail));
+const describe = (detail) => (typeof detail === "string" ? detail : JSON.stringify(detail));
 const check = (name, ok, detail = "") => {
-  report.checks.push({ name, ok, detail });
-  if (!ok) throw new Error(`${name}${detail ? `: ${detail}` : ""}`);
+  const safeDetail = evidenceDetail(detail);
+  report.checks.push({ name, ok, detail: safeDetail });
+  if (!ok) throw new Error(`${name}${describe(safeDetail) ? `: ${describe(safeDetail)}` : ""}`);
 };
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Extracts from the masked DOM, so the measurement and its capture describe the same screen. */
+const maskedEvaluate = async (page, fn, ...args) => {
+  await maskEmailsInPage(page);
+  return page.evaluate(fn, ...args);
+};
 
 const browser = await puppeteer.launch({
   executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
@@ -48,7 +72,7 @@ let phase = "landing";
 try {
   await page.goto(`${site}/#/demo`, { waitUntil: "domcontentloaded" });
   await page.waitForSelector('[data-testid="demo-access-page"]');
-  const landing = await page.evaluate(() => {
+  const landing = await maskedEvaluate(page, () => {
     const main = document.querySelector('[data-testid="demo-access-page"]');
     const card = document.querySelector('[data-testid="demo-enter-gc"]');
     return {
@@ -72,8 +96,8 @@ try {
     summaries.find((el) => el.textContent.includes("Manual sign-in and sandbox details"))?.click();
   });
   await page.waitForFunction(() => document.body.innerText.includes("4032031427005060"));
-  check("manual sandbox details open on demand", (await page.evaluate(() => document.body.innerText)).includes("4032031427005060"));
-  await page.screenshot({ path: path.join(evidenceDir, "landing-residential.png"), fullPage: true });
+  check("manual sandbox details open on demand", (await maskedEvaluate(page, () => document.body.innerText)).includes("4032031427005060"));
+  await captureEvidenceScreenshot(page, path.join(evidenceDir, "landing-residential.png"), { fullPage: true });
 
   phase = "GC login";
   await page.click('[data-testid="demo-enter-gc"]');
@@ -86,7 +110,7 @@ try {
   }, { timeout: 60_000 });
 
   phase = "GC navigation";
-  const nav = await page.evaluate(() => {
+  const nav = await maskedEvaluate(page, () => {
     const list = document.querySelector("#workspace-navigation > ul");
     const primary = [...(list?.children ?? [])]
       .map((li) => li.querySelector(":scope > a"))
@@ -121,18 +145,18 @@ try {
   }
   await page.evaluate(() => document.querySelector("#workspace-navigation details > summary")?.click());
   await page.waitForFunction(() => document.querySelector("#workspace-navigation details")?.open === true);
-  const moreHrefs = await page.evaluate(() => [...document.querySelectorAll("#workspace-navigation details a")].map((a) => a.getAttribute("href")));
+  const moreHrefs = await maskedEvaluate(page, () => [...document.querySelectorAll("#workspace-navigation details a")].map((a) => a.getAttribute("href")));
   check(
     "More links point at the existing routes and omit Procurement",
     moreHrefs.includes("#/dashboard") && moreHrefs.includes("#/billing-agents") && !moreHrefs.includes("#/procurement"),
     JSON.stringify(moreHrefs),
   );
-  await page.screenshot({ path: path.join(evidenceDir, "gc-nav-more.png"), fullPage: false });
+  await captureEvidenceScreenshot(page, path.join(evidenceDir, "gc-nav-more.png"), { fullPage: false });
 
   phase = "direct procurement fallback";
   await page.goto(`${site}/#/procurement`, { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => [...document.querySelectorAll("h1")].some((h) => h.textContent.trim() === "Procurement"), { timeout: 60_000 });
-  const directProcurement = await page.evaluate(() => ({
+  const directProcurement = await maskedEvaluate(page, () => ({
     hash: location.hash,
     search: location.search,
     notFound: document.body.innerText.includes("Not found"),
@@ -143,7 +167,7 @@ try {
     directProcurement.hash === "#/procurement" && directProcurement.hasProcurementHeading && !directProcurement.notFound,
     JSON.stringify(directProcurement),
   );
-  await page.screenshot({ path: path.join(evidenceDir, "gc-procurement-direct.png"), fullPage: false });
+  await captureEvidenceScreenshot(page, path.join(evidenceDir, "gc-procurement-direct.png"), { fullPage: false });
 
   phase = "editable project procurement entry";
   await page.goto(`${site}/#/all-projects`, { waitUntil: "domcontentloaded" });
@@ -153,7 +177,7 @@ try {
       && !document.body.innerText.includes("Loading projects…"),
     { timeout: 60_000 },
   );
-  const projectHrefs = await page.evaluate(() => [...document.querySelectorAll('a[href^="#/all-projects/"]')]
+  const projectHrefs = await maskedEvaluate(page, () => [...document.querySelectorAll('a[href^="#/all-projects/"]')]
     .map((a) => a.getAttribute("href"))
     .filter((href) => /^#\/all-projects\/[^/]+$/.test(href) && !/#\/all-projects\/(new|quick-start)$/.test(href)));
   check("the GC project list offers project pages", projectHrefs.length > 0, JSON.stringify(projectHrefs));
@@ -167,7 +191,7 @@ try {
       { timeout: 30_000 },
       href,
     );
-    editableProject = await page.evaluate(() => {
+    editableProject = await maskedEvaluate(page, () => {
       const entry = [...document.querySelectorAll("button")].find((el) => el.textContent.trim() === "Open in Procurement");
       if (!entry) return null;
       return {
@@ -182,14 +206,14 @@ try {
   const projectId = editableProject.projectHash.replace("#/all-projects/", "");
   await page.evaluate(() => [...document.querySelectorAll("button")].find((el) => el.textContent.trim() === "Open in Procurement")?.click());
   await page.waitForFunction(() => [...document.querySelectorAll("h1")].some((h) => h.textContent.trim() === "Procurement"), { timeout: 60_000 });
-  const projectProcurement = await page.evaluate(() => ({ hash: location.hash, search: location.search, notFound: document.body.innerText.includes("Not found") }));
+  const projectProcurement = await maskedEvaluate(page, () => ({ hash: location.hash, search: location.search, notFound: document.body.innerText.includes("Not found") }));
   const projectQuery = new URLSearchParams(projectProcurement.search);
   check(
     "the editable project entry opens its query-scoped Procurement route",
     projectProcurement.hash === "#/procurement" && projectQuery.get("project") === projectId && projectQuery.get("tab") === "packages" && !projectProcurement.notFound,
     JSON.stringify({ projectId, ...projectProcurement }),
   );
-  await page.screenshot({ path: path.join(evidenceDir, "gc-procurement-editable.png"), fullPage: false });
+  await captureEvidenceScreenshot(page, path.join(evidenceDir, "gc-procurement-editable.png"), { fullPage: false });
 
   phase = "return to approval inbox";
   await page.goto(`${site}/#/inbox`, { waitUntil: "domcontentloaded" });
@@ -202,7 +226,7 @@ try {
   }, { timeout: 60_000 });
 
   phase = "approval inbox";
-  const inbox = await page.evaluate(() => {
+  const inbox = await maskedEvaluate(page, () => {
     const visible = (el) => {
       if (el.closest("details:not([open])")) return false;
       return typeof el.checkVisibility === "function" ? el.checkVisibility({ checkVisibilityCSS: true }) : el.getClientRects().length > 0;
@@ -279,7 +303,7 @@ try {
     };
   });
   console.log(
-    `history disclosure measured: ${inbox.history ? `${inbox.history.selector} (<${inbox.history.tag}>) "${inbox.history.label}" open=${inbox.history.open}` : "not present"}`,
+    maskEmailText(`history disclosure measured: ${inbox.history ? `${inbox.history.selector} (<${inbox.history.tag}>) "${inbox.history.label}" open=${inbox.history.open}` : "not present"}`),
   );
   const ACTIVE_STATUSES = new Set(["submitted", "under_review", "reviewed"]);
   const WAITING_STATUSES = new Set(["approved", "approved_as_noted"]);
@@ -316,11 +340,11 @@ try {
   check("the collapsed landing keeps one primary action", inbox.primaryCount === 1, String(inbox.primaryCount));
   check("status codes are shown as readable labels", !inbox.labels.some((label) => /_/.test(label)), JSON.stringify(inbox.labels));
   report.measurements.push({ screen: "inbox-collapsed", width: 1440, height: 900, pageHeight: inbox.pageHeight, commercial: inbox.commercial, records: inbox.records });
-  await page.screenshot({ path: path.join(evidenceDir, "inbox-buckets.png"), fullPage: true });
+  await captureEvidenceScreenshot(page, path.join(evidenceDir, "inbox-buckets.png"), { fullPage: true });
 
   await page.click('[data-testid="inbox-history"] > summary');
   await page.waitForFunction(() => document.querySelector('[data-testid="inbox-history"]')?.open === true);
-  const paidHistory = await page.evaluate(() => {
+  const paidHistory = await maskedEvaluate(page, () => {
     const history = document.querySelector('[data-testid="inbox-history"]');
     const paid = history?.querySelector('[data-payapp-id]');
     return {
@@ -333,13 +357,13 @@ try {
   });
   check("paid history entry remains reachable", paidHistory.records > 0 && paidHistory.status === "Paid", JSON.stringify(paidHistory));
   check("paid history entry has no approval or primary action", paidHistory.approveActions.length === 0 && paidHistory.primaryActions === 0, JSON.stringify(paidHistory));
-  await page.screenshot({ path: path.join(evidenceDir, "inbox-paid-history.png"), fullPage: true });
+  await captureEvidenceScreenshot(page, path.join(evidenceDir, "inbox-paid-history.png"), { fullPage: true });
   await page.click('[data-testid="inbox-history"] > summary');
   await page.waitForFunction(() => document.querySelector('[data-testid="inbox-history"]')?.open === false);
 
   await page.click('[data-testid="inbox-commercial"] > summary');
   await page.waitForFunction(() => document.querySelector('[data-testid="inbox-commercial"]')?.open === true);
-  const expanded = await page.evaluate(() => {
+  const expanded = await maskedEvaluate(page, () => {
     const commercial = document.querySelector('[data-testid="inbox-commercial"]');
     const visible = (el) => !el.closest("details:not([open])") && (typeof el.checkVisibility === "function" ? el.checkVisibility({ checkVisibilityCSS: true }) : el.getClientRects().length > 0);
     return {
@@ -352,7 +376,7 @@ try {
   check("expanding the commercial disclosure reveals every counted record", expanded.records === inbox.commercial?.records && expanded.visibleRecords === expanded.records, JSON.stringify(expanded));
   check("the expanded commercial disclosure still has one primary", expanded.primaryCount === 1, String(expanded.primaryCount));
   report.measurements.push({ screen: "inbox-commercial-open", width: 1440, height: 900, ...expanded });
-  await page.screenshot({ path: path.join(evidenceDir, "inbox-commercial-open.png"), fullPage: true });
+  await captureEvidenceScreenshot(page, path.join(evidenceDir, "inbox-commercial-open.png"), { fullPage: true });
   await page.click('[data-testid="inbox-commercial"] > summary');
   await page.waitForFunction(() => document.querySelector('[data-testid="inbox-commercial"]')?.open === false);
 
@@ -363,7 +387,7 @@ try {
     const commercial = document.querySelector('[data-testid="inbox-commercial"]');
     return commercial?.getAttribute("data-record-count") === "2" && commercial.querySelectorAll('[data-testid="inbox-entry"]').length === 2;
   });
-  const filtered = await page.evaluate(() => {
+  const filtered = await maskedEvaluate(page, () => {
     const visible = (el) => !el.closest("details:not([open])") && (typeof el.checkVisibility === "function" ? el.checkVisibility({ checkVisibilityCSS: true }) : el.getClientRects().length > 0);
     const commercial = document.querySelector('[data-testid="inbox-commercial"]');
     const primaries = [...document.querySelectorAll("a, button")].filter((el) => visible(el) && /\bbg-accent\b/.test(el.className) && /\btext-accent-fg\b/.test(el.className)).map((el) => ({
@@ -387,10 +411,10 @@ try {
   check("paid commercial primary is a receipt outside the disclosure", filtered.primaries[0]?.testId === "inbox-commercial-decision-action" && filtered.primaries[0]?.text === "View paid receipt" && filtered.primaries[0]?.href?.startsWith("#/pay-apps/") && filtered.primaries[0]?.insideDetails === false, JSON.stringify(filtered.primaries));
   check("paid commercial primary meets the 44px floor", (filtered.primaries[0]?.height ?? 0) >= 44, JSON.stringify(filtered.primaries));
   report.measurements.push({ screen: "inbox-paid-commercial-filter", width: 1440, height: 900, ...filtered });
-  await page.screenshot({ path: path.join(evidenceDir, "inbox-paid-commercial-filter-collapsed.png"), fullPage: true });
+  await captureEvidenceScreenshot(page, path.join(evidenceDir, "inbox-paid-commercial-filter-collapsed.png"), { fullPage: true });
   await page.click('[data-testid="inbox-commercial"] > summary');
   await page.waitForFunction(() => document.querySelector('[data-testid="inbox-commercial"]')?.open === true);
-  const filteredOpen = await page.evaluate(() => {
+  const filteredOpen = await maskedEvaluate(page, () => {
     const visible = (el) => !el.closest("details:not([open])") && el.getClientRects().length > 0;
     return {
       visible: [...document.querySelectorAll('[data-testid="inbox-entry"]')].filter(visible).length,
@@ -399,14 +423,14 @@ try {
     };
   });
   check("expanding the paid commercial filter reveals both records without adding a primary", filteredOpen.visible === 2 && filteredOpen.text.includes("Rosendin Electric") && filteredOpen.primaryCount === 1, JSON.stringify(filteredOpen));
-  await page.screenshot({ path: path.join(evidenceDir, "inbox-paid-commercial-filter-open.png"), fullPage: true });
+  await captureEvidenceScreenshot(page, path.join(evidenceDir, "inbox-paid-commercial-filter-open.png"), { fullPage: true });
   await page.click('[data-testid="inbox-commercial"] > summary');
   await page.waitForFunction(() => document.querySelector('[data-testid="inbox-commercial"]')?.open === false);
   await page.evaluate(() => [...document.querySelectorAll("button")].find((button) => button.textContent.trim() === "Clear" && button.getClientRects().length > 0)?.click());
   await page.waitForFunction(() => document.querySelector('[data-testid="inbox-commercial"]')?.open === false && document.querySelector('[data-testid="inbox-residential-decision-action"]')?.textContent.trim() === "View paid receipt");
 
   phase = "commercial-only pending filter";
-  const pendingCommercialId = await page.evaluate(() => {
+  const pendingCommercialId = await maskedEvaluate(page, () => {
     const commercial = document.querySelector('[data-testid="inbox-commercial"]');
     const entry = [...(commercial?.querySelectorAll('[data-testid="inbox-entry"]') ?? [])].find((el) =>
       el.getAttribute("data-project-kind") === "commercial" &&
@@ -422,7 +446,7 @@ try {
     const commercial = document.querySelector('[data-testid="inbox-commercial"]');
     return commercial?.getAttribute("data-record-count") === "1" && commercial.querySelector(`[data-payapp-id="${payAppId}"]`) !== null;
   }, {}, pendingCommercialId);
-  const commercialOnly = await page.evaluate(() => {
+  const commercialOnly = await maskedEvaluate(page, () => {
     const visible = (el) => !el.closest("details:not([open])") && (typeof el.checkVisibility === "function" ? el.checkVisibility({ checkVisibilityCSS: true }) : el.getClientRects().length > 0);
     const commercial = document.querySelector('[data-testid="inbox-commercial"]');
     const primaries = [...document.querySelectorAll("a, button")].filter((el) => visible(el) && /\bbg-accent\b/.test(el.className) && /\btext-accent-fg\b/.test(el.className)).map((el) => ({
@@ -444,10 +468,10 @@ try {
   check("commercial-only primary opens the decision outside the disclosure", commercialOnly.primaries[0]?.testId === "inbox-commercial-decision-action" && commercialOnly.primaries[0]?.text === "Review next commercial pay app" && commercialOnly.primaries[0]?.href === `#/pay-apps/${pendingCommercialId}` && commercialOnly.primaries[0]?.insideDetails === false, JSON.stringify(commercialOnly.primaries));
   check("commercial-only primary meets the 44px floor", (commercialOnly.primaries[0]?.height ?? 0) >= 44, JSON.stringify(commercialOnly.primaries));
   report.measurements.push({ screen: "inbox-commercial-only-pending", width: 1440, height: 900, ...commercialOnly });
-  await page.screenshot({ path: path.join(evidenceDir, "inbox-commercial-only-pending-collapsed.png"), fullPage: true });
+  await captureEvidenceScreenshot(page, path.join(evidenceDir, "inbox-commercial-only-pending-collapsed.png"), { fullPage: true });
   await page.click('[data-testid="inbox-commercial"] > summary');
   await page.waitForFunction(() => document.querySelector('[data-testid="inbox-commercial"]')?.open === true);
-  const commercialOnlyOpen = await page.evaluate(() => {
+  const commercialOnlyOpen = await maskedEvaluate(page, () => {
     const visible = (el) => !el.closest("details:not([open])") && el.getClientRects().length > 0;
     return {
       visibleRecords: [...document.querySelectorAll('[data-testid="inbox-entry"]')].filter(visible).length,
@@ -463,7 +487,7 @@ try {
   phase = "phone navigation";
   await page.setViewport({ width: 390, height: 844 });
   await delay(300);
-  const phone = await page.evaluate(() => ({
+  const phone = await maskedEvaluate(page, () => ({
     overflow: document.documentElement.scrollWidth - window.innerWidth,
     pageHeight: document.documentElement.scrollHeight,
     commercialOpen: document.querySelector('[data-testid="inbox-commercial"]')?.open === true,
@@ -476,20 +500,20 @@ try {
   check("phone menu control is visible", phone.menuVisible);
   await page.evaluate(() => [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Menu")?.click());
   await page.waitForFunction(() => document.querySelector("#workspace-navigation")?.getClientRects().length > 0);
-  const phoneNav = await page.evaluate(() => [...document.querySelectorAll("#workspace-navigation > ul > li > a")].filter((a) => a.getClientRects().length > 0).map((a) => a.textContent.trim()));
+  const phoneNav = await maskedEvaluate(page, () => [...document.querySelectorAll("#workspace-navigation > ul > li > a")].filter((a) => a.getClientRects().length > 0).map((a) => a.textContent.trim()));
   check("phone menu exposes the same capped primary bar", phoneNav.length === 6 && phoneNav.some((text) => text.startsWith("Approvals")), JSON.stringify(phoneNav));
-  await page.screenshot({ path: path.join(evidenceDir, "phone-nav.png"), fullPage: false });
+  await captureEvidenceScreenshot(page, path.join(evidenceDir, "phone-nav.png"), { fullPage: false });
 
   await page.goto(`${site}/#/procurement`, { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => [...document.querySelectorAll("h1")].some((h) => h.textContent.trim() === "Procurement"), { timeout: 60_000 });
-  const phoneProcurement = await page.evaluate(() => ({
+  const phoneProcurement = await maskedEvaluate(page, () => ({
     heading: [...document.querySelectorAll("h1")].some((h) => h.textContent.trim() === "Procurement"),
     notFound: document.body.innerText.includes("Not found"),
     overflow: document.documentElement.scrollWidth - window.innerWidth,
   }));
   check("phone keeps the direct Procurement fallback", phoneProcurement.heading && !phoneProcurement.notFound, JSON.stringify(phoneProcurement));
   report.measurements.push({ screen: "procurement-direct", width: 390, height: 844, overflow: phoneProcurement.overflow });
-  await page.screenshot({ path: path.join(evidenceDir, "phone-procurement-direct.png"), fullPage: false });
+  await captureEvidenceScreenshot(page, path.join(evidenceDir, "phone-procurement-direct.png"), { fullPage: false });
 
   await page.goto(`${site}/#/inbox`, { waitUntil: "domcontentloaded" });
   await page.waitForSelector('[data-testid="inbox-counts"]');
@@ -497,9 +521,9 @@ try {
   await page.waitForFunction(() => document.querySelector("#workspace-navigation")?.getClientRects().length > 0);
   await page.evaluate(() => document.querySelector("#workspace-navigation details > summary")?.click());
   await page.waitForFunction(() => document.querySelector("#workspace-navigation details")?.open === true);
-  const phoneMoreHrefs = await page.evaluate(() => [...document.querySelectorAll("#workspace-navigation details a")].map((a) => a.getAttribute("href")));
+  const phoneMoreHrefs = await maskedEvaluate(page, () => [...document.querySelectorAll("#workspace-navigation details a")].map((a) => a.getAttribute("href")));
   check("phone More also omits Procurement", phoneMoreHrefs.length === 6 && !phoneMoreHrefs.includes("#/procurement"), JSON.stringify(phoneMoreHrefs));
-  await page.screenshot({ path: path.join(evidenceDir, "phone-nav-more.png"), fullPage: false });
+  await captureEvidenceScreenshot(page, path.join(evidenceDir, "phone-nav-more.png"), { fullPage: false });
 
   await page.goto(`${site}/#/all-projects/${projectId}`, { waitUntil: "domcontentloaded" });
   await page.waitForFunction(
@@ -509,31 +533,33 @@ try {
     { timeout: 30_000 },
     `#/all-projects/${projectId}`,
   );
-  const phoneEditable = await page.evaluate(() => [...document.querySelectorAll("button")].some((el) => el.textContent.trim() === "Open in Procurement"));
+  const phoneEditable = await maskedEvaluate(page, () => [...document.querySelectorAll("button")].some((el) => el.textContent.trim() === "Open in Procurement"));
   check("phone keeps the editable project Procurement entry", phoneEditable);
   await page.evaluate(() => [...document.querySelectorAll("button")].find((el) => el.textContent.trim() === "Open in Procurement")?.click());
   await page.waitForFunction(() => [...document.querySelectorAll("h1")].some((h) => h.textContent.trim() === "Procurement"), { timeout: 60_000 });
-  const phoneEditableRoute = await page.evaluate(() => ({ hash: location.hash, search: location.search, notFound: document.body.innerText.includes("Not found") }));
+  const phoneEditableRoute = await maskedEvaluate(page, () => ({ hash: location.hash, search: location.search, notFound: document.body.innerText.includes("Not found") }));
   const phoneEditableQuery = new URLSearchParams(phoneEditableRoute.search);
   check(
     "phone keeps the editable project query-scoped Procurement route",
     phoneEditableRoute.hash === "#/procurement" && phoneEditableQuery.get("project") === projectId && phoneEditableQuery.get("tab") === "packages" && !phoneEditableRoute.notFound,
     JSON.stringify({ projectId, ...phoneEditableRoute }),
   );
-  await page.screenshot({ path: path.join(evidenceDir, "phone-procurement-editable.png"), fullPage: false });
+  await captureEvidenceScreenshot(page, path.join(evidenceDir, "phone-procurement-editable.png"), { fullPage: false });
 
   report.ok = true;
 } catch (error) {
-  report.errors = [{ phase, message: error instanceof Error ? error.message : String(error) }];
+  const message = error instanceof Error ? error.message : String(error);
+  report.errors = [{ phase, message: maskEmailText(message) }];
   report.ok = false;
-  report.snapshot = await page.evaluate(() => document.body.innerText.slice(0, 12000)).catch(() => "");
-  await page.screenshot({ path: path.join(evidenceDir, "failure.png"), fullPage: true }).catch(() => {});
+  report.snapshot = await maskedEvaluate(page, () => document.body.innerText.slice(0, 12000)).catch(() => "");
+  // Even a broken screen is captured only through the fail-closed wrapper.
+  await captureEvidenceScreenshot(page, path.join(evidenceDir, "failure.png"), { fullPage: true }).catch(() => {});
   process.exitCode = 1;
 } finally {
   report.checks.push({ name: "no unexpected page errors", ok: report.pageErrors.length === 0, detail: JSON.stringify(report.pageErrors) });
   report.checks.push({ name: "no unexpected console errors", ok: report.consoleErrors.length === 0, detail: JSON.stringify(report.consoleErrors) });
   if (!report.ok || report.pageErrors.length > 0 || report.consoleErrors.length > 0) report.ok = false;
-  fs.writeFileSync(path.join(evidenceDir, "report.json"), JSON.stringify(report, null, 2));
-  console.log(JSON.stringify({ evidenceDir, ...report }, null, 2));
+  writeEvidenceJson(path.join(evidenceDir, "report.json"), report);
+  printEvidence({ evidenceDir, ...report });
   await browser.close();
 }
