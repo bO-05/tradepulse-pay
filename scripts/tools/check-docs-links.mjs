@@ -8,17 +8,33 @@ import path from "node:path";
  * data:, #fragment and mailto: links are ignored.
  *
  * Usage: node scripts/tools/check-docs-links.mjs [root...]   (default: docs)
+ *
+ * SKIPPED_DIRS below is an exact-path list, not a prefix or name match: every
+ * other docs file, evidence file and untracked file is still checked.
  */
 
 const roots = process.argv.slice(2).length ? process.argv.slice(2) : ["docs"];
 const problems = [];
 let checked = 0;
 
+/**
+ * Directories whose links are not deliverables, matched by their exact resolved path. Only the
+ * listed directories are skipped: other evidence, untracked files and similarly named siblings
+ * stay in scope, so a new broken link cannot hide behind a prefix match.
+ */
+const SKIPPED_DIRS = new Set([
+  // Private reviewer material is local evidence, not a judge-facing deliverable.
+  path.resolve("docs/external-audit"),
+  // Verbatim public-source snapshot kept byte-identical as historical evidence. Its README was
+  // written to resolve from the repository root, so its relative links cannot resolve from where
+  // the snapshot is preserved.
+  path.resolve("docs/evidence/release-2-2026-11-10/github-readme"),
+]);
+
 function walk(dir, out = []) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
-    // Private reviewer material is local evidence, not a judge-facing deliverable.
-    if (entry.isDirectory() && path.resolve(full) === path.resolve("docs/external-audit")) continue;
+    if (entry.isDirectory() && SKIPPED_DIRS.has(path.resolve(full))) continue;
     if (entry.isDirectory()) walk(full, out);
     else if (/\.(html?|md)$/i.test(entry.name)) out.push(full);
   }
