@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { demoAgreementNumber, demoDisplayName, demoIdentityName, demoPeriodLabel, demoProjectDescription, demoProjectName } from "./demoCopy";
+import { demoAgreementNumber, demoChangeOrderTitle, demoDisplayName, demoIdentityName, demoPeriodLabel, demoProjectDescription, demoProjectName } from "./demoCopy";
 
 describe("seeded demo names read as real", () => {
   test("drops a demo or seed parenthetical and the old brand suffix", () => {
@@ -58,5 +58,12 @@ describe("seeded demo project and period labels", () => {
     expect(demoPeriodLabel("Judge demo · Period 1 (honest)")).toBe("Period 1");
     expect(demoPeriodLabel("Judge demo · Period 2 (billing agent)")).toBe("Period 2 · billing agent");
     expect(demoPeriodLabel("Pay app #1 – period ending Nov 25, 2026")).toBe("Pay app #1 – period ending Nov 25, 2026");
+  });
+
+  test("a legacy change-order title loses only its leading run prefix", () => {
+    expect(demoChangeOrderTitle("  Judge demo:   Add two EV charger circuits  ")).toBe("Add two EV charger circuits");
+    expect(demoChangeOrderTitle("judge demo: Add under-cabinet lighting")).toBe("Add under-cabinet lighting");
+    expect(demoChangeOrderTitle("Add under-cabinet lighting")).toBe("Add under-cabinet lighting");
+    expect(demoChangeOrderTitle("Notes about Judge demo: keep this wording")).toBe("Notes about Judge demo: keep this wording");
   });
 });

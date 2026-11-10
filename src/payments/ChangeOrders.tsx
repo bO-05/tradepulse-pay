@@ -7,6 +7,7 @@ import type { ChangeOrderRowView } from "../../convex/billing/changeOrderView";
 import type { ContractSumBreakdown } from "../../convex/payments/changeOrderMath";
 import { changeOrderFieldErrors, type ChangeOrderFieldErrors } from "../../convex/payments/changeOrderMath";
 import { getErrorMessage } from "../lib/errors";
+import { demoChangeOrderTitle, demoProjectName } from "../lib/demoCopy";
 import { maskSandboxEmail } from "../lib/demoPrivacy";
 import { termsForKind, type ProjectKind, type Terms } from "../lib/terms";
 import { Button, ConfirmDialog, Dialog, EmptyState, MoneyInput, PageHeader, StatusPill, Tabs, TextInput, formatCents, formatDate, statusLabel, useToast } from "../ui";
@@ -217,7 +218,7 @@ function ApproveDialog({
       title={`Approve ${co.label}?`}
       amountCents={co.amountCents}
       effect={<span data-testid="change-order-approve-effect">{effect}</span>}
-      details={[{ label: "Change order", value: `${co.label} – ${co.title}` }]}
+      details={[{ label: "Change order", value: `${co.label} – ${demoChangeOrderTitle(co.title)}` }]}
       confirmLabel="Approve"
       onCancel={onClose}
       onConfirm={async () => {
@@ -355,7 +356,7 @@ function ChangeOrderRow({
               {co.label}
             </a>
             {(showAgreement || co.scope === "prime") && co.agreementNumber ? <span className="text-ink-subtle"> · {co.agreementNumber}</span> : null} ·{" "}
-            <span data-testid="change-order-title-text">{co.title}</span>
+            <span data-testid="change-order-title-text">{demoChangeOrderTitle(co.title)}</span>
           </p>
           {co.description ? <p className="text-xs text-ink-subtle">{co.description}</p> : null}
           <p className="text-xs text-ink-subtle">
@@ -612,7 +613,7 @@ function PrimeSection({ data, terms }: { data: ProjectList; terms: Terms }) {
   const prime = data.prime!;
   const residential = terms.kind === "residential";
   const linkOptions = data.agreements.flatMap((a) =>
-    a.changeOrders.filter((c) => c.status !== "draft").map((c) => ({ id: c._id as string, label: `${c.label} – ${c.title} (${a.subcontractorName})` })),
+    a.changeOrders.filter((c) => c.status !== "draft").map((c) => ({ id: c._id as string, label: `${c.label} – ${demoChangeOrderTitle(c.title)} (${a.subcontractorName})` })),
   );
   return (
     <section
@@ -734,7 +735,7 @@ export function ChangeOrdersPage() {
                 <select {...control} value={selected ?? ""} onChange={(e) => setProjectId(e.target.value)} className={inputClass(false)} data-testid="change-orders-project">
                   {projects.map((p) => (
                     <option key={p._id} value={p._id}>
-                      {p.title}
+                      {demoProjectName(p.title)}
                       {p.hasPrimeChangeOrders ? "" : ` · no ${termsForKind(p.projectKind).kind === "residential" ? "change orders" : "prime change orders"} yet`}
                     </option>
                   ))}
@@ -742,7 +743,7 @@ export function ChangeOrdersPage() {
               )}
             </Field>
           ) : (
-            <p className="text-sm font-medium">{projects[0].title}</p>
+            <p className="text-sm font-medium">{demoProjectName(projects[0].title)}</p>
           )}
           {selected ? <ProjectChangeOrders key={selected} projectId={selected} /> : null}
         </>

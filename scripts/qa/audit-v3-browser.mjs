@@ -113,6 +113,7 @@ try {
   check("G702 explains the retainage snapshot", (await gc.page.$('[data-testid="g702-retainage-note"]')) !== null);
   check("G702 links the release record to the ledger", payApp.includes("a later release does not rewrite this historical G702"));
   check("pay app dates use labeled UTC", /\d{1,2}:\d{2} [AP]M UTC/.test(payApp));
+  check("pay app dates never duplicate the timezone", !/\bUTC\s+UTC\b/.test(payApp));
   await screenshot(gc.page, "pay-app-money-trail-1440.png");
   await gc.page.setViewport({ width: 360, height: 900 });
   await gc.page.waitForFunction(() => document.fonts.status === "loaded");

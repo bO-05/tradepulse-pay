@@ -86,6 +86,13 @@ describe("change-order invoice screen", () => {
     expect(rendered).toContain("Contract change order");
   });
 
+  test("a stored legacy run prefix is removed from the rendered title only", () => {
+    vi.mocked(useQuery).mockReturnValue({ ...changeOrder(), title: "Judge demo: Add under-cabinet lighting" } as never);
+    const rendered = text(renderToStaticMarkup(<ChangeOrderDetail changeOrderId="co_lopez" />));
+    expect(rendered).toContain("PCO #1 · Add under-cabinet lighting");
+    expect(rendered).not.toContain("Judge demo");
+  });
+
   test("the paid change order's PayPal receipt link is the primary button and the only primary action", () => {
     const html = renderToStaticMarkup(<ChangeOrderDetail changeOrderId="co_lopez" />);
     expect(html).toContain('data-testid="change-order-invoice-link"');

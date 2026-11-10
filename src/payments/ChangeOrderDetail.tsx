@@ -1,5 +1,6 @@
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import { demoChangeOrderTitle } from "../lib/demoCopy";
 import { maskSandboxEmail } from "../lib/demoPrivacy";
 import { termsForKind } from "../lib/terms";
 import { Card, CommercialReferenceBadge, LinkButton, Money, PageHeader, StatusPill } from "../ui";
@@ -51,7 +52,7 @@ export function ChangeOrderDetail({ changeOrderId }: { changeOrderId: string }) 
     <div className="mx-auto max-w-3xl space-y-5">
       <PageHeader
         back={{ href: "#/change-orders", label: "Back to change orders" }}
-        title={`${co.label} · ${co.title}`}
+        title={`${co.label} · ${demoChangeOrderTitle(co.title)}`}
         description={
           <>
             {scopeLabel} change order · {agreement}

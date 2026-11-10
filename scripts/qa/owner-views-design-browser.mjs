@@ -40,9 +40,7 @@ async function maskSandboxEmails(page) {
     while (walk.nextNode()) {
       const parent = walk.currentNode.parentElement;
       if (!parent || ["SCRIPT", "STYLE"].includes(parent.tagName)) continue;
-      walk.currentNode.textContent = walk.currentNode.textContent.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, (email) =>
-        /@demo\.tradepulse$/i.test(email) ? email : "[sandbox email]",
-      );
+      walk.currentNode.textContent = walk.currentNode.textContent.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[masked email]");
     }
   });
 }
@@ -102,6 +100,26 @@ async function measure(page) {
     const statusWords = [...document.querySelectorAll("[data-status]")]
       .filter(visible)
       .map((el) => ({ code: el.getAttribute("data-status"), label: (el.textContent ?? "").trim() }));
+    const fundedAmountCells = [...document.querySelectorAll('[data-testid="owner-tranche-row"]')].map((row) => {
+      const cell = row.cells[2];
+      if (!cell) return null;
+      const cellRect = cell.getBoundingClientRect();
+      const range = document.createRange();
+      range.selectNodeContents(cell);
+      const textRect = range.getBoundingClientRect();
+      const scrollerRect = cell.closest(".table-scroll")?.getBoundingClientRect() ?? null;
+      return {
+        text: (cell.textContent ?? "").trim(),
+        scrollWidth: cell.scrollWidth,
+        clientWidth: cell.clientWidth,
+        cellLeft: cellRect.left,
+        cellRight: cellRect.right,
+        textLeft: textRect.left,
+        textRight: textRect.right,
+        scrollerRight: scrollerRect?.right ?? null,
+        viewportWidth: innerWidth,
+      };
+    }).filter(Boolean);
     return {
       viewport: { width: innerWidth, height: innerHeight },
       scrollWidth: document.documentElement.scrollWidth,
@@ -112,6 +130,7 @@ async function measure(page) {
       controls,
       under24: controls.filter((c) => c.height < 24),
       statusWords,
+      fundedAmountCells,
       trail: box('[data-testid="owner-money-trail"]'),
       drawTrail: box('[data-testid="owner-draw-money-trail"]'),
       summary: box('[data-testid="owner-g702"]'),
@@ -190,6 +209,18 @@ for (const [width, height] of [[1440, 900], [390, 844]]) {
   check(`${tag} the paid figure is the hero money figure at text-3xl`, home.moneyFigures[0]?.testid === "owner-job-paid" && (home.moneyFigures[0]?.fontSize ?? 0) >= 24, JSON.stringify(home.moneyFigures.slice(0, 3)));
   check(`${tag} the job status line is not empty`, (homeStructure.jobStatus ?? "").trim().length > 0, String(homeStructure.jobStatus));
   check(`${tag} owner home has no horizontal page overflow`, home.scrollWidth <= home.clientWidth, `${home.scrollWidth} vs ${home.clientWidth}`);
+  check(
+    `${tag} every funded-milestone Amount cell is fully inside its visible cell and the viewport`,
+    home.fundedAmountCells.length > 0 && home.fundedAmountCells.every((cell) =>
+      cell.scrollWidth <= cell.clientWidth &&
+      cell.textLeft >= cell.cellLeft - 1 &&
+      cell.textRight <= cell.cellRight + 1 &&
+      cell.textRight <= cell.viewportWidth + 1 &&
+      cell.cellRight <= cell.viewportWidth + 1 &&
+      (cell.scrollerRight === null || cell.cellRight <= cell.scrollerRight + 1)
+    ),
+    JSON.stringify(home.fundedAmountCells),
+  );
   check(`${tag} owner home has no visible control under 24px`, home.under24.length === 0, JSON.stringify(home.under24));
   await maskSandboxEmails(page);
   await page.screenshot({ path: path.join(outDir, `owner-home-${width}.png`), fullPage: true });

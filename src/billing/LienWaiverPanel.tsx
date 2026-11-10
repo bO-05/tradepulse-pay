@@ -17,14 +17,14 @@ type Kind = "conditional" | "unconditional" | "retainage";
 type WaiverState = NonNullable<FunctionReturnType<typeof api.lienWaivers.payAppState>>;
 type Slot = NonNullable<WaiverState["current"]>;
 
-function SignedLine({ slot }: { slot: Slot }) {
+export function SignedLine({ slot }: { slot: Slot }) {
   if (slot.signed === null) return null;
   const stale = slot.signed.amountCents !== slot.amountCents;
   return (
     <>
       <p className={`text-xs ${stale ? "text-amber-200" : "text-emerald-300"}`} data-testid={`lien-waiver-signed-${slot.signed.waiverId}`}>
         Signed by {slot.signed.signedByName}
-        {slot.signed.signerTitle ? `, ${slot.signed.signerTitle}` : ""} · {formatDateTime(slot.signed.signedAt)} UTC
+        {slot.signed.signerTitle ? `, ${slot.signed.signerTitle}` : ""} · {formatDateTime(slot.signed.signedAt)}
         {slot.signed.note ? ` · ${slot.signed.note}` : ""}
       </p>
       {stale ? (

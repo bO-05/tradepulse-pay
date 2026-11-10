@@ -102,6 +102,24 @@ function redact(value) {
   return value;
 }
 
+/** Screenshots are evidence, so even the published demo-seat addresses are masked. */
+async function maskEmailsForEvidence(page) {
+  await page.evaluate(() => {
+    const email = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+    const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    while (walk.nextNode()) {
+      const parent = walk.currentNode.parentElement;
+      if (!parent || ["SCRIPT", "STYLE"].includes(parent.tagName)) continue;
+      walk.currentNode.textContent = walk.currentNode.textContent.replace(email, "[masked email]");
+    }
+    for (const control of document.querySelectorAll("input, textarea")) {
+      control.value = control.value.replace(email, "[masked email]");
+      const placeholder = control.getAttribute("placeholder");
+      if (placeholder) control.setAttribute("placeholder", placeholder.replace(email, "[masked email]"));
+    }
+  });
+}
+
 function browserPath() {
   const candidates = [
     process.env.QA_CHROME_PATH,
@@ -386,6 +404,7 @@ async function auditState(page, screen, viewport, state) {
   const appHits = leakText(extracted.appText, screen.route);
   const recordedHits = leakText(extracted.recordedText, screen.route);
   const shot = path.join(OUT_DIR, `${screen.slug}-${viewport.width}-${state}.png`);
+  await maskEmailsForEvidence(page);
   await page.screenshot({ path: shot, fullPage: true });
   const prefix = `${screen.name} @${viewport.width} ${state}`;
 

@@ -1,0 +1,392 @@
+{
+  "checks": [
+    {
+      "name": "[1440] owner home has no Judge demo text",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] owner home has no duplicated UTC",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] Lopez change-order route is available",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] owner Reports has no Judge demo text",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] owner Reports has no duplicated UTC",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] owner change orders have no Judge demo text",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] owner change-order detail has no Judge demo text",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] owner change-order detail has no duplicated UTC",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] owner draw has no Judge demo text",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] owner draw has no duplicated UTC",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] billing settings uses the masked display",
+      "ok": true,
+      "detail": "{\"strong\":\"sb-****@business.example.com\",\"rawEmailCount\":0,\"inputPresent\":false}"
+    },
+    {
+      "name": "[1440] owner surfaces have zero console or page errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] owner surfaces have zero unexpected failed requests",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] sub pay app has no duplicated UTC",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] waiver timestamp contains one UTC",
+      "ok": true,
+      "detail": "Signed by Marisol Ortiz, Project Manager · Nov 8, 2026, 4:09 PM UTC"
+    },
+    {
+      "name": "[1440] payout settings uses the masked display",
+      "ok": true,
+      "detail": "{\"strong\":\"sb-****@personal.example.com\",\"rawEmailCount\":0,\"inputPresent\":false}"
+    },
+    {
+      "name": "[1440] payout Edit reveals the real value only in the editing form",
+      "ok": true,
+      "detail": "{\"realValueAvailableForValidation\":true,\"type\":\"email\"}"
+    },
+    {
+      "name": "[1440] payout Edit can be cancelled without saving",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] payout masked display returns after Cancel",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] sub surfaces have zero console or page errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] sub surfaces have zero unexpected failed requests",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] owner home has no Judge demo text",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] owner home has no duplicated UTC",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] Lopez change-order route is available",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] owner Reports has no Judge demo text",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] owner Reports has no duplicated UTC",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] owner change orders have no Judge demo text",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] owner change-order detail has no Judge demo text",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] owner change-order detail has no duplicated UTC",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] owner draw has no Judge demo text",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] owner draw has no duplicated UTC",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] billing settings uses the masked display",
+      "ok": true,
+      "detail": "{\"strong\":\"sb-****@business.example.com\",\"rawEmailCount\":0,\"inputPresent\":false}"
+    },
+    {
+      "name": "[390] owner surfaces have zero console or page errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] owner surfaces have zero unexpected failed requests",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] sub pay app has no duplicated UTC",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] waiver timestamp contains one UTC",
+      "ok": true,
+      "detail": "Signed by Marisol Ortiz, Project Manager · Nov 8, 2026, 4:09 PM UTC"
+    },
+    {
+      "name": "[390] payout settings uses the masked display",
+      "ok": true,
+      "detail": "{\"strong\":\"sb-****@personal.example.com\",\"rawEmailCount\":0,\"inputPresent\":false}"
+    },
+    {
+      "name": "[390] payout Edit reveals the real value only in the editing form",
+      "ok": true,
+      "detail": "{\"realValueAvailableForValidation\":true,\"type\":\"email\"}"
+    },
+    {
+      "name": "[390] payout Edit can be cancelled without saving",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] payout masked display returns after Cancel",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] sub surfaces have zero console or page errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] sub surfaces have zero unexpected failed requests",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "scans": [
+    {
+      "root": "#/projects (1440)",
+      "expression": "Judge demo",
+      "hits": 0
+    },
+    {
+      "root": "#/projects (1440)",
+      "expression": "UTC\\s+UTC",
+      "hits": 0
+    },
+    {
+      "root": "#/dashboard (1440)",
+      "expression": "Judge demo",
+      "hits": 0
+    },
+    {
+      "root": "#/dashboard (1440)",
+      "expression": "UTC\\s+UTC",
+      "hits": 0
+    },
+    {
+      "root": "#/change-orders (1440)",
+      "expression": "Judge demo",
+      "hits": 0
+    },
+    {
+      "root": "#/change-orders/kx76mes3b4e7dt47qbv92tbav58httg0 (1440)",
+      "expression": "Judge demo",
+      "hits": 0
+    },
+    {
+      "root": "#/change-orders/kx76mes3b4e7dt47qbv92tbav58httg0 (1440)",
+      "expression": "UTC\\s+UTC",
+      "hits": 0
+    },
+    {
+      "root": "#/owner-pay-apps (1440)",
+      "expression": "Judge demo",
+      "hits": 0
+    },
+    {
+      "root": "#/owner-pay-apps (1440)",
+      "expression": "UTC\\s+UTC",
+      "hits": 0
+    },
+    {
+      "root": "settled sub pay app (1440)",
+      "expression": "UTC\\s+UTC",
+      "hits": 0
+    },
+    {
+      "root": "#/projects (390)",
+      "expression": "Judge demo",
+      "hits": 0
+    },
+    {
+      "root": "#/projects (390)",
+      "expression": "UTC\\s+UTC",
+      "hits": 0
+    },
+    {
+      "root": "#/dashboard (390)",
+      "expression": "Judge demo",
+      "hits": 0
+    },
+    {
+      "root": "#/dashboard (390)",
+      "expression": "UTC\\s+UTC",
+      "hits": 0
+    },
+    {
+      "root": "#/change-orders (390)",
+      "expression": "Judge demo",
+      "hits": 0
+    },
+    {
+      "root": "#/change-orders/kx76mes3b4e7dt47qbv92tbav58httg0 (390)",
+      "expression": "Judge demo",
+      "hits": 0
+    },
+    {
+      "root": "#/change-orders/kx76mes3b4e7dt47qbv92tbav58httg0 (390)",
+      "expression": "UTC\\s+UTC",
+      "hits": 0
+    },
+    {
+      "root": "#/owner-pay-apps (390)",
+      "expression": "Judge demo",
+      "hits": 0
+    },
+    {
+      "root": "#/owner-pay-apps (390)",
+      "expression": "UTC\\s+UTC",
+      "hits": 0
+    },
+    {
+      "root": "settled sub pay app (390)",
+      "expression": "UTC\\s+UTC",
+      "hits": 0
+    }
+  ],
+  "measurements": [
+    {
+      "screen": "billing-company-settings-editing",
+      "width": 1440,
+      "canEdit": false
+    },
+    {
+      "screen": "billing-company-settings",
+      "width": 1440,
+      "maskedDisplay": "sb-****@business.example.com",
+      "rawEmailCount": 0
+    },
+    {
+      "screen": "payout-company-settings-editing",
+      "width": 1440,
+      "canEdit": true
+    },
+    {
+      "screen": "payout-company-settings",
+      "width": 1440,
+      "maskedDisplay": "sb-****@personal.example.com",
+      "rawEmailCount": 0
+    },
+    {
+      "screen": "billing-company-settings-editing",
+      "width": 390,
+      "canEdit": false
+    },
+    {
+      "screen": "billing-company-settings",
+      "width": 390,
+      "maskedDisplay": "sb-****@business.example.com",
+      "rawEmailCount": 0
+    },
+    {
+      "screen": "payout-company-settings-editing",
+      "width": 390,
+      "canEdit": true
+    },
+    {
+      "screen": "payout-company-settings",
+      "width": 390,
+      "maskedDisplay": "sb-****@personal.example.com",
+      "rawEmailCount": 0
+    }
+  ],
+  "diagnostics": [
+    {
+      "role": "owner",
+      "width": 1440,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": []
+    },
+    {
+      "role": "sub",
+      "width": 1440,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": []
+    },
+    {
+      "role": "owner",
+      "width": 390,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": []
+    },
+    {
+      "role": "sub",
+      "width": 390,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": []
+    }
+  ]
+}

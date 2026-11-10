@@ -377,7 +377,7 @@ function OwnerTrancheStatus({ projectId, terms }: { projectId: string; terms: Te
         <p className="text-sm text-slate-400">No {terms.fundedMilestones.toLowerCase()} yet.</p>
       ) : (
         <div
-          className="table-scroll"
+          className="table-scroll owner-tranche-scroll"
           role="region"
           aria-label={terms.kind === "residential" ? `${terms.fundedMilestone} status` : "Funding tranche status"}
           tabIndex={0}

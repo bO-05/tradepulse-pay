@@ -1,6 +1,7 @@
 import { Component, type ReactNode } from "react";
 import { ledgerHash } from "../auth/navigation";
 import { formatCents } from "../payments/format";
+import { demoChangeOrderTitle } from "../lib/demoCopy";
 import type { DashboardRaw } from "./dataSources";
 
 /** Ordinary React ledger links: no Studio widgets, AI claims, or license dependency. */
@@ -45,7 +46,7 @@ export function DashboardFallback({ raw, reason }: { raw: Pick<DashboardRaw, "ag
           <h2 className="font-semibold">Change order payment history</h2>
           {raw.changeOrders.map((co) => (
             <article key={co.changeOrderId} className="rounded-lg border border-slate-800 p-3 text-sm">
-              <a href={`#/change-orders/${encodeURIComponent(co.changeOrderId)}`} className="text-emerald-300 underline">PCO #{co.number} · {co.description}</a>
+              <a href={`#/change-orders/${encodeURIComponent(co.changeOrderId)}`} className="text-emerald-300 underline">PCO #{co.number} · {demoChangeOrderTitle(co.description)}</a>
               <p className="text-slate-300">{formatCents(co.amountCents)} · {co.status}</p>
             </article>
           ))}

@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import { COMPANY_KIND_LABEL } from "../../convex/lib/inviteRules";
 import { getErrorMessage } from "../lib/errors";
+import { maskSandboxEmail } from "../lib/demoPrivacy";
 import { InviteDialog } from "../people/InviteDialog";
 import { InviteList } from "../people/InviteList";
 import { formatRetainagePercent } from "../../convex/lib/retainageRules";
@@ -157,7 +158,7 @@ function ProfileCard({ data }: { data: Company }) {
   );
 }
 
-function useEmailSetting(save: (email: string) => Promise<unknown>, initial: string | null, successMessage: string) {
+function useEmailSetting(save: (email: string) => Promise<unknown>, initial: string | null, successMessage: string, onSaved: () => void) {
   const toast = useToast();
   const [email, setEmail] = useState(initial ?? "");
   const [error, setError] = useState<string | null>(null);
@@ -174,6 +175,7 @@ function useEmailSetting(save: (email: string) => Promise<unknown>, initial: str
     try {
       await save(email);
       toast.success(successMessage);
+      onSaved();
     } catch (err) {
       setError(getErrorMessage(err, "We couldn't save the email. Try again."));
     } finally {
@@ -183,12 +185,19 @@ function useEmailSetting(save: (email: string) => Promise<unknown>, initial: str
   return { email, setEmail: (next: string) => { setError(null); setEmail(next); }, error, saving, onSubmit };
 }
 
-function ReadOnlyEmail({ label, value }: { label: string; value: string | null }) {
+function ReadOnlyEmail({ label, value, testId, onEdit }: { label: string; value: string | null; testId: string; onEdit?: () => void }) {
   return (
-    <p className="text-sm">
-      {label}: <strong className="break-all">{value ?? "Not set"}</strong>
-      <span className="mt-1 block text-ink-subtle">Only company admins can change this.</span>
-    </p>
+    <div className="space-y-3 text-sm" data-testid={`${testId}-display`}>
+      <p>
+        {label}: <strong className="break-all">{maskSandboxEmail(value) ?? "Not set"}</strong>
+        {!onEdit ? <span className="mt-1 block text-ink-subtle">Only company admins can change this.</span> : null}
+      </p>
+      {onEdit ? (
+        <Button variant="secondary" size="sm" onClick={onEdit} data-testid={`${testId}-edit`}>
+          Change {label.toLowerCase()}
+        </Button>
+      ) : null}
+    </div>
   );
 }
 
@@ -197,7 +206,12 @@ function PayoutEmailCard({ data }: { data: Company }) {
   const setPayoutEmail = useMutation(api.payee.setPayoutEmail);
   const status = useQuery(api.payee.myPayoutStatus, {});
   const current = data.company.payoutPaypalEmail ?? null;
-  const form = useEmailSetting((email) => setPayoutEmail({ email }), current, "Payout email saved. Each GC must confirm it before paying you there.");
+  const [editing, setEditing] = useState(false);
+  const form = useEmailSetting((email) => setPayoutEmail({ email }), current, "Payout email saved. Each GC must confirm it before paying you there.", () => setEditing(false));
+  const cancelEdit = () => {
+    form.setEmail(current ?? "");
+    setEditing(false);
+  };
   const description =
     "Where GCs send your payouts. When you change it, each GC must confirm the new email before any payout goes there.";
   return (
@@ -212,7 +226,7 @@ function PayoutEmailCard({ data }: { data: Company }) {
         ) : undefined
       }
     >
-      {data.isAdmin ? (
+      {data.isAdmin ? editing || current === null ? (
         <form onSubmit={(e) => void form.onSubmit(e)} noValidate aria-label="Payout PayPal email" className="space-y-4">
           <div className="max-w-md">
             <TextInput
@@ -226,12 +240,17 @@ function PayoutEmailCard({ data }: { data: Company }) {
               placeholder="payouts@yourcompany.com"
             />
           </div>
-          <Button type="submit" loading={form.saving} loadingLabel="Saving…">
-            Save payout email
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" loading={form.saving} loadingLabel="Saving…">
+              Save payout email
+            </Button>
+            {current !== null ? <Button variant="secondary" onClick={cancelEdit}>Cancel</Button> : null}
+          </div>
         </form>
       ) : (
-        <ReadOnlyEmail label="Payout PayPal email" value={current} />
+        <ReadOnlyEmail label="Payout PayPal email" value={current} testId="company-settings-payout-email" onEdit={() => setEditing(true)} />
+      ) : (
+        <ReadOnlyEmail label="Payout PayPal email" value={current} testId="company-settings-payout-email" />
       )}
       {status && status.relationships.length > 0 && current !== null && (
         <ul className="mt-4 divide-y divide-line text-sm" aria-label="Confirmation by GC">
@@ -257,10 +276,15 @@ function PayoutEmailCard({ data }: { data: Company }) {
 function BillingEmailCard({ data }: { data: Company }) {
   const setBillingEmail = useMutation(api.payee.setBillingEmail);
   const current = data.company.billingEmail ?? null;
-  const form = useEmailSetting((email) => setBillingEmail({ email }), current, "Billing email saved.");
+  const [editing, setEditing] = useState(false);
+  const form = useEmailSetting((email) => setBillingEmail({ email }), current, "Billing email saved.", () => setEditing(false));
+  const cancelEdit = () => {
+    form.setEmail(current ?? "");
+    setEditing(false);
+  };
   return (
     <Card title="Billing email" description="Change-order invoices for your projects are sent here.">
-      {data.isAdmin ? (
+      {data.isAdmin ? editing || current === null ? (
         <form onSubmit={(e) => void form.onSubmit(e)} noValidate aria-label="Billing email" className="space-y-4">
           <div className="max-w-md">
             <TextInput
@@ -274,12 +298,17 @@ function BillingEmailCard({ data }: { data: Company }) {
               placeholder="ap@yourcompany.com"
             />
           </div>
-          <Button type="submit" loading={form.saving} loadingLabel="Saving…">
-            Save billing email
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" loading={form.saving} loadingLabel="Saving…">
+              Save billing email
+            </Button>
+            {current !== null ? <Button variant="secondary" onClick={cancelEdit}>Cancel</Button> : null}
+          </div>
         </form>
       ) : (
-        <ReadOnlyEmail label="Billing email" value={current} />
+        <ReadOnlyEmail label="Billing email" value={current} testId="company-settings-billing-email" onEdit={() => setEditing(true)} />
+      ) : (
+        <ReadOnlyEmail label="Billing email" value={current} testId="company-settings-billing-email" />
       )}
     </Card>
   );

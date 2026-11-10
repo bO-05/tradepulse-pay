@@ -64,6 +64,11 @@ export function demoProjectDescription(description: string): string {
     .trim();
 }
 
+/** A stored legacy change-order title without its old guided-run prefix. */
+export function demoChangeOrderTitle(title: string): string {
+  return title.trim().replace(/^Judge demo\s*:\s*/i, "").replace(/\s+/g, " ").trim();
+}
+
 /** "Judge demo · Period 2 (billing agent)" → "Period 2 · billing agent". */
 export function demoPeriodLabel(label: string): string {
   return label
