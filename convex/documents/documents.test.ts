@@ -196,6 +196,8 @@ const csvRows = (bytes: Uint8Array) =>
     .filter((r) => r !== "");
 
 describe("billing PDFs", () => {
+  // This test builds a real two-page PDF (G702 + G703) and extracts its text with unpdf in the
+  // edge runtime, so it needs headroom over the 30 s default under --maxWorkers=2 contention.
   test("the sub pay app PDF (G702 + G703) carries the worked-example figures and is recorded with sha256", async () => {
     const s = await workedExample();
     const doc = await documentFor(s, s.dana, "sub_pay_app_pdf", s.app2);
@@ -233,7 +235,7 @@ describe("billing PDFs", () => {
     expect(row).toMatchObject({ kind: "sub_pay_app_pdf", projectId: s.projectId, relatedId: s.app2, sensitivity: "restricted", contentType: "application/pdf" });
     expect(row!.sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(row!.sizeBytes).toBe(bytes.length);
-  });
+  }, 60_000);
 
   test("regenerating with no data change gives identical bytes and reuses the row", async () => {
     const s = await workedExample();
