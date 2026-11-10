@@ -189,6 +189,8 @@ describe("a preserved reference job on the project page", () => {
     expect(html).toContain("#/people/project_lopez");
     expect(html).toContain(">Project settings<");
     expect(html).toContain(">People<");
+    expect(html).toContain(">Open in Procurement<");
+    expect(html).toContain("AI spec breakdown");
     expect(html).not.toContain('data-testid="read-only-reference"');
   });
 

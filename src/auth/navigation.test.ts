@@ -39,10 +39,42 @@ describe("role navigation", () => {
 
     const demo = navSections("gc", true);
     expect(demo.primary.map((i) => i.area)).toEqual(["inbox", "billing", "gc-projects", "change-orders", "payments", "judge-demo"]);
-    expect(demo.more.map((i) => i.area)).toEqual(["procurement", "compliance", "owner-portal", "people", "vendors", "billing-agents", "dashboard"]);
+    expect(demo.more.map((i) => i.area)).toEqual(["compliance", "owner-portal", "people", "vendors", "billing-agents", "dashboard"]);
+    expect([...demo.primary, ...demo.more].map((i) => i.area).sort()).toEqual(
+      navFor("gc", true).map((i) => i.area).filter((area) => area !== "procurement").sort(),
+    );
 
     expect(navSections("sub")).toEqual({ primary: navFor("sub"), more: [] });
     expect(navSections("owner")).toEqual({ primary: navFor("owner"), more: [] });
+  });
+
+  test("Demo GC More hides Procurement only as presentation; the real GC keeps it and every route stays authorized", () => {
+    const demoMore = navSections("gc", true).more;
+    expect(demoMore).toHaveLength(6);
+    expect(demoMore.some((item) => item.area === "procurement")).toBe(false);
+
+    const realMore = navSections("gc").more;
+    expect(realMore).toHaveLength(7);
+    expect(realMore[0]).toMatchObject({ area: "procurement", label: "Procurement", hash: "#/procurement" });
+
+    // The menu is presentation only: NAV_BY_ROLE, navFor and resolveRoute keep Procurement.
+    expect(NAV_BY_ROLE.gc.some((item) => item.area === "procurement")).toBe(true);
+    expect(navFor("gc", true).some((item) => item.area === "procurement")).toBe(true);
+    expect(navFor("gc", false).some((item) => item.area === "procurement")).toBe(true);
+    for (const isDemo of [true, false]) {
+      expect(resolveRoute("gc", "#/procurement", isDemo)).toEqual({ area: "procurement" });
+      expect(resolveRoute("gc", "#/procurement", isDemo, "?project=k978yam8&tab=packages")).toEqual({ area: "procurement" });
+      expect(resolveRoute("gc", "", isDemo, "?project=k978yam8&tab=packages")).toEqual({ area: "procurement" });
+      expect(resolveRoute("gc", "#/", isDemo, "?tab=packages")).toEqual({ area: "procurement" });
+    }
+
+    // Owner and sub navigation and their Not-found procurement routes are unchanged.
+    expect(navSections("sub", true)).toEqual({ primary: navFor("sub", true), more: [] });
+    expect(navSections("owner", true)).toEqual({ primary: navFor("owner", true), more: [] });
+    for (const isDemo of [true, false]) {
+      expect(resolveRoute("sub", "#/procurement", isDemo, "?project=k978yam8&tab=packages")).toEqual({ area: "not-found" });
+      expect(resolveRoute("owner", "#/procurement", isDemo, "?project=k978yam8&tab=packages")).toEqual({ area: "not-found" });
+    }
   });
 
   test("Compliance is for GC and sub company members; owners and billing agents get Not found", () => {

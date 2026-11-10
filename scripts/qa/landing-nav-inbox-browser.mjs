@@ -111,14 +111,95 @@ try {
   check("primary nav keeps the guided demo for judges", nav.primary.some((text) => text.startsWith("Guided demo")), JSON.stringify(nav.primary));
   check("back-office registers are not in the primary bar", !nav.primary.some((text) => /Procurement|People|Vendors|Payment reports/.test(text)), JSON.stringify(nav.primary));
   check("More menu is present and collapsed", nav.more?.open === false && nav.more?.label.startsWith("More"), JSON.stringify(nav.more));
-  for (const label of ["Procurement", "Compliance & waivers", "Project summaries", "People", "Vendors", "Billing agents", "Payment reports"]) {
+  check(
+    "the demo GC More menu has six entries and no Procurement",
+    nav.more?.links.length === 6 && !nav.more.links.some((link) => /^Procurement/.test(link.text) || link.href === "#/procurement"),
+    JSON.stringify(nav.more?.links),
+  );
+  for (const label of ["Compliance & waivers", "Project summaries", "People", "Vendors", "Billing agents", "Payment reports"]) {
     check(`More menu keeps ${label}`, nav.more?.links.some((link) => link.text.startsWith(label)), JSON.stringify(nav.more?.links));
   }
   await page.evaluate(() => document.querySelector("#workspace-navigation details > summary")?.click());
   await page.waitForFunction(() => document.querySelector("#workspace-navigation details")?.open === true);
   const moreHrefs = await page.evaluate(() => [...document.querySelectorAll("#workspace-navigation details a")].map((a) => a.getAttribute("href")));
-  check("More links point at the existing routes", moreHrefs.includes("#/procurement") && moreHrefs.includes("#/dashboard") && moreHrefs.includes("#/billing-agents"), JSON.stringify(moreHrefs));
+  check(
+    "More links point at the existing routes and omit Procurement",
+    moreHrefs.includes("#/dashboard") && moreHrefs.includes("#/billing-agents") && !moreHrefs.includes("#/procurement"),
+    JSON.stringify(moreHrefs),
+  );
   await page.screenshot({ path: path.join(evidenceDir, "gc-nav-more.png"), fullPage: false });
+
+  phase = "direct procurement fallback";
+  await page.goto(`${site}/#/procurement`, { waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => [...document.querySelectorAll("h1")].some((h) => h.textContent.trim() === "Procurement"), { timeout: 60_000 });
+  const directProcurement = await page.evaluate(() => ({
+    hash: location.hash,
+    search: location.search,
+    notFound: document.body.innerText.includes("Not found"),
+    hasProcurementHeading: [...document.querySelectorAll("h1")].some((h) => h.textContent.trim() === "Procurement"),
+  }));
+  check(
+    "the demo GC still opens the direct #/procurement route",
+    directProcurement.hash === "#/procurement" && directProcurement.hasProcurementHeading && !directProcurement.notFound,
+    JSON.stringify(directProcurement),
+  );
+  await page.screenshot({ path: path.join(evidenceDir, "gc-procurement-direct.png"), fullPage: false });
+
+  phase = "editable project procurement entry";
+  await page.goto(`${site}/#/all-projects`, { waitUntil: "domcontentloaded" });
+  await page.waitForFunction(
+    () => location.hash === "#/all-projects"
+      && document.body.innerText.includes("Your company's projects")
+      && !document.body.innerText.includes("Loading projects…"),
+    { timeout: 60_000 },
+  );
+  const projectHrefs = await page.evaluate(() => [...document.querySelectorAll('a[href^="#/all-projects/"]')]
+    .map((a) => a.getAttribute("href"))
+    .filter((href) => /^#\/all-projects\/[^/]+$/.test(href) && !/#\/all-projects\/(new|quick-start)$/.test(href)));
+  check("the GC project list offers project pages", projectHrefs.length > 0, JSON.stringify(projectHrefs));
+  let editableProject = null;
+  for (const href of projectHrefs.slice(0, 8)) {
+    await page.goto(`${site}/${href}`, { waitUntil: "domcontentloaded" });
+    await page.waitForFunction(
+      (target) => location.hash === target
+        && document.body.innerText.includes("Open billing")
+        && !/Loading (?:trade packages|trades)…/.test(document.body.innerText),
+      { timeout: 30_000 },
+      href,
+    );
+    editableProject = await page.evaluate(() => {
+      const entry = [...document.querySelectorAll("button")].find((el) => el.textContent.trim() === "Open in Procurement");
+      if (!entry) return null;
+      return {
+        projectHash: location.hash,
+        hasSpecEntry: [...document.querySelectorAll("button")].some((el) => el.textContent.trim() === "AI spec breakdown"),
+      };
+    });
+    if (editableProject) break;
+  }
+  check("an editable project keeps its Open in Procurement entry", editableProject !== null, JSON.stringify(projectHrefs.slice(0, 8)));
+  check("an editable project keeps the trade spec entry", editableProject.hasSpecEntry, JSON.stringify(editableProject));
+  const projectId = editableProject.projectHash.replace("#/all-projects/", "");
+  await page.evaluate(() => [...document.querySelectorAll("button")].find((el) => el.textContent.trim() === "Open in Procurement")?.click());
+  await page.waitForFunction(() => [...document.querySelectorAll("h1")].some((h) => h.textContent.trim() === "Procurement"), { timeout: 60_000 });
+  const projectProcurement = await page.evaluate(() => ({ hash: location.hash, search: location.search, notFound: document.body.innerText.includes("Not found") }));
+  const projectQuery = new URLSearchParams(projectProcurement.search);
+  check(
+    "the editable project entry opens its query-scoped Procurement route",
+    projectProcurement.hash === "#/procurement" && projectQuery.get("project") === projectId && projectQuery.get("tab") === "packages" && !projectProcurement.notFound,
+    JSON.stringify({ projectId, ...projectProcurement }),
+  );
+  await page.screenshot({ path: path.join(evidenceDir, "gc-procurement-editable.png"), fullPage: false });
+
+  phase = "return to approval inbox";
+  await page.goto(`${site}/#/inbox`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector('[data-testid="inbox-counts"]');
+  // Coming back from Procurement remounts the landing; let the strip and the work rows resolve again.
+  await page.waitForFunction(() => document.querySelectorAll('[data-testid="inbox-entry"]').length > 0, { timeout: 60_000 });
+  await page.waitForFunction(() => {
+    const value = document.querySelector('[data-testid="project-money-collected"]')?.innerText?.trim() ?? "";
+    return /^\$[\d,]+\.\d{2}$/.test(value);
+  }, { timeout: 60_000 });
 
   phase = "approval inbox";
   const inbox = await page.evaluate(() => {
@@ -398,6 +479,48 @@ try {
   const phoneNav = await page.evaluate(() => [...document.querySelectorAll("#workspace-navigation > ul > li > a")].filter((a) => a.getClientRects().length > 0).map((a) => a.textContent.trim()));
   check("phone menu exposes the same capped primary bar", phoneNav.length === 6 && phoneNav.some((text) => text.startsWith("Approvals")), JSON.stringify(phoneNav));
   await page.screenshot({ path: path.join(evidenceDir, "phone-nav.png"), fullPage: false });
+
+  await page.goto(`${site}/#/procurement`, { waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => [...document.querySelectorAll("h1")].some((h) => h.textContent.trim() === "Procurement"), { timeout: 60_000 });
+  const phoneProcurement = await page.evaluate(() => ({
+    heading: [...document.querySelectorAll("h1")].some((h) => h.textContent.trim() === "Procurement"),
+    notFound: document.body.innerText.includes("Not found"),
+    overflow: document.documentElement.scrollWidth - window.innerWidth,
+  }));
+  check("phone keeps the direct Procurement fallback", phoneProcurement.heading && !phoneProcurement.notFound, JSON.stringify(phoneProcurement));
+  report.measurements.push({ screen: "procurement-direct", width: 390, height: 844, overflow: phoneProcurement.overflow });
+  await page.screenshot({ path: path.join(evidenceDir, "phone-procurement-direct.png"), fullPage: false });
+
+  await page.goto(`${site}/#/inbox`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector('[data-testid="inbox-counts"]');
+  await page.evaluate(() => [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Menu")?.click());
+  await page.waitForFunction(() => document.querySelector("#workspace-navigation")?.getClientRects().length > 0);
+  await page.evaluate(() => document.querySelector("#workspace-navigation details > summary")?.click());
+  await page.waitForFunction(() => document.querySelector("#workspace-navigation details")?.open === true);
+  const phoneMoreHrefs = await page.evaluate(() => [...document.querySelectorAll("#workspace-navigation details a")].map((a) => a.getAttribute("href")));
+  check("phone More also omits Procurement", phoneMoreHrefs.length === 6 && !phoneMoreHrefs.includes("#/procurement"), JSON.stringify(phoneMoreHrefs));
+  await page.screenshot({ path: path.join(evidenceDir, "phone-nav-more.png"), fullPage: false });
+
+  await page.goto(`${site}/#/all-projects/${projectId}`, { waitUntil: "domcontentloaded" });
+  await page.waitForFunction(
+    (target) => location.hash === target
+      && document.body.innerText.includes("Open billing")
+      && !/Loading (?:trade packages|trades)…/.test(document.body.innerText),
+    { timeout: 30_000 },
+    `#/all-projects/${projectId}`,
+  );
+  const phoneEditable = await page.evaluate(() => [...document.querySelectorAll("button")].some((el) => el.textContent.trim() === "Open in Procurement"));
+  check("phone keeps the editable project Procurement entry", phoneEditable);
+  await page.evaluate(() => [...document.querySelectorAll("button")].find((el) => el.textContent.trim() === "Open in Procurement")?.click());
+  await page.waitForFunction(() => [...document.querySelectorAll("h1")].some((h) => h.textContent.trim() === "Procurement"), { timeout: 60_000 });
+  const phoneEditableRoute = await page.evaluate(() => ({ hash: location.hash, search: location.search, notFound: document.body.innerText.includes("Not found") }));
+  const phoneEditableQuery = new URLSearchParams(phoneEditableRoute.search);
+  check(
+    "phone keeps the editable project query-scoped Procurement route",
+    phoneEditableRoute.hash === "#/procurement" && phoneEditableQuery.get("project") === projectId && phoneEditableQuery.get("tab") === "packages" && !phoneEditableRoute.notFound,
+    JSON.stringify({ projectId, ...phoneEditableRoute }),
+  );
+  await page.screenshot({ path: path.join(evidenceDir, "phone-procurement-editable.png"), fullPage: false });
 
   report.ok = true;
 } catch (error) {

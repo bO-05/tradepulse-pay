@@ -249,6 +249,13 @@ export function navFor(role: Role, isDemo = false, actorType: ActorType = "human
  */
 const GC_PRIMARY_ORDER = ["inbox", "billing", "gc-projects", "change-orders", "payments"] as const satisfies readonly NavItem["area"][];
 
+/**
+ * Demo-only menu hiding. The judge path should not advertise the commercial procurement
+ * pipeline, but route authorization stays untouched: `#/procurement`, project query links and
+ * the editable-project entries keep working for every GC. Real GCs still keep More > Procurement.
+ */
+const DEMO_HIDDEN_MORE_AREAS = new Set<NavItem["area"]>(["procurement"]);
+
 export type NavSections = { primary: NavItem[]; more: NavItem[] };
 
 /** Split a role's nav into the always-visible primary bar and the GC back-office menu. */
@@ -260,7 +267,10 @@ export function navSections(role: Role, isDemo = false, actorType: ActorType = "
   const primary = nav
     .filter((item) => rank.has(item.area))
     .sort((a, b) => (rank.get(a.area) ?? order.length) - (rank.get(b.area) ?? order.length));
-  return { primary, more: nav.filter((item) => !rank.has(item.area)) };
+  return {
+    primary,
+    more: nav.filter((item) => !rank.has(item.area) && !(isDemo && DEMO_HIDDEN_MORE_AREAS.has(item.area))),
+  };
 }
 
 /** `?project=` / `?tab=` only mean something to the GC procurement workspace. */

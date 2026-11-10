@@ -183,7 +183,9 @@ try {
   }
   if (demoLogin && report.public.signIn) {
     const definitions = [
-      { role: "gc", account: "gc", expected: ["Procurement", "Payments", "Approvals", "Billing agents"],
+      // Demo GC More hides Procurement (presentation only); the direct route below must still settle.
+      // navigationMatchesHash is expected to be false for #/procurement because no nav link carries it.
+      { role: "gc", account: "gc", expected: ["Payments", "Approvals", "Billing agents"],
         routes: ["#/procurement", "#/payments", "#/inbox", "#/billing-agents", "#/dashboard"] },
       { role: "sub", account: "sub1", expected: ["My agreements & pay applications"],
         routes: ["#/portal", "#/payments"] },
