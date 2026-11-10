@@ -1,9 +1,36 @@
 import type { FunctionReturnType } from "convex/server";
 import { api } from "../../convex/_generated/api";
+import { lineIncrementCents } from "../../convex/payApps/g703Math";
 import type { Terms } from "../lib/terms";
 import { MoneyTrail, formatCents, type MoneyTrailStep } from "../ui";
 
 export type PayAppView = NonNullable<FunctionReturnType<typeof api.payApps.g703.getPayApp>>;
+type PayAppLine = PayAppView["lines"][number];
+
+/** The submitted line increment is kept on an approved sheet beside the GC-approved increment. */
+function requestedLineCents(line: PayAppLine): number {
+  return lineIncrementCents({
+    workThisPeriodCents: line.requestedWorkCents ?? line.workThisPeriodCents,
+    storedCents: line.requestedStoredCents ?? line.storedCents,
+    previousStoredCents: line.previousStoredCents,
+  });
+}
+
+/** Kept downward decisions, with the description and cents read from the stored decision and sheet. */
+function keptCuts(view: PayAppView) {
+  const lines = new Map(view.lines.map((line) => [line.sovLineId, line]));
+  return (view.decision?.lines ?? []).flatMap((decision) => {
+    const line = lines.get(decision.sovLineId);
+    if (!line || decision.action !== "override") return [];
+    const requested = requestedLineCents(line);
+    if (requested <= decision.approvedCents) return [];
+    return [{
+      description: decision.description,
+      cutCents: requested - decision.approvedCents,
+      approvedCents: decision.approvedCents,
+    }];
+  });
+}
 
 /**
  * The sub pay app's money trail, built on the shared `MoneyTrail` primitive (no local copy of the
@@ -31,6 +58,7 @@ export function PayAppMoneyTrail({ view, terms }: { view: PayAppView; terms: Ter
   const residential = terms.kind === "residential";
   const paid = view.status === "paid";
   const appWord = residential ? "draw" : "application";
+  const cuts = residential && view.readOnlyReference ? keptCuts(view) : [];
 
   const steps: MoneyTrailStep[] = [
     { label: "Claimed", valueCents: claimed, note: "Billed by the sub" },
@@ -61,10 +89,25 @@ export function PayAppMoneyTrail({ view, terms }: { view: PayAppView; terms: Ter
           : `Retainage on this ${appWord}: ${formatCents(retainage)}. Not withheld yet; the GC has not approved this ${appWord}.`}
       </p>
       {suggested !== null && approved !== null && suggested !== approved ? (
-        <p className="text-xs text-ink-subtle" data-testid="payapp-money-trail-edit">
-          The GC approved {formatCents(Math.abs(approved - suggested))} {approved < suggested ? "below" : "above"} the review suggestion.
-          Per-line reasons, when entered, are under the GC decision below.
-        </p>
+        residential ? (
+          <>
+            <p className="text-xs text-ink-subtle" data-testid="payapp-money-trail-edit">
+              Conservative review: funded or in-progress milestones are credited at 50% of their share.
+              Work in place is reported by the subcontractor, not independently inspected.
+              The GC made the final decision with a recorded per-line reason for every override.
+            </p>
+            {cuts.length > 0 ? (
+              <p className="text-xs text-ink-subtle" data-testid="payapp-kept-cuts">
+                Caught overbill: {cuts.map((cut) => `${cut.description} was cut by ${formatCents(cut.cutCents)} to ${formatCents(cut.approvedCents)}, and the GC kept that cut.`).join(" ")}
+              </p>
+            ) : null}
+          </>
+        ) : (
+          <p className="text-xs text-ink-subtle" data-testid="payapp-money-trail-edit">
+            The GC approved {formatCents(Math.abs(approved - suggested))} {approved < suggested ? "below" : "above"} the review suggestion.
+            Per-line reasons, when entered, are under the GC decision below.
+          </p>
+        )
       ) : null}
     </>
   );

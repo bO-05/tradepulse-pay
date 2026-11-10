@@ -487,10 +487,19 @@ function ApprovalHistory({ view }: { view: PayAppView }) {
       {history.reviewedAt !== null && <li>Review completed: {formatDateTime(history.reviewedAt, { timeZone: "UTC" })} UTC. A review is a recommendation, not a payment approval.</li>}
       {view.reviewSuggestedTotalCents !== null && history.approvedGrossCents !== null ? (
         <li data-testid="payapp-ai-vs-approved">
-          Rules recommended gross {formatCents(view.reviewSuggestedTotalCents)} · GC approved {formatCents(history.approvedGrossCents)} ·{" "}
-          {history.approvedGrossCents === view.reviewSuggestedTotalCents
-            ? "no change to the recommendation."
-            : `${formatCents(Math.abs(history.approvedGrossCents - view.reviewSuggestedTotalCents))} ${history.approvedGrossCents < view.reviewSuggestedTotalCents ? "below" : "above"} the recommendation.`}
+          {view.projectKind === "residential" ? (
+            <>
+              Conservative review suggested gross {formatCents(view.reviewSuggestedTotalCents)} · GC approved {formatCents(history.approvedGrossCents)}{" "}
+              {history.approvedGrossCents === view.reviewSuggestedTotalCents ? "with no change to the recommendation." : "with recorded per-line reasons."}
+            </>
+          ) : (
+            <>
+              Rules recommended gross {formatCents(view.reviewSuggestedTotalCents)} · GC approved {formatCents(history.approvedGrossCents)} ·{" "}
+              {history.approvedGrossCents === view.reviewSuggestedTotalCents
+                ? "no change to the recommendation."
+                : `${formatCents(Math.abs(history.approvedGrossCents - view.reviewSuggestedTotalCents))} ${history.approvedGrossCents < view.reviewSuggestedTotalCents ? "below" : "above"} the recommendation.`}
+            </>
+          )}
         </li>
       ) : null}
       {history.approvedGrossCents !== null && (

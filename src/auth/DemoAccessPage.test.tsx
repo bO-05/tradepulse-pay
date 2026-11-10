@@ -83,6 +83,18 @@ test("the demo page leads with one filled GC seat and a settled dollar figure be
   expect(html.indexOf('data-testid="demo-defence"')).toBeGreaterThan(html.indexOf('data-testid="demo-enter-owner"'));
 });
 
+test("the settled summary names the conservative review and the GC's recorded override", () => {
+  const html = renderToStaticMarkup(<DemoAccessPage />);
+  const rendered = html.replace(/<[^>]*>/g, " ").replace(/&#x27;/g, "'").replace(/\s+/g, " ");
+  expect(rendered).toContain("Settled Ortiz: $5,400.00 requested");
+  expect(rendered).toContain("Conservative review");
+  expect(rendered).toContain("GC's recorded override");
+  expect(rendered).toContain("$4,000.00 approved");
+  expect(rendered).toContain("$200.00 retainage");
+  expect(rendered).toContain("$3,800.00 paid");
+  expect(rendered).not.toMatch(/re-?settlement/i);
+});
+
 test("guide never silently replaces an existing signed-in account", () => {
   vi.mocked(useConvexAuth).mockReturnValue({ isAuthenticated: true, isLoading: false, isRefreshing: false });
   const html = renderToStaticMarkup(<DemoAccessPage />);

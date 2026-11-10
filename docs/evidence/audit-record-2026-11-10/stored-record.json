@@ -1,0 +1,43 @@
+﻿{
+    "capturedAt":  "2026-11-10T09:53:10.2849075Z",
+    "queryCommands":  [
+                          "Read-only: npx convex data payApplications --format json --limit 100",
+                          "Read-only: npx convex data scheduleOfValues --format json --limit 100"
+                      ],
+    "reconciliationNote":  "Line labels and requested cents are joined by sovLineId. Suggested cents, verdicts, approved cents, actions and both reasons are copied from the existing stored review and gcDecision rows without edits.",
+    "payAppId":  "ph7434a59sqck3nysgt6teqh0h8hvx1h",
+    "status":  "paid",
+    "requestedTotalCents":  540000,
+    "reviewSuggestedTotalCents":  200000,
+    "finalApprovalTotalCents":  400000,
+    "retainageCents":  20000,
+    "currentPaymentDueCents":  380000,
+    "gcDecisionOutcome":  "approved_as_noted",
+    "gcDecidedAt":  1794153686983,
+    "flaggedLines":  [
+                         {
+                             "lineNo":  1,
+                             "description":  "Rough-in",
+                             "sovLineId":  "qs70bq85bwd0s4cqs71qvq7kbd8htg8e",
+                             "requestedCents":  400000,
+                             "suggestedCents":  200000,
+                             "approvedCents":  400000,
+                             "verdict":  "overbilled",
+                             "reviewReason":  "Line claims 100% to date (100% work in place, note \u0027Rough-in complete\u0027), but the funded Rough-in tranche covering line 1 supports a ceiling of only 50% to date, so the claim exceeds the tranche ceiling and is capped at 0.5.",
+                             "gcAction":  "override",
+                             "gcReason":  "Rough-in is complete and the $4,000.00 Rough-in tranche is authorized at PayPal. The 50% tranche ceiling measures funding progress, not work in place, so the GC approves the full $4,000.00 for line 1."
+                         },
+                         {
+                             "lineNo":  2,
+                             "description":  "Fixtures set",
+                             "sovLineId":  "qs7cns3ky3dgaea7s2njzryht98ht4s3",
+                             "requestedCents":  140000,
+                             "suggestedCents":  0,
+                             "approvedCents":  0,
+                             "verdict":  "overbilled",
+                             "reviewReason":  "Line claims 40% to date (40% work in place), but the only tranche covering line 2 (Fixtures set) is planned, not funded, so its ceiling is 0%; the claim of 0.4 exceeds the ceiling and earns 0% this period.",
+                             "gcAction":  "override",
+                             "gcReason":  "Fixtures set is only 40% in place and the Fixtures set milestone is still planned, so this line is cut by $1,400.00 (140,000 cents), from $1,400.00 to $0.00, until that milestone is funded and the work is complete."
+                         }
+                     ]
+}

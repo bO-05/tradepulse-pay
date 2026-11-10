@@ -58,10 +58,11 @@ export function DemoAccessPage() {
               className="rounded-lg border border-emerald-900/70 bg-emerald-950/30 px-3 py-2 text-sm leading-relaxed text-emerald-100"
               data-testid="demo-money-proof"
             >
-              Settled Lopez draw: <strong className="tabular-nums">$5,400.00</strong> requested,{" "}
-              <strong className="tabular-nums">$4,000.00</strong> approved,{" "}
-              <strong className="tabular-nums">$3,800.00</strong> paid after{" "}
-              <strong className="tabular-nums">$200.00</strong> retainage.
+              Settled Ortiz: <strong className="tabular-nums">$5,400.00</strong> requested.
+              Conservative review; GC's recorded override:{" "}
+              <strong className="tabular-nums">$4,000.00</strong> approved;{" "}
+              <strong className="tabular-nums">$200.00</strong> retainage;{" "}
+              <strong className="tabular-nums">$3,800.00</strong> paid.
             </p>
             {error && <FormAlert>{error}</FormAlert>}
             {isAuthenticated ? (

@@ -17,7 +17,8 @@
 
 The demo company carries one complete kitchen job. **Bayview Remodeling** is the GC, **Dana Lopez** is the homeowner, and the contract is **$86,500.00**. Sandbox money actually moved:
 
-- **Ortiz Plumbing's $5,400.00 claim** was flagged by the rules review on the Fixtures set line. The GC cut exactly that **$1,400.00** line to **$0.00** and approved **$4,000.00**.
+- **Ortiz Plumbing's $5,400.00 claim** received a conservative rules review of both billed lines. Funded or in-progress milestones are credited at 50% of their share. Work in place is reported by the subcontractor, not independently inspected. The review suggested **$2,000.00** for Rough-in and **$0.00** for the **$1,400.00 Fixtures set** claim.
+- **The GC made the final decision with recorded per-line reasons.** The GC kept the Fixtures set cut at **$0.00**, overrode Rough-in to **$4,000.00**, and approved **$4,000.00** gross.
 - **5% retainage** held **$200.00**; PayPal paid Ortiz **$3,800.00** net (payout batch `D5V7XEN5YZH4C`).
 - **Homeowner Draw #1** was approved and paid by PayPal invoice: **$3,600.00** after 10% owner retainage (`INV2-5ZNS-USY8-KBFD-L3B9`).
 - **The $1,200.00 "Add under-cabinet lighting" change order** was invoiced and paid (`INV2-RCJ4-Z8GD-4A33-TDJC`).

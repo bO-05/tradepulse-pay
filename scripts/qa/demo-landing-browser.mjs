@@ -68,6 +68,7 @@ async function readLanding(page) {
       viewport: { width: innerWidth, height: innerHeight },
       scrollWidth: document.documentElement.scrollWidth,
       innerText: main?.innerText ?? "",
+      summaryText: document.querySelector('[data-testid="demo-money-proof"]')?.innerText ?? "",
       buttons: [...document.querySelectorAll("button")].map((b) => ({
         testid: b.getAttribute("data-testid"),
         top: Math.round(b.getBoundingClientRect().top),
@@ -128,6 +129,19 @@ for (const [width, height] of [[1440, 900], [390, 844]]) {
     JSON.stringify(landing.buttons.slice(0, 3)),
   );
   check(`[${width}] role buttons meet the 44px primary-action floor`, landing.seats.every((s) => s.height >= 44), JSON.stringify(landing.seats.map((s) => s.height)));
+  check(
+    `[${width}] settled summary tells the conservative-review and recorded-decision story`,
+    /Conservative review/i.test(landing.summaryText)
+      && /GC's recorded override/i.test(landing.summaryText)
+      && /\$4,000\.00 approved/i.test(landing.summaryText),
+    landing.summaryText,
+  );
+  check(
+    `[${width}] settled summary matches all four payment figures`,
+    ["$5,400.00", "$4,000.00", "$200.00", "$3,800.00"].every((figure) => landing.summaryText.includes(figure)),
+    landing.summaryText,
+  );
+  check(`[${width}] settled summary has no re-settlement claim or internal jargon`, !/re-?settlement|(140,000 cents)|tranche ceiling|funding progress/i.test(landing.summaryText), landing.summaryText);
   const rosendinLinks = landing.links.filter((link) => /rosendin|sub1@|judge-demo/i.test(`${link.text} ${link.href}`));
   check(`[${width}] link census shows no Rosendin seat or commercial run`, rosendinLinks.length === 0, JSON.stringify(rosendinLinks));
   // A bare "#" is a dead link: it reloads the demo page and never opens the sign-in form. "#/" is

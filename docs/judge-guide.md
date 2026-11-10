@@ -63,9 +63,13 @@ write controls. Inspect it rather than editing it.
    `$4,000.00` completed and stored, `$400.00` owner retainage (10%), `$3,600.00` paid by PayPal
    invoice, with `paypalInvoiceId` and `paidAt` stored. The four prime lines and the Ortiz trade line
    total `$86,500.00` in scheduled values.
-2. Open the Ortiz Plumbing pay app. The sub requested `$5,400.00`; the rules review flagged the
-   Fixtures set line, and the GC cut exactly that `$1,400.00` line to `$0.00`, approving `$4,000.00`.
-   The payout receipt shows `$4,000.00` gross, `$200.00` retainage and `$3,800.00` net.
+2. Open the Ortiz Plumbing pay app. The sub requested `$5,400.00`; the conservative rules review
+   flagged both billed lines. Funded or in-progress milestones are credited at 50% of their share.
+   Work in place is reported by the subcontractor, not independently inspected. The review suggested
+   `$2,000.00` for Rough-in and `$0.00` for the `$1,400.00` Fixtures set claim. With recorded
+   per-line reasons, the GC kept the Fixtures set cut at `$0.00` and overrode Rough-in to `$4,000.00`,
+   approving `$4,000.00` gross. The payout receipt shows `$4,000.00` gross, `$200.00` retainage and
+   `$3,800.00` net.
 3. Inspect the paid **"Add under-cabinet lighting"** change order (`$1,200.00`) and its PayPal invoice.
 4. On the GC home (`#/inbox`), the Lopez project page and the owner-billing tab, read the **money
    strip**: collected from owners, paid to subs, retainage held and owed this week. Each number links

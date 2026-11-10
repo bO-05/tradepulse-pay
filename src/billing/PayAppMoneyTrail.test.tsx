@@ -14,6 +14,7 @@ function view(overrides: Record<string, unknown> = {}): PayAppView {
     _id: "payapp_1",
     status: "paid",
     projectKind: "residential",
+    readOnlyReference: true,
     approvalHistory: {
       submittedAt: 1_763_000_000_000,
       reviewedAt: 1_763_000_060_000,
@@ -25,6 +26,30 @@ function view(overrides: Record<string, unknown> = {}): PayAppView {
     },
     reviewSuggestedTotalCents: 200_000,
     summary: { retainageCents: 20_000, currentPaymentDueCents: 380_000 },
+    lines: [
+      {
+        sovLineId: "rough-in",
+        workThisPeriodCents: 400_000,
+        storedCents: 0,
+        previousStoredCents: 0,
+        requestedWorkCents: null,
+        requestedStoredCents: null,
+      },
+      {
+        sovLineId: "fixtures",
+        workThisPeriodCents: 0,
+        storedCents: 0,
+        previousStoredCents: 0,
+        requestedWorkCents: 140_000,
+        requestedStoredCents: null,
+      },
+    ],
+    decision: {
+      lines: [
+        { sovLineId: "rough-in", description: "Rough-in", action: "override", approvedCents: 400_000, recommendedCents: null },
+        { sovLineId: "fixtures", description: "Fixtures set", action: "override", approvedCents: 0, recommendedCents: null },
+      ],
+    },
     ...overrides,
   } as unknown as PayAppView;
 }
@@ -67,12 +92,26 @@ describe("the sub pay app money trail", () => {
     expect(rendered).not.toContain("Retainage this app");
   });
 
-  test("commercial keeps application words and the G702 line reference", () => {
+  test("residential explains the conservative review and the kept Fixtures cut", () => {
+    const rendered = text(render());
+    expect(rendered).toContain("funded or in-progress milestones are credited at 50% of their share");
+    expect(rendered).toContain("Work in place is reported by the subcontractor, not independently inspected");
+    expect(rendered).toContain("The GC made the final decision with a recorded per-line reason for every override");
+    expect(rendered).toContain("Fixtures set was cut by $1,400.00 to $0.00, and the GC kept that cut");
+    expect(rendered).not.toContain("above the review suggestion");
+    for (const jargon of ["(140,000 cents)", "tranche ceiling", "funding progress"]) {
+      expect(rendered).not.toContain(jargon);
+    }
+  });
+
+  test("commercial keeps application words, the G702 line reference and the original edit note", () => {
     const rendered = text(render({}, "commercial"));
     expect(rendered).toContain("Net this app");
     expect(rendered).toContain("Retainage this app");
     expect(rendered).toContain("Total retainage held to date: $200.00 (G702 line 5).");
     expect(rendered).toContain("This application withheld $200.00.");
+    expect(rendered).toContain("The GC approved $2,000.00 above the review suggestion. Per-line reasons, when entered, are under the GC decision below.");
+    expect(rendered).not.toContain("Conservative review");
     expect(rendered).not.toContain("Net this draw");
   });
 

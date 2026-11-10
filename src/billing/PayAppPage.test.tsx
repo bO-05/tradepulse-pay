@@ -209,4 +209,85 @@ describe("sub pay app primary action by state", () => {
     expect(trail).toContain("$5,130.00"); // requested net, stored
     expect(trail).toContain("Not withheld yet");
   });
+
+  test("the settled residential record explains the review and keeps both flagged lines visible", () => {
+    const settled = {
+      ...(view("paid") as unknown as Record<string, unknown>),
+      readOnlyReference: true,
+      reviewSuggestedTotalCents: 200_000,
+      approvalHistory: {
+        submittedAt: 1_794_156_000_000,
+        reviewedAt: 1_794_156_100_000,
+        approvedAt: 1_794_156_200_000,
+        approvedBy: "Bayview Remodeling",
+        requestedGrossCents: 540_000,
+        approvedGrossCents: 400_000,
+        reason: null,
+      },
+      lines: [
+        sheetLine,
+        {
+          ...sheetLine,
+          sovLineId: "sov_line_2",
+          lineNo: 2,
+          description: "Fixtures set",
+          scheduledValueCents: 350_000,
+          workThisPeriodCents: 0,
+          requestedWorkCents: 140_000,
+        },
+      ],
+      decision: {
+        outcome: "approved_as_noted",
+        reason: null,
+        decidedAt: 1_794_156_200_000,
+        decidedByName: "Bayview Remodeling",
+        lines: [
+          {
+            sovLineId: "sov_line_1",
+            lineNo: 1,
+            description: "Rough-in",
+            action: "override",
+            recommendedCents: null,
+            approvedCents: 400_000,
+            reason: "Rough-in is complete and its milestone is funded.",
+          },
+          {
+            sovLineId: "sov_line_2",
+            lineNo: 2,
+            description: "Fixtures set",
+            action: "override",
+            recommendedCents: null,
+            approvedCents: 0,
+            reason: "Fixtures set is not complete.",
+          },
+        ],
+      },
+    };
+    const rendered = text(renderView(settled));
+    expect(rendered).toContain("Conservative review: funded or in-progress milestones are credited at 50% of their share");
+    expect(rendered).toContain("Fixtures set was cut by $1,400.00 to $0.00, and the GC kept that cut");
+    expect(rendered).toContain("Line 1. Rough-in");
+    expect(rendered).toContain("Line 2. Fixtures set");
+    expect(rendered).toContain("Rough-in is complete and its milestone is funded.");
+    expect(rendered).toContain("Fixtures set is not complete.");
+    expect(rendered).toContain("Conservative review suggested gross $2,000.00 · GC approved $4,000.00 with recorded per-line reasons.");
+    expect(rendered).not.toContain("above the recommendation");
+  });
+
+  test("residential approval history does not invent reasons for an unchanged review", () => {
+    const rendered = text(renderPage("paid"));
+    expect(rendered).toContain("Conservative review suggested gross $4,000.00 · GC approved $4,000.00 with no change to the recommendation.");
+    expect(rendered).not.toContain("with recorded per-line reasons");
+  });
+
+  test("commercial approval history keeps its original recommendation comparison", () => {
+    const commercial = {
+      ...(view("paid") as unknown as Record<string, unknown>),
+      projectKind: "commercial",
+      reviewSuggestedTotalCents: 200_000,
+    };
+    const rendered = text(renderView(commercial));
+    expect(rendered).toContain("Rules recommended gross $2,000.00 · GC approved $4,000.00 · $2,000.00 above the recommendation.");
+    expect(rendered).not.toContain("Conservative review suggested gross");
+  });
 });

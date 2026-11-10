@@ -1,0 +1,646 @@
+{
+  "target": "http://localhost:3150",
+  "settledPayAppId": "ph7434a59sqck3nysgt6teqh0h8hvx1h",
+  "checks": [
+    {
+      "name": "[1440] exactly three role buttons",
+      "ok": true,
+      "detail": "[\"demo-enter-gc\",\"demo-enter-sub\",\"demo-enter-owner\"]"
+    },
+    {
+      "name": "[1440] all three role buttons end inside the first viewport",
+      "ok": true,
+      "detail": "[{\"id\":\"demo-enter-gc\",\"top\":277,\"bottom\":395,\"height\":118},{\"id\":\"demo-enter-sub\",\"top\":407,\"bottom\":525,\"height\":118},{\"id\":\"demo-enter-owner\",\"top\":537,\"bottom\":655,\"height\":118}]"
+    },
+    {
+      "name": "[1440] role buttons are the first buttons on the page",
+      "ok": true,
+      "detail": "[{\"testid\":\"demo-enter-gc\",\"top\":277},{\"testid\":\"demo-enter-sub\",\"top\":407},{\"testid\":\"demo-enter-owner\",\"top\":537}]"
+    },
+    {
+      "name": "[1440] role buttons meet the 44px primary-action floor",
+      "ok": true,
+      "detail": "[118,118,118]"
+    },
+    {
+      "name": "[1440] settled summary tells the conservative-review and recorded-decision story",
+      "ok": true,
+      "detail": "Settled Ortiz: $5,400.00 requested. Conservative review; GC's recorded override: $4,000.00 approved; $200.00 retainage; $3,800.00 paid."
+    },
+    {
+      "name": "[1440] settled summary matches all four payment figures",
+      "ok": true,
+      "detail": "Settled Ortiz: $5,400.00 requested. Conservative review; GC's recorded override: $4,000.00 approved; $200.00 retainage; $3,800.00 paid."
+    },
+    {
+      "name": "[1440] settled summary has no re-settlement claim or internal jargon",
+      "ok": true,
+      "detail": "Settled Ortiz: $5,400.00 requested. Conservative review; GC's recorded override: $4,000.00 approved; $200.00 retainage; $3,800.00 paid."
+    },
+    {
+      "name": "[1440] link census shows no Rosendin seat or commercial run",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[1440] demo page has no dead hash links",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[1440] the normal sign-in link navigates to the sign-in form instead of href=\"#\"",
+      "ok": true,
+      "detail": "{\"text\":\"Normal sign-in / create a GC account\",\"href\":\"#/\"}"
+    },
+    {
+      "name": "[1440] demo password is not rendered before the disclosure opens",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] test card is not rendered before the disclosure opens",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] mirror URL is not rendered before the disclosure opens",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] Recovery-dev note is not rendered before the disclosure opens",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] Studio license note is not rendered before the disclosure opens",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] one manual disclosure",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] manual disclosure is titled exactly \"Manual sign-in and sandbox details\"",
+      "ok": true,
+      "detail": "Manual sign-in and sandbox details"
+    },
+    {
+      "name": "[1440] manual disclosure is collapsed",
+      "ok": true,
+      "detail": "false"
+    },
+    {
+      "name": "[1440] manual disclosure has exactly six items",
+      "ok": true,
+      "detail": "6"
+    },
+    {
+      "name": "[1440] manual disclosure contains the demo password",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] manual disclosure contains the test card",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] manual disclosure contains the mirror URL",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] manual disclosure contains the Recovery-dev note",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] manual disclosure contains the Studio license note",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] manual disclosure contains the commit hash",
+      "ok": true,
+      "detail": "873 chars"
+    },
+    {
+      "name": "[1440] no horizontal overflow",
+      "ok": true,
+      "detail": "1440 vs 1440"
+    },
+    {
+      "name": "[1440] expanded disclosure shows the demo password",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] expanded disclosure shows the test card",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] expanded disclosure shows the mirror URL",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] expanded disclosure shows the Recovery-dev note",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] expanded disclosure shows the Studio license note",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] expanded disclosure does not overflow",
+      "ok": true,
+      "detail": "1440 vs 1440"
+    },
+    {
+      "name": "[1440] Subcontractor lands on the settled Lopez pay app",
+      "ok": true,
+      "detail": "#/pay-apps/ph7434a59sqck3nysgt6teqh0h8hvx1h"
+    },
+    {
+      "name": "[1440] Subcontractor is signed in as sub4@demo.tradepulse",
+      "ok": true,
+      "detail": "Ortiz Plumbing · sub4@demo.tradepulseSubcontractor"
+    },
+    {
+      "name": "[1440] money trail shows claimed $5,400.00 and net $3,800.00",
+      "ok": true,
+      "detail": "Money trail\n\nEvery figure is computed from the schedule of values. PayPal settles only after the GC approves.\n\nNET THIS DRAW\n$3,800.00\nPaid by PayPal\nCLAIMED\n$5,400.00\nBilled by the sub\n→REVIEW SUGGES"
+    },
+    {
+      "name": "[1440] net figure is visible",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] PayPal payout receipt is visible",
+      "ok": true,
+      "detail": "payout batch id present"
+    },
+    {
+      "name": "[1440] zero page errors",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[1440] zero failed requests",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[1440] zero console errors",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[1440] gc seat keeps #/inbox",
+      "ok": true,
+      "detail": "#/inbox"
+    },
+    {
+      "name": "[1440] gc seat keeps the gc@demo.tradepulse account",
+      "ok": true,
+      "detail": "Bayview Remodeling · gc@demo.tradepulseGeneral contractor"
+    },
+    {
+      "name": "[1440] owner seat keeps #/projects",
+      "ok": true,
+      "detail": "#/projects"
+    },
+    {
+      "name": "[1440] owner seat keeps the owner@demo.tradepulse account",
+      "ok": true,
+      "detail": "Dana Lopez · owner@demo.tradepulseOwner"
+    },
+    {
+      "name": "[1440] normal sign-in link opens the real sign-in form",
+      "ok": true,
+      "detail": "#/"
+    },
+    {
+      "name": "[1440] sign-in form offers creating an account",
+      "ok": true,
+      "detail": "PROGRESS DRAWS FOR OWNER-RUN REMODELS\n\nPay the right amount.\nKeep the receipt.\n\nA sub sends a pay app. TradePulse checks the claim against the contract and schedule of values, shows you the backup, and waits for your approval before PayPal moves sandbox money.\n\nCatch overbilling early\n\nEvery line is"
+    },
+    {
+      "name": "[390] exactly three role buttons",
+      "ok": true,
+      "detail": "[\"demo-enter-gc\",\"demo-enter-sub\",\"demo-enter-owner\"]"
+    },
+    {
+      "name": "[390] all three role buttons end inside the first viewport",
+      "ok": true,
+      "detail": "[{\"id\":\"demo-enter-gc\",\"top\":491,\"bottom\":609,\"height\":118},{\"id\":\"demo-enter-sub\",\"top\":617,\"bottom\":735,\"height\":118},{\"id\":\"demo-enter-owner\",\"top\":743,\"bottom\":841,\"height\":98}]"
+    },
+    {
+      "name": "[390] role buttons are the first buttons on the page",
+      "ok": true,
+      "detail": "[{\"testid\":\"demo-enter-gc\",\"top\":491},{\"testid\":\"demo-enter-sub\",\"top\":617},{\"testid\":\"demo-enter-owner\",\"top\":743}]"
+    },
+    {
+      "name": "[390] role buttons meet the 44px primary-action floor",
+      "ok": true,
+      "detail": "[118,118,98]"
+    },
+    {
+      "name": "[390] settled summary tells the conservative-review and recorded-decision story",
+      "ok": true,
+      "detail": "Settled Ortiz: $5,400.00 requested. Conservative review; GC's recorded override: $4,000.00 approved; $200.00 retainage; $3,800.00 paid."
+    },
+    {
+      "name": "[390] settled summary matches all four payment figures",
+      "ok": true,
+      "detail": "Settled Ortiz: $5,400.00 requested. Conservative review; GC's recorded override: $4,000.00 approved; $200.00 retainage; $3,800.00 paid."
+    },
+    {
+      "name": "[390] settled summary has no re-settlement claim or internal jargon",
+      "ok": true,
+      "detail": "Settled Ortiz: $5,400.00 requested. Conservative review; GC's recorded override: $4,000.00 approved; $200.00 retainage; $3,800.00 paid."
+    },
+    {
+      "name": "[390] link census shows no Rosendin seat or commercial run",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[390] demo page has no dead hash links",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[390] the normal sign-in link navigates to the sign-in form instead of href=\"#\"",
+      "ok": true,
+      "detail": "{\"text\":\"Normal sign-in / create a GC account\",\"href\":\"#/\"}"
+    },
+    {
+      "name": "[390] demo password is not rendered before the disclosure opens",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] test card is not rendered before the disclosure opens",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] mirror URL is not rendered before the disclosure opens",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] Recovery-dev note is not rendered before the disclosure opens",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] Studio license note is not rendered before the disclosure opens",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] one manual disclosure",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] manual disclosure is titled exactly \"Manual sign-in and sandbox details\"",
+      "ok": true,
+      "detail": "Manual sign-in and sandbox details"
+    },
+    {
+      "name": "[390] manual disclosure is collapsed",
+      "ok": true,
+      "detail": "false"
+    },
+    {
+      "name": "[390] manual disclosure has exactly six items",
+      "ok": true,
+      "detail": "6"
+    },
+    {
+      "name": "[390] manual disclosure contains the demo password",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] manual disclosure contains the test card",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] manual disclosure contains the mirror URL",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] manual disclosure contains the Recovery-dev note",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] manual disclosure contains the Studio license note",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] manual disclosure contains the commit hash",
+      "ok": true,
+      "detail": "873 chars"
+    },
+    {
+      "name": "[390] no horizontal overflow",
+      "ok": true,
+      "detail": "390 vs 390"
+    },
+    {
+      "name": "[390] expanded disclosure shows the demo password",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] expanded disclosure shows the test card",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] expanded disclosure shows the mirror URL",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] expanded disclosure shows the Recovery-dev note",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] expanded disclosure shows the Studio license note",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] expanded disclosure does not overflow",
+      "ok": true,
+      "detail": "390 vs 390"
+    },
+    {
+      "name": "[390] Subcontractor lands on the settled Lopez pay app",
+      "ok": true,
+      "detail": "#/pay-apps/ph7434a59sqck3nysgt6teqh0h8hvx1h"
+    },
+    {
+      "name": "[390] Subcontractor is signed in as sub4@demo.tradepulse",
+      "ok": true,
+      "detail": "Ortiz Plumbing · sub4@demo.tradepulseSubcontractor"
+    },
+    {
+      "name": "[390] money trail shows claimed $5,400.00 and net $3,800.00",
+      "ok": true,
+      "detail": "Money trail\n\nEvery figure is computed from the schedule of values. PayPal settles only after the GC approves.\n\nNET THIS DRAW\n$3,800.00\nPaid by PayPal\nCLAIMED\n$5,400.00\nBilled by the sub\n→REVIEW SUGGES"
+    },
+    {
+      "name": "[390] net figure is visible",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] PayPal payout receipt is visible",
+      "ok": true,
+      "detail": "payout batch id present"
+    },
+    {
+      "name": "[390] zero page errors",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[390] zero failed requests",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[390] zero console errors",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[390] normal sign-in link opens the real sign-in form",
+      "ok": true,
+      "detail": "#/"
+    },
+    {
+      "name": "[390] sign-in form offers creating an account",
+      "ok": true,
+      "detail": "PROGRESS DRAWS FOR OWNER-RUN REMODELS\n\nPay the right amount.\nKeep the receipt.\n\nA sub sends a pay app. TradePulse checks the claim against the contract and schedule of values, shows you the backup, and waits for your approval before PayPal moves sandbox money.\n\nCatch overbilling early\n\nEvery line is"
+    }
+  ],
+  "measurements": [
+    {
+      "width": 1440,
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "scrollWidth": 1440,
+      "innerText": "TradePulse Pay\nRESIDENTIAL REMODEL GCS · PAYPAL SANDBOX\n\nPROGRESS DRAWS FOR OWNER-RUN REMODELS\n\nPay the right amount.\nKeep the receipt.\nChoose your seat\n\nStart with the GC seat. No signup or sponsor account is needed for the core demo.\n\nSettled Ortiz: $5,400.00 requested. Conservative review; GC's recorded override: $4,000.00 approved; $200.00 retainage; $3,800.00 paid.\n\nSign in as the general contractor\n→\nReview a sub's pay app and release sandbox payment.\ngc@demo.tradepulse\nSubcontractor\n→\nSign in as Ortiz Plumbing on the settled Lopez Kitchen Remodel pay app.\nsub4@demo.tradepulse\nProject owner\n→\nSee job progress and pay a change-order invoice.\nowner@demo.tradepulse\n\nThese buttons use ordinary demo-account sign-in, not an authentication bypass. Funding and invoice payment still need sandbox browser approval.\n\nNormal sign-in / create a GC account\n\nPayPal sandbox · no real money moves here, and every demo account is shared.\n\nRules set the amount. Mistral explains it. You decide.\n\nManual sign-in and sandbox details\nCatch overbilling early\n\nEvery line is checked against the schedule of values, exclusions and what was already paid.\n\nDecide with the evidence\n\nSee the contract, change orders, licence status and prior payments beside the amount you are approving.\n\nKeep a clean owner trail\n\nSub pay apps, owner invoices and PayPal receipts stay tied to one job ledger for the owner or lender.\n\nBuilt for the GC running a handful of kitchens, additions and whole-home remodels — not a billion-dollar ERP. Rules compute the money. A model can explain the evidence. You make the call.\n\nJudge walkthrough: inspect a settled run or create a new one\n+\nSandbox payment\n\nFunding and invoice payment still require real sandbox browser approval. This is not a claim of full-contract completion.\n\nWhat to verify\n\nRead the rules-computed amounts and the model’s explanations in the approval inbox. Check PayPal captures are COMPLETED, payout items are SUCCESS, and the Owner invoice is PAID. Dashboard and agreement-ledger totals must agree. Pending, unclaimed or failed is not paid.\n\nHonest limits\n\nModel or browser-service failures are surfaced, not presented as successful live calls. Compliance documents, sub submissions and Owner change-order approval are explicitly labeled as examples.\n\nCanonical: tradepulse-pay.asynchronope.tech/#/demo",
+      "summaryText": "Settled Ortiz: $5,400.00 requested. Conservative review; GC's recorded override: $4,000.00 approved; $200.00 retainage; $3,800.00 paid.",
+      "buttons": [
+        {
+          "testid": "demo-enter-gc",
+          "top": 277
+        },
+        {
+          "testid": "demo-enter-sub",
+          "top": 407
+        },
+        {
+          "testid": "demo-enter-owner",
+          "top": 537
+        }
+      ],
+      "seats": [
+        {
+          "id": "demo-enter-gc",
+          "top": 277,
+          "bottom": 395,
+          "height": 118
+        },
+        {
+          "id": "demo-enter-sub",
+          "top": 407,
+          "bottom": 525,
+          "height": 118
+        },
+        {
+          "id": "demo-enter-owner",
+          "top": 537,
+          "bottom": 655,
+          "height": 118
+        }
+      ],
+      "details": [
+        {
+          "testid": "demo-manual-details",
+          "summary": "Manual sign-in and sandbox details",
+          "open": false,
+          "items": 6,
+          "textLength": 873
+        },
+        {
+          "testid": null,
+          "summary": "Judge walkthrough: inspect a settled run or create a new one+",
+          "open": false,
+          "items": 0,
+          "textLength": 632
+        }
+      ],
+      "links": [
+        {
+          "text": "TradePulse Pay",
+          "href": "#/"
+        },
+        {
+          "text": "Normal sign-in / create a GC account",
+          "href": "#/"
+        },
+        {
+          "text": "cheery-axolotl-689.convex.site/#/demo",
+          "href": "https://cheery-axolotl-689.convex.site/#/demo"
+        },
+        {
+          "text": "5d598a63036a",
+          "href": "https://github.com/bO-05/tradepulse-pay/commit/5d598a63036ad9874b1a615a9591448cb1deeee4"
+        },
+        {
+          "text": "version.json",
+          "href": "/version.json"
+        },
+        {
+          "text": "tradepulse-pay.asynchronope.tech/#/demo",
+          "href": "https://tradepulse-pay.asynchronope.tech/#/demo"
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "scrollWidth": 390,
+      "innerText": "TradePulse Pay\nRESIDENTIAL REMODEL GCS · PAYPAL SANDBOX\n\nPROGRESS DRAWS FOR OWNER-RUN REMODELS\n\nPay the right amount.\nKeep the receipt.\nChoose your seat\n\nStart with the GC seat. No signup or sponsor account is needed for the core demo.\n\nSettled Ortiz: $5,400.00 requested. Conservative review; GC's recorded override: $4,000.00 approved; $200.00 retainage; $3,800.00 paid.\n\nSign in as the general contractor\n→\nReview a sub's pay app and release sandbox payment.\ngc@demo.tradepulse\nSubcontractor\n→\nSign in as Ortiz Plumbing on the settled Lopez Kitchen Remodel pay app.\nsub4@demo.tradepulse\nProject owner\n→\nSee job progress and pay a change-order invoice.\nowner@demo.tradepulse\n\nThese buttons use ordinary demo-account sign-in, not an authentication bypass. Funding and invoice payment still need sandbox browser approval.\n\nNormal sign-in / create a GC account\n\nPayPal sandbox · no real money moves here, and every demo account is shared.\n\nRules set the amount. Mistral explains it. You decide.\n\nManual sign-in and sandbox details\nCatch overbilling early\n\nEvery line is checked against the schedule of values, exclusions and what was already paid.\n\nDecide with the evidence\n\nSee the contract, change orders, licence status and prior payments beside the amount you are approving.\n\nKeep a clean owner trail\n\nSub pay apps, owner invoices and PayPal receipts stay tied to one job ledger for the owner or lender.\n\nBuilt for the GC running a handful of kitchens, additions and whole-home remodels — not a billion-dollar ERP. Rules compute the money. A model can explain the evidence. You make the call.\n\nJudge walkthrough: inspect a settled run or create a new one\n+\nSandbox payment\n\nFunding and invoice payment still require real sandbox browser approval. This is not a claim of full-contract completion.\n\nWhat to verify\n\nRead the rules-computed amounts and the model’s explanations in the approval inbox. Check PayPal captures are COMPLETED, payout items are SUCCESS, and the Owner invoice is PAID. Dashboard and agreement-ledger totals must agree. Pending, unclaimed or failed is not paid.\n\nHonest limits\n\nModel or browser-service failures are surfaced, not presented as successful live calls. Compliance documents, sub submissions and Owner change-order approval are explicitly labeled as examples.\n\nCanonical: tradepulse-pay.asynchronope.tech/#/demo",
+      "summaryText": "Settled Ortiz: $5,400.00 requested. Conservative review; GC's recorded override: $4,000.00 approved; $200.00 retainage; $3,800.00 paid.",
+      "buttons": [
+        {
+          "testid": "demo-enter-gc",
+          "top": 491
+        },
+        {
+          "testid": "demo-enter-sub",
+          "top": 617
+        },
+        {
+          "testid": "demo-enter-owner",
+          "top": 743
+        }
+      ],
+      "seats": [
+        {
+          "id": "demo-enter-gc",
+          "top": 491,
+          "bottom": 609,
+          "height": 118
+        },
+        {
+          "id": "demo-enter-sub",
+          "top": 617,
+          "bottom": 735,
+          "height": 118
+        },
+        {
+          "id": "demo-enter-owner",
+          "top": 743,
+          "bottom": 841,
+          "height": 98
+        }
+      ],
+      "details": [
+        {
+          "testid": "demo-manual-details",
+          "summary": "Manual sign-in and sandbox details",
+          "open": false,
+          "items": 6,
+          "textLength": 873
+        },
+        {
+          "testid": null,
+          "summary": "Judge walkthrough: inspect a settled run or create a new one+",
+          "open": false,
+          "items": 0,
+          "textLength": 632
+        }
+      ],
+      "links": [
+        {
+          "text": "TradePulse Pay",
+          "href": "#/"
+        },
+        {
+          "text": "Normal sign-in / create a GC account",
+          "href": "#/"
+        },
+        {
+          "text": "cheery-axolotl-689.convex.site/#/demo",
+          "href": "https://cheery-axolotl-689.convex.site/#/demo"
+        },
+        {
+          "text": "5d598a63036a",
+          "href": "https://github.com/bO-05/tradepulse-pay/commit/5d598a63036ad9874b1a615a9591448cb1deeee4"
+        },
+        {
+          "text": "version.json",
+          "href": "/version.json"
+        },
+        {
+          "text": "tradepulse-pay.asynchronope.tech/#/demo",
+          "href": "https://tradepulse-pay.asynchronope.tech/#/demo"
+        }
+      ]
+    }
+  ],
+  "diagnostics": [
+    {
+      "width": 1440,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [],
+      "ignoredAborts": [
+        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED",
+        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED"
+      ]
+    },
+    {
+      "width": 390,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": [],
+      "ignoredAborts": [
+        "GET https://cheery-axolotl-689.convex.site/api/sign-in-options :: net::ERR_ABORTED"
+      ]
+    }
+  ],
+  "checksRun": 88,
+  "landing": {
+    "hash": "#/pay-apps/ph7434a59sqck3nysgt6teqh0h8hvx1h",
+    "identity": "Ortiz Plumbing · sub4@demo.tradepulseSubcontractor"
+  }
+}

@@ -136,6 +136,7 @@ async function measure(page) {
       scrollWidth: document.documentElement.scrollWidth,
       clientWidth: document.documentElement.clientWidth,
       trailText: document.querySelector('[data-testid="payapp-money-trail"]')?.innerText ?? "",
+      decisionText: document.querySelector('[data-testid="payapp-decision"]')?.innerText ?? "",
       figures,
       domOrder,
       primary,
@@ -176,6 +177,7 @@ for (const [width, height] of [[1440, 900], [390, 844]]) {
     width,
     ...m,
     trailText: maskEmails(m.trailText),
+    decisionText: maskEmails(m.decisionText),
     paymentText: maskEmails(m.paymentText),
     controls: m.controls.length,
     under24: m.under24,
@@ -185,6 +187,25 @@ for (const [width, height] of [[1440, 900], [390, 844]]) {
   check(`${tag} Subcontractor lands on the settled Lopez pay app`, await page.evaluate(() => location.hash) === SETTLED_HASH);
   check(`${tag} money trail is visible`, (m.trail?.height ?? 0) > 0);
   check(`${tag} trail shows claimed $5,400.00 and net $3,800.00`, m.trailText.includes("$5,400.00") && m.trailText.includes("$3,800.00"));
+  check(
+    `${tag} trail explains the conservative review and recorded GC decision`,
+    /funded or in-progress milestones are credited at 50% of their share/i.test(m.trailText)
+      && /Work in place is reported by the subcontractor, not independently inspected/i.test(m.trailText)
+      && /recorded per-line reason/i.test(m.trailText),
+    m.trailText,
+  );
+  check(`${tag} trail states the kept Fixtures set cut plainly`, m.trailText.includes("Fixtures set was cut by $1,400.00 to $0.00, and the GC kept that cut"), m.trailText);
+  check(`${tag} trail drops the unexplained above-review sentence`, !m.trailText.includes("above the review suggestion"));
+  check(
+    `${tag} new trail copy excludes internal money and funding jargon`,
+    !/(140,000 cents)|tranche ceiling|funding progress/i.test(m.trailText),
+    m.trailText,
+  );
+  check(
+    `${tag} both flagged lines and their recorded reasons stay visible`,
+    /Line 1\. Rough-in/i.test(m.decisionText) && /Line 2\. Fixtures set/i.test(m.decisionText) && /Reason:/i.test(m.decisionText),
+    m.decisionText,
+  );
   check(`${tag} trail names the PayPal settlement`, /paid by paypal/i.test(m.trailText), m.trailText.slice(0, 200));
   check(`${tag} net figure is the largest money figure`, m.net?.fontSize === Math.max(...m.figures.map((f) => f.fontSize)), JSON.stringify(m.figures.slice(0, 3)));
   check(`${tag} net figure is at least text-2xl (24px)`, (m.net?.fontSize ?? 0) >= 24, String(m.net?.fontSize));
@@ -243,10 +264,18 @@ for (const [width, height] of [[1440, 900], [390, 844]]) {
       clientWidth: document.documentElement.clientWidth,
       sheetVisible: sheet !== null && sheet.getBoundingClientRect().height > 0,
       pageText: document.querySelector('[data-testid="payapp-summary"]')?.innerText ?? "",
+      historyText: document.querySelector('[data-testid="payapp-approval-history"]')?.innerText ?? "",
     };
   });
   check(`${tag} open disclosures show the breakdown sheet`, opened.sheetVisible);
   check(`${tag} open disclosures show the summary lines`, /This draw/.test(opened.pageText), opened.pageText.slice(0, 120));
+  check(
+    `${tag} approval history explains the conservative suggestion and recorded reasons`,
+    opened.historyText.includes("Conservative review suggested gross $2,000.00")
+      && opened.historyText.includes("GC approved $4,000.00 with recorded per-line reasons")
+      && !opened.historyText.includes("above the recommendation"),
+    opened.historyText,
+  );
   check(`${tag} open disclosures do not overflow the page`, opened.scrollWidth <= opened.clientWidth, `${opened.scrollWidth} vs ${opened.clientWidth}`);
 
   // Evidence screenshots show the page as a judge receives it: secondary detail collapsed.
