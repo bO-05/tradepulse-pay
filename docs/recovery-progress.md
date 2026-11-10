@@ -93,21 +93,44 @@ The managed cloud workspace is unavailable. GitHub is the recoverable source bas
   card remain available behind collapsed disclosures, so they no longer dominate the first screen.
 - The GC primary bar is five daily areas — Approvals, Billing, Projects, Change orders, Payments — plus
   Guided demo for the demo company. Procurement, compliance, project summaries, people, vendors,
-  billing agents and payment reports moved under More. Sub and Owner nav are unchanged.
+  billing agents and payment reports moved under More. A real GC keeps all seven More links. The demo
+  GC's More has six: Procurement is omitted from the judge-facing menu, while the direct
+  `#/procurement` route and a project's **Open in Procurement** entry still work for both. Sub and
+  Owner nav are unchanged.
 - The approval inbox now groups entries into Needs your attention, Approved · awaiting payment, and
   collapsed History. Filters still search all loaded entries, and the history section opens itself
   when the filter leaves no open work.
 - Focused tests: **26/26**. Full regression on the deployed build: **2,052 tests across 157 files**,
   build clean, guard audit **264 public / 201 internal / 0 problems**.
-- Read-only browser acceptance `scripts/qa/landing-nav-inbox-browser.mjs`: **41/41 checks** on
-  canonical build `517be73`, including the six-item primary bar, all seven More links, the inbox
-  buckets, R6-A filtering and a 390px phone layout. Existing Owner-card acceptance stayed **18/18**,
-  and the three-role smoke passed with no failures. The three-host acceptance passed **53/53 checks**
+- Historical 5 November 2026 run: read-only browser acceptance `scripts/qa/landing-nav-inbox-browser.mjs`
+  recorded **41/41 checks** on canonical build `517be73` before the demo-GC More change, so that run
+  still counted all seven More links. Existing Owner-card acceptance stayed **18/18**, and the
+  three-role smoke passed with no failures. The three-host acceptance passed **53/53 checks**
   with all hosts serving commit `517be73a93963e836ca11a3befa91da3c23873fb`. Evidence:
   `evidence/landing-nav-inbox-browser-2026-11-05T09-22-03-912Z/report.json` and
   `evidence/dual-host-browser-2026-11-05T09-25-28-884Z/report.json`.
 - No approval, payment, PayPal call, guided run or reference-run mutation was made. See
   [landing-navigation-inbox.md](./landing-navigation-inbox.md).
+
+## Follow-up audit docs and read-only QA, 10 November 2026
+
+- Current-facing docs now name the one Lopez five-cell money strip
+  (`$4,800.00` / `$3,800.00` / `$200.00` / `$400.00` / `$0.00`) and its three mounts: the GC home,
+  the Lopez project page and the owner-billing tab. `judge-guide.md` and `README.md` no longer
+  describe an all-jobs portfolio strip.
+- The judge-guide real-user path uses **Projects → Quick start** for the first subcontract, names the
+  records it creates, and keeps **People → Invite subcontractor** recipient verification. Real GC
+  accounts keep **More → Procurement**; the demo GC's More has six links and Procurement stays
+  reachable through `#/procurement` and a project's **Open in Procurement** entry.
+- Judge-guide step 7 keeps the exact-agreement `$1,850` Change orders flow, and the guide states that
+  documentation and QA checks read that record but never execute the payment.
+- Read-only browser acceptance `scripts/qa/landing-nav-inbox-browser.mjs`: **78/78 checks** on the
+  current tree with empty page and console error lists, including the six-item primary bar, six demo
+  More links with Procurement omitted and reachable directly, the one Lopez five-cell strip, the
+  commercial disclosure, the commercial-only state and a 390px layout with no overflow.
+- The hosted GC harness was re-run locally with `--no-fresh-run` for both widths. Its persisted
+  measurements and screenshots mask email-shaped text; no guided run, payment, invoice or draft was
+  created. See [landing-navigation-inbox.md](./landing-navigation-inbox.md).
 
 ## Verified recovery baseline
 

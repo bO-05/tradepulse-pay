@@ -1,6 +1,6 @@
 # TradePulse Pay
 
-**For the owner-run residential remodel GC.** TradePulse Pay runs the money side of a kitchen, addition or whole-home job. The GC funds a trade's milestone through PayPal, the sub files a pay app, the rules engine checks every line against the awarded scope, the configured model explains the evidence, code computes every dollar, and the GC approves before PayPal captures and pays net of retainage. The homeowner then pays a draw or change order by PayPal invoice, and one strip shows collected, paid out, retained and owed.
+**For the owner-run residential remodel GC.** TradePulse Pay runs the money side of a kitchen, addition or whole-home job. The GC funds a trade's milestone through PayPal, the sub files a pay app, the rules engine checks every line against the awarded scope, the configured model explains the evidence, code computes every dollar, and the GC approves before PayPal captures and pays net of retainage. The homeowner then pays a draw or change order by PayPal invoice, and one five-cell strip shows collected from the homeowner, paid to subs, both retainage directions and owed this week.
 
 [**Open the judge demo →**](https://tradepulse-pay.asynchronope.tech/#/demo) · [judge walkthrough](./docs/judge-guide.md) · [settled Lopez evidence](./docs/evidence/settlement/README.md) · [source on `main`](https://github.com/bO-05/tradepulse-pay/tree/main) · MIT licensed.
 
@@ -22,7 +22,7 @@ The demo company carries one complete kitchen job. **Bayview Remodeling** is the
 - **5% retainage** held **$200.00**; PayPal paid Ortiz **$3,800.00** net (payout batch `D5V7XEN5YZH4C`).
 - **Homeowner Draw #1** was approved and paid by PayPal invoice: **$3,600.00** after 10% owner retainage (`INV2-5ZNS-USY8-KBFD-L3B9`).
 - **The $1,200.00 "Add under-cabinet lighting" change order** was invoiced and paid (`INV2-RCJ4-Z8GD-4A33-TDJC`).
-- **The money strip** shows collected from owners, paid to subs, retainage held and owed this week on the GC home, the Lopez project page and the owner-billing tab.
+- **The money strip** is one Lopez five-cell strip, titled `Money on this job · Lopez Kitchen Remodel`: **Collected from homeowner $4,800.00** (the paid $3,600.00 draw plus the paid $1,200.00 change order), **Paid to subs $3,800.00**, **Retainage you hold $200.00**, **Retainage held from you $400.00** and **Owed this week $0.00**. It mounts on the GC home (`#/inbox`), the Lopez project page (`#/all-projects/<projectId>`) and the owner-billing tab; each number links to its receipts. The old all-jobs portfolio strip is gone. On the GC worklists, commercial reference work stays in one closed, counted `Commercial reference job (n)` disclosure, with every commercial row preserved when it opens.
 
 Lopez is a **read-only reference**: every write path refuses with `READ_ONLY_REFERENCE`. The Guided demo is the resettable write sandbox. Ids, cents and screenshots are in [`docs/evidence/settlement/`](./docs/evidence/settlement/README.md).
 
@@ -62,7 +62,7 @@ TradePulse Pay takes the contract the GC just awarded in TradePulse Pro and runs
 4. **Rules review with model explanations.** The rules engine returns per-line verdicts (ok, overbilled, excluded scope, front-loaded, out of sequence) and **code computes every dollar** from the SOV; the configured Mistral or Anthropic model explains the evidence and cannot author or change an amount. KERNEL checks the sub's California license (CSLB) in a hosted browser.
 5. **Pay agent proposes**, the GC approves. The agent can only insert proposals (capture, payout, hold, reschedule). Money moves only after the GC approves: PayPal captures from the authorization, pays the sub net of retainage through Payouts, and credits the retainage ledger.
 6. **Owner draws and change orders** are invoiced to the homeowner with PayPal Invoicing. **Retainage** is released at closeout as one payout of the ledger balance.
-7. **One set of numbers.** The money strip shows collected from owners, paid to subs, retainage held and owed this week, and each number links to its receipts. A live ledger dashboard shows payments, pay apps, retainage and change orders. A licensed AG Studio view adds layout editing and model-backed chat; the basic React view works without a Studio license.
+7. **One set of numbers.** The Lopez money strip has five cells, Collected from homeowner / Paid to subs / Retainage you hold / Retainage held from you / Owed this week, and each number links to its receipts. A live ledger dashboard shows payments, pay apps, retainage and change orders. A licensed AG Studio view adds layout editing and model-backed chat; the basic React view works without a Studio license.
 
 ---
 
@@ -85,7 +85,7 @@ The procurement features of TradePulse Pro (CSI scoping, Firecrawl discovery, Ag
 ```
 Browser (Vite dev server, http://localhost:3150)
   ├─ Convex Auth sign-in: password (gc, sub, owner) or "Continue with AgentID" (billing agents)
-  ├─ Procurement (TradePulse Pro views, GC only)
+  ├─ Procurement (TradePulse Pro views, GC only; More for real GCs, direct #/procurement for the demo GC)
   ├─ Payments workspace (src/payments/): ledger, fund milestone (PayPal JS SDK buttons),
   │    sub portal, GC approval inbox (rules review with model explanations, KERNEL live view, approve/edit/reject),
   │    owner portal (change-order invoices), judge demo
@@ -197,7 +197,7 @@ TradePulse Pay requires sign-in for workspaces. Signed-out visitors can read `#/
 
 | Account | Role | What it sees |
 |---|---|---|
-| `gc@demo.tradepulse` | General contractor | Procurement (award, execute), payments, approval inbox, billing agents, reports and the guided demo. The shared reference run is read-only |
+| `gc@demo.tradepulse` | General contractor | Procurement (award, execute) via direct `#/procurement`, since the demo GC's More hides it; payments, approval inbox, billing agents, reports and the guided demo. The shared reference run is read-only |
 | `sub1@demo.tradepulse` | Subcontractor | Only Rosendin Electric's agreements and pay applications |
 | `sub2@demo.tradepulse` | Subcontractor | Only TDIndustries' agreements and pay applications |
 | `sub3@demo.tradepulse` | Subcontractor | Only Clarke Kent Plumbing's agreements and pay applications |
@@ -348,7 +348,7 @@ These predate TradePulse Pay. They are kept for history, are not part of the che
 
 ## TradePulse Pro procurement (the base app)
 
-Signed in as the GC, the **Procurement** area is the original TradePulse Pro app: CSI MasterFormat scoping into trade packages, Firecrawl subcontractor discovery with provenance, AgentMail RFQ inboxes and pre-bid RFIs, forensic bid leveling (base bid + exclusions + lead-time and COI penalties − accepted VE alternates, computed in code), cross-trade scope clash detection, and A401-style subcontract drafts (not an official AIA form). Awarding and executing a contract there is what starts the TradePulse Pay flow. The September audits of that app are archived in [`docs/audits/`](./docs/audits/README.md).
+Signed in as the GC, the **Procurement** area is the original TradePulse Pro app: CSI MasterFormat scoping into trade packages, Firecrawl subcontractor discovery with provenance, AgentMail RFQ inboxes and pre-bid RFIs, forensic bid leveling (base bid + exclusions + lead-time and COI penalties − accepted VE alternates, computed in code), cross-trade scope clash detection, and A401-style subcontract drafts (not an official AIA form). Awarding and executing a contract there is what starts the TradePulse Pay flow. Real GC accounts find **Procurement** under **More**. The demo GC's More hides it to keep the judge path on the payment loop; open `#/procurement` directly or use a project's **Open in Procurement** entry. The September audits of that app are archived in [`docs/audits/`](./docs/audits/README.md).
 
 ---
 

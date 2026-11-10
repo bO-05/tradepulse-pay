@@ -24,8 +24,11 @@ the long approval inbox.
 - The primary bar is now the five daily payment areas: **Approvals**, **Billing**, **Projects**,
   **Change orders** and **Payments**. Demo companies also keep **Guided demo** in the bar for judges.
 - **More** holds the back-office registers: Procurement, Compliance & waivers, Project summaries,
-  People, Vendors, Billing agents and Payment reports. The menu is a native `<details>` disclosure, so
-  keyboard and phone users get the same links without a custom menu widget.
+  People, Vendors, Billing agents and Payment reports. A real GC sees all seven. The demo GC sees six:
+  Procurement is omitted from the judge-facing More menu so the demo path stays on the payment loop.
+  The direct `#/procurement` route and a project's **Open in Procurement** entry still work for both,
+  and `NAV_BY_ROLE`, `navFor` and route authorization are unchanged. The menu is a native `<details>`
+  disclosure, so keyboard and phone users get the same links without a custom menu widget.
 - The More summary turns green when the current route lives inside it, and every existing hash still
   resolves. This is a presentation split, not an authorization change.
 - Sub and Owner navigation is unchanged.
@@ -55,6 +58,8 @@ the long approval inbox.
 
 ## Verification on build `517be73`
 
+Historical figures for that build. The current follow-up run is recorded below.
+
 - Focused tests: **26/26** across `src/auth/DemoAccessPage.test.tsx`,
   `src/auth/navigation.test.ts` and `src/payments/inbox/inboxBuckets.test.ts`.
 - Full regression: **2,052 tests across 157 files** passed.
@@ -62,8 +67,8 @@ the long approval inbox.
   0 problems**).
 - Read-only browser acceptance `scripts/qa/landing-nav-inbox-browser.mjs`: **41/41 checks** on the
   canonical domain. It covers the residential hero, collapsed disclosures, six-item primary bar,
-  all seven More links, inbox buckets and counts, collapsed history, R6-A filtering, readable status
-  labels, and a 390px phone layout with no horizontal overflow. Evidence:
+  all seven More links as the menu stood then, inbox buckets and counts, collapsed history, R6-A
+  filtering, readable status labels, and a 390px phone layout with no horizontal overflow. Evidence:
   `evidence/landing-nav-inbox-browser-2026-11-05T09-22-03-912Z/report.json`.
 - Existing Owner-card acceptance stayed green at **18/18** on the same build. The read-only role smoke
   passed all three demo logins and every checked route with no page, console or request failures.
@@ -73,3 +78,17 @@ the long approval inbox.
   `evidence/dual-host-browser-2026-11-05T09-25-28-884Z/report.json`.
 - The browser runs made no approval, rejection, payment, PayPal popup, guided run or reference-run
   change.
+
+## Current follow-up, 10 November 2026
+
+- The demo GC's More now has six links and omits Procurement; a real GC keeps all seven. The direct
+  `#/procurement` route and each editable project's **Open in Procurement** entry work for both, and
+  route authorization is unchanged.
+- Read-only acceptance on the current tree: `node scripts/qa/landing-nav-inbox-browser.mjs --url
+  http://localhost:3150` passed **78/78 checks** with empty page and console error lists. It covers
+  the residential hero, the six-item primary bar, six demo-GC More links with Procurement omitted,
+  the direct route, the editable project entry, the one Lopez five-cell strip
+  (`$4,800.00` / `$3,800.00` / `$200.00` / `$400.00` / `$0.00`), the commercial disclosure, the
+  commercial-only state and a 390px phone layout with no horizontal overflow. No guided run, approval,
+  payment or draft was created. Evidence:
+  `evidence/landing-nav-inbox-browser-2026-11-10T18-37-07-256Z/report.json`.

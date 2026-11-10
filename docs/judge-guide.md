@@ -71,9 +71,14 @@ write controls. Inspect it rather than editing it.
    approving `$4,000.00` gross. The payout receipt shows `$4,000.00` gross, `$200.00` retainage and
    `$3,800.00` net.
 3. Inspect the paid **"Add under-cabinet lighting"** change order (`$1,200.00`) and its PayPal invoice.
-4. On the GC home (`#/inbox`), the Lopez project page and the owner-billing tab, read the **money
-   strip**: collected from owners, paid to subs, retainage held and owed this week. Each number links
-   to its receipts.
+4. On the GC home (`#/inbox`), the Lopez project page (`#/all-projects/<projectId>`) and the
+   owner-billing tab (`#/billing/owner-billing`), read the one Lopez **money strip**, titled
+   `Money on this job · Lopez Kitchen Remodel`. It has five cells: **Collected from homeowner
+   `$4,800.00`** (the paid `$3,600.00` draw plus the paid `$1,200.00` change order), **Paid to subs
+   `$3,800.00`**, **Retainage you hold `$200.00`**, **Retainage held from you `$400.00`** and
+   **Owed this week `$0.00`**. Each number links to its receipts. The GC home no longer shows a
+   separate all-jobs strip. Commercial reference work stays below in one closed, counted
+   `Commercial reference job (n)` disclosure, and every commercial row is still there when it opens.
 
 Evidence, exact ids and the run log are in [`docs/evidence/settlement/`](./evidence/settlement/README.md).
 The guided demo (below) is the only write sandbox; do not try to fund, approve or pay on Lopez.
@@ -95,6 +100,7 @@ The guided demo (below) is the only write sandbox; do not try to fund, approve o
    Inspect real states: captures COMPLETED, payout **items** SUCCESS, invoice PAID. Pending/UNCLAIMED/failed is not paid.
 7. In a separate Owner browser, open the change order for **your exact agreement**, open PayPal and pay **`$1,850`** as guest.
    Back in the GC tab, **Refresh status** performs a real PayPal status read. Do not repeatedly create new invoices.
+   Documentation and QA checks open this Change orders record and read its invoice, but validation never executes the `$1,850` payment.
 8. Optionally release retainage as GC once appropriate for this demo closeout. A platform top-up is only needed if funds are
    insufficient, not an obligatory fee. Wait for the retainage payout's real SUCCESS status.
 
@@ -109,14 +115,23 @@ The public accounts above are not required for normal use:
    verification code, and create a GC company. **The public recovery-dev mailer only sends to allowlisted test
    addresses**, not arbitrary personal/work email. Use the public demo roles unless you have an authorized test inbox;
    do not relax the allowlist to email discovered businesses. Codes expire after 15 minutes.
-2. **Projects → New project**. Add a manual trade package, or use AI scoping. Dates default to two weeks ahead.
-3. Add a vendor and **Enter bid on behalf** with permission. Discovery and RFQ email are optional, not prerequisites for a first award.
-4. Open Procurement's leveling view, award the bid, generate the agreement, record actual execution and approve its SOV.
-5. **People → Invite subcontractor**. Check the selected vendor's recipient email. The invited person verifies that exact email
-   and accepts the invitation **before** creating a separate GC company.
-6. The sub enters and submits a pay application. The GC reviews and decides.
+2. **Projects → Quick start** is the verified path for a first subcontract. It creates the job, trade
+   package, vendor and direct bid from a three-to-eight-line schedule of values (minimum `$1,000.00`),
+   generates the subcontract, imports and approves the SOV and records the GC's execution in one pass.
+   The final screen names what was created. A real GC account also creates the sub invite there; the
+   shared demo company cannot create invites, so its job and subcontract are still created and the
+   invite step is skipped with an explanation.
+3. **New project** remains the full path for multi-trade scoping and bid leveling. Real GC accounts
+   open **More → Procurement** to level bids, award the bid, generate the agreement, record actual
+   execution and approve its SOV. The demo GC's More hides Procurement; open `#/procurement` directly
+   or use a project's **Open in Procurement** entry.
+4. **People → Invite subcontractor** to resend or copy the invite the **Projects → Quick start**
+   agreement flow attempted, or to add another seat. Check the selected vendor's recipient email. The
+   invited person verifies that exact email and accepts the invitation **before** creating a separate
+   GC company.
+5. The sub enters and submits a pay application. The GC reviews and decides.
    Funding, confirmed payee and compliance are genuine payment gates, not automatically cleared for real companies.
-7. Invite the Owner similarly. Configure real company billing details before invoicing.
+6. Invite the Owner similarly. Configure real company billing details before invoicing.
 
 Do not use the demo fixture flags as proof of insurance, tax compliance, license validity, signature or actual work performed.
 
@@ -131,8 +146,9 @@ The judged flow is the residential GC's own loop, not a commercial-only demo:
    billed, approved and paid. A draw-by-milestone job uses the same sheet: enter that draw's amount on the
    relevant prime line and submit it.
 5. Sign or require lien waivers, including the closeout retainage release.
-6. Read the money strip on the GC home, the project page and the owner-billing tab: collected from owners,
-   paid to subs, retainage held and owed this week, each linked to its receipts.
+6. Read the one Lopez money strip on the GC home, the project page and the owner-billing tab:
+   Collected from homeowner `$4,800.00`, Paid to subs `$3,800.00`, Retainage you hold `$200.00`,
+   Retainage held from you `$400.00`, Owed this week `$0.00`; each cell links to its receipts.
 
 Not built, and not claimed: a separate prime-milestone schedule that creates owner draws automatically,
 and in-app subcontract acceptance by the sub. `docs/r7-remediation.md` lists both as open.
