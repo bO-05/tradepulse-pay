@@ -127,7 +127,9 @@ The managed cloud workspace is unavailable. GitHub is the recoverable source bas
 - Read-only browser acceptance `scripts/qa/landing-nav-inbox-browser.mjs`: **78/78 checks** on the
   current tree with empty page and console error lists, including the six-item primary bar, six demo
   More links with Procurement omitted and reachable directly, the one Lopez five-cell strip, the
-  commercial disclosure, the commercial-only state and a 390px layout with no overflow.
+  commercial disclosure, the commercial-only state and a 390px layout with no overflow. The sweep
+  masks every email-shaped value before measuring, capturing or writing, so the regenerated report
+  and screenshots contain none.
 - The hosted GC harness was re-run locally with `--no-fresh-run` for both widths. Its persisted
   measurements and screenshots mask email-shaped text; no guided run, payment, invoice or draft was
   created. See [landing-navigation-inbox.md](./landing-navigation-inbox.md).

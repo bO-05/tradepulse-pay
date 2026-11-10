@@ -90,5 +90,7 @@ Historical figures for that build. The current follow-up run is recorded below.
   the direct route, the editable project entry, the one Lopez five-cell strip
   (`$4,800.00` / `$3,800.00` / `$200.00` / `$400.00` / `$0.00`), the commercial disclosure, the
   commercial-only state and a 390px phone layout with no horizontal overflow. No guided run, approval,
-  payment or draft was created. Evidence:
-  `evidence/landing-nav-inbox-browser-2026-11-10T18-37-07-256Z/report.json`.
+  payment or draft was created. The sweep masks every email-shaped value in the DOM before it
+  measures, captures or writes, so its report and screenshots carry no address. Evidence:
+  `evidence/followup-docs-qa-privacy-2026-11-11/landing-nav-inbox/report.json` (0 email-pattern
+  matches).
