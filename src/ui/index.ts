@@ -26,6 +26,10 @@ export {
 export { ToastProvider, useToast, type ToastApi } from "./Toast";
 export { STATUS_LABELS, statusLabel, statusLabelFor, statusMeta, statusMetaFor, type StatusTone } from "./statusLabels";
 export { CommercialReferenceBadge, type CommercialReferenceBadgeProps } from "./CommercialReferenceBadge";
+export {
+  CommercialReferenceDisclosure,
+  type CommercialReferenceDisclosureProps,
+} from "./CommercialReferenceDisclosure";
 export { formatCents, formatDate, formatDateTime, formatBps } from "./format";
 export { parseMoneyToCents, parsePercentToBps } from "./masks";
 export { cx, focusRing } from "./cx";

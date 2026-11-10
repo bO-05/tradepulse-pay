@@ -9,7 +9,7 @@ import { LicenseBadge, LicenseCheckPanel, type LicenseBadgeStatus } from "../Lic
 import { PayAppReviewCard } from "../PayAppReviews";
 import { submissionAttribution } from "../SubmissionAttribution";
 import { payAppHash, ledgerHash } from "../../auth/navigation";
-import { Button, EmptyState, MoneyTrail, StatusPill, TextInput, statusLabel } from "../../ui";
+import { Button, CommercialReferenceDisclosure, EmptyState, MoneyTrail, StatusPill, TextInput, statusLabel } from "../../ui";
 import { ReceiptId } from "../ReceiptId";
 import { ReferenceNotice } from "../ReferenceNotice";
 import { readOnlyTitle } from "../../lib/referenceCopy";
@@ -727,23 +727,14 @@ export function ApprovalInbox() {
             </div>
           ) : null}
           {commercial.length > 0 ? (
-            <details
-              className="group rounded-2xl border border-slate-800 bg-slate-900/40"
-              data-testid="inbox-commercial"
-              data-record-count={commercial.length}
+            <CommercialReferenceDisclosure
+              count={commercial.length}
+              testId="inbox-commercial"
+              summaryTestId="inbox-commercial-summary"
+              contentClassName="space-y-3"
             >
-              <summary
-                className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden"
-                data-testid="inbox-commercial-summary"
-              >
-                <span className="text-base font-semibold">Commercial reference job ({commercial.length})</span>
-                <span aria-hidden="true" className="text-xs text-slate-400 group-open:hidden">Show</span>
-                <span aria-hidden="true" className="hidden text-xs text-slate-400 group-open:inline">Hide</span>
-              </summary>
-              <div className="space-y-3 border-t border-slate-800 p-3">
-                {commercial.map((item) => <InboxEntry key={item.payApp._id} item={item} primaryProposalId={null} />)}
-              </div>
-            </details>
+              {commercial.map((item) => <InboxEntry key={item.payApp._id} item={item} primaryProposalId={null} />)}
+            </CommercialReferenceDisclosure>
           ) : null}
         </div>
       )}

@@ -1,9 +1,51 @@
 import { useQuery } from "convex/react";
+import type { FunctionReturnType } from "convex/server";
 import { api } from "../../convex/_generated/api";
 import { ledgerHash } from "../auth/navigation";
 import { formatCents, formatDate } from "./format";
 import { demoDisplayName } from "../lib/demoCopy";
 import { termsForKind } from "../lib/terms";
+import { CommercialReferenceDisclosure } from "../ui";
+
+type AgreementRow = FunctionReturnType<typeof api.payments.ledger.listLedgerAgreements>[number];
+
+/** One agreement ledger row, unchanged by the partition. */
+function AgreementTable({ agreements, testId, label }: { agreements: AgreementRow[]; testId: string; label: string }) {
+  return (
+    <div className="table-scroll" role="region" aria-label={label} tabIndex={0}>
+      <table className="w-full text-sm" data-testid={testId}>
+        <thead className="text-xs text-slate-400 text-left">
+          <tr>
+            <th className="py-2 pr-3 font-medium">Agreement</th>
+            <th className="py-2 pr-3 font-medium">Subcontractor</th>
+            <th className="py-2 pr-3 font-medium">Trade</th>
+            <th className="py-2 pr-3 font-medium text-right">Contract sum to date</th>
+            <th className="py-2 pr-3 font-medium">Status</th>
+            <th className="py-2 pr-3 font-medium">Executed</th>
+          </tr>
+        </thead>
+        <tbody>
+          {agreements.map((a) => (
+            <tr key={a._id} className="border-t border-slate-800">
+              <td className="py-2 pr-3">
+                <a href={ledgerHash(a._id)} className="text-emerald-400 hover:text-emerald-300">
+                  {a.agreementNumber}
+                </a>
+              </td>
+              <td className="py-2 pr-3">{demoDisplayName(a.subcontractorName)}</td>
+              <td className="py-2 pr-3">
+                {termsForKind(a.projectKind).kind === "residential" ? a.tradeName : `Div ${a.csiDivision} ${a.tradeName}`}
+              </td>
+              <td className="py-2 pr-3 text-right">{formatCents(a.contractSumCents)}</td>
+              <td className="py-2 pr-3">{a.status}</td>
+              <td className="py-2 pr-3">{formatDate(a.executedAt)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 /** Payments workspace home: the agreements the caller may see, each linking to its ledger. */
 export function PaymentsWorkspace() {
@@ -12,6 +54,12 @@ export function PaymentsWorkspace() {
   if (agreements === undefined) {
     return <p className="text-sm text-slate-400" role="status">Loading agreements…</p>;
   }
+
+  // The query already authorized and limited the rows; this split is presentation only. A stored
+  // residential kind leads; a missing kind reads commercial. Server order is untouched inside each
+  // partition and agreement-number suffixes are never parsed.
+  const residential = agreements.filter((agreement) => agreement.projectKind === "residential");
+  const commercial = agreements.filter((agreement) => agreement.projectKind !== "residential");
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -25,36 +73,28 @@ export function PaymentsWorkspace() {
         {agreements.length === 0 ? (
           <p className="text-sm text-slate-400">No agreements yet.</p>
         ) : (
-          <div className="table-scroll" role="region" aria-label="Agreement payment ledgers" tabIndex={0}><table className="w-full text-sm" data-testid="payments-agreements">
-            <thead className="text-xs text-slate-400 text-left">
-              <tr>
-                <th className="py-2 pr-3 font-medium">Agreement</th>
-                <th className="py-2 pr-3 font-medium">Subcontractor</th>
-                <th className="py-2 pr-3 font-medium">Trade</th>
-                <th className="py-2 pr-3 font-medium text-right">Contract sum to date</th>
-                <th className="py-2 pr-3 font-medium">Status</th>
-                <th className="py-2 pr-3 font-medium">Executed</th>
-              </tr>
-            </thead>
-            <tbody>
-              {agreements.map((a) => (
-                <tr key={a._id} className="border-t border-slate-800">
-                  <td className="py-2 pr-3">
-                    <a href={ledgerHash(a._id)} className="text-emerald-400 hover:text-emerald-300">
-                      {a.agreementNumber}
-                    </a>
-                  </td>
-                  <td className="py-2 pr-3">{demoDisplayName(a.subcontractorName)}</td>
-                  <td className="py-2 pr-3">
-                    {termsForKind(a.projectKind).kind === "residential" ? a.tradeName : `Div ${a.csiDivision} ${a.tradeName}`}
-                  </td>
-                  <td className="py-2 pr-3 text-right">{formatCents(a.contractSumCents)}</td>
-                  <td className="py-2 pr-3">{a.status}</td>
-                  <td className="py-2 pr-3">{formatDate(a.executedAt)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table></div>
+          <div className="space-y-3">
+            {residential.length > 0 ? (
+              <AgreementTable
+                agreements={residential}
+                testId="payments-agreements"
+                label="Agreement payment ledgers"
+              />
+            ) : null}
+            {commercial.length > 0 ? (
+              <CommercialReferenceDisclosure
+                count={commercial.length}
+                testId="payments-commercial"
+                summaryTestId="payments-commercial-summary"
+              >
+                <AgreementTable
+                  agreements={commercial}
+                  testId="payments-commercial-agreements"
+                  label="Commercial agreement payment ledgers"
+                />
+              </CommercialReferenceDisclosure>
+            ) : null}
+          </div>
         )}
       </section>
     </div>
