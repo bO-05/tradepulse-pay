@@ -258,7 +258,7 @@ export const getAgreementSummary = query({
 });
 
 const OWNER_APPROVED_STATUSES = new Set(["approved", "approved_invoiced", "paid"]);
-const OWNER_PAID_CHANGE_ORDER_STATUSES = new Set(["paid"]);
+export const OWNER_PAID_CHANGE_ORDER_STATUSES = new Set(["paid"]);
 
 /**
  * The owner's "job so far" numbers, all read-only. Approved owner pay apps are the basis when they

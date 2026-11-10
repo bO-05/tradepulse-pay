@@ -381,8 +381,9 @@ describe("getProjectMoney project scope", () => {
       },
     ]);
 
-    // Paid owner app only; the paid $1,200 prime change order is not in this bucket.
+    // The existing bucket stays draw-only; the additive bucket also includes the paid $1,200 prime CO.
     expect(money.collectedFromOwnerCents).toBe(360_000);
+    expect(money.collectedFromOwnerInclChangeOrdersCents).toBe(480_000);
     expect(money.receipts.ownerPayApps).toEqual([
       {
         projectId: f.gcA.project.projectId,
@@ -446,6 +447,53 @@ describe("getProjectMoney project scope", () => {
         amountCents: 30_000,
       },
     ]);
+  });
+
+  test("includes each paid prime change order once and excludes unpaid and subcontract rows", async () => {
+    const { t, f } = await setup();
+    await seedMoney(t, f);
+    const { projectId, agreementId } = f.gcA.project;
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("changeOrders", {
+        projectId,
+        scope: "prime",
+        number: 2,
+        title: "Approved but unpaid",
+        description: "Approved but unpaid",
+        amountCents: 99_000,
+        status: "approved",
+        createdAt: Date.now(),
+      });
+      await ctx.db.insert("changeOrders", {
+        projectId,
+        scope: "prime",
+        number: 3,
+        title: "A second paid prime change order",
+        description: "A second paid prime change order",
+        amountCents: 25_000,
+        status: "paid",
+        paidAt: PAID_AT,
+        createdAt: Date.now(),
+      });
+      await ctx.db.insert("changeOrders", {
+        projectId,
+        agreementId,
+        scope: "subcontract",
+        number: 4,
+        title: "Paid subcontract change order",
+        description: "Paid subcontract change order",
+        amountCents: 77_000,
+        status: "paid",
+        paidAt: PAID_AT,
+        createdAt: Date.now(),
+      });
+    });
+
+    const money = await f.gcA.admin.as.query(api.billing.projectMoney.getProjectMoney, { projectId });
+    // 360000 draw + (120000 + 25000) paid prime COs. Each stored row contributes exactly once.
+    expect(money.collectedFromOwnerInclChangeOrdersCents).toBe(505_000);
+    expect(money.collectedFromOwnerCents).toBe(360_000);
   });
 
   test("a successful retainage release is paid-to-subs money with its own payout batch receipt", async () => {
@@ -519,6 +567,7 @@ describe("getProjectMoney project scope", () => {
     const money = await f.gcA.admin.as.query(api.billing.projectMoney.getProjectMoney, { projectId: empty.projectId });
     expect(money).toMatchObject({
       collectedFromOwnerCents: 0,
+      collectedFromOwnerInclChangeOrdersCents: 0,
       paidToSubsCents: 0,
       retainageHeldCents: 0,
       ownerRetainageHeldCents: 0,
@@ -545,6 +594,7 @@ describe("getProjectMoney portfolio scope", () => {
     expect(money.scope.projects.find((p) => p.projectTitle === "Second Bayview job")?.projectKind).toBe("commercial");
 
     expect(money.collectedFromOwnerCents).toBe(460_000); // 360000 Lopez-style + 100000 second job
+    expect(money.collectedFromOwnerInclChangeOrdersCents).toBe(580_000); // 460000 draws + 120000 Lopez CO
     expect(money.paidToSubsCents).toBe(430_000); // 380000 + 50000
     expect(money.retainageHeldCents).toBe(25_000); // 20000 + 5000
     expect(money.ownerRetainageHeldCents).toBe(40_000);
@@ -566,6 +616,7 @@ describe("getProjectMoney portfolio scope", () => {
       { projectId: f.gcB.project.projectId, projectTitle: "Camelback Suite 400", projectKind: "commercial", ownerRetainageBps: null },
     ]);
     expect(own.collectedFromOwnerCents).toBe(777_000);
+    expect(own.collectedFromOwnerInclChangeOrdersCents).toBe(777_000);
     expect(own.paidToSubsCents).toBe(888_000);
     expect(own.retainageHeldCents).toBe(9_000);
     expect(own.ownerRetainageHeldCents).toBe(7_000);
@@ -578,6 +629,7 @@ describe("getProjectMoney portfolio scope", () => {
 
     const money = await f.gcB.admin.as.query(api.billing.projectMoney.getProjectMoney, {});
     expect(money.collectedFromOwnerCents).toBe(0);
+    expect(money.collectedFromOwnerInclChangeOrdersCents).toBe(0);
     expect(money.paidToSubsCents).toBe(0);
     expect(money.retainageHeldCents).toBe(0);
     expect(money.owedThisWeekCents).toBe(0);

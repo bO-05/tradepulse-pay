@@ -1,4 +1,5 @@
 import { v, type Infer } from "convex/values";
+import type { Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
 import { query } from "../_generated/server";
 import { sumCents } from "../lib/money";
@@ -8,6 +9,8 @@ import { requireRole } from "../lib/roles";
 import { accessibleProjectIds, requireProjectAccess, type ProjectAccess } from "../lib/tenancy";
 import { isoDate } from "../payApps/g703Math";
 import { createReadBudget, loadAgreementFinancials, type ReadBudget } from "../payments/agreementHistory";
+import { CO_CAPACITY } from "../payments/changeOrderMath";
+import { OWNER_PAID_CHANGE_ORDER_STATUSES } from "../portal";
 import { primeRetainageHeld } from "./ownerRollup";
 
 /**
@@ -15,9 +18,9 @@ import { primeRetainageHeld } from "./ownerRollup";
  * and approved work owed this week, each with the stored rows behind it.
  *
  * Every figure is a sum of integer cents an existing ledger reader already produced — paid owner pay
- * apps (`figures.currentPaymentDueCents`), per-agreement `LedgerTotals.paidCents` and
- * `retainageHeldCents`, `primeRetainageHeld` and the approved G702/G703 figures. This module adds no
- * money formula; it only scopes, filters by stored dates and sums.
+ * apps (`figures.currentPaymentDueCents`), the owner portal's paid prime change-order derivation,
+ * per-agreement `LedgerTotals.paidCents` and `retainageHeldCents`, `primeRetainageHeld` and the
+ * approved G702/G703 figures. This module adds no money formula; it only scopes, filters and sums.
  */
 
 /** Project-scope is one project; portfolio scope is bounded to keep one query inside Convex's read cap. */
@@ -92,6 +95,8 @@ export const projectMoneyValidator = v.object({
     projects: v.array(projectContextValidator),
   }),
   collectedFromOwnerCents: v.number(),
+  /** Paid owner pay apps plus paid prime change orders; the existing four-cell strip uses the field above. */
+  collectedFromOwnerInclChangeOrdersCents: v.number(),
   paidToSubsCents: v.number(),
   retainageHeldCents: v.number(),
   /** The prime retainage the owner holds, returned separately from the sub retainage above. */
@@ -135,6 +140,7 @@ function owedDateOf(app: { dueDate?: string; periodEnd?: string }): string | nul
 
 type MoneySums = {
   collectedFromOwnerCents: number;
+  collectedFromOwnerInclChangeOrdersCents: number;
   paidToSubsCents: number;
   retainageHeldCents: number;
   ownerRetainageHeldCents: number;
@@ -149,6 +155,7 @@ type MoneySums = {
 function emptySums(truncated: boolean): MoneySums {
   return {
     collectedFromOwnerCents: 0,
+    collectedFromOwnerInclChangeOrdersCents: 0,
     paidToSubsCents: 0,
     retainageHeldCents: 0,
     ownerRetainageHeldCents: 0,
@@ -180,7 +187,9 @@ async function addProjectMoney(
   if (ownerApps.length > MAX_OWNER_PAY_APPS_PER_PROJECT) sums.truncated = true;
   const scopedOwnerApps = ownerApps.slice(0, MAX_OWNER_PAY_APPS_PER_PROJECT);
   const paidOwnerApps = scopedOwnerApps.filter((app) => app.status === "paid");
-  sums.collectedFromOwnerCents += sumCents(paidOwnerApps.map((app) => app.figures.currentPaymentDueCents));
+  const paidOwnerAppsCents = sumCents(paidOwnerApps.map((app) => app.figures.currentPaymentDueCents));
+  sums.collectedFromOwnerCents += paidOwnerAppsCents;
+  sums.collectedFromOwnerInclChangeOrdersCents += paidOwnerAppsCents;
   for (const app of paidOwnerApps) {
     sums.ownerPayApps.push({
       projectId: project._id,
@@ -269,6 +278,29 @@ async function addProjectMoney(
   }
 }
 
+/**
+ * Adds the paid prime change orders to only the inclusive collected figure. This runs after every
+ * project's existing ledger reads so the new field cannot consume budget ahead of an established
+ * bucket. Both the per-project change-order capacity and the shared money read budget stay bounded.
+ */
+async function addPaidPrimeChangeOrders(
+  ctx: QueryCtx,
+  projectId: Id<"projects">,
+  budget: ReadBudget,
+  sums: MoneySums,
+): Promise<void> {
+  const limit = Math.max(0, Math.min(CO_CAPACITY, budget.remaining));
+  const changeOrders = await ctx.db
+    .query("changeOrders")
+    .withIndex("by_projectId_and_scope_and_number", (q) => q.eq("projectId", projectId).eq("scope", "prime"))
+    .take(limit + 1);
+  if (changeOrders.length > limit) sums.truncated = true;
+  const scopedChangeOrders = changeOrders.slice(0, limit);
+  budget.remaining -= scopedChangeOrders.length;
+  const paidChangeOrders = scopedChangeOrders.filter((co) => OWNER_PAID_CHANGE_ORDER_STATUSES.has(co.status));
+  sums.collectedFromOwnerInclChangeOrdersCents += sumCents(paidChangeOrders.map((co) => co.amountCents));
+}
+
 function trimReceipts<T>(rows: T[], sums: MoneySums): T[] {
   if (rows.length <= MAX_RECEIPTS) return rows;
   sums.truncated = true;
@@ -304,6 +336,7 @@ export const getProjectMoney = query({
     const budget = createReadBudget(MONEY_READ_BUDGET);
     const sums = emptySums(truncated);
     for (const access of accesses) await addProjectMoney(ctx, access, weekEnd, budget, sums);
+    for (const access of accesses) await addPaidPrimeChangeOrders(ctx, access.project._id, budget, sums);
 
     sums.ownerPayApps.sort((a, b) => a.projectId.localeCompare(b.projectId) || a.applicationNo - b.applicationNo);
     sums.payouts.sort((a, b) => a.paidAt - b.paidAt || a.agreementNumber.localeCompare(b.agreementNumber));
@@ -338,6 +371,7 @@ export const getProjectMoney = query({
         projects,
       },
       collectedFromOwnerCents: sums.collectedFromOwnerCents,
+      collectedFromOwnerInclChangeOrdersCents: sums.collectedFromOwnerInclChangeOrdersCents,
       paidToSubsCents: sums.paidToSubsCents,
       retainageHeldCents: sums.retainageHeldCents,
       ownerRetainageHeldCents: sums.ownerRetainageHeldCents,
