@@ -184,6 +184,19 @@ describe("billing routes", () => {
     expect(resolveRoute("owner", hash)).toEqual({ area: "not-found" });
   });
 
+  test("exact change-order deep links bypass the picker for every party", () => {
+    const hash = "#/change-orders/kx76bc3nmm50bp7jymcemykm1x8hmn2b";
+    expect(parseHash(hash)).toEqual({ area: "change-orders", changeOrderId: "kx76bc3nmm50bp7jymcemykm1x8hmn2b" });
+    for (const role of ["gc", "sub", "owner"] as const) {
+      expect(resolveRoute(role, hash)).toEqual({
+        area: "change-orders",
+        changeOrderId: "kx76bc3nmm50bp7jymcemykm1x8hmn2b",
+      });
+    }
+    // The bare route still mounts the picker.
+    expect(resolveRoute("owner", "#/change-orders")).toEqual({ area: "change-orders" });
+  });
+
   test("owner billing: the GC's Billing tab and the owner's Owner pay apps; subs get neither", () => {
     expect(resolveRoute("gc", "#/billing/owner-billing")).toEqual({ area: "billing", tab: "owner-billing" });
     expect(resolveRoute("gc", "#/billing/retainage")).toEqual({ area: "billing", tab: "retainage" });

@@ -234,6 +234,9 @@ export function OwnerPortal({ role }: { role?: Role }) {
   const owner = role !== "gc";
   const ordered = owner ? orderOwnerProjects(projects) : null;
   const primaryProject = ordered?.lead ?? null;
+  // Home is the residential job's home: commercial reference jobs keep their own direct routes and
+  // are never summarized here. Additional residential jobs stay as secondary cards.
+  const secondaryProjects = ordered === null ? [] : ordered.rest.filter((project) => project.projectKind === "residential");
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -340,13 +343,13 @@ export function OwnerPortal({ role }: { role?: Role }) {
           );
         })}
 
-      {ordered !== null && ordered.rest.length > 0 ? (
+      {secondaryProjects.length > 0 ? (
         <section aria-labelledby="owner-other-projects">
           <h2 id="owner-other-projects" className="text-sm font-semibold text-ink-muted">
             Other projects
           </h2>
           <div className="mt-2 space-y-3">
-            {ordered.rest.map((project) => (
+            {secondaryProjects.map((project) => (
               <SecondaryProjectCard key={project._id} project={project} />
             ))}
           </div>

@@ -220,11 +220,20 @@ try {
   check("Owner heading is Reports", (await owner.page.$eval("main h1", (el) => el.textContent)) === "Reports");
   check("Owner header omits subcontract measures", !ownerText.includes("subcontract payouts"));
   check("Owner header explains the omission", ownerText.includes("Subcontract measures are not shared with the Owner."));
-  check("Owner change-order income is shown", ownerText.includes("$1,850.00"));
+  check("Owner change-order income is the stored Lopez sum", ownerText.includes("$1,200.00") && !ownerText.includes("$1,850.00"));
   await open(owner.page, "#/change-orders", '[data-testid="prime-change-orders"]');
   await owner.page.waitForFunction(() => document.body.innerText.includes("PCO #"), { timeout: 45000 });
-  const selectedProject = await owner.page.$eval('[data-testid="change-orders-project"]', (el) => el.selectedOptions[0]?.textContent ?? "");
-  check("Owner change orders default to a project with prime change orders", selectedProject !== "" && !selectedProject.includes("no prime change orders yet"), { selectedProject });
+  const picker = await owner.page.$eval('[data-testid="change-orders-project"]', (el) => ({
+    selected: el.selectedOptions[0]?.textContent ?? "",
+    options: el.options.length,
+    groups: [...el.querySelectorAll("optgroup")].map((group) => ({ label: group.label, count: group.children.length })),
+  }));
+  check("Owner change orders default to the residential Lopez job", /Lopez Kitchen Remodel/.test(picker.selected), picker);
+  check(
+    "Owner change orders keep every commercial run under one native optgroup",
+    picker.groups.length === 1 && picker.groups[0].label === "Commercial reference job" && picker.groups[0].count === picker.options - 1,
+    picker,
+  );
   check("prime change orders are labeled PCO", (await bodyText(owner.page)).includes("PCO #"));
   await layout(owner.page, "OWNER", "#/change-orders", '[data-testid="prime-change-orders"]');
   await open(owner.page, `#/payments/${agreement}`, "main");

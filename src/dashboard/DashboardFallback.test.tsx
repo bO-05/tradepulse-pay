@@ -46,7 +46,8 @@ describe("license-independent dashboard", () => {
   test("the default basic report does not mention an unconfigured license", () => {
     const raw = { agreements: [] } as unknown as Pick<DashboardRaw, "agreements">;
     const html = renderToStaticMarkup(<DashboardFallback raw={raw} />);
-    expect(html).toContain("The optional Studio layout is not needed.");
+    expect(html).toContain("Basic report from the same payment ledger.");
+    expect(html).not.toContain("The optional Studio layout is not needed.");
     expect(html).not.toContain("AG Studio");
     expect(html).not.toContain("not configured");
   });

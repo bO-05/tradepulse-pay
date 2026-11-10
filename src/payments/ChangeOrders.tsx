@@ -699,13 +699,52 @@ function ProjectChangeOrders({ projectId }: { projectId: string }) {
   );
 }
 
+type ChangeOrderPickerRow = {
+  _id: string;
+  title: string;
+  projectKind: ProjectKind;
+  hasPrimeChangeOrders: boolean;
+};
+
+/**
+ * Stable project-picker order: residential projects first, then every other project (a missing kind
+ * is commercial), each group preserving the server's order.
+ */
+export function orderChangeOrderProjects<T extends { projectKind?: ProjectKind | null }>(
+  projects: readonly T[],
+): { residential: T[]; commercial: T[] } {
+  const residential: T[] = [];
+  const commercial: T[] = [];
+  for (const project of projects) {
+    if (project.projectKind === "residential") residential.push(project);
+    else commercial.push(project);
+  }
+  return { residential, commercial };
+}
+
+/**
+ * Explicit selection always wins, so a reactive refresh cannot move the picker. Otherwise the first
+ * residential project is the fallback default, then a project that already has prime change orders,
+ * then the first project in server order. Commercial-only owners therefore keep a useful default.
+ */
+export function resolveChangeOrderProjectId<T extends { _id: string; projectKind?: ProjectKind | null; hasPrimeChangeOrders: boolean }>(
+  projects: readonly T[],
+  explicitProjectId: string | null,
+): string | null {
+  if (explicitProjectId !== null) return explicitProjectId;
+  const { residential } = orderChangeOrderProjects(projects);
+  if (residential.length > 0) return residential[0]._id;
+  return projects.find((project) => project.hasPrimeChangeOrders)?._id ?? projects[0]?._id ?? null;
+}
+
 /** Change orders page: subcontract COs (GC and that sub) and project change orders (GC and the owner) per project. */
 export function ChangeOrdersPage() {
   const projects = useQuery(api.billing.changeOrders.myChangeOrderProjects, {});
   const [projectId, setProjectId] = useState<string | null>(null);
-  // Prefer a project that already has change orders: a newly added, still-empty project must not
-  // hide the active list on first open.
-  const selected = projectId ?? projects?.find((p) => p.hasPrimeChangeOrders)?._id ?? projects?.[0]?._id ?? null;
+  // Lopez/residential leads the picker. A project with existing change orders only breaks the tie
+  // when no residential job exists, and an explicit selection is never overridden.
+  const selected = resolveChangeOrderProjectId(projects ?? [], projectId);
+  const { residential: residentialProjects, commercial: commercialProjects } = orderChangeOrderProjects(projects ?? []);
   if (projects === undefined) {
     return (
       <p className="text-sm text-ink-subtle" role="status">
@@ -715,6 +754,12 @@ export function ChangeOrdersPage() {
   }
   const selectedKind = projects.find((p) => p._id === selected)?.projectKind;
   const residential = termsForKind(selectedKind).kind === "residential";
+  const projectOption = (p: ChangeOrderPickerRow) => (
+    <option key={p._id} value={p._id}>
+      {demoProjectName(p.title)}
+      {p.hasPrimeChangeOrders ? "" : ` · no ${termsForKind(p.projectKind).kind === "residential" ? "change orders" : "prime change orders"} yet`}
+    </option>
+  );
   return (
     <div className="max-w-5xl space-y-5">
       <PageHeader
@@ -733,12 +778,10 @@ export function ChangeOrdersPage() {
             <Field label="Project" className="max-w-sm">
               {(control) => (
                 <select {...control} value={selected ?? ""} onChange={(e) => setProjectId(e.target.value)} className={inputClass(false)} data-testid="change-orders-project">
-                  {projects.map((p) => (
-                    <option key={p._id} value={p._id}>
-                      {demoProjectName(p.title)}
-                      {p.hasPrimeChangeOrders ? "" : ` · no ${termsForKind(p.projectKind).kind === "residential" ? "change orders" : "prime change orders"} yet`}
-                    </option>
-                  ))}
+                  {residentialProjects.map(projectOption)}
+                  {commercialProjects.length > 0 ? (
+                    <optgroup label="Commercial reference job">{commercialProjects.map(projectOption)}</optgroup>
+                  ) : null}
                 </select>
               )}
             </Field>

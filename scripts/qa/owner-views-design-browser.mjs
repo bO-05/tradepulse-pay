@@ -181,6 +181,7 @@ for (const [width, height] of [[1440, 900], [390, 844]]) {
       residentialTitle: residential?.querySelector("h2")?.innerText ?? null,
       residentialHasJobCard: residential?.querySelector('[data-testid="owner-job-so-far"]') !== null,
       secondaryCount: secondary.length,
+      secondaryKinds: secondary.map((s) => s.getAttribute("data-project-kind")),
       secondaryFirstTitle: secondary[0]?.querySelector("h3")?.innerText ?? null,
       secondaryBadges: secondary.filter((s) => s.querySelector('[data-testid="commercial-reference-badge"]')).length,
       otherTop: other ? Math.round(other.getBoundingClientRect().top + window.scrollY) : null,
@@ -200,8 +201,22 @@ for (const [width, height] of [[1440, 900], [390, 844]]) {
   check(`${tag} owner home has exactly one h1`, home.h1s.length === 1, JSON.stringify(home.h1s));
   check(`${tag} the first job section is the Lopez residential job`, homeStructure.firstJobKind === "residential" && /Lopez Kitchen Remodel/.test(homeStructure.residentialTitle ?? ""), JSON.stringify(homeStructure));
   check(`${tag} the lead job carries the full Job so far card`, homeStructure.residentialHasJobCard === true);
-  check(`${tag} the other jobs sit below the lead as secondary cards`, homeStructure.otherTop !== null && homeStructure.residentialTop !== null && homeStructure.otherTop > homeStructure.residentialTop && homeStructure.secondaryCount > 0, JSON.stringify(homeStructure));
-  check(`${tag} secondary jobs keep the commercial badge`, homeStructure.secondaryBadges > 0, String(homeStructure.secondaryBadges));
+  check(
+    `${tag} owner home hides every commercial secondary card`,
+    homeStructure.secondaryKinds.every((kind) => kind === "residential"),
+    JSON.stringify(homeStructure.secondaryKinds.slice(0, 8)),
+  );
+  check(
+    `${tag} owner home omits Other projects when no residential secondary remains`,
+    homeStructure.secondaryCount > 0 ? homeStructure.otherTop !== null : homeStructure.otherTop === null,
+    JSON.stringify({ secondaryCount: homeStructure.secondaryCount, otherTop: homeStructure.otherTop }),
+  );
+  check(
+    `${tag} any residential secondary cards sit below the lead`,
+    homeStructure.secondaryCount === 0 ||
+      (homeStructure.otherTop !== null && homeStructure.residentialTop !== null && homeStructure.otherTop > homeStructure.residentialTop),
+    JSON.stringify(homeStructure),
+  );
   check(`${tag} the money trail is visible under the percent`, (home.trail?.height ?? 0) > 0);
   for (const label of ["Contract to date", "Work completed", "Retainage held", "Paid to date", "Balance to finish"]) {
     check(`${tag} owner trail names ${label}`, homeStructure.trailText.toLowerCase().includes(label.toLowerCase()), homeStructure.trailText.slice(0, 400));
@@ -228,8 +243,10 @@ for (const [width, height] of [[1440, 900], [390, 844]]) {
   await delay(150);
   await page.screenshot({ path: path.join(outDir, `owner-home-first-viewport-${width}.png`) });
 
-  // ---- Owner draw, reached through the owner home's Draws link ---------------------------------
-  await page.evaluate(() => document.querySelector('a[href="#/owner-pay-apps"]')?.click());
+  // ---- Owner draw, reached directly (not through Owner Home) -----------------------------------
+  const drawHref = await page.evaluate(() => document.querySelector('a[href="#/owner-pay-apps"]')?.getAttribute("href") ?? null);
+  check(`${tag} owner home links to the draw list`, drawHref === "#/owner-pay-apps", String(drawHref));
+  await page.goto(`${site}/#/owner-pay-apps`, { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => location.hash === "#/owner-pay-apps", { timeout: 60000 });
   await page.waitForSelector('[data-testid="owner-draw-money-trail"]', { timeout: 60000 });
   await delay(600);
@@ -289,11 +306,8 @@ for (const [width, height] of [[1440, 900], [390, 844]]) {
     return residential?.querySelector('a[data-testid="change-order-label"]')?.getAttribute("href") ?? null;
   });
   check(`${tag} the Lopez change order is reachable from the owner home`, typeof coHref === "string" && coHref.startsWith("#/change-orders/"), String(coHref));
-  await page.evaluate((href) => {
-    const link = document.querySelector(`a[href="${href}"]`);
-    if (link) link.click();
-    else location.hash = href;
-  }, coHref);
+  // Open the exact record by its direct route, without relying on the Home lead card.
+  await page.goto(`${site}/${coHref}`, { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => location.hash.startsWith("#/change-orders/"), { timeout: 60000 });
   await page.waitForSelector('[data-testid="change-order-amount"]', { timeout: 60000 });
   await delay(600);
@@ -333,6 +347,183 @@ for (const [width, height] of [[1440, 900], [390, 844]]) {
   await page.evaluate(() => scrollTo(0, 0));
   await delay(150);
   await page.screenshot({ path: path.join(outDir, `change-order-invoice-first-viewport-${width}.png`) });
+
+  // ---- Owner Reports: Lopez-scoped, no Studio sentence -----------------------------------------
+  await page.evaluate(() => document.querySelector('a[href="#/dashboard"]')?.click());
+  await page.waitForFunction(() => location.hash === "#/dashboard", { timeout: 60000 });
+  await page.waitForFunction(() => document.body.innerText.includes("Owner change orders paid"), { timeout: 60000 });
+  await delay(600);
+  const reports = await measure(page);
+  const reportsStructure = await page.evaluate(() => {
+    const main = document.querySelector("main");
+    const text = main?.innerText ?? "";
+    return {
+      heading: main?.querySelector("h1")?.innerText ?? null,
+      text,
+      paidFigure: [...main.querySelectorAll("dd")].map((el) => (el.textContent ?? "").trim()).find((value) => value === "$1,200.00") ?? null,
+      changeOrderLinks: [...main.querySelectorAll('a[href^="#/change-orders/"]')].map((a) => a.getAttribute("href")),
+      hasStudioSentence: /The optional Studio layout is not needed\./.test(text),
+      hasCommercialRun: /A401-DEMO-PAY|Sandbox run/i.test(text),
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    };
+  });
+  report.measurements.push({ screen: "owner-reports", width, ...reports, text: maskEmails(reports.text), mainText: maskEmails(reports.mainText), reportsStructure });
+  check(`${tag} owner Reports heading is Reports`, reportsStructure.heading === "Reports", String(reportsStructure.heading));
+  check(
+    `${tag} owner Reports keeps the stored Lopez paid change-order total`,
+    /Owner change orders paid/.test(reportsStructure.text) && reportsStructure.paidFigure === "$1,200.00",
+    JSON.stringify({ paidFigure: reportsStructure.paidFigure, text: reportsStructure.text.slice(0, 400) }),
+  );
+  check(`${tag} owner Reports lists no commercial-run change order`, !reportsStructure.hasCommercialRun, reportsStructure.text.slice(0, 600));
+  check(`${tag} owner Reports omits the optional Studio sentence`, !reportsStructure.hasStudioSentence, reportsStructure.text.slice(0, 600));
+  check(`${tag} owner Reports has no horizontal page overflow`, reports.scrollWidth <= reports.clientWidth, `${reports.scrollWidth} vs ${reports.clientWidth}`);
+  await maskSandboxEmails(page);
+  await page.screenshot({ path: path.join(outDir, `owner-reports-${width}.png`), fullPage: true });
+  await page.evaluate(() => scrollTo(0, 0));
+  await delay(150);
+  await page.screenshot({ path: path.join(outDir, `owner-reports-first-viewport-${width}.png`) });
+
+  // ---- Change orders: every run retained, residential first, native commercial optgroup --------
+  await page.evaluate(() => document.querySelector('a[href="#/change-orders"]')?.click());
+  await page.waitForFunction(() => location.hash === "#/change-orders", { timeout: 60000 });
+  await page.waitForSelector('[data-testid="change-orders-project"]', { timeout: 60000 });
+  await page.waitForSelector('[data-testid="prime-change-orders"]', { timeout: 60000 });
+  await delay(600);
+  const picker = await page.evaluate(() => {
+    const select = document.querySelector('[data-testid="change-orders-project"]');
+    if (!select) return { hasSelect: false };
+    const children = [...select.children].map((el) =>
+      el.tagName === "OPTGROUP"
+        ? {
+            tag: "optgroup",
+            label: el.label,
+            options: [...el.children].map((option) => ({ value: option.value, text: (option.textContent ?? "").trim() })),
+          }
+        : { tag: "option", value: el.value, text: (el.textContent ?? "").trim() },
+    );
+    return {
+      hasSelect: true,
+      selectedValue: select.value,
+      selectedText: (select.selectedOptions[0]?.textContent ?? "").trim(),
+      optionCount: select.options.length,
+      optgroups: [...select.querySelectorAll("optgroup")].map((group) => ({ label: group.label, count: group.children.length })),
+      children,
+      rowCount: document.querySelectorAll('[data-testid="prime-change-orders"] [data-testid="change-order-row"]').length,
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    };
+  });
+  report.measurements.push({ screen: "owner-change-orders", width, picker, text: maskEmails(await page.evaluate(() => document.body.innerText)) });
+  check(`${tag} owner Change orders keeps the project picker`, picker.hasSelect === true, JSON.stringify(picker).slice(0, 500));
+  check(`${tag} Lopez is the fallback default selection`, /Lopez Kitchen Remodel/.test(picker.selectedText ?? ""), String(picker.selectedText));
+  check(
+    `${tag} every commercial project shares one native optgroup`,
+    picker.optgroups?.length === 1 && picker.optgroups[0].label === "Commercial reference job",
+    JSON.stringify(picker.optgroups),
+  );
+  check(`${tag} the commercial optgroup is the last picker group`, picker.children?.[picker.children.length - 1]?.tag === "optgroup", JSON.stringify(picker.children?.map((child) => child.tag)));
+  check(
+    `${tag} the residential option leads the picker`,
+    picker.children?.[0]?.tag === "option" && /Lopez Kitchen Remodel/.test(picker.children[0].text),
+    JSON.stringify(picker.children?.[0]),
+  );
+  check(
+    `${tag} every picker option is counted`,
+    picker.optionCount === (picker.children ?? []).reduce((count, child) => count + (child.tag === "optgroup" ? child.options.length : 1), 0),
+    String(picker.optionCount),
+  );
+  check(`${tag} owner Change orders has no horizontal page overflow`, picker.scrollWidth <= picker.clientWidth, `${picker.scrollWidth} vs ${picker.clientWidth}`);
+  await maskSandboxEmails(page);
+  await page.screenshot({ path: path.join(outDir, `owner-change-orders-${width}.png`), fullPage: true });
+
+  // An explicit commercial choice must survive the page's reactive updates.
+  const commercialTarget =
+    picker.children?.find((child) => child.tag === "optgroup")?.options?.find((option) => !/no prime change orders yet/.test(option.text)) ??
+    picker.children?.find((child) => child.tag === "optgroup")?.options?.[0];
+  check(`${tag} a commercial run is available to select`, Boolean(commercialTarget), JSON.stringify(picker.optgroups));
+  if (!commercialTarget) throw new Error(`No commercial project option to select at ${width}px`);
+  await page.evaluate((value) => {
+    const select = document.querySelector('[data-testid="change-orders-project"]');
+    select.value = value;
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  }, commercialTarget.value);
+  await delay(1500);
+  const explicit = await page.evaluate(() => {
+    const select = document.querySelector('[data-testid="change-orders-project"]');
+    return {
+      selectedValue: select?.value ?? null,
+      selectedText: (select?.selectedOptions[0]?.textContent ?? "").trim(),
+      rowCount: document.querySelectorAll('[data-testid="prime-change-orders"] [data-testid="change-order-row"]').length,
+    };
+  });
+  check(
+    `${tag} an explicit commercial selection stays selected after reactive updates`,
+    explicit.selectedValue === commercialTarget.value,
+    JSON.stringify({ expected: commercialTarget.value, ...explicit }),
+  );
+  check(`${tag} the explicit commercial selection is not reset to Lopez`, !/Lopez Kitchen Remodel/.test(explicit.selectedText), explicit.selectedText);
+
+  const directRecord = await page.evaluate(() => {
+    const row = document.querySelector('[data-testid="prime-change-orders"] [data-testid="change-order-row"]');
+    if (!row) return null;
+    return {
+      href: row.querySelector('[data-testid="change-order-label"]')?.getAttribute("href") ?? null,
+      label: (row.querySelector('[data-testid="change-order-label"]')?.textContent ?? "").trim(),
+      amount: (row.querySelector('[data-testid="change-order-amount"]')?.textContent ?? "").trim(),
+    };
+  });
+  check(`${tag} the selected commercial project renders a change-order record`, directRecord !== null && (directRecord.href ?? "").startsWith("#/change-orders/"), JSON.stringify(directRecord));
+  if (directRecord !== null && directRecord.href) {
+    await page.goto(`${site}/${directRecord.href}`, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.waitForSelector('[data-testid="change-order-amount"]', { timeout: 60000 });
+    await delay(600);
+    const direct = await page.evaluate(() => ({
+      hash: location.hash,
+      h1: document.querySelector("main h1")?.innerText ?? null,
+      amount: (document.querySelector('[data-testid="change-order-amount"]')?.innerText ?? "").trim(),
+      hasPicker: document.querySelector('[data-testid="change-orders-project"]') !== null,
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    }));
+    report.measurements.push({ screen: "owner-change-order-direct", width, direct });
+    check(`${tag} an exact change-order deep link bypasses the picker`, direct.hasPicker === false && direct.hash === directRecord.href, JSON.stringify(direct));
+    check(
+      `${tag} the exact deep link renders the same record`,
+      (direct.h1 ?? "").includes(directRecord.label) && direct.amount.replace(/^\+/, "") === directRecord.amount.replace(/^\+/, ""),
+      JSON.stringify({ record: directRecord, direct }),
+    );
+    check(`${tag} the direct change-order record has no horizontal overflow`, direct.scrollWidth <= direct.clientWidth, `${direct.scrollWidth} vs ${direct.clientWidth}`);
+    await maskSandboxEmails(page);
+    await page.screenshot({ path: path.join(outDir, `owner-change-order-direct-${width}.png`), fullPage: true });
+  }
+
+  // The exact guided $1,850 agreement record stays readable; only its payer href is inspected.
+  const guidedChangeOrderId = "kx76bc3nmm50bp7jymcemykm1x8hmn2b";
+  await page.goto(`${site}/#/change-orders/${guidedChangeOrderId}`, { waitUntil: "domcontentloaded", timeout: 60000 });
+  await page.waitForSelector('[data-testid="change-order-amount"]', { timeout: 60000 });
+  await delay(600);
+  const guided = await page.evaluate(() => ({
+    hash: location.hash,
+    amount: (document.querySelector('[data-testid="change-order-amount"]')?.innerText ?? "").trim(),
+    payerHref: document.querySelector('[data-testid="change-order-invoice-link"]')?.getAttribute("href") ?? null,
+    text: document.querySelector("main")?.innerText ?? "",
+    hasPicker: document.querySelector('[data-testid="change-orders-project"]') !== null,
+  }));
+  report.measurements.push({ screen: "owner-guided-change-order", width, ...guided, text: maskEmails(guided.text) });
+  check(
+    `${tag} the exact guided $1,850 record stays readable without Owner Home`,
+    guided.hasPicker === false && guided.hash === `#/change-orders/${guidedChangeOrderId}` && /\$1,850\.00/.test(guided.amount),
+    JSON.stringify({ hash: guided.hash, amount: guided.amount }),
+  );
+  check(
+    `${tag} the guided record's PayPal payer link is inspected without navigating`,
+    /^https:\/\/www\.sandbox\.paypal\.com\/invoice\//.test(guided.payerHref ?? ""),
+    String(guided.payerHref),
+  );
+  check(`${tag} the guided record exposes its receipt without a pay action`, /Open the PayPal receipt/.test(guided.text) && !/Pay now/i.test(guided.text), guided.text.slice(0, 400));
+  await maskSandboxEmails(page);
+  await page.screenshot({ path: path.join(outDir, `owner-guided-change-order-${width}.png`), fullPage: true });
 
   // ---- Owner Projects detail: the legacy commercial change order is display-mapped only --------
   const legacyProjectId = "q9751tqcjsbd11myp8x25c08hs8hdj94";

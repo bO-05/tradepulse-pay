@@ -333,13 +333,15 @@ async function inspectOwnerInvoice() {
   const owner = await context.newPage();
   owner.setDefaultTimeout(30_000);
   await login(owner, "owner");
-  await owner.waitForFunction(url => [...document.querySelectorAll('[data-testid="change-order-invoice-link"]')]
-    .some(el => el.getAttribute("href") === url), { timeout: 30_000 }, invoice.payerViewUrl);
-  let invoiceLink;
-  for (const link of await owner.$$('[data-testid="change-order-invoice-link"]')) {
-    if (await link.evaluate(el => el.getAttribute("href")) === invoice.payerViewUrl) { invoiceLink = link; break; }
-  }
+  // Owner Home hides commercial reference jobs, so the guided run's invoice is opened by its
+  // exact change-order route. That route bypasses the picker and the Home lead scope; access is
+  // still enforced by the party-scoped getChangeOrder query.
+  await owner.goto(`${site}/#/change-orders/${encodeURIComponent(run.changeOrderId)}`, { waitUntil: "domcontentloaded" });
+  await owner.waitForSelector('[data-testid="change-order-invoice-link"]', { timeout: 30_000 });
+  const invoiceLink = await owner.$('[data-testid="change-order-invoice-link"]');
   if (!invoiceLink) throw new Error("Owner cannot see this run's invoice link.");
+  const linkHref = await invoiceLink.evaluate(el => el.getAttribute("href"));
+  if (linkHref !== invoice.payerViewUrl) throw new Error("Owner invoice link does not match this run's payer view.");
   await invoiceLink.click();
   let payer;
   for (let attempt = 0; attempt < 60 && !payer; attempt++) {
@@ -404,14 +406,19 @@ async function payOwnerInvoice(opened) {
   }
   report.ownerInvoice.finalStatus = status;
   if (status !== "paid") throw new Error("PayPal has not confirmed payment of the Owner invoice.");
-  // The invoice link may replace the Owner app tab with PayPal. Verify the app row on a fresh tab
-  // that shares the same authenticated browser context.
+  // The invoice link may replace the Owner app tab with PayPal. Verify the app record on a fresh
+  // tab through its exact change-order route, which never depends on Owner Home.
   const ownerUi = await context.newPage();
-  await ownerUi.goto(`${site}/#/projects`, { waitUntil: "domcontentloaded" });
-  await ownerUi.waitForSelector('[data-testid="portal-change-orders"]', { timeout: 30_000 });
-  await ownerUi.waitForFunction(url => [...document.querySelectorAll('[data-testid="change-order-invoice-link"]')]
-    .some(link => link.getAttribute("href") === url && link.closest('[data-testid="change-order-row"]')?.dataset.status === "paid"),
-    { timeout: 45_000 }, invoice.payerViewUrl);
+  await ownerUi.goto(`${site}/#/change-orders/${encodeURIComponent(invoice._id)}`, { waitUntil: "domcontentloaded" });
+  await ownerUi.waitForSelector('[data-testid="change-order-invoice-link"]', { timeout: 30_000 });
+  await ownerUi.waitForFunction(
+    (url) => {
+      const link = document.querySelector('[data-testid="change-order-invoice-link"]');
+      return link?.getAttribute("href") === url && document.querySelector('[data-testid="change-order-paid-state"] [data-status="paid"]') !== null;
+    },
+    { timeout: 45_000 },
+    invoice.payerViewUrl,
+  );
   report.steps.push({ action: "verify Owner payment", result: "PayPal confirmed PAID; Owner app row updated" });
 }
 

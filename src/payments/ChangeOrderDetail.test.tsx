@@ -138,6 +138,17 @@ describe("change-order invoice screen", () => {
     expect(rendered).not.toContain("SENT");
   });
 
+  test("an invoiced but unpaid change order exposes its invoice link without claiming payment", () => {
+    vi.mocked(useQuery).mockReturnValue(changeOrder({ status: "invoiced", invoiceStatus: "SENT" }) as never);
+    const html = renderToStaticMarkup(<ChangeOrderDetail changeOrderId="co_lopez" />);
+    expect(html).toContain('data-testid="change-order-invoice-link"');
+    expect(text(html)).toContain("Open the PayPal invoice");
+    expect(text(html)).not.toContain("Open the PayPal receipt");
+    expect(html).not.toContain('data-testid="change-order-paid-state"');
+    expect(html).toContain("https://www.sandbox.paypal.com/invoice/payerView/");
+    expect(primaryCount(html)).toBe(1);
+  });
+
   test("a commercial change order keeps AIA wording and the reference badge", () => {
     vi.mocked(useQuery).mockReturnValue(changeOrder({ kind: "commercial" }) as never);
     const rendered = text(renderToStaticMarkup(<ChangeOrderDetail changeOrderId="co_lopez" />));
