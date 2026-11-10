@@ -54,6 +54,13 @@ export type LedgerTerms = {
   ownerIncomeNote: string;
 };
 
+export type MoneyStripTerms = {
+  collected: string;
+  subRetainage: string;
+  ownerRetainage: string;
+  description: string;
+};
+
 export type Terms = {
   kind: ProjectKind;
   /** "Draw" on a residential job, "Owner pay app" on a commercial one. */
@@ -83,6 +90,7 @@ export type Terms = {
   fundedMilestones: string;
   funding: FundingTerms;
   ledger: LedgerTerms;
+  moneyStrip: MoneyStripTerms;
   commercialBadge: boolean;
   commercialBadgeLabel: string;
 };
@@ -141,6 +149,12 @@ const RESIDENTIAL_TERMS: Terms = {
     ownerIncomePaid: "Owner change-order income paid (not this subcontract)",
     ownerIncomeNote:
       "Statuses are recorded from PayPal webhooks/API responses at the time shown; this page does not re-query PayPal. Owner change-order income belongs to the project, not this subcontract's scope or balance.",
+  },
+  moneyStrip: {
+    collected: "Collected from homeowner",
+    subRetainage: "Retainage you hold",
+    ownerRetainage: "Retainage held from you",
+    description: "Collected from the homeowner, paid to subs, both retainage directions and owed this week.",
   },
   commercialBadge: false,
   commercialBadgeLabel: "",
@@ -204,6 +218,12 @@ const COMMERCIAL_TERMS: Terms = {
     ownerIncomePaid: "Owner prime CO income paid (not this subcontract)",
     ownerIncomeNote:
       "Statuses are recorded from PayPal webhooks/API responses at the time shown; this page does not re-query PayPal. Owner prime change-order income belongs to the project, not this subcontract's scope or balance.",
+  },
+  moneyStrip: {
+    collected: "Collected from owner",
+    subRetainage: "Retainage held",
+    ownerRetainage: "Retainage held from you",
+    description: "Collected from the owner, paid to subs, retainage held and owed this week.",
   },
   commercialBadge: true,
   commercialBadgeLabel: "Commercial reference job",

@@ -36,6 +36,12 @@ describe("residential vocabulary", () => {
     expect(terms.signed).toBe("Signed");
     expect(terms.fundedMilestone).toBe("Funded milestone");
     expect(terms.fundedMilestones).toBe("Funded milestones");
+    expect(terms.moneyStrip).toEqual({
+      collected: "Collected from homeowner",
+      subRetainage: "Retainage you hold",
+      ownerRetainage: "Retainage held from you",
+      description: "Collected from the homeowner, paid to subs, both retainage directions and owed this week.",
+    });
     expect(terms.ledger).toEqual({
       ownerInvoicesUnpaid: "Owner change-order invoices unpaid (project income)",
       ownerIncomePaid: "Owner change-order income paid (not this subcontract)",
@@ -86,6 +92,12 @@ describe("commercial vocabulary", () => {
     expect(terms.signed).toBe("Executed");
     expect(terms.fundedMilestone).toBe("Tranche");
     expect(terms.fundedMilestones).toBe("Funding tranches");
+    expect(terms.moneyStrip).toEqual({
+      collected: "Collected from owner",
+      subRetainage: "Retainage held",
+      ownerRetainage: "Retainage held from you",
+      description: "Collected from the owner, paid to subs, retainage held and owed this week.",
+    });
     expect(terms.ledger).toEqual({
       ownerInvoicesUnpaid: "Owner prime CO invoices unpaid (project income)",
       ownerIncomePaid: "Owner prime CO income paid (not this subcontract)",

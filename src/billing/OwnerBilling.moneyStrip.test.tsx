@@ -47,6 +47,7 @@ function projectMoney() {
       projects: [{ projectId: LOPEZ_ID, projectTitle: "Lopez Kitchen Remodel", projectKind: "residential" as const }],
     },
     collectedFromOwnerCents: 360_000,
+    collectedFromOwnerInclChangeOrdersCents: 480_000,
     paidToSubsCents: 380_000,
     retainageHeldCents: 20_000,
     ownerRetainageHeldCents: 40_000,
@@ -83,9 +84,13 @@ describe("the GC owner-billing tab", () => {
     expect(html).toContain('data-testid="gc-owner-billing"');
     expect(html).toContain('data-testid="project-money-strip"');
     expect(html).toContain(">Collected from homeowner<");
-    expect(html).toContain("$3,600.00");
+    expect(html).toContain(">Retainage you hold<");
+    expect(html).toContain(">Retainage held from you<");
+    expect(html).toContain('data-testid="project-money-retainage-held-from-you"');
+    expect(html).toContain("$4,800.00");
     expect(html).toContain("$3,800.00");
     expect(html).toContain("$200.00");
+    expect(html).toContain("$400.00");
     // The older three-cell owner money strip stays for its pinned test ids.
     expect(html).toContain('data-testid="owner-money-strip"');
     expect(html.indexOf('data-testid="project-money-strip"')).toBeLessThan(

@@ -1,0 +1,190 @@
+{
+  "generatedAt": "2026-11-10T06:00:46.412Z",
+  "baseUrl": "http://localhost:3150",
+  "disclosureMode": "closed",
+  "selfTest": {
+    "ok": true,
+    "failures": [],
+    "closedDetailsExempt": true,
+    "insideClosedDetailsHits": 0,
+    "outsideHits": 1,
+    "hits": [
+      {
+        "screen": "self-test",
+        "rule": "fixture",
+        "match": "fixture",
+        "context": "fixture outside the panel masked sb-****@personal.example.com and [demo inbox"
+      }
+    ],
+    "recordedReportedSeparately": true,
+    "skippedTextSample": 6
+  },
+  "summary": {
+    "screens": 8,
+    "routes": 8,
+    "screensIncludingDemo": 9,
+    "disclosuresOpened": 0,
+    "appCopyHits": 0,
+    "quotedRecordedHits": 0,
+    "quotedRecordedBlocks": 2
+  },
+  "screens": [
+    {
+      "name": "Demo landing",
+      "route": "#/demo",
+      "viewport": 1440,
+      "appCopyHits": [],
+      "quotedRecordedText": {
+        "blocks": 0,
+        "characters": 0,
+        "hits": []
+      },
+      "skippedInsideClosedDetails": 40,
+      "disclosureMode": "closed",
+      "disclosuresOpened": 0,
+      "charsScanned": 2191
+    },
+    {
+      "name": "GC inbox",
+      "route": "#/inbox",
+      "viewport": 1440,
+      "appCopyHits": [],
+      "quotedRecordedText": {
+        "blocks": 0,
+        "characters": 0,
+        "hits": []
+      },
+      "skippedInsideClosedDetails": 2816,
+      "disclosureMode": "closed",
+      "disclosuresOpened": 0,
+      "charsScanned": 1537
+    },
+    {
+      "name": "GC Lopez project",
+      "route": "#/all-projects/q97f6pmh2d5qn733jmh5pg4c3x8hr9sn",
+      "viewport": 1440,
+      "appCopyHits": [],
+      "quotedRecordedText": {
+        "blocks": 0,
+        "characters": 0,
+        "hits": []
+      },
+      "skippedInsideClosedDetails": 35,
+      "disclosureMode": "closed",
+      "disclosuresOpened": 0,
+      "charsScanned": 1402
+    },
+    {
+      "name": "GC Lopez owner billing",
+      "route": "#/billing/owner-billing",
+      "viewport": 1440,
+      "appCopyHits": [],
+      "quotedRecordedText": {
+        "blocks": 0,
+        "characters": 0,
+        "hits": []
+      },
+      "skippedInsideClosedDetails": 35,
+      "disclosureMode": "closed",
+      "disclosuresOpened": 0,
+      "charsScanned": 2403
+    },
+    {
+      "name": "GC Lopez owner billing",
+      "route": "#/billing/owner-billing",
+      "viewport": 390,
+      "appCopyHits": [],
+      "quotedRecordedText": {
+        "blocks": 0,
+        "characters": 0,
+        "hits": []
+      },
+      "skippedInsideClosedDetails": 35,
+      "disclosureMode": "closed",
+      "disclosuresOpened": 0,
+      "charsScanned": 2264
+    },
+    {
+      "name": "Sub pay app",
+      "route": "#/pay-apps/ph7434a59sqck3nysgt6teqh0h8hvx1h",
+      "viewport": 1440,
+      "appCopyHits": [],
+      "quotedRecordedText": {
+        "blocks": 2,
+        "characters": 431,
+        "hits": []
+      },
+      "skippedInsideClosedDetails": 146,
+      "disclosureMode": "closed",
+      "disclosuresOpened": 0,
+      "charsScanned": 2615
+    },
+    {
+      "name": "Owner projects",
+      "route": "#/projects",
+      "viewport": 1440,
+      "appCopyHits": [],
+      "quotedRecordedText": {
+        "blocks": 0,
+        "characters": 0,
+        "hits": []
+      },
+      "skippedInsideClosedDetails": 0,
+      "disclosureMode": "closed",
+      "disclosuresOpened": 0,
+      "charsScanned": 4733
+    },
+    {
+      "name": "Owner pay apps",
+      "route": "#/owner-pay-apps",
+      "viewport": 1440,
+      "appCopyHits": [],
+      "quotedRecordedText": {
+        "blocks": 0,
+        "characters": 0,
+        "hits": []
+      },
+      "skippedInsideClosedDetails": 45,
+      "disclosureMode": "closed",
+      "disclosuresOpened": 0,
+      "charsScanned": 1410
+    },
+    {
+      "name": "Owner change-order invoice",
+      "route": "#/change-orders/kx76mes3b4e7dt47qbv92tbav58httg0",
+      "viewport": 1440,
+      "appCopyHits": [],
+      "quotedRecordedText": {
+        "blocks": 0,
+        "characters": 0,
+        "hits": []
+      },
+      "skippedInsideClosedDetails": 0,
+      "disclosureMode": "closed",
+      "disclosuresOpened": 0,
+      "charsScanned": 758
+    }
+  ],
+  "diagnostics": {
+    "Demo landing": {
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": []
+    },
+    "GC inbox": {
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": []
+    },
+    "Sub pay app": {
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": []
+    },
+    "Owner screens": {
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": []
+    }
+  }
+}

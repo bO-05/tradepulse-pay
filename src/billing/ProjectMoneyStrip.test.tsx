@@ -2,7 +2,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { useQuery } from "convex/react";
-import type { FunctionReturnType } from "convex/server";
+import { getFunctionName, type FunctionReturnType } from "convex/server";
 import { api } from "../../convex/_generated/api";
 import { ProjectMoneyStrip } from "./ProjectMoneyStrip";
 
@@ -20,16 +20,20 @@ function money({
   kind = "residential",
   scope = "project",
   collected = 360_000,
+  collectedWithChangeOrders,
   paidToSubs = 380_000,
   retainage = 20_000,
+  ownerRetainage = 40_000,
   owed = 0,
   owedReceipt = false,
 }: {
   kind?: Kind;
   scope?: Scope;
   collected?: number;
+  collectedWithChangeOrders?: number;
   paidToSubs?: number;
   retainage?: number;
+  ownerRetainage?: number;
   owed?: number;
   owedReceipt?: boolean;
 } = {}): Money {
@@ -48,9 +52,10 @@ function money({
       projects: [project],
     },
     collectedFromOwnerCents: collected,
+    collectedFromOwnerInclChangeOrdersCents: collectedWithChangeOrders ?? collected,
     paidToSubsCents: paidToSubs,
     retainageHeldCents: retainage,
-    ownerRetainageHeldCents: 40_000,
+    ownerRetainageHeldCents: ownerRetainage,
     owedThisWeekCents: owed,
     receipts: {
       ownerPayApps: collected
@@ -112,8 +117,15 @@ function money({
   } as unknown as Money;
 }
 
-function render(data: Money, projectId: string | undefined): string {
-  vi.mocked(useQuery).mockReturnValue(data as never);
+function render(data: Money, projectId: string | undefined, changeOrders: Array<Record<string, unknown>> = []): string {
+  const moneyQuery = getFunctionName(api.billing.projectMoney.getProjectMoney);
+  const changeOrdersQuery = getFunctionName(api.billing.changeOrders.listForProject);
+  vi.mocked(useQuery).mockImplementation(((fn: unknown) => {
+    const name = getFunctionName(fn as never);
+    if (name === moneyQuery) return data;
+    if (name === changeOrdersQuery) return { prime: { changeOrders } };
+    return undefined;
+  }) as never);
   return renderToStaticMarkup(<ProjectMoneyStrip projectId={projectId} />);
 }
 
@@ -143,12 +155,19 @@ beforeEach(() => {
 });
 
 describe("the project money strip values", () => {
-  test("renders the four Lopez buckets from the query cents", () => {
-    const html = render(money(), PROJECT_ID);
-    expect(labels(html)).toEqual(["Collected from homeowner", "Paid to subs", "Retainage held", "Owed this week"]);
-    expect(cell(html, "project-money-collected").text).toBe("$3,600.00");
+  test("renders the five directed Lopez buckets from the query cents", () => {
+    const html = render(money({ collectedWithChangeOrders: 480_000 }), PROJECT_ID);
+    expect(labels(html)).toEqual([
+      "Collected from homeowner",
+      "Paid to subs",
+      "Retainage you hold",
+      "Retainage held from you",
+      "Owed this week",
+    ]);
+    expect(cell(html, "project-money-collected").text).toBe("$4,800.00");
     expect(cell(html, "project-money-paid-subs").text).toBe("$3,800.00");
     expect(cell(html, "project-money-retainage").text).toBe("$200.00");
+    expect(cell(html, "project-money-retainage-held-from-you").text).toBe("$400.00");
     expect(cell(html, "project-money-owed").text).toBe("$0.00");
     const rendered = plain(html);
     expect(rendered).toContain("5% to the sub");
@@ -157,8 +176,8 @@ describe("the project money strip values", () => {
     expect(cell(html, "project-money-collected").openingTag).toContain("text-2xl");
     expect(cell(html, "project-money-collected").openingTag).toContain("tabular-nums");
     expect(html).toContain('data-testid="project-money-strip"');
-    expect(plain(html)).toContain("Money on this job");
-    expect(plain(html)).toContain("Collected from the homeowner, paid to subs, retainage held and owed this week.");
+    expect(plain(html)).toContain("Money on this job · Lopez Kitchen Remodel");
+    expect(plain(html)).toContain("Collected from the homeowner, paid to subs, both retainage directions and owed this week.");
   });
 });
 
@@ -171,12 +190,23 @@ describe("residential and commercial wording", () => {
     expect(labels(html)).not.toContain("Collected from owner");
   });
 
-  test("a commercial job says Collected from owner and never uses Draw", () => {
-    const html = render(money({ kind: "commercial" }), PROJECT_ID);
-    expect(labels(html)[0]).toBe("Collected from owner");
+  test("a commercial job keeps its existing labels and never uses Draw", () => {
+    const html = render(money({ kind: "commercial", collectedWithChangeOrders: 480_000 }), PROJECT_ID);
+    expect(labels(html)).toEqual([
+      "Collected from owner",
+      "Paid to subs",
+      "Retainage held",
+      "Retainage held from you",
+      "Owed this week",
+    ]);
+    // The additive residential collection field does not change the established commercial bucket.
+    expect(cell(html, "project-money-collected").text).toBe("$3,600.00");
+    expect(plain(html)).toContain("Money on this job");
+    expect(plain(html)).not.toContain("Money on this job · Lopez Kitchen Remodel");
     expect(plain(html)).toContain("Collected from the owner, paid to subs, retainage held and owed this week.");
     expect(plain(html)).toContain("Owner pay app #1");
     expect(plain(html)).not.toContain("homeowner");
+    expect(plain(html)).not.toContain("Retainage you hold");
     expect(plain(html)).not.toMatch(/\bDraws?\b/);
   });
 
@@ -187,6 +217,7 @@ describe("residential and commercial wording", () => {
     expect(labels(html)).not.toContain("Collected from owner");
     expect(plain(html)).toContain("Money across your jobs");
     expect(plain(html)).toContain("Across every job where you are the general contractor");
+    expect(plain(html)).toContain("including the separate commercial reference job");
     expect(plain(html)).toContain("Lopez Kitchen Remodel · Owner pay app #1");
   });
 });
@@ -205,11 +236,12 @@ describe("receipt rows read as real records", () => {
 });
 
 describe("each number links to its receipts", () => {
-  test("collected, paid to subs, retainage and owed link to their receipt surfaces", () => {
+  test("all five cells link to their receipt surfaces", () => {
     const html = render(money({ owed: 400_000, owedReceipt: true }), PROJECT_ID);
     expect(cell(html, "project-money-collected").href).toBe("#/owner-pay-apps");
     expect(cell(html, "project-money-paid-subs").href).toBe(`#/payments/${AGREEMENT_ID}`);
     expect(cell(html, "project-money-retainage").href).toBe("#/billing/retainage");
+    expect(cell(html, "project-money-retainage-held-from-you").href).toBe("#/billing/owner-billing");
     expect(cell(html, "project-money-owed").href).toBe("#/billing");
 
     // The receipt rows behind the numbers link to the ledger, retainage rows and the pay app itself.
@@ -217,6 +249,36 @@ describe("each number links to its receipts", () => {
     expect(html).toContain('href="#/billing/retainage"');
     expect(html).toContain(`href="#/pay-apps/${PAY_APP_ID}"`);
     expect(html).toContain('href="#/billing/owner-billing"');
+  });
+
+  test("homeowner collection links to the paid draw and paid change order without counting drafts", () => {
+    const html = render(money({ collectedWithChangeOrders: 480_000 }), PROJECT_ID, [
+      {
+        _id: "co_paid",
+        status: "paid",
+        label: "CO-1",
+        title: "Add under-cabinet lighting",
+        amountCents: 120_000,
+        paypalInvoiceId: "INV2-CO-PAID",
+        paidAt: 1_794_156_105_000,
+      },
+      {
+        _id: "co_draft",
+        status: "draft",
+        label: "CO-2",
+        title: "Unpaid later work",
+        amountCents: 999_000,
+        paypalInvoiceId: null,
+        paidAt: null,
+      },
+    ]);
+    expect(cell(html, "project-money-collected").text).toBe("$4,800.00");
+    expect(plain(html)).toContain("From 1 paid draw and 1 paid change order.");
+    expect(html).toContain('href="#/change-orders/co_paid"');
+    expect(plain(html)).toContain("Add under-cabinet lighting");
+    expect(plain(html)).toContain("$1,200.00");
+    expect(html).not.toContain('href="#/change-orders/co_draft"');
+    expect(plain(html)).not.toContain("Unpaid later work");
   });
 });
 
@@ -237,8 +299,16 @@ describe("zero buckets explain the next step", () => {
     expect(html).toContain('href="#/owner-pay-apps"');
   });
 
+  test("zero owner retainage explains the next step in its own cell", () => {
+    const html = render(money({ ownerRetainage: 0 }), PROJECT_ID);
+    expect(cell(html, "project-money-retainage-held-from-you").text).toBe("$0.00");
+    expect(plain(html)).toContain("No retainage is held from you yet.");
+    expect(plain(html)).toContain("Open owner billing");
+    expect(cell(html, "project-money-retainage-held-from-you").href).toBe("#/billing/owner-billing");
+  });
+
   test("a commercial job with no payment uses commercial words in the zero state", () => {
-    const html = render(money({ kind: "commercial", collected: 0, paidToSubs: 0, retainage: 0 }), PROJECT_ID);
+    const html = render(money({ kind: "commercial", collected: 0, paidToSubs: 0, retainage: 0, ownerRetainage: 0 }), PROJECT_ID);
     expect(plain(html)).toContain("No pay app has been paid yet.");
     expect(plain(html)).toContain("No subcontractor payout has succeeded yet.");
     expect(plain(html)).toContain("No subcontract retainage is held yet.");

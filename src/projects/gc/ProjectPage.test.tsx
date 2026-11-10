@@ -41,6 +41,7 @@ function money(kind: "residential" | "commercial") {
       projects: [{ projectId: "project_lopez", projectTitle: "Lopez Kitchen Remodel", projectKind: kind }],
     },
     collectedFromOwnerCents: 0,
+    collectedFromOwnerInclChangeOrdersCents: 0,
     paidToSubsCents: 0,
     retainageHeldCents: 0,
     ownerRetainageHeldCents: 0,
@@ -130,7 +131,7 @@ describe("a preserved reference job on the project page", () => {
     const html = render(true);
     expect(html).toContain('data-testid="project-money-strip"');
     expect(html).toContain('data-testid="project-money-collected"');
-    expect(html).toContain("Money on this job");
+    expect(html).toContain("Money on this job · Lopez Kitchen Remodel");
     expect(html.indexOf('data-testid="project-money-strip"')).toBeLessThan(html.indexOf("Project details"));
   });
 

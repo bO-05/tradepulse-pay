@@ -8,6 +8,8 @@ import { ApprovalInbox } from "./ApprovalInbox";
 
 vi.mock("convex/react", () => ({ useQuery: vi.fn(), useMutation: vi.fn(), useAction: vi.fn() }));
 
+const LOPEZ_ID = "project_lopez";
+
 function portfolioMoney() {
   return {
     scope: {
@@ -15,17 +17,34 @@ function portfolioMoney() {
       projectId: null,
       projectTitle: null,
       projectKind: null,
-      projects: [{ projectId: "project_lopez", projectTitle: "Lopez Kitchen Remodel", projectKind: "residential" }],
+      projects: [{ projectId: LOPEZ_ID, projectTitle: "Lopez Kitchen Remodel", projectKind: "residential" }],
     },
     collectedFromOwnerCents: 360_000,
-    paidToSubsCents: 380_000,
-    retainageHeldCents: 20_000,
+    collectedFromOwnerInclChangeOrdersCents: 360_000,
+    paidToSubsCents: 1_707_040,
+    retainageHeldCents: 65_760,
     ownerRetainageHeldCents: 40_000,
     owedThisWeekCents: 0,
     receipts: { ownerPayApps: [], payouts: [], retainage: [], owed: [] },
     asOf: 1_794_200_000_000,
     weekEnd: "2026-11-15",
     truncated: false,
+  };
+}
+
+function lopezMoney() {
+  return {
+    ...portfolioMoney(),
+    scope: {
+      kind: "project" as const,
+      projectId: LOPEZ_ID,
+      projectTitle: "Lopez Kitchen Remodel",
+      projectKind: "residential" as const,
+      projects: [{ projectId: LOPEZ_ID, projectTitle: "Lopez Kitchen Remodel", projectKind: "residential" as const, ownerRetainageBps: 1_000 }],
+    },
+    collectedFromOwnerInclChangeOrdersCents: 480_000,
+    paidToSubsCents: 380_000,
+    retainageHeldCents: 20_000,
   };
 }
 
@@ -123,11 +142,16 @@ function residentialSettledItem() {
 
 function mockQueries(items: unknown) {
   const inboxQuery = getFunctionName(api.payApps.proposals.listInbox);
+  const projectsQuery = getFunctionName(api.billing.ownerPayApps.ownerBillingProjects);
   const moneyQuery = getFunctionName(api.billing.projectMoney.getProjectMoney);
-  vi.mocked(useQuery).mockImplementation(((fn: unknown) => {
+  vi.mocked(useQuery).mockReset();
+  vi.mocked(useQuery).mockImplementation(((fn: unknown, args?: { projectId?: string }) => {
     const name = getFunctionName(fn as never);
     if (name === inboxQuery) return items;
-    if (name === moneyQuery) return portfolioMoney();
+    if (name === projectsQuery) {
+      return [{ _id: LOPEZ_ID, title: "Lopez Kitchen Remodel", projectKind: "residential", partyRole: "gc" }];
+    }
+    if (name === moneyQuery) return args?.projectId === LOPEZ_ID ? lopezMoney() : portfolioMoney();
     return undefined;
   }) as never);
 }
@@ -144,16 +168,27 @@ beforeEach(() => {
 });
 
 describe("the GC approval inbox", () => {
-  test("mounts the portfolio money strip, labeled as across the GC's jobs", () => {
+  test("leads with the five-cell Lopez strip and labels the separate portfolio strip", () => {
     mockQueries([]);
     const html = renderToStaticMarkup(<ApprovalInbox />);
-    expect(html).toContain('data-testid="project-money-strip"');
-    expect(html).toContain('data-testid="project-money-collected"');
-    expect(html).toContain("Money across your jobs");
-    expect(html).toContain(">Collected from owners<");
-    expect(html).toContain("$3,600.00");
+    expect(html.match(/data-testid="project-money-strip"/g)).toHaveLength(2);
+    const lopez = html.indexOf("Money on this job · Lopez Kitchen Remodel");
+    const portfolio = html.indexOf("Money across your jobs");
+    expect(lopez).toBeGreaterThan(-1);
+    expect(lopez).toBeLessThan(portfolio);
+    expect(html).toContain(">Collected from homeowner<");
+    expect(html).toContain(">Retainage you hold<");
+    expect(html).toContain(">Retainage held from you<");
+    expect(html).toContain("$4,800.00");
     expect(html).toContain("$3,800.00");
-    expect(html).not.toContain("Collected from homeowner");
+    expect(html).toContain("$200.00");
+    expect(html).toContain("$400.00");
+    expect(html).toContain(">Collected from owners<");
+    expect(html).toContain("$17,070.40");
+    expect(html).toContain("including the separate commercial reference job");
+    const moneyQuery = getFunctionName(api.billing.projectMoney.getProjectMoney);
+    const moneyCalls = vi.mocked(useQuery).mock.calls.filter(([fn]) => getFunctionName(fn as never) === moneyQuery);
+    expect(moneyCalls).toHaveLength(2);
   });
 
   test("uses an EmptyState with one sentence and one button when there is nothing to review", () => {

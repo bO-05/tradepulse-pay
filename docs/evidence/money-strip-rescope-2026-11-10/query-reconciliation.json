@@ -1,0 +1,108 @@
+{
+  "capturedAt": "2026-11-10T06:04:59.013Z",
+  "deployment": "dev:cheery-axolotl-689",
+  "project": {
+    "projectId": "q97f6pmh2d5qn733jmh5pg4c3x8hr9sn",
+    "title": "Lopez Kitchen Remodel",
+    "projectKind": "residential"
+  },
+  "query": {
+    "scope": {
+      "kind": "project",
+      "projectId": "q97f6pmh2d5qn733jmh5pg4c3x8hr9sn",
+      "projectKind": "residential",
+      "projectTitle": "Lopez Kitchen Remodel",
+      "projects": [
+        {
+          "ownerRetainageBps": 1000,
+          "projectId": "q97f6pmh2d5qn733jmh5pg4c3x8hr9sn",
+          "projectKind": "residential",
+          "projectTitle": "Lopez Kitchen Remodel"
+        }
+      ]
+    },
+    "collectedFromOwnerCents": 360000,
+    "collectedFromOwnerInclChangeOrdersCents": 480000,
+    "paidToSubsCents": 380000,
+    "retainageHeldCents": 20000,
+    "ownerRetainageHeldCents": 40000,
+    "owedThisWeekCents": 0,
+    "receipts": {
+      "owed": [],
+      "ownerPayApps": [
+        {
+          "amountCents": 360000,
+          "applicationNo": 1,
+          "ownerPayAppId": "pd753160qzkknhm3smyxbetxwn8ht286",
+          "paidAt": 1794156104483,
+          "paypalInvoiceId": "INV2-5ZNS-USY8-KBFD-L3B9",
+          "projectId": "q97f6pmh2d5qn733jmh5pg4c3x8hr9sn",
+          "retainageCents": 40000
+        }
+      ],
+      "payouts": [
+        {
+          "agreementId": "jn77jrsvkvmwzj69tpyx7gj2f98htcnv",
+          "agreementNumber": "SC-22-ORTIZ-0001",
+          "amountCents": 380000,
+          "kind": "payout",
+          "paidAt": 1794154703274,
+          "payAppId": "ph7434a59sqck3nysgt6teqh0h8hvx1h",
+          "paymentId": "pn73fd19tggq2s47a3kxs1d66h8htj3s",
+          "payoutBatchId": "D5V7XEN5YZH4C",
+          "projectId": "q97f6pmh2d5qn733jmh5pg4c3x8hr9sn"
+        }
+      ],
+      "retainage": [
+        {
+          "agreementId": "jn77jrsvkvmwzj69tpyx7gj2f98htcnv",
+          "agreementNumber": "SC-22-ORTIZ-0001",
+          "amountCents": 20000,
+          "payAppId": "ph7434a59sqck3nysgt6teqh0h8hvx1h",
+          "projectId": "q97f6pmh2d5qn733jmh5pg4c3x8hr9sn",
+          "retainageBps": 500
+        }
+      ]
+    },
+    "asOf": 1794290694007,
+    "weekEnd": "2026-11-15",
+    "truncated": false
+  },
+  "storedRows": {
+    "paidDraws": [
+      {
+        "ownerPayAppId": "pd753160qzkknhm3smyxbetxwn8ht286",
+        "applicationNo": 1,
+        "status": "paid",
+        "currentPaymentDueCents": 360000,
+        "retainageCents": 40000,
+        "paidAt": 1794156104483
+      }
+    ],
+    "paidChangeOrders": [
+      {
+        "changeOrderId": "kx76mes3b4e7dt47qbv92tbav58httg0",
+        "label": "PCO #1",
+        "title": "Add under-cabinet lighting",
+        "status": "paid",
+        "amountCents": 120000,
+        "paypalInvoiceId": "INV2-RCJ4-Z8GD-4A33-TDJC",
+        "paidAt": 1794156460680
+      }
+    ]
+  },
+  "independentRecomputation": {
+    "collectedFromHomeownerCents": 480000,
+    "paidToSubsCents": 380000,
+    "retainageYouHoldCents": 20000,
+    "retainageHeldFromYouCents": 40000,
+    "owedThisWeekCents": 0
+  },
+  "expected": {
+    "collectedFromHomeownerCents": 480000,
+    "paidToSubsCents": 380000,
+    "retainageYouHoldCents": 20000,
+    "retainageHeldFromYouCents": 40000,
+    "owedThisWeekCents": 0
+  }
+}

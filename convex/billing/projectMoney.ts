@@ -95,7 +95,7 @@ export const projectMoneyValidator = v.object({
     projects: v.array(projectContextValidator),
   }),
   collectedFromOwnerCents: v.number(),
-  /** Paid owner pay apps plus paid prime change orders; the existing four-cell strip uses the field above. */
+  /** Paid owner pay apps plus paid prime change orders; residential project strips use this inclusive figure. */
   collectedFromOwnerInclChangeOrdersCents: v.number(),
   paidToSubsCents: v.number(),
   retainageHeldCents: v.number(),

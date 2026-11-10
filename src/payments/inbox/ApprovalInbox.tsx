@@ -576,6 +576,8 @@ function InboxEntry({ item, primaryProposalId }: { item: InboxItem; primaryPropo
 /** GC approval inbox: the pay agent's proposals per pay application. Nothing moves until the GC approves. */
 export function ApprovalInbox() {
   const items = useQuery(api.payApps.proposals.listInbox, {});
+  const billingProjects = useQuery(api.billing.ownerPayApps.ownerBillingProjects, {});
+  const residentialProject = billingProjects?.find((project) => project.partyRole === "gc" && project.projectKind === "residential") ?? null;
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
   const filtered = items?.filter((item) => (status === "all" || item.payApp.status === status) &&
@@ -648,6 +650,7 @@ export function ApprovalInbox() {
           </p>
         ) : null}
       </header>
+      {residentialProject ? <ProjectMoneyStrip projectId={residentialProject._id} /> : null}
       <ProjectMoneyStrip />
       <div className="hidden gap-2 sm:grid sm:grid-cols-[minmax(0,1fr)_14rem_auto]">
         {filterFields}

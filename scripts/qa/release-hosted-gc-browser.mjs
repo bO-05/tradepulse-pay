@@ -61,32 +61,69 @@ async function clickTextLink(page, text) {
   return clicked;
 }
 
-/** Wait until the strip's query has resolved (the placeholder is "Loading the money…"). */
-async function waitForMoney(page) {
+async function clickLeadingStripCell(page, testId) {
+  const href = await page.evaluate((id) => {
+    const root = document.querySelectorAll('[data-testid="project-money-strip"]')[0];
+    const link = root?.querySelector(`[data-testid="${id}"] a`);
+    if (!link) return null;
+    link.click();
+    return link.getAttribute("href");
+  }, testId);
+  if (!href) throw new Error(`The leading Lopez strip has no link for ${testId}`);
+  await delay(200);
+  return href;
+}
+
+async function returnToInbox(page) {
+  await clickHref(page, "#/inbox");
+  await page.waitForFunction(() => location.hash === "#/inbox", { timeout: 60000 });
+  await waitForMoney(page, 2);
+}
+
+/** Wait until every expected strip's independent query has resolved. */
+async function waitForMoney(page, expectedStrips = 1) {
   await page.waitForFunction(
-    () => {
-      const value = document.querySelector('[data-testid="project-money-collected"]')?.innerText?.trim() ?? "";
-      return /^\$[\d,]+\.\d{2}$/.test(value);
+    (expected) => {
+      const roots = [...document.querySelectorAll('[data-testid="project-money-strip"]')];
+      if (roots.length < expected) return false;
+      return roots.slice(0, expected).every((root) => {
+        const value = root.querySelector('[data-testid="project-money-collected"]')?.innerText?.trim() ?? "";
+        return /^\$[\d,]+\.\d{2}$/.test(value);
+      });
     },
     { timeout: 60000 },
+    expectedStrips,
   );
 }
 
-async function readStrip(page) {
-  return await page.evaluate(() => {
-    const rootEl = document.querySelector('[data-testid="project-money-strip"]');
-    const value = (id) => document.querySelector(`[data-testid="${id}"]`)?.innerText?.trim() ?? null;
+async function readStrip(page, index = 0) {
+  return await page.evaluate((stripIndex) => {
+    const roots = [...document.querySelectorAll('[data-testid="project-money-strip"]')];
+    const rootEl = roots[stripIndex];
+    const value = (id) => rootEl?.querySelector(`[data-testid="${id}"]`)?.innerText?.trim() ?? null;
+    const href = (id) => rootEl?.querySelector(`[data-testid="${id}"] a`)?.getAttribute("href") ?? null;
     return {
-      present: rootEl !== null,
+      present: rootEl !== undefined,
+      stripCount: roots.length,
+      scope: rootEl?.getAttribute("data-money-scope") ?? null,
+      title: rootEl?.querySelector("h2")?.innerText?.trim() ?? null,
       text: rootEl?.innerText ?? "",
       labels: [...(rootEl?.querySelectorAll("dt") ?? [])].map((dt) => dt.innerText.trim()),
       collected: value("project-money-collected"),
       paidSubs: value("project-money-paid-subs"),
       retainage: value("project-money-retainage"),
+      ownerRetainage: value("project-money-retainage-held-from-you"),
       owed: value("project-money-owed"),
+      hrefs: {
+        collected: href("project-money-collected"),
+        paidSubs: href("project-money-paid-subs"),
+        retainage: href("project-money-retainage"),
+        ownerRetainage: href("project-money-retainage-held-from-you"),
+        owed: href("project-money-owed"),
+      },
       top: rootEl ? Math.round(rootEl.getBoundingClientRect().top) : null,
     };
-  });
+  }, index);
 }
 
 async function readPage(page) {
@@ -135,10 +172,11 @@ for (const [width, height] of widths) {
     await page.waitForFunction(() => location.hash === "#/inbox", { timeout: 60000 });
     await page.waitForSelector('[data-testid="project-money-strip"]', { timeout: 60000 });
     await page.waitForSelector('[data-testid="inbox-residential-decision"]', { timeout: 60000 });
-    await waitForMoney(page);
+    await waitForMoney(page, 2);
     await delay(300);
     const inbox = await readPage(page);
     const inboxStrip = await readStrip(page);
+    const portfolioStrip = await readStrip(page, 1);
     const landingPriority = await page.evaluate(() => {
       const visible = (el) => !el.closest("details:not([open])") && (typeof el.checkVisibility === "function" ? el.checkVisibility({ checkVisibilityCSS: true }) : el.getClientRects().length > 0);
       const commercial = document.querySelector('[data-testid="inbox-commercial"]');
@@ -162,12 +200,32 @@ for (const [width, height] of widths) {
         pageHeight: document.documentElement.scrollHeight,
       };
     });
-    report.measurements.push({ screen: "inbox", width, hash: inbox.hash, identity: inbox.identity, strip: inboxStrip, landingPriority });
+    report.measurements.push({ screen: "inbox", width, hash: inbox.hash, identity: inbox.identity, strip: inboxStrip, portfolioStrip, landingPriority });
     check(`${tag} GC seat lands on #/inbox`, inbox.hash === "#/inbox", inbox.hash);
     check(`${tag} GC identity chrome names Bayview Remodeling`, /bayview remodeling/i.test(inbox.identity), inbox.identity);
-    check(`${tag} inbox strip shows four money cells`, inboxStrip.labels.length === 4, JSON.stringify(inboxStrip.labels));
-    check(`${tag} inbox strip uses the neutral portfolio label`, inboxStrip.labels[0] === "Collected from owners", JSON.stringify(inboxStrip.labels));
-    check(`${tag} inbox strip renders four dollar values`, [inboxStrip.collected, inboxStrip.paidSubs, inboxStrip.retainage, inboxStrip.owed].every((v) => /^\$[\d,]+\.\d{2}$/.test(v ?? "")), JSON.stringify(inboxStrip));
+    check(
+      `${tag} Lopez leads the inbox with five directed money cells`,
+      inboxStrip.scope === "project" && JSON.stringify(inboxStrip.labels) === JSON.stringify(["Collected from homeowner", "Paid to subs", "Retainage you hold", "Retainage held from you", "Owed this week"]),
+      JSON.stringify(inboxStrip),
+    );
+    check(`${tag} inbox Lopez strip is titled for the residential job`, /Money on this job · Lopez Kitchen Remodel/.test(inboxStrip.title ?? ""), String(inboxStrip.title));
+    check(
+      `${tag} inbox Lopez strip matches the stored five figures`,
+      inboxStrip.collected === "$4,800.00" && inboxStrip.paidSubs === "$3,800.00" && inboxStrip.retainage === "$200.00" && inboxStrip.ownerRetainage === "$400.00" && inboxStrip.owed === "$0.00",
+      JSON.stringify(inboxStrip),
+    );
+    check(
+      `${tag} every Lopez cell links to its receipt surface`,
+      inboxStrip.hrefs.collected === "#/owner-pay-apps" && inboxStrip.hrefs.paidSubs?.startsWith("#/payments/") && inboxStrip.hrefs.retainage === "#/billing/retainage" && inboxStrip.hrefs.ownerRetainage === "#/billing/owner-billing" && inboxStrip.hrefs.owed === "#/billing",
+      JSON.stringify(inboxStrip.hrefs),
+    );
+    check(
+      `${tag} portfolio strip keeps the neutral plural and names the commercial reference`,
+      portfolioStrip.scope === "portfolio" && portfolioStrip.labels[0] === "Collected from owners" && portfolioStrip.labels.length === 5 && /includ(?:es|ing) the separate commercial reference job/i.test(portfolioStrip.text),
+      JSON.stringify(portfolioStrip),
+    );
+    check(`${tag} portfolio strip renders five dollar values`, [portfolioStrip.collected, portfolioStrip.paidSubs, portfolioStrip.retainage, portfolioStrip.ownerRetainage, portfolioStrip.owed].every((v) => /^\$[\d,]+\.\d{2}$/.test(v ?? "")), JSON.stringify(portfolioStrip));
+    check(`${tag} inbox has no horizontal overflow`, inbox.scrollWidth === inbox.clientWidth, `${inbox.scrollWidth} vs ${inbox.clientWidth}`);
     check(`${tag} GC home shows the residential decision`, /residential draw · settled on the sandbox/i.test(inbox.text) && /ortiz plumbing/i.test(inbox.text), inbox.text.slice(0, 300));
     check(`${tag} paid residential action is View paid receipt`, landingPriority.actionText === "View paid receipt" && landingPriority.actionHref === `#/pay-apps/${settledPayAppId}`, JSON.stringify(landingPriority));
     check(`${tag} no paid representation offers approve-and-pay`, landingPriority.paidApproveCount === 0, String(landingPriority.paidApproveCount));
@@ -175,6 +233,49 @@ for (const [width, height] of widths) {
     check(`${tag} commercial records share one counted collapsed section`, !landingPriority.commercialOpen && landingPriority.commercialVisible === 0 && landingPriority.commercialTitle === `Commercial reference job (${landingPriority.commercialRecords})`, JSON.stringify(landingPriority));
     check(`${tag} GC landing keeps exactly one primary action`, landingPriority.primaryCount === 1, String(landingPriority.primaryCount));
     await page.screenshot({ path: path.join(outDir, `hosted-inbox-${width}.png`), fullPage: false });
+
+    // Every leading-strip figure resolves to its existing receipt surface. The paid change-order
+    // row gets one extra direct-link check because it joins the paid draw in the collected figure.
+    if (width === 1440) {
+      const cells = [
+        ["project-money-collected", "#/owner-pay-apps"],
+        ["project-money-paid-subs", inboxStrip.hrefs.paidSubs],
+        ["project-money-retainage", "#/billing/retainage"],
+        ["project-money-retainage-held-from-you", "#/billing/owner-billing"],
+        ["project-money-owed", "#/billing"],
+      ];
+      for (const [testId, expectedHash] of cells) {
+        const clickedHash = await clickLeadingStripCell(page, testId);
+        await page.waitForFunction((want) => location.hash === want, { timeout: 60000 }, expectedHash);
+        await page.waitForSelector("main", { timeout: 30000 });
+        await delay(300);
+        const receiptPage = await readPage(page);
+        check(`${tag} ${testId} resolves to its receipt surface`, clickedHash === expectedHash && receiptPage.hash === expectedHash && !receiptPage.notFound, JSON.stringify({ clickedHash, hash: receiptPage.hash, notFound: receiptPage.notFound }));
+        await returnToInbox(page);
+      }
+      await page.waitForFunction(() => {
+        const root = document.querySelectorAll('[data-testid="project-money-strip"]')[0];
+        return (root?.querySelectorAll('[data-testid="project-money-receipts"] a[href^="#/change-orders/"]').length ?? 0) > 0;
+      }, { timeout: 15000 }).catch(() => {});
+      const changeOrderReceipt = await page.evaluate(() => {
+        const root = document.querySelectorAll('[data-testid="project-money-strip"]')[0];
+        const details = root?.querySelector('[data-testid="project-money-receipts"]');
+        if (details) details.open = true;
+        const link = [...(details?.querySelectorAll('a[href^="#/change-orders/"]') ?? [])][0];
+        return link ? { href: link.getAttribute("href"), text: link.textContent.trim() } : null;
+      });
+      check(`${tag} collected receipts include the paid change order`, changeOrderReceipt?.href?.startsWith("#/change-orders/") && /Add under-cabinet lighting/.test(changeOrderReceipt.text), JSON.stringify(changeOrderReceipt));
+      if (changeOrderReceipt) {
+        await clickHref(page, changeOrderReceipt.href);
+        await page.waitForFunction((want) => location.hash === want, { timeout: 60000 }, changeOrderReceipt.href);
+        await page.waitForSelector("main", { timeout: 30000 });
+        await delay(300);
+        const changeOrder = await readPage(page);
+        check(`${tag} paid change-order receipt opens the stored $1,200 record`, !changeOrder.notFound && /Add under-cabinet lighting/.test(changeOrder.text) && /\$1,200\.00/.test(changeOrder.text) && /Paid/.test(changeOrder.text), changeOrder.text.slice(0, 600));
+        await page.screenshot({ path: path.join(outDir, "hosted-lopez-change-order-receipt-1440.png"), fullPage: false });
+        await returnToInbox(page);
+      }
+    }
 
     // ---- GC home -> Projects -> Lopez project page ---------------------------------------
     await clickHref(page, "#/all-projects");
@@ -198,10 +299,17 @@ for (const [width, height] of widths) {
     check(`${tag} Lopez page names Dana Lopez`, project.text.includes("Dana Lopez"), project.text.slice(0, 400));
     check(`${tag} Lopez page shows $86,500.00`, project.text.includes("$86,500.00"), project.text.slice(0, 600));
     check(`${tag} Lopez page shows the money strip`, projectStrip.present);
-    check(`${tag} Lopez strip uses the homeowner label`, projectStrip.labels[0] === "Collected from homeowner", JSON.stringify(projectStrip.labels));
-    check(`${tag} Lopez strip paid to subs is $3,800.00`, projectStrip.paidSubs === "$3,800.00", String(projectStrip.paidSubs));
-    check(`${tag} Lopez strip retainage held is $200.00`, projectStrip.retainage === "$200.00", String(projectStrip.retainage));
-    check(`${tag} Lopez strip collected from the homeowner is $3,600.00`, projectStrip.collected === "$3,600.00", String(projectStrip.collected));
+    check(
+      `${tag} Lopez project strip has the same five directed labels`,
+      JSON.stringify(projectStrip.labels) === JSON.stringify(["Collected from homeowner", "Paid to subs", "Retainage you hold", "Retainage held from you", "Owed this week"]),
+      JSON.stringify(projectStrip.labels),
+    );
+    check(
+      `${tag} Lopez project strip matches all five stored figures`,
+      projectStrip.collected === "$4,800.00" && projectStrip.paidSubs === "$3,800.00" && projectStrip.retainage === "$200.00" && projectStrip.ownerRetainage === "$400.00" && projectStrip.owed === "$0.00",
+      JSON.stringify(projectStrip),
+    );
+    check(`${tag} Lopez project page has no horizontal overflow`, project.scrollWidth === project.clientWidth, `${project.scrollWidth} vs ${project.clientWidth}`);
     if (width === 1440) check(`${tag} Lopez money strip sits above the fold`, (projectStrip.top ?? 9999) < project.innerHeight, `${projectStrip.top} vs ${project.innerHeight}`);
     check(`${tag} Lopez page shows the read-only reference notice`, /read-only/i.test(project.readOnlyNotice ?? ""), String(project.readOnlyNotice));
     check(`${tag} Lopez page offers no new-draw control`, project.newDraw === false);
@@ -268,7 +376,7 @@ for (const [width, height] of widths) {
     const commercial = await readPage(page);
     report.measurements.push({ screen: "commercial-project", width, hash: commercial.hash, badge: commercial.badge });
     check(`${tag} commercial project page shows the Commercial reference job badge`, /commercial reference job/i.test(commercial.badge ?? ""), String(commercial.badge));
-    check(`${tag} commercial project keeps commercial wording`, /Collected from owner/.test(commercial.text) && !/Collected from homeowner/.test(commercial.text), commercial.text.slice(0, 600));
+    check(`${tag} commercial project keeps commercial wording`, /Collected from owner/.test(commercial.text) && /Retainage held/.test(commercial.text) && !/Collected from homeowner/.test(commercial.text) && !/Retainage you hold/.test(commercial.text), commercial.text.slice(0, 600));
     await page.screenshot({ path: path.join(outDir, `hosted-commercial-${width}.png`), fullPage: false });
   } catch (error) {
     report.failure = { width, phase: "gc path", message: error instanceof Error ? error.message : String(error) };

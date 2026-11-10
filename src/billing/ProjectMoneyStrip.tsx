@@ -9,10 +9,10 @@ import { termsForKind, type ProjectKind } from "../lib/terms";
 import { Card, formatBps, formatCents, formatDate } from "../ui";
 
 /**
- * The GC money strip (architecture §6.2): collected from the owner, paid to subs, subcontract
- * retainage held and approved work owed this week. Every figure is the stored cents
- * `billing/projectMoney.getProjectMoney` returned — this component adds no money math, it only
- * labels the buckets and links each one to the rows behind it.
+ * The GC money strip: collected from the owner, paid to subs, subcontract retainage held,
+ * owner retainage held from the GC and approved work owed this week. Every figure is the stored
+ * cents `billing/projectMoney.getProjectMoney` returned — this component adds no money math, it
+ * only labels the buckets and links each one to the rows behind it.
  *
  * Omit `projectId` for the portfolio scope (the GC home). Portfolio keeps the neutral plural
  * "Collected from owners"; a project scope uses the kind-keyed singular, so commercial jobs never
@@ -37,7 +37,7 @@ export interface ProjectMoneyStripProps {
 
 function collectedLabel(kind: "portfolio" | "project", projectKind: ProjectKind | null): string {
   if (kind === "portfolio") return "Collected from owners";
-  return projectKind === "residential" ? "Collected from homeowner" : "Collected from owner";
+  return termsForKind(projectKind).moneyStrip.collected;
 }
 
 function plural(count: number, singular: string, pluralForm: string): string {
@@ -99,6 +99,12 @@ function ReceiptList({ title, children }: { title: string; children: ReactNode }
 export function ProjectMoneyStrip({ projectId, className }: ProjectMoneyStripProps) {
   const args: { projectId?: Id<"projects"> } = projectId ? { projectId: projectId as Id<"projects"> } : {};
   const money = useQuery(api.billing.projectMoney.getProjectMoney, args);
+  // Paid change-order receipts already have a project-scoped reader. Only the residential project
+  // strip needs them for its inclusive collected figure; portfolio and commercial reads stay as-is.
+  const changeOrders = useQuery(
+    api.billing.changeOrders.listForProject,
+    projectId !== undefined && money?.scope.projectKind === "residential" ? { projectId } : "skip",
+  );
 
   if (money === undefined) {
     return (
@@ -122,6 +128,9 @@ export function ProjectMoneyStrip({ projectId, className }: ProjectMoneyStripPro
   const payoutReceipts = money.receipts.payouts;
   const retainageReceipts = money.receipts.retainage;
   const owedReceipts = money.receipts.owed;
+  const paidChangeOrderReceipts = !portfolio && projectKind === "residential"
+    ? (changeOrders?.prime?.changeOrders ?? []).filter((receipt) => receipt.status === "paid")
+    : [];
   const retainageAgreements = new Set(retainageReceipts.map((entry) => entry.agreementId)).size;
   // The two rates behind the two retainage figures: the owner's rate on the project(s) and the
   // subcontract rate on the retainage ledger. Only label a rate when every contributing row agrees.
@@ -143,10 +152,13 @@ export function ProjectMoneyStrip({ projectId, className }: ProjectMoneyStripPro
   const receiptProject = (id: string) =>
     portfolio ? `${demoProjectName(projectTitleById.get(id) ?? "Job")} · ` : "";
 
+  const changeOrderNote = paidChangeOrderReceipts.length > 0
+    ? ` and ${paidChangeOrderReceipts.length} paid ${plural(paidChangeOrderReceipts.length, "change order", "change orders")}`
+    : "";
   const collectedNote = (
     <>
-      <span className="hidden sm:inline">From {ownerReceipts.length} paid {plural(ownerReceipts.length, ownerBillLower, ownerBillPlural)}.</span>
-      <span className="sm:hidden">{ownerReceipts.length} paid {portfolio ? "app" : ownerBillLower}{ownerReceipts.length === 1 ? "" : "s"}.</span>
+      <span className="hidden sm:inline">From {ownerReceipts.length} paid {plural(ownerReceipts.length, ownerBillLower, ownerBillPlural)}{changeOrderNote}.</span>
+      <span className="sm:hidden">{ownerReceipts.length} paid {portfolio ? "app" : ownerBillLower}{ownerReceipts.length === 1 ? "" : "s"}{changeOrderNote}.</span>
     </>
   );
   const paidToSubsNote = (
@@ -161,21 +173,37 @@ export function ProjectMoneyStrip({ projectId, className }: ProjectMoneyStripPro
       : "Held from subcontract retainage.";
   const owedNote = `Due by ${formatDate(money.weekEnd)}.`;
 
-  const title = portfolio ? "Money across your jobs" : "Money on this job";
+  const title = portfolio
+    ? "Money across your jobs"
+    : projectKind === "residential" && scope.projectTitle
+      ? `Money on this job · ${demoProjectName(scope.projectTitle)}`
+      : "Money on this job";
   const description = portfolio
-    ? "Across every job where you are the general contractor: collected from owners, paid to subs, retainage held and owed this week."
-    : `Collected from ${projectKind === "residential" ? "the homeowner" : "the owner"}, paid to subs, retainage held and owed this week.`;
+    ? "Across every job where you are the general contractor, including the separate commercial reference job: collected from owners, paid to subs, retainage held and owed this week."
+    : terms.moneyStrip.description;
 
   const hasReceipts =
-    ownerReceipts.length > 0 || payoutReceipts.length > 0 || retainageReceipts.length > 0 || owedReceipts.length > 0;
+    ownerReceipts.length > 0 || payoutReceipts.length > 0 || retainageReceipts.length > 0 || owedReceipts.length > 0 || paidChangeOrderReceipts.length > 0;
 
   return (
-    <Card className={className} data-testid="project-money-strip" title={title} description={<span className="hidden sm:inline">{description}</span>}>
-      <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
+    <Card
+      className={className}
+      data-testid="project-money-strip"
+      data-money-scope={scope.kind}
+      data-project-kind={projectKind ?? undefined}
+      title={title}
+      description={portfolio ? (
+        <>
+          <span className="sm:hidden">Includes the separate commercial reference job.</span>
+          <span className="hidden sm:inline">{description}</span>
+        </>
+      ) : <span className="hidden sm:inline">{description}</span>}
+    >
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 xl:grid-cols-5">
         <MoneyCell
           label={collectedLabel(scope.kind, projectKind)}
           testId="project-money-collected"
-          cents={money.collectedFromOwnerCents}
+          cents={!portfolio && projectKind === "residential" ? money.collectedFromOwnerInclChangeOrdersCents : money.collectedFromOwnerCents}
           href={OWNER_PAY_APPS_HASH}
           note={collectedNote}
           zeroSentence={
@@ -200,24 +228,31 @@ export function ProjectMoneyStrip({ projectId, className }: ProjectMoneyStripPro
           zeroHref="#/payments"
         />
         <MoneyCell
-          label="Retainage held"
+          label={terms.moneyStrip.subRetainage}
           testId="project-money-retainage"
           cents={money.retainageHeldCents}
           href={billingTabHash("retainage")}
           note={
-            <>
-              <span className="block">{subRateLabel ?? <><span className="hidden sm:inline">{retainageNote}</span><span className="sm:hidden">{retainageAgreements} subcontract{retainageAgreements === 1 ? "" : "s"}.</span></>}</span>
-              {money.ownerRetainageHeldCents > 0 ? (
-                <span className="block" data-testid="project-money-owner-retainage">
-                  {formatCents(money.ownerRetainageHeldCents)}
-                  {ownerRateLabel ? ` at ${ownerRateLabel}` : ` held from the ${ownerNoun}`}
-                </span>
-              ) : null}
-            </>
+            <span className="block">{subRateLabel ?? <><span className="hidden sm:inline">{retainageNote}</span><span className="sm:hidden">{retainageAgreements} subcontract{retainageAgreements === 1 ? "" : "s"}.</span></>}</span>
           }
           zeroSentence={<><span className="hidden sm:inline">No subcontract retainage is held yet.</span><span className="sm:hidden">Nothing yet.</span></>}
           zeroAction="Open retainage"
           zeroHref={billingTabHash("retainage")}
+        />
+        <MoneyCell
+          label={terms.moneyStrip.ownerRetainage}
+          testId="project-money-retainage-held-from-you"
+          cents={money.ownerRetainageHeldCents}
+          href={billingTabHash("owner-billing")}
+          note={
+            <span className="block" data-testid="project-money-owner-retainage">
+              {formatCents(money.ownerRetainageHeldCents)}
+              {ownerRateLabel ? ` at ${ownerRateLabel}` : ` held from the ${ownerNoun}`}
+            </span>
+          }
+          zeroSentence={<><span className="hidden sm:inline">No retainage is held from you yet.</span><span className="sm:hidden">Nothing held from you.</span></>}
+          zeroAction="Open owner billing"
+          zeroHref={billingTabHash("owner-billing")}
         />
         <MoneyCell
           label="Owed this week"
@@ -248,6 +283,7 @@ export function ProjectMoneyStrip({ projectId, className }: ProjectMoneyStripPro
                     · <span className="tabular-nums">{formatCents(receipt.amountCents)}</span>
                     {receipt.paidAt ? ` · paid ${formatDate(receipt.paidAt)}` : ""}
                     {receipt.paypalInvoiceId ? ` · invoice ${receipt.paypalInvoiceId}` : ""}
+                    {receipt.retainageCents > 0 ? ` · ${formatCents(receipt.retainageCents)} retainage held from you` : ""}
                   </li>
                 ))}
                 {ownerReceipts.length > 4 ? (
@@ -257,6 +293,21 @@ export function ProjectMoneyStrip({ projectId, className }: ProjectMoneyStripPro
                     </a>
                   </li>
                 ) : null}
+              </ReceiptList>
+            ) : null}
+
+            {paidChangeOrderReceipts.length > 0 ? (
+              <ReceiptList title="Paid change orders">
+                {paidChangeOrderReceipts.slice(0, 4).map((receipt) => (
+                  <li key={receipt._id}>
+                    <a href={`#/change-orders/${encodeURIComponent(receipt._id)}`} className={RECEIPT_LINK}>
+                      {receipt.label} · {receipt.title}
+                    </a>{" "}
+                    · <span className="tabular-nums">{formatCents(receipt.amountCents)}</span>
+                    {receipt.paidAt ? ` · paid ${formatDate(receipt.paidAt)}` : ""}
+                    {receipt.paypalInvoiceId ? ` · invoice ${receipt.paypalInvoiceId}` : ""}
+                  </li>
+                ))}
               </ReceiptList>
             ) : null}
 
