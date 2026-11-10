@@ -119,6 +119,7 @@ export function ProjectMoneyStrip({ projectId, className }: ProjectMoneyStripPro
   const scope = money.scope;
   const portfolio = scope.kind === "portfolio";
   const projectKind: ProjectKind | null = scope.projectKind;
+  const residentialProject = !portfolio && projectKind === "residential";
   const terms = termsForKind(projectKind);
   const ownerBillTitle = portfolio ? "Owner pay app" : terms.ownerBillTitle;
   const ownerBillLower = portfolio ? "owner pay app" : terms.ownerBillLower;
@@ -128,7 +129,7 @@ export function ProjectMoneyStrip({ projectId, className }: ProjectMoneyStripPro
   const payoutReceipts = money.receipts.payouts;
   const retainageReceipts = money.receipts.retainage;
   const owedReceipts = money.receipts.owed;
-  const paidChangeOrderReceipts = !portfolio && projectKind === "residential"
+  const paidChangeOrderReceipts = residentialProject
     ? (changeOrders?.prime?.changeOrders ?? []).filter((receipt) => receipt.status === "paid")
     : [];
   const retainageAgreements = new Set(retainageReceipts.map((entry) => entry.agreementId)).size;
@@ -199,11 +200,11 @@ export function ProjectMoneyStrip({ projectId, className }: ProjectMoneyStripPro
         </>
       ) : <span className="hidden sm:inline">{description}</span>}
     >
-      <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 xl:grid-cols-5">
+      <div className={residentialProject ? "grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 xl:grid-cols-5" : "grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4"}>
         <MoneyCell
           label={collectedLabel(scope.kind, projectKind)}
           testId="project-money-collected"
-          cents={!portfolio && projectKind === "residential" ? money.collectedFromOwnerInclChangeOrdersCents : money.collectedFromOwnerCents}
+          cents={residentialProject ? money.collectedFromOwnerInclChangeOrdersCents : money.collectedFromOwnerCents}
           href={OWNER_PAY_APPS_HASH}
           note={collectedNote}
           zeroSentence={
@@ -233,27 +234,37 @@ export function ProjectMoneyStrip({ projectId, className }: ProjectMoneyStripPro
           cents={money.retainageHeldCents}
           href={billingTabHash("retainage")}
           note={
-            <span className="block">{subRateLabel ?? <><span className="hidden sm:inline">{retainageNote}</span><span className="sm:hidden">{retainageAgreements} subcontract{retainageAgreements === 1 ? "" : "s"}.</span></>}</span>
+            <>
+              <span className="block">{subRateLabel ?? <><span className="hidden sm:inline">{retainageNote}</span><span className="sm:hidden">{retainageAgreements} subcontract{retainageAgreements === 1 ? "" : "s"}.</span></>}</span>
+              {!residentialProject && money.ownerRetainageHeldCents > 0 ? (
+                <span className="block" data-testid="project-money-owner-retainage">
+                  {formatCents(money.ownerRetainageHeldCents)}
+                  {ownerRateLabel ? ` at ${ownerRateLabel}` : ` held from the ${ownerNoun}`}
+                </span>
+              ) : null}
+            </>
           }
           zeroSentence={<><span className="hidden sm:inline">No subcontract retainage is held yet.</span><span className="sm:hidden">Nothing yet.</span></>}
           zeroAction="Open retainage"
           zeroHref={billingTabHash("retainage")}
         />
-        <MoneyCell
-          label={terms.moneyStrip.ownerRetainage}
-          testId="project-money-retainage-held-from-you"
-          cents={money.ownerRetainageHeldCents}
-          href={billingTabHash("owner-billing")}
-          note={
-            <span className="block" data-testid="project-money-owner-retainage">
-              {formatCents(money.ownerRetainageHeldCents)}
-              {ownerRateLabel ? ` at ${ownerRateLabel}` : ` held from the ${ownerNoun}`}
-            </span>
-          }
-          zeroSentence={<><span className="hidden sm:inline">No retainage is held from you yet.</span><span className="sm:hidden">Nothing held from you.</span></>}
-          zeroAction="Open owner billing"
-          zeroHref={billingTabHash("owner-billing")}
-        />
+        {residentialProject ? (
+          <MoneyCell
+            label={terms.moneyStrip.ownerRetainage}
+            testId="project-money-retainage-held-from-you"
+            cents={money.ownerRetainageHeldCents}
+            href={billingTabHash("owner-billing")}
+            note={
+              <span className="block" data-testid="project-money-owner-retainage">
+                {formatCents(money.ownerRetainageHeldCents)}
+                {ownerRateLabel ? ` at ${ownerRateLabel}` : ` held from the ${ownerNoun}`}
+              </span>
+            }
+            zeroSentence={<><span className="hidden sm:inline">No retainage is held from you yet.</span><span className="sm:hidden">Nothing held from you.</span></>}
+            zeroAction="Open owner billing"
+            zeroHref={billingTabHash("owner-billing")}
+          />
+        ) : null}
         <MoneyCell
           label="Owed this week"
           testId="project-money-owed"
@@ -283,7 +294,7 @@ export function ProjectMoneyStrip({ projectId, className }: ProjectMoneyStripPro
                     · <span className="tabular-nums">{formatCents(receipt.amountCents)}</span>
                     {receipt.paidAt ? ` · paid ${formatDate(receipt.paidAt)}` : ""}
                     {receipt.paypalInvoiceId ? ` · invoice ${receipt.paypalInvoiceId}` : ""}
-                    {receipt.retainageCents > 0 ? ` · ${formatCents(receipt.retainageCents)} retainage held from you` : ""}
+                    {residentialProject && receipt.retainageCents > 0 ? ` · ${formatCents(receipt.retainageCents)} retainage held from you` : ""}
                   </li>
                 ))}
                 {ownerReceipts.length > 4 ? (

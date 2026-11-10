@@ -1,0 +1,2521 @@
+{
+  "target": "http://localhost:3150",
+  "checks": [
+    {
+      "name": "[1440] owner home has exactly one h1",
+      "ok": true,
+      "detail": "[\"Owner home\"]"
+    },
+    {
+      "name": "[1440] the first job section is the Lopez residential job",
+      "ok": true,
+      "detail": "{\"firstJobKind\":\"residential\",\"firstJobTitle\":\"Lopez Kitchen Remodel\",\"residentialTitle\":\"Lopez Kitchen Remodel\",\"residentialHasJobCard\":true,\"secondaryCount\":21,\"secondaryFirstTitle\":\"Sandbox run 20261109-19\",\"secondaryBadges\":21,\"otherTop\":1261,\"residentialTop\":317,\"jobStatus\":\"Paid through draw #1. 1 draw paid.\",\"trailText\":\"PAID TO DATE\\n$4,800.00\\n$3,600.00 draw · $1,200.00 change order\\nCONTRACT TO DATE\\n$87,700.00\\n→WORK COMPLETED\\n$4,000.00\\n→RETAINAGE HELD\\n$400.00\\n→BALANCE TO FINISH\\n$82,900.00\\nIncludes retainage\\n→CHANGE ORDERS\\n$1,200.00\\n$1,200.00 paid\\n\\nPaid through draw #1. 1 draw paid.\\n\\nPaid to date = $3,600.00 in paid draws + $1,200.00 in paid change orders.\"}"
+    },
+    {
+      "name": "[1440] the lead job carries the full Job so far card",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] the other jobs sit below the lead as secondary cards",
+      "ok": true,
+      "detail": "{\"firstJobKind\":\"residential\",\"firstJobTitle\":\"Lopez Kitchen Remodel\",\"residentialTitle\":\"Lopez Kitchen Remodel\",\"residentialHasJobCard\":true,\"secondaryCount\":21,\"secondaryFirstTitle\":\"Sandbox run 20261109-19\",\"secondaryBadges\":21,\"otherTop\":1261,\"residentialTop\":317,\"jobStatus\":\"Paid through draw #1. 1 draw paid.\",\"trailText\":\"PAID TO DATE\\n$4,800.00\\n$3,600.00 draw · $1,200.00 change order\\nCONTRACT TO DATE\\n$87,700.00\\n→WORK COMPLETED\\n$4,000.00\\n→RETAINAGE HELD\\n$400.00\\n→BALANCE TO FINISH\\n$82,900.00\\nIncludes retainage\\n→CHANGE ORDERS\\n$1,200.00\\n$1,200.00 paid\\n\\nPaid through draw #1. 1 draw paid.\\n\\nPaid to date = $3,600.00 in paid draws + $1,200.00 in paid change orders.\"}"
+    },
+    {
+      "name": "[1440] secondary jobs keep the commercial badge",
+      "ok": true,
+      "detail": "21"
+    },
+    {
+      "name": "[1440] the money trail is visible under the percent",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] owner trail names Contract to date",
+      "ok": true,
+      "detail": "PAID TO DATE\n$4,800.00\n$3,600.00 draw · $1,200.00 change order\nCONTRACT TO DATE\n$87,700.00\n→WORK COMPLETED\n$4,000.00\n→RETAINAGE HELD\n$400.00\n→BALANCE TO FINISH\n$82,900.00\nIncludes retainage\n→CHANGE ORDERS\n$1,200.00\n$1,200.00 paid\n\nPaid through draw #1. 1 draw paid.\n\nPaid to date = $3,600.00 in paid draws + $1,200.00 in paid change orders."
+    },
+    {
+      "name": "[1440] owner trail names Work completed",
+      "ok": true,
+      "detail": "PAID TO DATE\n$4,800.00\n$3,600.00 draw · $1,200.00 change order\nCONTRACT TO DATE\n$87,700.00\n→WORK COMPLETED\n$4,000.00\n→RETAINAGE HELD\n$400.00\n→BALANCE TO FINISH\n$82,900.00\nIncludes retainage\n→CHANGE ORDERS\n$1,200.00\n$1,200.00 paid\n\nPaid through draw #1. 1 draw paid.\n\nPaid to date = $3,600.00 in paid draws + $1,200.00 in paid change orders."
+    },
+    {
+      "name": "[1440] owner trail names Retainage held",
+      "ok": true,
+      "detail": "PAID TO DATE\n$4,800.00\n$3,600.00 draw · $1,200.00 change order\nCONTRACT TO DATE\n$87,700.00\n→WORK COMPLETED\n$4,000.00\n→RETAINAGE HELD\n$400.00\n→BALANCE TO FINISH\n$82,900.00\nIncludes retainage\n→CHANGE ORDERS\n$1,200.00\n$1,200.00 paid\n\nPaid through draw #1. 1 draw paid.\n\nPaid to date = $3,600.00 in paid draws + $1,200.00 in paid change orders."
+    },
+    {
+      "name": "[1440] owner trail names Paid to date",
+      "ok": true,
+      "detail": "PAID TO DATE\n$4,800.00\n$3,600.00 draw · $1,200.00 change order\nCONTRACT TO DATE\n$87,700.00\n→WORK COMPLETED\n$4,000.00\n→RETAINAGE HELD\n$400.00\n→BALANCE TO FINISH\n$82,900.00\nIncludes retainage\n→CHANGE ORDERS\n$1,200.00\n$1,200.00 paid\n\nPaid through draw #1. 1 draw paid.\n\nPaid to date = $3,600.00 in paid draws + $1,200.00 in paid change orders."
+    },
+    {
+      "name": "[1440] owner trail names Balance to finish",
+      "ok": true,
+      "detail": "PAID TO DATE\n$4,800.00\n$3,600.00 draw · $1,200.00 change order\nCONTRACT TO DATE\n$87,700.00\n→WORK COMPLETED\n$4,000.00\n→RETAINAGE HELD\n$400.00\n→BALANCE TO FINISH\n$82,900.00\nIncludes retainage\n→CHANGE ORDERS\n$1,200.00\n$1,200.00 paid\n\nPaid through draw #1. 1 draw paid.\n\nPaid to date = $3,600.00 in paid draws + $1,200.00 in paid change orders."
+    },
+    {
+      "name": "[1440] the paid figure is the hero money figure at text-3xl",
+      "ok": true,
+      "detail": "[{\"text\":\"$4,800.00\",\"fontSize\":30,\"testid\":\"owner-job-paid\",\"top\":497,\"right\":1361,\"inClosedDetails\":false},{\"text\":\"$87,700.00\",\"fontSize\":18,\"testid\":\"owner-job-contract\",\"top\":599,\"right\":641,\"inClosedDetails\":false},{\"text\":\"$4,000.00\",\"fontSize\":18,\"testid\":\"owner-job-completed\",\"top\":599,\"right\":822,\"inClosedDetails\":false}]"
+    },
+    {
+      "name": "[1440] the job status line is not empty",
+      "ok": true,
+      "detail": "Paid through draw #1. 1 draw paid."
+    },
+    {
+      "name": "[1440] owner home has no horizontal page overflow",
+      "ok": true,
+      "detail": "1440 vs 1440"
+    },
+    {
+      "name": "[1440] every funded-milestone Amount cell is fully inside its visible cell and the viewport",
+      "ok": true,
+      "detail": "[{\"text\":\"$4,000.00\",\"scrollWidth\":276,\"clientWidth\":276,\"cellLeft\":746.515625,\"cellRight\":1022.984375,\"textLeft\":952.078125,\"textRight\":1010.984375,\"scrollerRight\":1395,\"viewportWidth\":1440},{\"text\":\"$3,500.00\",\"scrollWidth\":276,\"clientWidth\":276,\"cellLeft\":746.515625,\"cellRight\":1022.984375,\"textLeft\":952.078125,\"textRight\":1010.984375,\"scrollerRight\":1395,\"viewportWidth\":1440},{\"text\":\"$1,500.00\",\"scrollWidth\":276,\"clientWidth\":276,\"cellLeft\":746.515625,\"cellRight\":1022.984375,\"textLeft\":952.078125,\"textRight\":1010.984375,\"scrollerRight\":1395,\"viewportWidth\":1440}]"
+    },
+    {
+      "name": "[1440] owner home has no visible control under 24px",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[1440] owner draw opens on the Lopez draw",
+      "ok": true,
+      "detail": "{\"pickedProject\":\"Lopez Kitchen Remodel\",\"headerText\":\"Draw #1 · period ending Oct 15, 2026\",\"trailText\":\"PAID THIS DRAW\\n$3,600.00\\nPaid by PayPal · Nov 8, 2026\\nCONTRACT TO DATE\\n$86,500.00\\n→WORK COMPLETED\\n$4,000.00\\n→RETAINAGE HELD\\n$400.00\\n10% on each line\\n→PREVIOUS DRAWS\\n$0.00\",\"invoiceText\":\"PayPal invoice\\n\\nInvoice INV2-5ZNS-USY8-KBFD-L3B9 · sent to [demo inbox]@example.com\\n\\nPayPal status\\nPaid\",\"noticeTop\":867,\"drawerOpen\":false}"
+    },
+    {
+      "name": "[1440] draw page heading is Draws",
+      "ok": true,
+      "detail": "[\"Draws\"]"
+    },
+    {
+      "name": "[1440] draw money trail is visible",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[1440] draw trail names Paid this draw",
+      "ok": true,
+      "detail": "PAID THIS DRAW\n$3,600.00\nPaid by PayPal · Nov 8, 2026\nCONTRACT TO DATE\n$86,500.00\n→WORK COMPLETED\n$4,000.00\n→RETAINAGE HELD\n$400.00\n10% on each line\n→PREVIOUS DRAWS\n$0.00"
+    },
+    {
+      "name": "[1440] draw trail names Contract to date",
+      "ok": true,
+      "detail": "PAID THIS DRAW\n$3,600.00\nPaid by PayPal · Nov 8, 2026\nCONTRACT TO DATE\n$86,500.00\n→WORK COMPLETED\n$4,000.00\n→RETAINAGE HELD\n$400.00\n10% on each line\n→PREVIOUS DRAWS\n$0.00"
+    },
+    {
+      "name": "[1440] draw trail names Work completed",
+      "ok": true,
+      "detail": "PAID THIS DRAW\n$3,600.00\nPaid by PayPal · Nov 8, 2026\nCONTRACT TO DATE\n$86,500.00\n→WORK COMPLETED\n$4,000.00\n→RETAINAGE HELD\n$400.00\n10% on each line\n→PREVIOUS DRAWS\n$0.00"
+    },
+    {
+      "name": "[1440] draw trail names Retainage held",
+      "ok": true,
+      "detail": "PAID THIS DRAW\n$3,600.00\nPaid by PayPal · Nov 8, 2026\nCONTRACT TO DATE\n$86,500.00\n→WORK COMPLETED\n$4,000.00\n→RETAINAGE HELD\n$400.00\n10% on each line\n→PREVIOUS DRAWS\n$0.00"
+    },
+    {
+      "name": "[1440] draw trail names Previous draws",
+      "ok": true,
+      "detail": "PAID THIS DRAW\n$3,600.00\nPaid by PayPal · Nov 8, 2026\nCONTRACT TO DATE\n$86,500.00\n→WORK COMPLETED\n$4,000.00\n→RETAINAGE HELD\n$400.00\n10% on each line\n→PREVIOUS DRAWS\n$0.00"
+    },
+    {
+      "name": "[1440] paid this draw is the hero money figure at text-3xl",
+      "ok": true,
+      "detail": "[{\"text\":\"$3,600.00\",\"fontSize\":30,\"testid\":\"owner-draw-payment-due\",\"top\":694,\"right\":1378,\"inClosedDetails\":false},{\"text\":\"$86,500.00\",\"fontSize\":18,\"testid\":\"owner-draw-money-trail\",\"top\":796,\"right\":364,\"inClosedDetails\":false},{\"text\":\"$4,000.00\",\"fontSize\":18,\"testid\":\"owner-draw-money-trail\",\"top\":796,\"right\":703,\"inClosedDetails\":false}]"
+    },
+    {
+      "name": "[1440] the money trail sits above the numbered summary",
+      "ok": true,
+      "detail": "664 vs 1093"
+    },
+    {
+      "name": "[1440] exactly one primary action on the draw",
+      "ok": true,
+      "detail": "[{\"tag\":\"A\",\"text\":\"Open the PayPal receipt\",\"testid\":\"owner-invoice-payer-link\",\"height\":44}]"
+    },
+    {
+      "name": "[1440] the draw primary is the named PayPal receipt action and meets 44px",
+      "ok": true,
+      "detail": "[{\"tag\":\"A\",\"text\":\"Open the PayPal receipt\",\"testid\":\"owner-invoice-payer-link\",\"height\":44}]"
+    },
+    {
+      "name": "[1440] the draw status words are plain",
+      "ok": true,
+      "detail": "[{\"code\":\"paid\",\"label\":\"Paid\"},{\"code\":\"paid\",\"label\":\"Paid\"},{\"code\":\"PAID\",\"label\":\"Paid\"},{\"code\":\"draft\",\"label\":\"Draft\"},{\"code\":\"submitted_to_owner\",\"label\":\"Submitted to owner\"},{\"code\":\"approved\",\"label\":\"Approved\"}]"
+    },
+    {
+      "name": "[1440] a paid draw never says Current payment due",
+      "ok": true,
+      "detail": "Draws\n\nYour GC's draws on the contract, with a PayPal receipt once a draw is paid.\n\nProject\nLopez Kitchen Remodel\nSandbox run 20261109-19\nSandbox run 20261109-18\nSandbox run 20261109-17\nSandbox run 20261109-16\nSandbox run 20261109-15\nSandbox run 20261109-14\nSandbox run 20261108-13\nSandbox run 20261107-12\nSandbox run 20261106-11\nSandbox run 20261106-10\nSandbox run 20261106-09\nSandbox run 20261105-0"
+    },
+    {
+      "name": "[1440] a paid draw names Paid by PayPal with its date",
+      "ok": true,
+      "detail": "PAID THIS DRAW\n$3,600.00\nPaid by PayPal · Nov 8, 2026\nCONTRACT TO DATE\n$86,500.00\n→WORK COMPLETED\n$4,000.00\n→RETAINAGE HELD\n$400.00\n10% on each line\n→PREVIOUS DRAWS\n$0.00"
+    },
+    {
+      "name": "[1440] the read-only notice sits below the money trail",
+      "ok": true,
+      "detail": "867 vs 664"
+    },
+    {
+      "name": "[1440] the invoice status is never the raw code",
+      "ok": true,
+      "detail": "PayPal invoice\n\nInvoice INV2-5ZNS-USY8-KBFD-L3B9 · sent to [demo inbox]@example.com\n\nPayPal status\nPaid"
+    },
+    {
+      "name": "[1440] the breakdown starts collapsed",
+      "ok": true,
+      "detail": "false"
+    },
+    {
+      "name": "[1440] owner draw has no horizontal page overflow",
+      "ok": true,
+      "detail": "1440 vs 1440"
+    },
+    {
+      "name": "[1440] owner draw has no visible control under 24px",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[1440] the Lopez change order is reachable from the owner home",
+      "ok": true,
+      "detail": "#/change-orders/kx76mes3b4e7dt47qbv92tbav58httg0"
+    },
+    {
+      "name": "[1440] CO page has exactly one h1 naming the change order",
+      "ok": true,
+      "detail": "[\"PCO #1 · Add under-cabinet lighting\"]"
+    },
+    {
+      "name": "[1440] CO amount is large and tabular",
+      "ok": true,
+      "detail": "[{\"text\":\"$1,200.00\",\"fontSize\":30,\"testid\":\"change-order-amount\",\"top\":466,\"right\":182,\"inClosedDetails\":false}]"
+    },
+    {
+      "name": "[1440] CO amount is $1,200.00",
+      "ok": true,
+      "detail": "$1,200.00"
+    },
+    {
+      "name": "[1440] a paid CO shows the word Paid and its date beside the amount",
+      "ok": true,
+      "detail": "Amount\n\n$1,200.00\n\nPaid\nPaid Nov 8, 2026\n\nContract change order\n\nOwner-requested under-cabinet lighting circuits and LED fixtures in the kitchen."
+    },
+    {
+      "name": "[1440] a paid CO action opens the PayPal receipt",
+      "ok": true,
+      "detail": "Open the PayPal receipt"
+    },
+    {
+      "name": "[1440] CO status is a plain word",
+      "ok": true,
+      "detail": "[{\"code\":\"paid\",\"label\":\"Paid\"},{\"code\":\"paid\",\"label\":\"Paid\"},{\"code\":\"PAID\",\"label\":\"Paid\"}]"
+    },
+    {
+      "name": "[1440] CO page never prints the raw status code",
+      "ok": true,
+      "detail": "Back to change orders\nPCO #1 · Add under-cabinet lighting\n\nContract change order · Project-level change order\n\nPaid\nRequested by the GC\nOpen the PayPal receipt\nAmount\n\n$1,200.00\n\nPaid\nPaid Nov 8, 2026\n\nContract change order\n\nOwner-requested under-cabinet lighting circuits and LED fixtures in the kitchen.\n\nDetails\nAssociated agreement\nProject-level change order\nSchedule impact\nNot specified\nTimeline\nCreated\nNov 8, 2026, 4:42 PM UTC\nSubmitted\nNov 8, 2026, 4:42 PM UTC\nApproved\nNov 8, 2026, 4:44 PM UTC\nInvoiced\nNov 8, 2026, 4:44 PM UTC\nPayment recorded\nNov 8, 2026, 4:47 PM UTC\n\nPayment recorded is"
+    },
+    {
+      "name": "[1440] PayPal invoice link is a real link styled as a button",
+      "ok": true,
+      "detail": "{\"tag\":\"A\",\"text\":\"Open the PayPal receipt\",\"href\":\"https://www.sandbox.paypal.com/invoice/p/#RCJ4Z8GD4A33TDJC\",\"className\":\"inline-flex items-center justify-center rounded-lg font-semibold transition-colors bg-accent text-accent-fg hover:bg-accent-hover border border-transparent min-h-touch px-4 text-sm gap-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus\",\"height\":44}"
+    },
+    {
+      "name": "[1440] exactly one primary action on the CO invoice",
+      "ok": true,
+      "detail": "[{\"tag\":\"A\",\"text\":\"Open the PayPal receipt\",\"testid\":\"change-order-invoice-link\",\"height\":44}]"
+    },
+    {
+      "name": "[1440] CO invoice status is a plain word",
+      "ok": true,
+      "detail": "PayPal invoice\nPayPal invoice ID\nINV2-RCJ4-Z8GD-4A33-TDJC\nCopy\nInvoice status\nPaid"
+    },
+    {
+      "name": "[1440] CO invoice has no horizontal page overflow",
+      "ok": true,
+      "detail": "1440 vs 1440"
+    },
+    {
+      "name": "[1440] CO invoice has no visible control under 24px",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[1440] owner Projects detail route resolves",
+      "ok": true,
+      "detail": "#/my-projects/q9751tqcjsbd11myp8x25c08hs8hdj94"
+    },
+    {
+      "name": "[1440] owner Projects detail strips only the stored legacy prefix",
+      "ok": true,
+      "detail": "Change orders\nPCO #1 · add two EV charger circuits in the garageView invoice\n$1,850.00\nPaid"
+    },
+    {
+      "name": "[1440] owner Projects detail has no Judge demo text or perceivable attribute",
+      "ok": true,
+      "detail": "Change orders\nPCO #1 · add two EV charger circuits in the garageView invoice\n$1,850.00\nPaid"
+    },
+    {
+      "name": "[1440] owner Projects detail has no horizontal overflow",
+      "ok": true,
+      "detail": "1440 vs 1440"
+    },
+    {
+      "name": "[1440] zero page errors",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[1440] zero console errors",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[1440] zero failed requests",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[390] owner home has exactly one h1",
+      "ok": true,
+      "detail": "[\"Owner home\"]"
+    },
+    {
+      "name": "[390] the first job section is the Lopez residential job",
+      "ok": true,
+      "detail": "{\"firstJobKind\":\"residential\",\"firstJobTitle\":\"Lopez Kitchen Remodel\",\"residentialTitle\":\"Lopez Kitchen Remodel\",\"residentialHasJobCard\":true,\"secondaryCount\":21,\"secondaryFirstTitle\":\"Sandbox run 20261109-19\",\"secondaryBadges\":21,\"otherTop\":1720,\"residentialTop\":214,\"jobStatus\":\"Paid through draw #1. 1 draw paid.\",\"trailText\":\"PAID TO DATE\\n$4,800.00\\n$3,600.00 draw · $1,200.00 change order\\nCONTRACT TO DATE\\n$87,700.00\\n→WORK COMPLETED\\n$4,000.00\\n→RETAINAGE HELD\\n$400.00\\n→BALANCE TO FINISH\\n$82,900.00\\nIncludes retainage\\n→CHANGE ORDERS\\n$1,200.00\\n$1,200.00 paid\\n\\nPaid through draw #1. 1 draw paid.\\n\\nPaid to date = $3,600.00 in paid draws + $1,200.00 in paid change orders.\"}"
+    },
+    {
+      "name": "[390] the lead job carries the full Job so far card",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] the other jobs sit below the lead as secondary cards",
+      "ok": true,
+      "detail": "{\"firstJobKind\":\"residential\",\"firstJobTitle\":\"Lopez Kitchen Remodel\",\"residentialTitle\":\"Lopez Kitchen Remodel\",\"residentialHasJobCard\":true,\"secondaryCount\":21,\"secondaryFirstTitle\":\"Sandbox run 20261109-19\",\"secondaryBadges\":21,\"otherTop\":1720,\"residentialTop\":214,\"jobStatus\":\"Paid through draw #1. 1 draw paid.\",\"trailText\":\"PAID TO DATE\\n$4,800.00\\n$3,600.00 draw · $1,200.00 change order\\nCONTRACT TO DATE\\n$87,700.00\\n→WORK COMPLETED\\n$4,000.00\\n→RETAINAGE HELD\\n$400.00\\n→BALANCE TO FINISH\\n$82,900.00\\nIncludes retainage\\n→CHANGE ORDERS\\n$1,200.00\\n$1,200.00 paid\\n\\nPaid through draw #1. 1 draw paid.\\n\\nPaid to date = $3,600.00 in paid draws + $1,200.00 in paid change orders.\"}"
+    },
+    {
+      "name": "[390] secondary jobs keep the commercial badge",
+      "ok": true,
+      "detail": "21"
+    },
+    {
+      "name": "[390] the money trail is visible under the percent",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] owner trail names Contract to date",
+      "ok": true,
+      "detail": "PAID TO DATE\n$4,800.00\n$3,600.00 draw · $1,200.00 change order\nCONTRACT TO DATE\n$87,700.00\n→WORK COMPLETED\n$4,000.00\n→RETAINAGE HELD\n$400.00\n→BALANCE TO FINISH\n$82,900.00\nIncludes retainage\n→CHANGE ORDERS\n$1,200.00\n$1,200.00 paid\n\nPaid through draw #1. 1 draw paid.\n\nPaid to date = $3,600.00 in paid draws + $1,200.00 in paid change orders."
+    },
+    {
+      "name": "[390] owner trail names Work completed",
+      "ok": true,
+      "detail": "PAID TO DATE\n$4,800.00\n$3,600.00 draw · $1,200.00 change order\nCONTRACT TO DATE\n$87,700.00\n→WORK COMPLETED\n$4,000.00\n→RETAINAGE HELD\n$400.00\n→BALANCE TO FINISH\n$82,900.00\nIncludes retainage\n→CHANGE ORDERS\n$1,200.00\n$1,200.00 paid\n\nPaid through draw #1. 1 draw paid.\n\nPaid to date = $3,600.00 in paid draws + $1,200.00 in paid change orders."
+    },
+    {
+      "name": "[390] owner trail names Retainage held",
+      "ok": true,
+      "detail": "PAID TO DATE\n$4,800.00\n$3,600.00 draw · $1,200.00 change order\nCONTRACT TO DATE\n$87,700.00\n→WORK COMPLETED\n$4,000.00\n→RETAINAGE HELD\n$400.00\n→BALANCE TO FINISH\n$82,900.00\nIncludes retainage\n→CHANGE ORDERS\n$1,200.00\n$1,200.00 paid\n\nPaid through draw #1. 1 draw paid.\n\nPaid to date = $3,600.00 in paid draws + $1,200.00 in paid change orders."
+    },
+    {
+      "name": "[390] owner trail names Paid to date",
+      "ok": true,
+      "detail": "PAID TO DATE\n$4,800.00\n$3,600.00 draw · $1,200.00 change order\nCONTRACT TO DATE\n$87,700.00\n→WORK COMPLETED\n$4,000.00\n→RETAINAGE HELD\n$400.00\n→BALANCE TO FINISH\n$82,900.00\nIncludes retainage\n→CHANGE ORDERS\n$1,200.00\n$1,200.00 paid\n\nPaid through draw #1. 1 draw paid.\n\nPaid to date = $3,600.00 in paid draws + $1,200.00 in paid change orders."
+    },
+    {
+      "name": "[390] owner trail names Balance to finish",
+      "ok": true,
+      "detail": "PAID TO DATE\n$4,800.00\n$3,600.00 draw · $1,200.00 change order\nCONTRACT TO DATE\n$87,700.00\n→WORK COMPLETED\n$4,000.00\n→RETAINAGE HELD\n$400.00\n→BALANCE TO FINISH\n$82,900.00\nIncludes retainage\n→CHANGE ORDERS\n$1,200.00\n$1,200.00 paid\n\nPaid through draw #1. 1 draw paid.\n\nPaid to date = $3,600.00 in paid draws + $1,200.00 in paid change orders."
+    },
+    {
+      "name": "[390] the paid figure is the hero money figure at text-3xl",
+      "ok": true,
+      "detail": "[{\"text\":\"$4,800.00\",\"fontSize\":30,\"testid\":\"owner-job-paid\",\"top\":582,\"right\":319,\"inClosedDetails\":false},{\"text\":\"$87,700.00\",\"fontSize\":18,\"testid\":\"owner-job-contract\",\"top\":684,\"right\":178,\"inClosedDetails\":false},{\"text\":\"$4,000.00\",\"fontSize\":18,\"testid\":\"owner-job-completed\",\"top\":700,\"right\":323,\"inClosedDetails\":false}]"
+    },
+    {
+      "name": "[390] the job status line is not empty",
+      "ok": true,
+      "detail": "Paid through draw #1. 1 draw paid."
+    },
+    {
+      "name": "[390] owner home has no horizontal page overflow",
+      "ok": true,
+      "detail": "390 vs 390"
+    },
+    {
+      "name": "[390] every funded-milestone Amount cell is fully inside its visible cell and the viewport",
+      "ok": true,
+      "detail": "[{\"text\":\"$4,000.00\",\"scrollWidth\":79,\"clientWidth\":79,\"cellLeft\":195,\"cellRight\":274,\"textLeft\":203.09375,\"textRight\":262,\"scrollerRight\":353,\"viewportWidth\":390},{\"text\":\"$3,500.00\",\"scrollWidth\":79,\"clientWidth\":79,\"cellLeft\":195,\"cellRight\":274,\"textLeft\":203.09375,\"textRight\":262,\"scrollerRight\":353,\"viewportWidth\":390},{\"text\":\"$1,500.00\",\"scrollWidth\":79,\"clientWidth\":79,\"cellLeft\":195,\"cellRight\":274,\"textLeft\":203.09375,\"textRight\":262,\"scrollerRight\":353,\"viewportWidth\":390}]"
+    },
+    {
+      "name": "[390] owner home has no visible control under 24px",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[390] owner draw opens on the Lopez draw",
+      "ok": true,
+      "detail": "{\"pickedProject\":\"Lopez Kitchen Remodel\",\"headerText\":\"Draw #1 · period ending Oct 15, 2026\",\"trailText\":\"PAID THIS DRAW\\n$3,600.00\\nPaid by PayPal · Nov 8, 2026\\nCONTRACT TO DATE\\n$86,500.00\\n→WORK COMPLETED\\n$4,000.00\\n→RETAINAGE HELD\\n$400.00\\n10% on each line\\n→PREVIOUS DRAWS\\n$0.00\",\"invoiceText\":\"PayPal invoice\\n\\nInvoice INV2-5ZNS-USY8-KBFD-L3B9 · sent to [demo inbox]@example.com\\n\\nPayPal status\\nPaid\",\"noticeTop\":896,\"drawerOpen\":false}"
+    },
+    {
+      "name": "[390] draw page heading is Draws",
+      "ok": true,
+      "detail": "[\"Draws\"]"
+    },
+    {
+      "name": "[390] draw money trail is visible",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "[390] draw trail names Paid this draw",
+      "ok": true,
+      "detail": "PAID THIS DRAW\n$3,600.00\nPaid by PayPal · Nov 8, 2026\nCONTRACT TO DATE\n$86,500.00\n→WORK COMPLETED\n$4,000.00\n→RETAINAGE HELD\n$400.00\n10% on each line\n→PREVIOUS DRAWS\n$0.00"
+    },
+    {
+      "name": "[390] draw trail names Contract to date",
+      "ok": true,
+      "detail": "PAID THIS DRAW\n$3,600.00\nPaid by PayPal · Nov 8, 2026\nCONTRACT TO DATE\n$86,500.00\n→WORK COMPLETED\n$4,000.00\n→RETAINAGE HELD\n$400.00\n10% on each line\n→PREVIOUS DRAWS\n$0.00"
+    },
+    {
+      "name": "[390] draw trail names Work completed",
+      "ok": true,
+      "detail": "PAID THIS DRAW\n$3,600.00\nPaid by PayPal · Nov 8, 2026\nCONTRACT TO DATE\n$86,500.00\n→WORK COMPLETED\n$4,000.00\n→RETAINAGE HELD\n$400.00\n10% on each line\n→PREVIOUS DRAWS\n$0.00"
+    },
+    {
+      "name": "[390] draw trail names Retainage held",
+      "ok": true,
+      "detail": "PAID THIS DRAW\n$3,600.00\nPaid by PayPal · Nov 8, 2026\nCONTRACT TO DATE\n$86,500.00\n→WORK COMPLETED\n$4,000.00\n→RETAINAGE HELD\n$400.00\n10% on each line\n→PREVIOUS DRAWS\n$0.00"
+    },
+    {
+      "name": "[390] draw trail names Previous draws",
+      "ok": true,
+      "detail": "PAID THIS DRAW\n$3,600.00\nPaid by PayPal · Nov 8, 2026\nCONTRACT TO DATE\n$86,500.00\n→WORK COMPLETED\n$4,000.00\n→RETAINAGE HELD\n$400.00\n10% on each line\n→PREVIOUS DRAWS\n$0.00"
+    },
+    {
+      "name": "[390] paid this draw is the hero money figure at text-3xl",
+      "ok": true,
+      "detail": "[{\"text\":\"$3,600.00\",\"fontSize\":30,\"testid\":\"owner-draw-payment-due\",\"top\":653,\"right\":340,\"inClosedDetails\":false},{\"text\":\"$86,500.00\",\"fontSize\":18,\"testid\":\"owner-draw-money-trail\",\"top\":755,\"right\":178,\"inClosedDetails\":false},{\"text\":\"$4,000.00\",\"fontSize\":18,\"testid\":\"owner-draw-money-trail\",\"top\":755,\"right\":344,\"inClosedDetails\":false}]"
+    },
+    {
+      "name": "[390] the money trail sits above the numbered summary",
+      "ok": true,
+      "detail": "623 vs 1142"
+    },
+    {
+      "name": "[390] exactly one primary action on the draw",
+      "ok": true,
+      "detail": "[{\"tag\":\"A\",\"text\":\"Open the PayPal receipt\",\"testid\":\"owner-invoice-payer-link\",\"height\":44}]"
+    },
+    {
+      "name": "[390] the draw primary is the named PayPal receipt action and meets 44px",
+      "ok": true,
+      "detail": "[{\"tag\":\"A\",\"text\":\"Open the PayPal receipt\",\"testid\":\"owner-invoice-payer-link\",\"height\":44}]"
+    },
+    {
+      "name": "[390] the draw status words are plain",
+      "ok": true,
+      "detail": "[{\"code\":\"paid\",\"label\":\"Paid\"},{\"code\":\"paid\",\"label\":\"Paid\"},{\"code\":\"PAID\",\"label\":\"Paid\"},{\"code\":\"draft\",\"label\":\"Draft\"},{\"code\":\"submitted_to_owner\",\"label\":\"Submitted to owner\"},{\"code\":\"approved\",\"label\":\"Approved\"}]"
+    },
+    {
+      "name": "[390] a paid draw never says Current payment due",
+      "ok": true,
+      "detail": "Draws\n\nYour GC's draws on the contract, with a PayPal receipt once a draw is paid.\n\nProject\nLopez Kitchen Remodel\nSandbox run 20261109-19\nSandbox run 20261109-18\nSandbox run 20261109-17\nSandbox run 20261109-16\nSandbox run 20261109-15\nSandbox run 20261109-14\nSandbox run 20261108-13\nSandbox run 20261107-12\nSandbox run 20261106-11\nSandbox run 20261106-10\nSandbox run 20261106-09\nSandbox run 20261105-0"
+    },
+    {
+      "name": "[390] a paid draw names Paid by PayPal with its date",
+      "ok": true,
+      "detail": "PAID THIS DRAW\n$3,600.00\nPaid by PayPal · Nov 8, 2026\nCONTRACT TO DATE\n$86,500.00\n→WORK COMPLETED\n$4,000.00\n→RETAINAGE HELD\n$400.00\n10% on each line\n→PREVIOUS DRAWS\n$0.00"
+    },
+    {
+      "name": "[390] the read-only notice sits below the money trail",
+      "ok": true,
+      "detail": "896 vs 623"
+    },
+    {
+      "name": "[390] the invoice status is never the raw code",
+      "ok": true,
+      "detail": "PayPal invoice\n\nInvoice INV2-5ZNS-USY8-KBFD-L3B9 · sent to [demo inbox]@example.com\n\nPayPal status\nPaid"
+    },
+    {
+      "name": "[390] the breakdown starts collapsed",
+      "ok": true,
+      "detail": "false"
+    },
+    {
+      "name": "[390] owner draw has no horizontal page overflow",
+      "ok": true,
+      "detail": "390 vs 390"
+    },
+    {
+      "name": "[390] owner draw has no visible control under 24px",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[390] the Lopez change order is reachable from the owner home",
+      "ok": true,
+      "detail": "#/change-orders/kx76mes3b4e7dt47qbv92tbav58httg0"
+    },
+    {
+      "name": "[390] CO page has exactly one h1 naming the change order",
+      "ok": true,
+      "detail": "[\"PCO #1 · Add under-cabinet lighting\"]"
+    },
+    {
+      "name": "[390] CO amount is large and tabular",
+      "ok": true,
+      "detail": "[{\"text\":\"$1,200.00\",\"fontSize\":30,\"testid\":\"change-order-amount\",\"top\":411,\"right\":170,\"inClosedDetails\":false}]"
+    },
+    {
+      "name": "[390] CO amount is $1,200.00",
+      "ok": true,
+      "detail": "$1,200.00"
+    },
+    {
+      "name": "[390] a paid CO shows the word Paid and its date beside the amount",
+      "ok": true,
+      "detail": "Amount\n\n$1,200.00\n\nPaid\nPaid Nov 8, 2026\n\nContract change order\n\nOwner-requested under-cabinet lighting circuits and LED fixtures in the kitchen."
+    },
+    {
+      "name": "[390] a paid CO action opens the PayPal receipt",
+      "ok": true,
+      "detail": "Open the PayPal receipt"
+    },
+    {
+      "name": "[390] CO status is a plain word",
+      "ok": true,
+      "detail": "[{\"code\":\"paid\",\"label\":\"Paid\"},{\"code\":\"paid\",\"label\":\"Paid\"},{\"code\":\"PAID\",\"label\":\"Paid\"}]"
+    },
+    {
+      "name": "[390] CO page never prints the raw status code",
+      "ok": true,
+      "detail": "Back to change orders\nPCO #1 · Add under-cabinet lighting\n\nContract change order · Project-level change order\n\nPaid\nRequested by the GC\nOpen the PayPal receipt\nAmount\n\n$1,200.00\n\nPaid\nPaid Nov 8, 2026\n\nContract change order\n\nOwner-requested under-cabinet lighting circuits and LED fixtures in the kitchen.\n\nDetails\nAssociated agreement\nProject-level change order\nSchedule impact\nNot specified\nTimeline\nCreated\nNov 8, 2026, 4:42 PM UTC\nSubmitted\nNov 8, 2026, 4:42 PM UTC\nApproved\nNov 8, 2026, 4:44 PM UTC\nInvoiced\nNov 8, 2026, 4:44 PM UTC\nPayment recorded\nNov 8, 2026, 4:47 PM UTC\n\nPayment recorded is"
+    },
+    {
+      "name": "[390] PayPal invoice link is a real link styled as a button",
+      "ok": true,
+      "detail": "{\"tag\":\"A\",\"text\":\"Open the PayPal receipt\",\"href\":\"https://www.sandbox.paypal.com/invoice/p/#RCJ4Z8GD4A33TDJC\",\"className\":\"inline-flex items-center justify-center rounded-lg font-semibold transition-colors bg-accent text-accent-fg hover:bg-accent-hover border border-transparent min-h-touch px-4 text-sm gap-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus\",\"height\":44}"
+    },
+    {
+      "name": "[390] exactly one primary action on the CO invoice",
+      "ok": true,
+      "detail": "[{\"tag\":\"A\",\"text\":\"Open the PayPal receipt\",\"testid\":\"change-order-invoice-link\",\"height\":44}]"
+    },
+    {
+      "name": "[390] CO invoice status is a plain word",
+      "ok": true,
+      "detail": "PayPal invoice\nPayPal invoice ID\nINV2-RCJ4-Z8GD-4A33-TDJC\nCopy\nInvoice status\nPaid"
+    },
+    {
+      "name": "[390] CO invoice has no horizontal page overflow",
+      "ok": true,
+      "detail": "390 vs 390"
+    },
+    {
+      "name": "[390] CO invoice has no visible control under 24px",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[390] owner Projects detail route resolves",
+      "ok": true,
+      "detail": "#/my-projects/q9751tqcjsbd11myp8x25c08hs8hdj94"
+    },
+    {
+      "name": "[390] owner Projects detail strips only the stored legacy prefix",
+      "ok": true,
+      "detail": "Change orders\nPCO #1 · add two EV charger circuits in the garageView invoice\n$1,850.00\nPaid"
+    },
+    {
+      "name": "[390] owner Projects detail has no Judge demo text or perceivable attribute",
+      "ok": true,
+      "detail": "Change orders\nPCO #1 · add two EV charger circuits in the garageView invoice\n$1,850.00\nPaid"
+    },
+    {
+      "name": "[390] owner Projects detail has no horizontal overflow",
+      "ok": true,
+      "detail": "390 vs 390"
+    },
+    {
+      "name": "[390] zero page errors",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[390] zero console errors",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "[390] zero failed requests",
+      "ok": true,
+      "detail": "[]"
+    }
+  ],
+  "measurements": [
+    {
+      "screen": "owner-home",
+      "width": 1440,
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "h1s": [
+        "Owner home"
+      ],
+      "moneyFigures": [
+        {
+          "text": "$4,800.00",
+          "fontSize": 30,
+          "testid": "owner-job-paid",
+          "top": 497,
+          "right": 1361,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$87,700.00",
+          "fontSize": 18,
+          "testid": "owner-job-contract",
+          "top": 599,
+          "right": 641,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$4,000.00",
+          "fontSize": 18,
+          "testid": "owner-job-completed",
+          "top": 599,
+          "right": 822,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$400.00",
+          "fontSize": 18,
+          "testid": "owner-job-retainage",
+          "top": 599,
+          "right": 1003,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$82,900.00",
+          "fontSize": 18,
+          "testid": "owner-job-balance",
+          "top": 599,
+          "right": 1184,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$1,200.00",
+          "fontSize": 18,
+          "testid": "owner-job-change-orders",
+          "top": 599,
+          "right": 1365,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$400.00",
+          "fontSize": 14,
+          "testid": "portal-prime-retainage",
+          "top": 771,
+          "right": 320,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$4,000.00",
+          "fontSize": 14,
+          "testid": "owner-tranche-row",
+          "top": 869,
+          "right": 1023,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$3,500.00",
+          "fontSize": 14,
+          "testid": "owner-tranche-row",
+          "top": 906,
+          "right": 1023,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$1,500.00",
+          "fontSize": 14,
+          "testid": "owner-tranche-row",
+          "top": 943,
+          "right": 1023,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$87,700.00",
+          "fontSize": 14,
+          "testid": "portal-prime-contract-sum",
+          "top": 1028,
+          "right": 248,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-project-secondary",
+          "top": 1972,
+          "right": 218,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$1,850.00",
+          "fontSize": 14,
+          "testid": "owner-project-secondary",
+          "top": 2372,
+          "right": 245,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$1,850.00",
+          "fontSize": 14,
+          "testid": "owner-project-secondary",
+          "top": 2508,
+          "right": 245,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-project-secondary",
+          "top": 2732,
+          "right": 218,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-project-secondary",
+          "top": 2868,
+          "right": 218,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$1,850.00",
+          "fontSize": 14,
+          "testid": "owner-project-secondary",
+          "top": 3092,
+          "right": 245,
+          "inClosedDetails": false
+        }
+      ],
+      "primary": [
+        {
+          "tag": "A",
+          "text": "Open Draw #1",
+          "testid": "owner-home-open-draw",
+          "height": 44
+        }
+      ],
+      "controls": [
+        {
+          "tag": "A",
+          "text": "Skip to main content",
+          "testid": null,
+          "height": 48
+        },
+        {
+          "tag": "A",
+          "text": "TradePulse Pay",
+          "testid": null,
+          "height": 28
+        },
+        {
+          "tag": "BUTTON",
+          "text": "2",
+          "testid": "notification-bell",
+          "height": 36
+        },
+        {
+          "tag": "A",
+          "text": "Home",
+          "testid": null,
+          "height": 44
+        },
+        {
+          "tag": "A",
+          "text": "Projects",
+          "testid": null,
+          "height": 44
+        },
+        {
+          "tag": "A",
+          "text": "Applications to owner",
+          "testid": null,
+          "height": 44
+        },
+        {
+          "tag": "A",
+          "text": "Change orders",
+          "testid": null,
+          "height": 44
+        },
+        {
+          "tag": "A",
+          "text": "Reports",
+          "testid": null,
+          "height": 44
+        },
+        {
+          "tag": "A",
+          "text": "Company settings",
+          "testid": null,
+          "height": 30
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Sign out",
+          "testid": null,
+          "height": 30
+        },
+        {
+          "tag": "A",
+          "text": "Demo guide",
+          "testid": null,
+          "height": 24
+        },
+        {
+          "tag": "A",
+          "text": "Open Draw #1",
+          "testid": "owner-home-open-draw",
+          "height": 44
+        },
+        {
+          "tag": "A",
+          "text": "Draws",
+          "testid": null,
+          "height": 24
+        },
+        {
+          "tag": "A",
+          "text": "All change orders",
+          "testid": null,
+          "height": 24
+        },
+        {
+          "tag": "A",
+          "text": "PCO #1",
+          "testid": "change-order-label",
+          "height": 24
+        },
+        {
+          "tag": "BUTTON",
+          "text": "PDF",
+          "testid": "change-order-pdf",
+          "height": 36
+        },
+        {
+          "tag": "A",
+          "text": "Open PayPal invoice",
+          "testid": "change-order-invoice-link",
+          "height": 24
+        }
+      ],
+      "under24": [],
+      "statusWords": [
+        {
+          "code": "paid",
+          "label": "PCO #1 · Add under-cabinet lightingOwner-requested under-cabinet lighting circuits and LED fixtures in the kitchen.Requested by the GC · approved Nov 8, 2026 UTC · payment recorded Nov 8, 2026 UTCPayPal invoice INV2-RCJ4-Z8GD-4A33-TDJC (Paid)+$1,200.00PaidPDFOpen PayPal invoiceThis settled reference is read-only."
+        },
+        {
+          "code": "paid",
+          "label": "Paid"
+        }
+      ],
+      "fundedAmountCells": [
+        {
+          "text": "$4,000.00",
+          "scrollWidth": 276,
+          "clientWidth": 276,
+          "cellLeft": 746.515625,
+          "cellRight": 1022.984375,
+          "textLeft": 952.078125,
+          "textRight": 1010.984375,
+          "scrollerRight": 1395,
+          "viewportWidth": 1440
+        },
+        {
+          "text": "$3,500.00",
+          "scrollWidth": 276,
+          "clientWidth": 276,
+          "cellLeft": 746.515625,
+          "cellRight": 1022.984375,
+          "textLeft": 952.078125,
+          "textRight": 1010.984375,
+          "scrollerRight": 1395,
+          "viewportWidth": 1440
+        },
+        {
+          "text": "$1,500.00",
+          "scrollWidth": 276,
+          "clientWidth": 276,
+          "cellLeft": 746.515625,
+          "cellRight": 1022.984375,
+          "textLeft": 952.078125,
+          "textRight": 1010.984375,
+          "scrollerRight": 1395,
+          "viewportWidth": 1440
+        }
+      ],
+      "trail": {
+        "top": 467,
+        "right": 1378,
+        "width": 897,
+        "height": 235
+      },
+      "drawTrail": null,
+      "summary": null,
+      "balance": {
+        "top": 599,
+        "right": 1184,
+        "width": 147,
+        "height": 46
+      },
+      "paymentDue": null,
+      "amount": {
+        "top": 1069,
+        "right": 1342,
+        "width": 71,
+        "height": 20
+      },
+      "text": "Skip to main content\nTradePulse Pay\nDEMO\n2\nDana Lopez\nHome\nProjects\nApplications to owner\nChange orders\nReports\nDana Lopez · [sandbox email]\nCompany settings\nSign out\nPayPal sandbox · no real money. Shared demo accounts: use synthetic data only. Demo guide\nOwner home\nLopez Kitchen Remodel\n\nEl Cerrito, CA · Residential kitchen remodel · Budget $86,500.00\n\nJob so far\n\nApproved progress and money on the contract.\n\nAPPROVED\nOpen Draw #1\n\n4.6%\n\ncomplete\n\nApproved through draw #1.\n\nStarted Sep 21, 2026 · Target completion Nov 20, 2026\n\nPAID TO DATE\n$4,800.00\n$3,600.00 draw · $1,200.00 change order\nCONTRACT TO DATE\n$87,700.00\n→WORK COMPLETED\n$4,000.00\n→RETAINAGE HELD\n$400.00\n→BALANCE TO FINISH\n$82,900.00\nIncludes retainage\n→CHANGE ORDERS\n$1,200.00\n$1,200.00 paid\n\nPaid through draw #1. 1 draw paid.\n\nPaid to date = $3,600.00 in paid draws + $1,200.00 in paid change orders.\n\nPreserved reference job · read-only.\n\nRetainage you hold on the contract: $400.00\n\nDraws\nFunded milestones\nTrades\tFunded milestone\tAmount\tStatus\nPlumbing\tRough-in\t$4,000.00\tFunding used\nPlumbing\tFixtures set\t$3,500.00\tNot funded\nPlumbing\tFinal\t$1,500.00\tNot funded\nChange orders\nAll change orders\n\nContract sum to date $87,700.00 (original $86,500.00, net change +$1,200.00)\n\nPCO #1 · Add under-cabinet lighting\n\nOwner-requested under-cabinet lighting circuits and LED fixtures in the kitchen.\n\nRequested by the GC · approved Nov 8, 2026 UTC · payment recorded Nov 8, 2026 UTC\n\nPayPal invoice INV2-RCJ4-Z8GD-4A33-TDJC (Paid)\n\n+$1,200.00\nPaid\nPDF\nOpen PayPal invoice\n\nThis settled reference is read-only.\n\nOther projects\nSandbox run 20261109-19\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261109-18\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261109-17\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261109-16\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261109-15\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261109-14\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261108-13\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261107-12\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nNot started complete · $0.00 paid · — balance to finish\n\nNo owner pay app yet. The GC's progress will appear here after the first pay app.\n\nSandbox run 20261106-11\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261106-10\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261106-09\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261105-08\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nNot started complete · $1,850.00 paid · — balance to finish\n\nNo owner pay app yet. The GC's progress will appear here after the first pay app.\n\nSandbox run 20261105-07\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nNot started complete · $1,850.00 paid · — balance to finish\n\nNo owner pay app yet. The GC's progress will appear here after the first pay app.\n\nSandbox run 20261105-06\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261104-05\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nNot started complete · $0.00 paid · — balance to finish\n\nNo owner pay app yet. The GC's progress will appear here after the first pay app.\n\nSandbox run 20261104-04\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nNot started complete · $0.00 paid · — balance to finish\n\nNo owner pay app yet. The GC's progress will appear here after the first pay app.\n\nSandbox run 20261101-03\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261101-02\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nNot started complete · $1,850.00 paid · — balance to finish\n\nNo owner pay app yet. The GC's progress will appear here after the first pay app.\n\nSandbox run 20261101-01\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $59,500.00\n\nPay-app review scenario\nCommercial reference job\n\nAustin, TX · Sandbox data for the AI pay-app review · Budget $850,000.00\n\nThe Domain Tower B - Commercial MEP\nCommercial reference job\n\nAustin, TX · Class-A Commercial Mixed-Use · Budget $4,250,000.00\n\nPayPal sandbox build · no real money moves.",
+      "mainText": "Owner home\nLopez Kitchen Remodel\n\nEl Cerrito, CA · Residential kitchen remodel · Budget $86,500.00\n\nJob so far\n\nApproved progress and money on the contract.\n\nAPPROVED\nOpen Draw #1\n\n4.6%\n\ncomplete\n\nApproved through draw #1.\n\nStarted Sep 21, 2026 · Target completion Nov 20, 2026\n\nPAID TO DATE\n$4,800.00\n$3,600.00 draw · $1,200.00 change order\nCONTRACT TO DATE\n$87,700.00\n→WORK COMPLETED\n$4,000.00\n→RETAINAGE HELD\n$400.00\n→BALANCE TO FINISH\n$82,900.00\nIncludes retainage\n→CHANGE ORDERS\n$1,200.00\n$1,200.00 paid\n\nPaid through draw #1. 1 draw paid.\n\nPaid to date = $3,600.00 in paid draws + $1,200.00 in paid change orders.\n\nPreserved reference job · read-only.\n\nRetainage you hold on the contract: $400.00\n\nDraws\nFunded milestones\nTrades\tFunded milestone\tAmount\tStatus\nPlumbing\tRough-in\t$4,000.00\tFunding used\nPlumbing\tFixtures set\t$3,500.00\tNot funded\nPlumbing\tFinal\t$1,500.00\tNot funded\nChange orders\nAll change orders\n\nContract sum to date $87,700.00 (original $86,500.00, net change +$1,200.00)\n\nPCO #1 · Add under-cabinet lighting\n\nOwner-requested under-cabinet lighting circuits and LED fixtures in the kitchen.\n\nRequested by the GC · approved Nov 8, 2026 UTC · payment recorded Nov 8, 2026 UTC\n\nPayPal invoice INV2-RCJ4-Z8GD-4A33-TDJC (Paid)\n\n+$1,200.00\nPaid\nPDF\nOpen PayPal invoice\n\nThis settled reference is read-only.\n\nOther projects\nSandbox run 20261109-19\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261109-18\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261109-17\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261109-16\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261109-15\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261109-14\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261108-13\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261107-12\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nNot started complete · $0.00 paid · — balance to finish\n\nNo owner pay app yet. The GC's progress will appear here after the first pay app.\n\nSandbox run 20261106-11\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261106-10\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261106-09\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261105-08\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nNot started complete · $1,850.00 paid · — balance to finish\n\nNo owner pay app yet. The GC's progress will appear here after the first pay app.\n\nSandbox run 20261105-07\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nNot started complete · $1,850.00 paid · — balance to finish\n\nNo owner pay app yet. The GC's progress will appear here after the first pay app.\n\nSandbox run 20261105-06\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261104-05\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nNot started complete · $0.00 paid · — balance to finish\n\nNo owner pay app yet. The GC's progress will appear here after the first pay app.\n\nSandbox run 20261104-04\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nNot started complete · $0.00 paid · — balance to finish\n\nNo owner pay app yet. The GC's progress will appear here after the first pay app.\n\nSandbox run 20261101-03\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261101-02\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nNot started complete · $1,850.00 paid · — balance to finish\n\nNo owner pay app yet. The GC's progress will appear here after the first pay app.\n\nSandbox run 20261101-01\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $59,500.00\n\nPay-app review scenario\nCommercial reference job\n\nAustin, TX · Sandbox data for the AI pay-app review · Budget $850,000.00\n\nThe Domain Tower B - Commercial MEP\nCommercial reference job\n\nAustin, TX · Class-A Commercial Mixed-Use · Budget $4,250,000.00",
+      "homeStructure": {
+        "firstJobKind": "residential",
+        "firstJobTitle": "Lopez Kitchen Remodel",
+        "residentialTitle": "Lopez Kitchen Remodel",
+        "residentialHasJobCard": true,
+        "secondaryCount": 21,
+        "secondaryFirstTitle": "Sandbox run 20261109-19",
+        "secondaryBadges": 21,
+        "otherTop": 1261,
+        "residentialTop": 317,
+        "jobStatus": "Paid through draw #1. 1 draw paid.",
+        "trailText": "PAID TO DATE\n$4,800.00\n$3,600.00 draw · $1,200.00 change order\nCONTRACT TO DATE\n$87,700.00\n→WORK COMPLETED\n$4,000.00\n→RETAINAGE HELD\n$400.00\n→BALANCE TO FINISH\n$82,900.00\nIncludes retainage\n→CHANGE ORDERS\n$1,200.00\n$1,200.00 paid\n\nPaid through draw #1. 1 draw paid.\n\nPaid to date = $3,600.00 in paid draws + $1,200.00 in paid change orders."
+      }
+    },
+    {
+      "screen": "owner-draw",
+      "width": 1440,
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "h1s": [
+        "Draws"
+      ],
+      "moneyFigures": [
+        {
+          "text": "$3,600.00",
+          "fontSize": 30,
+          "testid": "owner-draw-payment-due",
+          "top": 694,
+          "right": 1378,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$86,500.00",
+          "fontSize": 18,
+          "testid": "owner-draw-money-trail",
+          "top": 796,
+          "right": 364,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$4,000.00",
+          "fontSize": 18,
+          "testid": "owner-draw-money-trail",
+          "top": 796,
+          "right": 703,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$400.00",
+          "fontSize": 18,
+          "testid": "owner-draw-money-trail",
+          "top": 796,
+          "right": 1043,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 18,
+          "testid": "owner-draw-money-trail",
+          "top": 796,
+          "right": 1382,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$400.00",
+          "fontSize": 14,
+          "testid": "owner-prime-retainage",
+          "top": 460,
+          "right": 322,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$3,600.00",
+          "fontSize": 14,
+          "testid": "owner-pay-app-row",
+          "top": 506,
+          "right": 1329,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$86,500.00",
+          "fontSize": 14,
+          "testid": "owner-g702-1",
+          "top": 1102,
+          "right": 1382,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g702-2",
+          "top": 1139,
+          "right": 1382,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$86,500.00",
+          "fontSize": 14,
+          "testid": "owner-g702-3",
+          "top": 1176,
+          "right": 1382,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$4,000.00",
+          "fontSize": 14,
+          "testid": "owner-g702-4",
+          "top": 1213,
+          "right": 1382,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$400.00",
+          "fontSize": 14,
+          "testid": "owner-g702-5",
+          "top": 1250,
+          "right": 1382,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$3,600.00",
+          "fontSize": 14,
+          "testid": "owner-g702-6",
+          "top": 1287,
+          "right": 1382,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g702-7",
+          "top": 1324,
+          "right": 1382,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$3,600.00",
+          "fontSize": 14,
+          "testid": "owner-g702-8",
+          "top": 1361,
+          "right": 1382,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$82,900.00",
+          "fontSize": 14,
+          "testid": "owner-g702-9",
+          "top": 1398,
+          "right": 1382,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$9,000.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1520,
+          "right": 758,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$4,000.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1520,
+          "right": 951,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1520,
+          "right": 1128,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$4,000.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1520,
+          "right": 1260,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$400.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1520,
+          "right": 1382,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$21,600.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1573,
+          "right": 758,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1573,
+          "right": 951,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1573,
+          "right": 1128,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1573,
+          "right": 1260,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1573,
+          "right": 1382,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$34,600.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1610,
+          "right": 758,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1610,
+          "right": 951,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1610,
+          "right": 1128,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1610,
+          "right": 1260,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1610,
+          "right": 1382,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$8,300.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1647,
+          "right": 758,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1647,
+          "right": 951,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1647,
+          "right": 1128,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1647,
+          "right": 1260,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1647,
+          "right": 1382,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$13,000.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1684,
+          "right": 758,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1684,
+          "right": 951,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1684,
+          "right": 1128,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1684,
+          "right": 1260,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1684,
+          "right": 1382,
+          "inClosedDetails": true
+        }
+      ],
+      "primary": [
+        {
+          "tag": "A",
+          "text": "Open the PayPal receipt",
+          "testid": "owner-invoice-payer-link",
+          "height": 44
+        }
+      ],
+      "controls": [
+        {
+          "tag": "A",
+          "text": "Skip to main content",
+          "testid": null,
+          "height": 48
+        },
+        {
+          "tag": "A",
+          "text": "TradePulse Pay",
+          "testid": null,
+          "height": 28
+        },
+        {
+          "tag": "BUTTON",
+          "text": "2",
+          "testid": "notification-bell",
+          "height": 36
+        },
+        {
+          "tag": "A",
+          "text": "Home",
+          "testid": null,
+          "height": 44
+        },
+        {
+          "tag": "A",
+          "text": "Projects",
+          "testid": null,
+          "height": 44
+        },
+        {
+          "tag": "A",
+          "text": "Applications to owner",
+          "testid": null,
+          "height": 44
+        },
+        {
+          "tag": "A",
+          "text": "Change orders",
+          "testid": null,
+          "height": 44
+        },
+        {
+          "tag": "A",
+          "text": "Reports",
+          "testid": null,
+          "height": 44
+        },
+        {
+          "tag": "A",
+          "text": "Company settings",
+          "testid": null,
+          "height": 30
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Sign out",
+          "testid": null,
+          "height": 30
+        },
+        {
+          "tag": "A",
+          "text": "Demo guide",
+          "testid": null,
+          "height": 24
+        },
+        {
+          "tag": "SELECT",
+          "text": "Lopez Kitchen RemodelSandbox run 2026110",
+          "testid": "owner-billing-project",
+          "height": 44
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Draw #1 · Oct 15, 2026$3,600.00Paid",
+          "testid": "owner-pay-app-row",
+          "height": 38
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Download PDF",
+          "testid": "owner-pay-app-download-pdf",
+          "height": 36
+        },
+        {
+          "tag": "A",
+          "text": "Open the PayPal receipt",
+          "testid": "owner-invoice-payer-link",
+          "height": 44
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Download this draw's PDF",
+          "testid": "owner-documents-download-first",
+          "height": 36
+        }
+      ],
+      "under24": [],
+      "statusWords": [
+        {
+          "code": "paid",
+          "label": "Paid"
+        },
+        {
+          "code": "paid",
+          "label": "Paid"
+        },
+        {
+          "code": "PAID",
+          "label": "Paid"
+        },
+        {
+          "code": "draft",
+          "label": "Draft"
+        },
+        {
+          "code": "submitted_to_owner",
+          "label": "Submitted to owner"
+        },
+        {
+          "code": "approved",
+          "label": "Approved"
+        }
+      ],
+      "fundedAmountCells": [],
+      "trail": null,
+      "drawTrail": {
+        "top": 664,
+        "right": 1395,
+        "width": 1350,
+        "height": 187
+      },
+      "summary": {
+        "top": 1093,
+        "right": 1395,
+        "width": 1350,
+        "height": 334
+      },
+      "balance": null,
+      "paymentDue": {
+        "top": 694,
+        "right": 1378,
+        "width": 1316,
+        "height": 56
+      },
+      "amount": null,
+      "text": "Skip to main content\nTradePulse Pay\nDEMO\n2\nDana Lopez\nHome\nProjects\nApplications to owner\nChange orders\nReports\nDana Lopez · [masked email]OWNER\nCompany settings\nSign out\nPayPal sandbox · no real money. Shared demo accounts: use synthetic data only. Demo guide\nDraws\n\nYour GC's draws on the contract, with a PayPal receipt once a draw is paid.\n\nProject\nLopez Kitchen Remodel\nSandbox run 20261109-19\nSandbox run 20261109-18\nSandbox run 20261109-17\nSandbox run 20261109-16\nSandbox run 20261109-15\nSandbox run 20261109-14\nSandbox run 20261108-13\nSandbox run 20261107-12\nSandbox run 20261106-11\nSandbox run 20261106-10\nSandbox run 20261106-09\nSandbox run 20261105-08\nSandbox run 20261105-07\nSandbox run 20261105-06\nSandbox run 20261104-05\nSandbox run 20261104-04\nSandbox run 20261101-03\nSandbox run 20261101-02\nSandbox run 20261101-01\nPay-app review scenario\nThe Domain Tower B - Commercial MEP\n\nRetainage you hold on this contract: $400.00\n\nDraw #1 · Oct 15, 2026\n$3,600.00\nPaid\nDraw #1 · period ending Oct 15, 2026\nPaid\n4.62% complete\nDownload PDF\nOpen the PayPal receipt\nPAID THIS DRAW\n$3,600.00\nPaid by PayPal · Nov 8, 2026\nCONTRACT TO DATE\n$86,500.00\n→WORK COMPLETED\n$4,000.00\n→RETAINAGE HELD\n$400.00\n10% on each line\n→PREVIOUS DRAWS\n$0.00\nPreserved reference job · read-only.\n\nPayPal invoice\n\nInvoice INV2-5ZNS-USY8-KBFD-L3B9 · sent to [demo inbox]@example.com\n\nPayPal status\nPaid\n\nDraw summary\n1. Original contract sum\n$86,500.00\n2. Net change by change orders\n$0.00\n3. Contract sum to date\n$86,500.00\n4. Total work completed to date\n$4,000.00\n5. Retainage (10% on each line)\n$400.00\n6. Total earned less retainage\n$3,600.00\n7. Previously paid\n$0.00\n8. This draw\n$3,600.00\n9. Balance to finish, including retainage\n$82,900.00\nDraw breakdown\n\nChange orders invoiced separately\n\nThese approved change orders were billed with their own PayPal invoice, so this draw leaves them off.\n\nPCO #1 – Add under-cabinet lighting\n+$1,200.00\nDraft Nov 8, 2026 by Bayview Remodeling\nSubmitted to owner Nov 8, 2026 by Bayview Remodeling\nApproved Nov 8, 2026 by Dana Lopez\nDocuments\nNo documents yet\n\nPDFs and CSV exports appear here once someone downloads them from a pay app, draw, change order or subcontract.\n\nDownload this draw's PDF\nPayPal sandbox build · no real money moves.",
+      "mainText": "Draws\n\nYour GC's draws on the contract, with a PayPal receipt once a draw is paid.\n\nProject\nLopez Kitchen Remodel\nSandbox run 20261109-19\nSandbox run 20261109-18\nSandbox run 20261109-17\nSandbox run 20261109-16\nSandbox run 20261109-15\nSandbox run 20261109-14\nSandbox run 20261108-13\nSandbox run 20261107-12\nSandbox run 20261106-11\nSandbox run 20261106-10\nSandbox run 20261106-09\nSandbox run 20261105-08\nSandbox run 20261105-07\nSandbox run 20261105-06\nSandbox run 20261104-05\nSandbox run 20261104-04\nSandbox run 20261101-03\nSandbox run 20261101-02\nSandbox run 20261101-01\nPay-app review scenario\nThe Domain Tower B - Commercial MEP\n\nRetainage you hold on this contract: $400.00\n\nDraw #1 · Oct 15, 2026\n$3,600.00\nPaid\nDraw #1 · period ending Oct 15, 2026\nPaid\n4.62% complete\nDownload PDF\nOpen the PayPal receipt\nPAID THIS DRAW\n$3,600.00\nPaid by PayPal · Nov 8, 2026\nCONTRACT TO DATE\n$86,500.00\n→WORK COMPLETED\n$4,000.00\n→RETAINAGE HELD\n$400.00\n10% on each line\n→PREVIOUS DRAWS\n$0.00\nPreserved reference job · read-only.\n\nPayPal invoice\n\nInvoice INV2-5ZNS-USY8-KBFD-L3B9 · sent to [demo inbox]@example.com\n\nPayPal status\nPaid\n\nDraw summary\n1. Original contract sum\n$86,500.00\n2. Net change by change orders\n$0.00\n3. Contract sum to date\n$86,500.00\n4. Total work completed to date\n$4,000.00\n5. Retainage (10% on each line)\n$400.00\n6. Total earned less retainage\n$3,600.00\n7. Previously paid\n$0.00\n8. This draw\n$3,600.00\n9. Balance to finish, including retainage\n$82,900.00\nDraw breakdown\n\nChange orders invoiced separately\n\nThese approved change orders were billed with their own PayPal invoice, so this draw leaves them off.\n\nPCO #1 – Add under-cabinet lighting\n+$1,200.00\nDraft Nov 8, 2026 by Bayview Remodeling\nSubmitted to owner Nov 8, 2026 by Bayview Remodeling\nApproved Nov 8, 2026 by Dana Lopez\nDocuments\nNo documents yet\n\nPDFs and CSV exports appear here once someone downloads them from a pay app, draw, change order or subcontract.\n\nDownload this draw's PDF",
+      "drawStructure": {
+        "pickedProject": "Lopez Kitchen Remodel",
+        "headerText": "Draw #1 · period ending Oct 15, 2026",
+        "trailText": "PAID THIS DRAW\n$3,600.00\nPaid by PayPal · Nov 8, 2026\nCONTRACT TO DATE\n$86,500.00\n→WORK COMPLETED\n$4,000.00\n→RETAINAGE HELD\n$400.00\n10% on each line\n→PREVIOUS DRAWS\n$0.00",
+        "invoiceText": "PayPal invoice\n\nInvoice INV2-5ZNS-USY8-KBFD-L3B9 · sent to [demo inbox]@example.com\n\nPayPal status\nPaid",
+        "noticeTop": 867,
+        "drawerOpen": false
+      }
+    },
+    {
+      "screen": "change-order-invoice",
+      "width": 1440,
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "h1s": [
+        "PCO #1 · Add under-cabinet lighting"
+      ],
+      "moneyFigures": [
+        {
+          "text": "$1,200.00",
+          "fontSize": 30,
+          "testid": "change-order-amount",
+          "top": 466,
+          "right": 182,
+          "inClosedDetails": false
+        }
+      ],
+      "primary": [
+        {
+          "tag": "A",
+          "text": "Open the PayPal receipt",
+          "testid": "change-order-invoice-link",
+          "height": 44
+        }
+      ],
+      "controls": [
+        {
+          "tag": "A",
+          "text": "Skip to main content",
+          "testid": null,
+          "height": 48
+        },
+        {
+          "tag": "A",
+          "text": "TradePulse Pay",
+          "testid": null,
+          "height": 28
+        },
+        {
+          "tag": "BUTTON",
+          "text": "2",
+          "testid": "notification-bell",
+          "height": 36
+        },
+        {
+          "tag": "A",
+          "text": "Home",
+          "testid": null,
+          "height": 44
+        },
+        {
+          "tag": "A",
+          "text": "Projects",
+          "testid": null,
+          "height": 44
+        },
+        {
+          "tag": "A",
+          "text": "Applications to owner",
+          "testid": null,
+          "height": 44
+        },
+        {
+          "tag": "A",
+          "text": "Change orders",
+          "testid": null,
+          "height": 44
+        },
+        {
+          "tag": "A",
+          "text": "Reports",
+          "testid": null,
+          "height": 44
+        },
+        {
+          "tag": "A",
+          "text": "Company settings",
+          "testid": null,
+          "height": 30
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Sign out",
+          "testid": null,
+          "height": 30
+        },
+        {
+          "tag": "A",
+          "text": "Demo guide",
+          "testid": null,
+          "height": 24
+        },
+        {
+          "tag": "A",
+          "text": "Back to change orders",
+          "testid": null,
+          "height": 24
+        },
+        {
+          "tag": "A",
+          "text": "Open the PayPal receipt",
+          "testid": "change-order-invoice-link",
+          "height": 44
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Copy",
+          "testid": null,
+          "height": 26
+        }
+      ],
+      "under24": [],
+      "statusWords": [
+        {
+          "code": "paid",
+          "label": "Paid"
+        },
+        {
+          "code": "paid",
+          "label": "Paid"
+        },
+        {
+          "code": "PAID",
+          "label": "Paid"
+        }
+      ],
+      "fundedAmountCells": [],
+      "trail": null,
+      "drawTrail": null,
+      "summary": null,
+      "balance": null,
+      "paymentDue": null,
+      "amount": {
+        "top": 468,
+        "right": 182,
+        "width": 137,
+        "height": 38
+      },
+      "text": "Skip to main content\nTradePulse Pay\nDEMO\n2\nDana Lopez\nHome\nProjects\nApplications to owner\nChange orders\nReports\nDana Lopez · [masked email]OWNER\nCompany settings\nSign out\nPayPal sandbox · no real money. Shared demo accounts: use synthetic data only. Demo guide\nBack to change orders\nPCO #1 · Add under-cabinet lighting\n\nContract change order · Project-level change order\n\nPaid\nRequested by the GC\nOpen the PayPal receipt\nAmount\n\n$1,200.00\n\nPaid\nPaid Nov 8, 2026\n\nContract change order\n\nOwner-requested under-cabinet lighting circuits and LED fixtures in the kitchen.\n\nDetails\nAssociated agreement\nProject-level change order\nSchedule impact\nNot specified\nTimeline\nCreated\nNov 8, 2026, 4:42 PM UTC\nSubmitted\nNov 8, 2026, 4:42 PM UTC\nApproved\nNov 8, 2026, 4:44 PM UTC\nInvoiced\nNov 8, 2026, 4:44 PM UTC\nPayment recorded\nNov 8, 2026, 4:47 PM UTC\n\nPayment recorded is when this app first observed the paid invoice, not PayPal's transaction timestamp.\n\nPayPal invoice\nPayPal invoice ID\nINV2-RCJ4-Z8GD-4A33-TDJC\nCopy\nInvoice status\nPaid\nPayPal sandbox build · no real money moves.",
+      "mainText": "Back to change orders\nPCO #1 · Add under-cabinet lighting\n\nContract change order · Project-level change order\n\nPaid\nRequested by the GC\nOpen the PayPal receipt\nAmount\n\n$1,200.00\n\nPaid\nPaid Nov 8, 2026\n\nContract change order\n\nOwner-requested under-cabinet lighting circuits and LED fixtures in the kitchen.\n\nDetails\nAssociated agreement\nProject-level change order\nSchedule impact\nNot specified\nTimeline\nCreated\nNov 8, 2026, 4:42 PM UTC\nSubmitted\nNov 8, 2026, 4:42 PM UTC\nApproved\nNov 8, 2026, 4:44 PM UTC\nInvoiced\nNov 8, 2026, 4:44 PM UTC\nPayment recorded\nNov 8, 2026, 4:47 PM UTC\n\nPayment recorded is when this app first observed the paid invoice, not PayPal's transaction timestamp.\n\nPayPal invoice\nPayPal invoice ID\nINV2-RCJ4-Z8GD-4A33-TDJC\nCopy\nInvoice status\nPaid",
+      "coStructure": {
+        "title": "PCO #1 · Add under-cabinet lighting",
+        "amountText": "$1,200.00",
+        "amountCardText": "Amount\n\n$1,200.00\n\nPaid\nPaid Nov 8, 2026\n\nContract change order\n\nOwner-requested under-cabinet lighting circuits and LED fixtures in the kitchen.",
+        "invoiceLink": {
+          "tag": "A",
+          "text": "Open the PayPal receipt",
+          "href": "https://www.sandbox.paypal.com/invoice/p/#RCJ4Z8GD4A33TDJC",
+          "className": "inline-flex items-center justify-center rounded-lg font-semibold transition-colors bg-accent text-accent-fg hover:bg-accent-hover border border-transparent min-h-touch px-4 text-sm gap-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus",
+          "height": 44
+        },
+        "invoicePanelText": "PayPal invoice\nPayPal invoice ID\nINV2-RCJ4-Z8GD-4A33-TDJC\nCopy\nInvoice status\nPaid"
+      }
+    },
+    {
+      "screen": "owner-project-detail",
+      "width": 1440,
+      "hash": "#/my-projects/q9751tqcjsbd11myp8x25c08hs8hdj94",
+      "text": "All projects\nSandbox run 20261101-02\nGeneral contractor: Demo GC · Austin, TX\nProject summary\nProject\nSandbox run 20261101-02\nAddress\nAustin, TX\nContract value\nNot set\nRetainage\nNot set\nRetainage you hold\nNone yet\nBilling\nOwner pay apps\nChange orders\nPCO #1 · add two EV charger circuits in the garageView invoice\n$1,850.00\nPaid\nPeople\nDemo GC\nDemo GC · [sandbox email]\nDemo Owner (your company)\nDemo Owner · Admin\nYour projects\nSandbox run 20261109-19\nGC: Demo GC · Austin, TX\nSandbox run 20261109-18\nGC: Demo GC · Austin, TX\nSandbox run 20261109-17\nGC: Demo GC · Austin, TX\nSandbox run 20261109-16\nGC: Demo GC · Austin, TX\nSandbox run 20261109-15\nGC: Demo GC · Austin, TX\nSandbox run 20261109-14\nGC: Demo GC · Austin, TX\nSandbox run 20261108-13\nGC: Demo GC · Austin, TX\nLopez Kitchen Remodel\nGC: Demo GC · El Cerrito, CA\nSandbox run 20261107-12\nGC: Demo GC · Austin, TX\nSandbox run 20261106-11\nGC: Demo GC · Austin, TX\nSandbox run 20261106-10\nGC: Demo GC · Austin, TX\nSandbox run 20261106-09\nGC: Demo GC · Austin, TX\nSandbox run 20261105-08\nGC: Demo GC · Austin, TX\nSandbox run 20261105-07\nGC: Demo GC · Austin, TX\nSandbox run 20261105-06\nGC: Demo GC · Austin, TX\nSandbox run 20261104-05\nGC: Demo GC · Austin, TX\nSandbox run 20261104-04\nGC: Demo GC · Austin, TX\nSandbox run 20261101-03\nGC: Demo GC · Austin, TX\nSandbox run 20261101-02\nGC: Demo GC · Austin, TX\nSandbox run 20261101-01\nGC: Demo GC · Austin, TX\nPay-app review scenario\nGC: Demo GC · Austin, TX\nThe Domain Tower B - Commercial MEP\nGC: Demo GC · Austin, TX",
+      "changeOrdersText": "Change orders\nPCO #1 · add two EV charger circuits in the garageView invoice\n$1,850.00\nPaid",
+      "perceivableAttributes": [
+        "Your projects"
+      ],
+      "scrollWidth": 1440,
+      "clientWidth": 1440
+    },
+    {
+      "screen": "owner-home",
+      "width": 390,
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "h1s": [
+        "Owner home"
+      ],
+      "moneyFigures": [
+        {
+          "text": "$4,800.00",
+          "fontSize": 30,
+          "testid": "owner-job-paid",
+          "top": 582,
+          "right": 319,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$87,700.00",
+          "fontSize": 18,
+          "testid": "owner-job-contract",
+          "top": 684,
+          "right": 178,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$4,000.00",
+          "fontSize": 18,
+          "testid": "owner-job-completed",
+          "top": 700,
+          "right": 323,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$400.00",
+          "fontSize": 18,
+          "testid": "owner-job-retainage",
+          "top": 771,
+          "right": 178,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$82,900.00",
+          "fontSize": 18,
+          "testid": "owner-job-balance",
+          "top": 787,
+          "right": 323,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$1,200.00",
+          "fontSize": 18,
+          "testid": "owner-job-change-orders",
+          "top": 876,
+          "right": 323,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$400.00",
+          "fontSize": 14,
+          "testid": "portal-prime-retainage",
+          "top": 1064,
+          "right": 312,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$4,000.00",
+          "fontSize": 14,
+          "testid": "owner-tranche-row",
+          "top": 1178,
+          "right": 274,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$3,500.00",
+          "fontSize": 14,
+          "testid": "owner-tranche-row",
+          "top": 1235,
+          "right": 274,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$1,500.00",
+          "fontSize": 14,
+          "testid": "owner-tranche-row",
+          "top": 1292,
+          "right": 274,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$87,700.00",
+          "fontSize": 14,
+          "testid": "portal-prime-contract-sum",
+          "top": 1397,
+          "right": 240,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-project-secondary",
+          "top": 2783,
+          "right": 210,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$1,850.00",
+          "fontSize": 14,
+          "testid": "owner-project-secondary",
+          "top": 3395,
+          "right": 237,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$1,850.00",
+          "fontSize": 14,
+          "testid": "owner-project-secondary",
+          "top": 3611,
+          "right": 237,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-project-secondary",
+          "top": 3959,
+          "right": 210,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-project-secondary",
+          "top": 4175,
+          "right": 210,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$1,850.00",
+          "fontSize": 14,
+          "testid": "owner-project-secondary",
+          "top": 4523,
+          "right": 237,
+          "inClosedDetails": false
+        }
+      ],
+      "primary": [
+        {
+          "tag": "A",
+          "text": "Open Draw #1",
+          "testid": "owner-home-open-draw",
+          "height": 44
+        }
+      ],
+      "controls": [
+        {
+          "tag": "A",
+          "text": "Skip to main content",
+          "testid": null,
+          "height": 48
+        },
+        {
+          "tag": "A",
+          "text": "TradePulse Pay",
+          "testid": null,
+          "height": 28
+        },
+        {
+          "tag": "BUTTON",
+          "text": "2",
+          "testid": "notification-bell",
+          "height": 36
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Menu",
+          "testid": null,
+          "height": 44
+        },
+        {
+          "tag": "A",
+          "text": "Demo guide",
+          "testid": null,
+          "height": 24
+        },
+        {
+          "tag": "A",
+          "text": "Open Draw #1",
+          "testid": "owner-home-open-draw",
+          "height": 44
+        },
+        {
+          "tag": "A",
+          "text": "Draws",
+          "testid": null,
+          "height": 24
+        },
+        {
+          "tag": "A",
+          "text": "All change orders",
+          "testid": null,
+          "height": 24
+        },
+        {
+          "tag": "A",
+          "text": "PCO #1",
+          "testid": "change-order-label",
+          "height": 24
+        },
+        {
+          "tag": "BUTTON",
+          "text": "PDF",
+          "testid": "change-order-pdf",
+          "height": 44
+        },
+        {
+          "tag": "A",
+          "text": "Open PayPal invoice",
+          "testid": "change-order-invoice-link",
+          "height": 24
+        }
+      ],
+      "under24": [],
+      "statusWords": [
+        {
+          "code": "paid",
+          "label": "PCO #1 · Add under-cabinet lightingOwner-requested under-cabinet lighting circuits and LED fixtures in the kitchen.Requested by the GC · approved Nov 8, 2026 UTC · payment recorded Nov 8, 2026 UTCPayPal invoice INV2-RCJ4-Z8GD-4A33-TDJC (Paid)+$1,200.00PaidPDFOpen PayPal invoiceThis settled reference is read-only."
+        },
+        {
+          "code": "paid",
+          "label": "Paid"
+        }
+      ],
+      "fundedAmountCells": [
+        {
+          "text": "$4,000.00",
+          "scrollWidth": 79,
+          "clientWidth": 79,
+          "cellLeft": 195,
+          "cellRight": 274,
+          "textLeft": 203.09375,
+          "textRight": 262,
+          "scrollerRight": 353,
+          "viewportWidth": 390
+        },
+        {
+          "text": "$3,500.00",
+          "scrollWidth": 79,
+          "clientWidth": 79,
+          "cellLeft": 195,
+          "cellRight": 274,
+          "textLeft": 203.09375,
+          "textRight": 262,
+          "scrollerRight": 353,
+          "viewportWidth": 390
+        },
+        {
+          "text": "$1,500.00",
+          "scrollWidth": 79,
+          "clientWidth": 79,
+          "cellLeft": 195,
+          "cellRight": 274,
+          "textLeft": 203.09375,
+          "textRight": 262,
+          "scrollerRight": 353,
+          "viewportWidth": 390
+        }
+      ],
+      "trail": {
+        "top": 552,
+        "right": 336,
+        "width": 282,
+        "height": 443
+      },
+      "drawTrail": null,
+      "summary": null,
+      "balance": {
+        "top": 787,
+        "right": 323,
+        "width": 111,
+        "height": 46
+      },
+      "paymentDue": null,
+      "amount": {
+        "top": 1570,
+        "right": 108,
+        "width": 71,
+        "height": 20
+      },
+      "text": "Skip to main content\nTradePulse Pay\nDEMO\n2\nMenu\n\nOwner · Dana Lopez\n\nPayPal sandbox · no real money. Shared demo accounts: use synthetic data only. Demo guide\nOwner home\nLopez Kitchen Remodel\n\nEl Cerrito, CA · Residential kitchen remodel · Budget $86,500.00\n\nJob so far\n\nApproved progress and money on the contract.\n\nAPPROVED\nOpen Draw #1\n\n4.6%\n\ncomplete\n\nApproved through draw #1.\n\nStarted Sep 21, 2026 · Target completion Nov 20, 2026\n\nPAID TO DATE\n$4,800.00\n$3,600.00 draw · $1,200.00 change order\nCONTRACT TO DATE\n$87,700.00\n→WORK COMPLETED\n$4,000.00\n→RETAINAGE HELD\n$400.00\n→BALANCE TO FINISH\n$82,900.00\nIncludes retainage\n→CHANGE ORDERS\n$1,200.00\n$1,200.00 paid\n\nPaid through draw #1. 1 draw paid.\n\nPaid to date = $3,600.00 in paid draws + $1,200.00 in paid change orders.\n\nPreserved reference job · read-only.\n\nRetainage you hold on the contract: $400.00\n\nDraws\nFunded milestones\nTrades\tFunded milestone\tAmount\tStatus\nPlumbing\tRough-in\t$4,000.00\tFunding used\nPlumbing\tFixtures set\t$3,500.00\tNot funded\nPlumbing\tFinal\t$1,500.00\tNot funded\nChange orders\nAll change orders\n\nContract sum to date $87,700.00 (original $86,500.00, net change +$1,200.00)\n\nPCO #1 · Add under-cabinet lighting\n\nOwner-requested under-cabinet lighting circuits and LED fixtures in the kitchen.\n\nRequested by the GC · approved Nov 8, 2026 UTC · payment recorded Nov 8, 2026 UTC\n\nPayPal invoice INV2-RCJ4-Z8GD-4A33-TDJC (Paid)\n\n+$1,200.00\nPaid\nPDF\nOpen PayPal invoice\n\nThis settled reference is read-only.\n\nOther projects\nSandbox run 20261109-19\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261109-18\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261109-17\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261109-16\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261109-15\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261109-14\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261108-13\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261107-12\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nNot started complete · $0.00 paid · — balance to finish\n\nNo owner pay app yet. The GC's progress will appear here after the first pay app.\n\nSandbox run 20261106-11\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261106-10\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261106-09\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261105-08\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nNot started complete · $1,850.00 paid · — balance to finish\n\nNo owner pay app yet. The GC's progress will appear here after the first pay app.\n\nSandbox run 20261105-07\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nNot started complete · $1,850.00 paid · — balance to finish\n\nNo owner pay app yet. The GC's progress will appear here after the first pay app.\n\nSandbox run 20261105-06\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261104-05\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nNot started complete · $0.00 paid · — balance to finish\n\nNo owner pay app yet. The GC's progress will appear here after the first pay app.\n\nSandbox run 20261104-04\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nNot started complete · $0.00 paid · — balance to finish\n\nNo owner pay app yet. The GC's progress will appear here after the first pay app.\n\nSandbox run 20261101-03\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261101-02\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nNot started complete · $1,850.00 paid · — balance to finish\n\nNo owner pay app yet. The GC's progress will appear here after the first pay app.\n\nSandbox run 20261101-01\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $59,500.00\n\nPay-app review scenario\nCommercial reference job\n\nAustin, TX · Sandbox data for the AI pay-app review · Budget $850,000.00\n\nThe Domain Tower B - Commercial MEP\nCommercial reference job\n\nAustin, TX · Class-A Commercial Mixed-Use · Budget $4,250,000.00\n\nPayPal sandbox build · no real money moves.",
+      "mainText": "Owner home\nLopez Kitchen Remodel\n\nEl Cerrito, CA · Residential kitchen remodel · Budget $86,500.00\n\nJob so far\n\nApproved progress and money on the contract.\n\nAPPROVED\nOpen Draw #1\n\n4.6%\n\ncomplete\n\nApproved through draw #1.\n\nStarted Sep 21, 2026 · Target completion Nov 20, 2026\n\nPAID TO DATE\n$4,800.00\n$3,600.00 draw · $1,200.00 change order\nCONTRACT TO DATE\n$87,700.00\n→WORK COMPLETED\n$4,000.00\n→RETAINAGE HELD\n$400.00\n→BALANCE TO FINISH\n$82,900.00\nIncludes retainage\n→CHANGE ORDERS\n$1,200.00\n$1,200.00 paid\n\nPaid through draw #1. 1 draw paid.\n\nPaid to date = $3,600.00 in paid draws + $1,200.00 in paid change orders.\n\nPreserved reference job · read-only.\n\nRetainage you hold on the contract: $400.00\n\nDraws\nFunded milestones\nTrades\tFunded milestone\tAmount\tStatus\nPlumbing\tRough-in\t$4,000.00\tFunding used\nPlumbing\tFixtures set\t$3,500.00\tNot funded\nPlumbing\tFinal\t$1,500.00\tNot funded\nChange orders\nAll change orders\n\nContract sum to date $87,700.00 (original $86,500.00, net change +$1,200.00)\n\nPCO #1 · Add under-cabinet lighting\n\nOwner-requested under-cabinet lighting circuits and LED fixtures in the kitchen.\n\nRequested by the GC · approved Nov 8, 2026 UTC · payment recorded Nov 8, 2026 UTC\n\nPayPal invoice INV2-RCJ4-Z8GD-4A33-TDJC (Paid)\n\n+$1,200.00\nPaid\nPDF\nOpen PayPal invoice\n\nThis settled reference is read-only.\n\nOther projects\nSandbox run 20261109-19\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261109-18\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261109-17\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261109-16\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261109-15\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261109-14\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261108-13\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261107-12\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nNot started complete · $0.00 paid · — balance to finish\n\nNo owner pay app yet. The GC's progress will appear here after the first pay app.\n\nSandbox run 20261106-11\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261106-10\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261106-09\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261105-08\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nNot started complete · $1,850.00 paid · — balance to finish\n\nNo owner pay app yet. The GC's progress will appear here after the first pay app.\n\nSandbox run 20261105-07\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nNot started complete · $1,850.00 paid · — balance to finish\n\nNo owner pay app yet. The GC's progress will appear here after the first pay app.\n\nSandbox run 20261105-06\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261104-05\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nNot started complete · $0.00 paid · — balance to finish\n\nNo owner pay app yet. The GC's progress will appear here after the first pay app.\n\nSandbox run 20261104-04\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nNot started complete · $0.00 paid · — balance to finish\n\nNo owner pay app yet. The GC's progress will appear here after the first pay app.\n\nSandbox run 20261101-03\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nSandbox run 20261101-02\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $55,000.00\n\nNot started complete · $1,850.00 paid · — balance to finish\n\nNo owner pay app yet. The GC's progress will appear here after the first pay app.\n\nSandbox run 20261101-01\nCommercial reference job\n\nAustin, TX · Sandbox data for a one-click guided run · Budget $59,500.00\n\nPay-app review scenario\nCommercial reference job\n\nAustin, TX · Sandbox data for the AI pay-app review · Budget $850,000.00\n\nThe Domain Tower B - Commercial MEP\nCommercial reference job\n\nAustin, TX · Class-A Commercial Mixed-Use · Budget $4,250,000.00",
+      "homeStructure": {
+        "firstJobKind": "residential",
+        "firstJobTitle": "Lopez Kitchen Remodel",
+        "residentialTitle": "Lopez Kitchen Remodel",
+        "residentialHasJobCard": true,
+        "secondaryCount": 21,
+        "secondaryFirstTitle": "Sandbox run 20261109-19",
+        "secondaryBadges": 21,
+        "otherTop": 1720,
+        "residentialTop": 214,
+        "jobStatus": "Paid through draw #1. 1 draw paid.",
+        "trailText": "PAID TO DATE\n$4,800.00\n$3,600.00 draw · $1,200.00 change order\nCONTRACT TO DATE\n$87,700.00\n→WORK COMPLETED\n$4,000.00\n→RETAINAGE HELD\n$400.00\n→BALANCE TO FINISH\n$82,900.00\nIncludes retainage\n→CHANGE ORDERS\n$1,200.00\n$1,200.00 paid\n\nPaid through draw #1. 1 draw paid.\n\nPaid to date = $3,600.00 in paid draws + $1,200.00 in paid change orders."
+      }
+    },
+    {
+      "screen": "owner-draw",
+      "width": 390,
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "h1s": [
+        "Draws"
+      ],
+      "moneyFigures": [
+        {
+          "text": "$3,600.00",
+          "fontSize": 30,
+          "testid": "owner-draw-payment-due",
+          "top": 653,
+          "right": 340,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$86,500.00",
+          "fontSize": 18,
+          "testid": "owner-draw-money-trail",
+          "top": 755,
+          "right": 178,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$4,000.00",
+          "fontSize": 18,
+          "testid": "owner-draw-money-trail",
+          "top": 755,
+          "right": 344,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$400.00",
+          "fontSize": 18,
+          "testid": "owner-draw-money-trail",
+          "top": 825,
+          "right": 178,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 18,
+          "testid": "owner-draw-money-trail",
+          "top": 825,
+          "right": 344,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$400.00",
+          "fontSize": 14,
+          "testid": "owner-prime-retainage",
+          "top": 369,
+          "right": 310,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$3,600.00",
+          "fontSize": 14,
+          "testid": "owner-pay-app-row",
+          "top": 418,
+          "right": 291,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$86,500.00",
+          "fontSize": 14,
+          "testid": "owner-g702-1",
+          "top": 1151,
+          "right": 344,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g702-2",
+          "top": 1188,
+          "right": 344,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$86,500.00",
+          "fontSize": 14,
+          "testid": "owner-g702-3",
+          "top": 1225,
+          "right": 344,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$4,000.00",
+          "fontSize": 14,
+          "testid": "owner-g702-4",
+          "top": 1262,
+          "right": 344,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$400.00",
+          "fontSize": 14,
+          "testid": "owner-g702-5",
+          "top": 1299,
+          "right": 344,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$3,600.00",
+          "fontSize": 14,
+          "testid": "owner-g702-6",
+          "top": 1336,
+          "right": 344,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g702-7",
+          "top": 1373,
+          "right": 344,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$3,600.00",
+          "fontSize": 14,
+          "testid": "owner-g702-8",
+          "top": 1410,
+          "right": 344,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$82,900.00",
+          "fontSize": 14,
+          "testid": "owner-g702-9",
+          "top": 1447,
+          "right": 344,
+          "inClosedDetails": false
+        },
+        {
+          "text": "$9,000.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1590,
+          "right": 427,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$4,000.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1590,
+          "right": 532,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1590,
+          "right": 628,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$4,000.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1590,
+          "right": 699,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$400.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1590,
+          "right": 766,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$21,600.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1643,
+          "right": 427,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1643,
+          "right": 532,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1643,
+          "right": 628,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1643,
+          "right": 699,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1643,
+          "right": 766,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$34,600.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1680,
+          "right": 427,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1680,
+          "right": 532,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1680,
+          "right": 628,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1680,
+          "right": 699,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1680,
+          "right": 766,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$8,300.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1717,
+          "right": 427,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1717,
+          "right": 532,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1717,
+          "right": 628,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1717,
+          "right": 699,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1717,
+          "right": 766,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$13,000.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1754,
+          "right": 427,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1754,
+          "right": 532,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1754,
+          "right": 628,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1754,
+          "right": 699,
+          "inClosedDetails": true
+        },
+        {
+          "text": "$0.00",
+          "fontSize": 14,
+          "testid": "owner-g703-row",
+          "top": 1754,
+          "right": 766,
+          "inClosedDetails": true
+        }
+      ],
+      "primary": [
+        {
+          "tag": "A",
+          "text": "Open the PayPal receipt",
+          "testid": "owner-invoice-payer-link",
+          "height": 44
+        }
+      ],
+      "controls": [
+        {
+          "tag": "A",
+          "text": "Skip to main content",
+          "testid": null,
+          "height": 48
+        },
+        {
+          "tag": "A",
+          "text": "TradePulse Pay",
+          "testid": null,
+          "height": 28
+        },
+        {
+          "tag": "BUTTON",
+          "text": "2",
+          "testid": "notification-bell",
+          "height": 36
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Menu",
+          "testid": null,
+          "height": 44
+        },
+        {
+          "tag": "A",
+          "text": "Demo guide",
+          "testid": null,
+          "height": 24
+        },
+        {
+          "tag": "SELECT",
+          "text": "Lopez Kitchen RemodelSandbox run 2026110",
+          "testid": "owner-billing-project",
+          "height": 44
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Draw #1 · Oct 15, 2026$3,600.00Paid",
+          "testid": "owner-pay-app-row",
+          "height": 44
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Download PDF",
+          "testid": "owner-pay-app-download-pdf",
+          "height": 44
+        },
+        {
+          "tag": "A",
+          "text": "Open the PayPal receipt",
+          "testid": "owner-invoice-payer-link",
+          "height": 44
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Download this draw's PDF",
+          "testid": "owner-documents-download-first",
+          "height": 44
+        }
+      ],
+      "under24": [],
+      "statusWords": [
+        {
+          "code": "paid",
+          "label": "Paid"
+        },
+        {
+          "code": "paid",
+          "label": "Paid"
+        },
+        {
+          "code": "PAID",
+          "label": "Paid"
+        },
+        {
+          "code": "draft",
+          "label": "Draft"
+        },
+        {
+          "code": "submitted_to_owner",
+          "label": "Submitted to owner"
+        },
+        {
+          "code": "approved",
+          "label": "Approved"
+        }
+      ],
+      "fundedAmountCells": [],
+      "trail": null,
+      "drawTrail": {
+        "top": 623,
+        "right": 357,
+        "width": 324,
+        "height": 257
+      },
+      "summary": {
+        "top": 1142,
+        "right": 357,
+        "width": 324,
+        "height": 354
+      },
+      "balance": null,
+      "paymentDue": {
+        "top": 653,
+        "right": 340,
+        "width": 290,
+        "height": 56
+      },
+      "amount": null,
+      "text": "Skip to main content\nTradePulse Pay\nDEMO\n2\nMenu\n\nOwner · Dana Lopez\n\nPayPal sandbox · no real money. Shared demo accounts: use synthetic data only. Demo guide\nDraws\n\nYour GC's draws on the contract, with a PayPal receipt once a draw is paid.\n\nProject\nLopez Kitchen Remodel\nSandbox run 20261109-19\nSandbox run 20261109-18\nSandbox run 20261109-17\nSandbox run 20261109-16\nSandbox run 20261109-15\nSandbox run 20261109-14\nSandbox run 20261108-13\nSandbox run 20261107-12\nSandbox run 20261106-11\nSandbox run 20261106-10\nSandbox run 20261106-09\nSandbox run 20261105-08\nSandbox run 20261105-07\nSandbox run 20261105-06\nSandbox run 20261104-05\nSandbox run 20261104-04\nSandbox run 20261101-03\nSandbox run 20261101-02\nSandbox run 20261101-01\nPay-app review scenario\nThe Domain Tower B - Commercial MEP\n\nRetainage you hold on this contract: $400.00\n\nDraw #1 · Oct 15, 2026\n$3,600.00\nPaid\nDraw #1 · period ending Oct 15, 2026\nPaid\n4.62% complete\nDownload PDF\nOpen the PayPal receipt\nPAID THIS DRAW\n$3,600.00\nPaid by PayPal · Nov 8, 2026\nCONTRACT TO DATE\n$86,500.00\n→WORK COMPLETED\n$4,000.00\n→RETAINAGE HELD\n$400.00\n10% on each line\n→PREVIOUS DRAWS\n$0.00\nPreserved reference job · read-only.\n\nPayPal invoice\n\nInvoice INV2-5ZNS-USY8-KBFD-L3B9 · sent to [demo inbox]@example.com\n\nPayPal status\nPaid\n\nDraw summary\n1. Original contract sum\n$86,500.00\n2. Net change by change orders\n$0.00\n3. Contract sum to date\n$86,500.00\n4. Total work completed to date\n$4,000.00\n5. Retainage (10% on each line)\n$400.00\n6. Total earned less retainage\n$3,600.00\n7. Previously paid\n$0.00\n8. This draw\n$3,600.00\n9. Balance to finish, including retainage\n$82,900.00\nDraw breakdown\n\nChange orders invoiced separately\n\nThese approved change orders were billed with their own PayPal invoice, so this draw leaves them off.\n\nPCO #1 – Add under-cabinet lighting\n+$1,200.00\nDraft Nov 8, 2026 by Bayview Remodeling\nSubmitted to owner Nov 8, 2026 by Bayview Remodeling\nApproved Nov 8, 2026 by Dana Lopez\nDocuments\nNo documents yet\n\nPDFs and CSV exports appear here once someone downloads them from a pay app, draw, change order or subcontract.\n\nDownload this draw's PDF\nPayPal sandbox build · no real money moves.",
+      "mainText": "Draws\n\nYour GC's draws on the contract, with a PayPal receipt once a draw is paid.\n\nProject\nLopez Kitchen Remodel\nSandbox run 20261109-19\nSandbox run 20261109-18\nSandbox run 20261109-17\nSandbox run 20261109-16\nSandbox run 20261109-15\nSandbox run 20261109-14\nSandbox run 20261108-13\nSandbox run 20261107-12\nSandbox run 20261106-11\nSandbox run 20261106-10\nSandbox run 20261106-09\nSandbox run 20261105-08\nSandbox run 20261105-07\nSandbox run 20261105-06\nSandbox run 20261104-05\nSandbox run 20261104-04\nSandbox run 20261101-03\nSandbox run 20261101-02\nSandbox run 20261101-01\nPay-app review scenario\nThe Domain Tower B - Commercial MEP\n\nRetainage you hold on this contract: $400.00\n\nDraw #1 · Oct 15, 2026\n$3,600.00\nPaid\nDraw #1 · period ending Oct 15, 2026\nPaid\n4.62% complete\nDownload PDF\nOpen the PayPal receipt\nPAID THIS DRAW\n$3,600.00\nPaid by PayPal · Nov 8, 2026\nCONTRACT TO DATE\n$86,500.00\n→WORK COMPLETED\n$4,000.00\n→RETAINAGE HELD\n$400.00\n10% on each line\n→PREVIOUS DRAWS\n$0.00\nPreserved reference job · read-only.\n\nPayPal invoice\n\nInvoice INV2-5ZNS-USY8-KBFD-L3B9 · sent to [demo inbox]@example.com\n\nPayPal status\nPaid\n\nDraw summary\n1. Original contract sum\n$86,500.00\n2. Net change by change orders\n$0.00\n3. Contract sum to date\n$86,500.00\n4. Total work completed to date\n$4,000.00\n5. Retainage (10% on each line)\n$400.00\n6. Total earned less retainage\n$3,600.00\n7. Previously paid\n$0.00\n8. This draw\n$3,600.00\n9. Balance to finish, including retainage\n$82,900.00\nDraw breakdown\n\nChange orders invoiced separately\n\nThese approved change orders were billed with their own PayPal invoice, so this draw leaves them off.\n\nPCO #1 – Add under-cabinet lighting\n+$1,200.00\nDraft Nov 8, 2026 by Bayview Remodeling\nSubmitted to owner Nov 8, 2026 by Bayview Remodeling\nApproved Nov 8, 2026 by Dana Lopez\nDocuments\nNo documents yet\n\nPDFs and CSV exports appear here once someone downloads them from a pay app, draw, change order or subcontract.\n\nDownload this draw's PDF",
+      "drawStructure": {
+        "pickedProject": "Lopez Kitchen Remodel",
+        "headerText": "Draw #1 · period ending Oct 15, 2026",
+        "trailText": "PAID THIS DRAW\n$3,600.00\nPaid by PayPal · Nov 8, 2026\nCONTRACT TO DATE\n$86,500.00\n→WORK COMPLETED\n$4,000.00\n→RETAINAGE HELD\n$400.00\n10% on each line\n→PREVIOUS DRAWS\n$0.00",
+        "invoiceText": "PayPal invoice\n\nInvoice INV2-5ZNS-USY8-KBFD-L3B9 · sent to [demo inbox]@example.com\n\nPayPal status\nPaid",
+        "noticeTop": 896,
+        "drawerOpen": false
+      }
+    },
+    {
+      "screen": "change-order-invoice",
+      "width": 390,
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "h1s": [
+        "PCO #1 · Add under-cabinet lighting"
+      ],
+      "moneyFigures": [
+        {
+          "text": "$1,200.00",
+          "fontSize": 30,
+          "testid": "change-order-amount",
+          "top": 411,
+          "right": 170,
+          "inClosedDetails": false
+        }
+      ],
+      "primary": [
+        {
+          "tag": "A",
+          "text": "Open the PayPal receipt",
+          "testid": "change-order-invoice-link",
+          "height": 44
+        }
+      ],
+      "controls": [
+        {
+          "tag": "A",
+          "text": "Skip to main content",
+          "testid": null,
+          "height": 48
+        },
+        {
+          "tag": "A",
+          "text": "TradePulse Pay",
+          "testid": null,
+          "height": 28
+        },
+        {
+          "tag": "BUTTON",
+          "text": "2",
+          "testid": "notification-bell",
+          "height": 36
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Menu",
+          "testid": null,
+          "height": 44
+        },
+        {
+          "tag": "A",
+          "text": "Demo guide",
+          "testid": null,
+          "height": 24
+        },
+        {
+          "tag": "A",
+          "text": "Back to change orders",
+          "testid": null,
+          "height": 24
+        },
+        {
+          "tag": "A",
+          "text": "Open the PayPal receipt",
+          "testid": "change-order-invoice-link",
+          "height": 44
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Copy",
+          "testid": null,
+          "height": 44
+        }
+      ],
+      "under24": [],
+      "statusWords": [
+        {
+          "code": "paid",
+          "label": "Paid"
+        },
+        {
+          "code": "paid",
+          "label": "Paid"
+        },
+        {
+          "code": "PAID",
+          "label": "Paid"
+        }
+      ],
+      "fundedAmountCells": [],
+      "trail": null,
+      "drawTrail": null,
+      "summary": null,
+      "balance": null,
+      "paymentDue": null,
+      "amount": {
+        "top": 413,
+        "right": 170,
+        "width": 137,
+        "height": 38
+      },
+      "text": "Skip to main content\nTradePulse Pay\nDEMO\n2\nMenu\n\nOwner · Dana Lopez\n\nPayPal sandbox · no real money. Shared demo accounts: use synthetic data only. Demo guide\nBack to change orders\nPCO #1 · Add under-cabinet lighting\n\nContract change order · Project-level change order\n\nPaid\nRequested by the GC\nOpen the PayPal receipt\nAmount\n\n$1,200.00\n\nPaid\nPaid Nov 8, 2026\n\nContract change order\n\nOwner-requested under-cabinet lighting circuits and LED fixtures in the kitchen.\n\nDetails\nAssociated agreement\nProject-level change order\nSchedule impact\nNot specified\nTimeline\nCreated\nNov 8, 2026, 4:42 PM UTC\nSubmitted\nNov 8, 2026, 4:42 PM UTC\nApproved\nNov 8, 2026, 4:44 PM UTC\nInvoiced\nNov 8, 2026, 4:44 PM UTC\nPayment recorded\nNov 8, 2026, 4:47 PM UTC\n\nPayment recorded is when this app first observed the paid invoice, not PayPal's transaction timestamp.\n\nPayPal invoice\nPayPal invoice ID\nINV2-RCJ4-Z8GD-4A33-TDJC\nCopy\nInvoice status\nPaid\nPayPal sandbox build · no real money moves.",
+      "mainText": "Back to change orders\nPCO #1 · Add under-cabinet lighting\n\nContract change order · Project-level change order\n\nPaid\nRequested by the GC\nOpen the PayPal receipt\nAmount\n\n$1,200.00\n\nPaid\nPaid Nov 8, 2026\n\nContract change order\n\nOwner-requested under-cabinet lighting circuits and LED fixtures in the kitchen.\n\nDetails\nAssociated agreement\nProject-level change order\nSchedule impact\nNot specified\nTimeline\nCreated\nNov 8, 2026, 4:42 PM UTC\nSubmitted\nNov 8, 2026, 4:42 PM UTC\nApproved\nNov 8, 2026, 4:44 PM UTC\nInvoiced\nNov 8, 2026, 4:44 PM UTC\nPayment recorded\nNov 8, 2026, 4:47 PM UTC\n\nPayment recorded is when this app first observed the paid invoice, not PayPal's transaction timestamp.\n\nPayPal invoice\nPayPal invoice ID\nINV2-RCJ4-Z8GD-4A33-TDJC\nCopy\nInvoice status\nPaid",
+      "coStructure": {
+        "title": "PCO #1 · Add under-cabinet lighting",
+        "amountText": "$1,200.00",
+        "amountCardText": "Amount\n\n$1,200.00\n\nPaid\nPaid Nov 8, 2026\n\nContract change order\n\nOwner-requested under-cabinet lighting circuits and LED fixtures in the kitchen.",
+        "invoiceLink": {
+          "tag": "A",
+          "text": "Open the PayPal receipt",
+          "href": "https://www.sandbox.paypal.com/invoice/p/#RCJ4Z8GD4A33TDJC",
+          "className": "inline-flex items-center justify-center rounded-lg font-semibold transition-colors bg-accent text-accent-fg hover:bg-accent-hover border border-transparent min-h-touch px-4 text-sm gap-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus",
+          "height": 44
+        },
+        "invoicePanelText": "PayPal invoice\nPayPal invoice ID\nINV2-RCJ4-Z8GD-4A33-TDJC\nCopy\nInvoice status\nPaid"
+      }
+    },
+    {
+      "screen": "owner-project-detail",
+      "width": 390,
+      "hash": "#/my-projects/q9751tqcjsbd11myp8x25c08hs8hdj94",
+      "text": "All projects\nSandbox run 20261101-02\nGeneral contractor: Demo GC · Austin, TX\nProject summary\nProject\nSandbox run 20261101-02\nAddress\nAustin, TX\nContract value\nNot set\nRetainage\nNot set\nRetainage you hold\nNone yet\nBilling\nOwner pay apps\nChange orders\nPCO #1 · add two EV charger circuits in the garageView invoice\n$1,850.00\nPaid\nPeople\nDemo GC\nDemo GC · [sandbox email]\nDemo Owner (your company)\nDemo Owner · Admin\nYour projects\nSandbox run 20261109-19\nGC: Demo GC · Austin, TX\nSandbox run 20261109-18\nGC: Demo GC · Austin, TX\nSandbox run 20261109-17\nGC: Demo GC · Austin, TX\nSandbox run 20261109-16\nGC: Demo GC · Austin, TX\nSandbox run 20261109-15\nGC: Demo GC · Austin, TX\nSandbox run 20261109-14\nGC: Demo GC · Austin, TX\nSandbox run 20261108-13\nGC: Demo GC · Austin, TX\nLopez Kitchen Remodel\nGC: Demo GC · El Cerrito, CA\nSandbox run 20261107-12\nGC: Demo GC · Austin, TX\nSandbox run 20261106-11\nGC: Demo GC · Austin, TX\nSandbox run 20261106-10\nGC: Demo GC · Austin, TX\nSandbox run 20261106-09\nGC: Demo GC · Austin, TX\nSandbox run 20261105-08\nGC: Demo GC · Austin, TX\nSandbox run 20261105-07\nGC: Demo GC · Austin, TX\nSandbox run 20261105-06\nGC: Demo GC · Austin, TX\nSandbox run 20261104-05\nGC: Demo GC · Austin, TX\nSandbox run 20261104-04\nGC: Demo GC · Austin, TX\nSandbox run 20261101-03\nGC: Demo GC · Austin, TX\nSandbox run 20261101-02\nGC: Demo GC · Austin, TX\nSandbox run 20261101-01\nGC: Demo GC · Austin, TX\nPay-app review scenario\nGC: Demo GC · Austin, TX\nThe Domain Tower B - Commercial MEP\nGC: Demo GC · Austin, TX",
+      "changeOrdersText": "Change orders\nPCO #1 · add two EV charger circuits in the garageView invoice\n$1,850.00\nPaid",
+      "perceivableAttributes": [
+        "Your projects"
+      ],
+      "scrollWidth": 390,
+      "clientWidth": 390
+    }
+  ],
+  "diagnostics": [
+    {
+      "width": 1440,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": []
+    },
+    {
+      "width": 390,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "failedRequests": []
+    }
+  ]
+}

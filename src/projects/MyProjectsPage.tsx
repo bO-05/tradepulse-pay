@@ -4,7 +4,7 @@ import { agreementHash, myProjectHash } from "../auth/navigation";
 import { formatDollars } from "../payments/format";
 import { OWNER_PAY_APPS_HASH } from "../billing/OwnerBilling";
 import { Card, EmptyState, Money, PageHeader, StatusPill, formatBps } from "../ui";
-import { demoDisplayName, demoProjectName } from "../lib/demoCopy";
+import { demoChangeOrderTitle, demoDisplayName, demoProjectName } from "../lib/demoCopy";
 
 /** Project switcher for subs and owners: each project is labeled with its general contractor. */
 export function MyProjectsPage({ projectId }: { projectId?: string }) {
@@ -113,7 +113,7 @@ function ProjectView({ projectId, projects }: { projectId: string; projects: Pro
               {project.changeOrders.map((co) => (
                 <li key={co._id} className="flex flex-wrap items-center justify-between gap-2 py-2">
                   <span>
-                    <span className="font-medium">{co.label}</span> · {co.description}
+                    <span className="font-medium">{co.label}</span> · {demoChangeOrderTitle(co.description)}
                     {co.payerViewUrl ? (
                       <a href={co.payerViewUrl} target="_blank" rel="noreferrer" className="ml-2 text-emerald-300 hover:underline">
                         View invoice

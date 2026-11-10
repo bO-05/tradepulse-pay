@@ -220,11 +220,11 @@ for (const [width, height] of widths) {
       JSON.stringify(inboxStrip.hrefs),
     );
     check(
-      `${tag} portfolio strip keeps the neutral plural and names the commercial reference`,
-      portfolioStrip.scope === "portfolio" && portfolioStrip.labels[0] === "Collected from owners" && portfolioStrip.labels.length === 5 && /includ(?:es|ing) the separate commercial reference job/i.test(portfolioStrip.text),
+      `${tag} portfolio strip keeps four cells, the neutral plural and the commercial reference label`,
+      portfolioStrip.scope === "portfolio" && JSON.stringify(portfolioStrip.labels) === JSON.stringify(["Collected from owners", "Paid to subs", "Retainage held", "Owed this week"]) && /includ(?:es|ing) the separate commercial reference job/i.test(portfolioStrip.text),
       JSON.stringify(portfolioStrip),
     );
-    check(`${tag} portfolio strip renders five dollar values`, [portfolioStrip.collected, portfolioStrip.paidSubs, portfolioStrip.retainage, portfolioStrip.ownerRetainage, portfolioStrip.owed].every((v) => /^\$[\d,]+\.\d{2}$/.test(v ?? "")), JSON.stringify(portfolioStrip));
+    check(`${tag} portfolio strip renders four dollar values`, [portfolioStrip.collected, portfolioStrip.paidSubs, portfolioStrip.retainage, portfolioStrip.owed].every((v) => /^\$[\d,]+\.\d{2}$/.test(v ?? "")), JSON.stringify(portfolioStrip));
     check(`${tag} inbox has no horizontal overflow`, inbox.scrollWidth === inbox.clientWidth, `${inbox.scrollWidth} vs ${inbox.clientWidth}`);
     check(`${tag} GC home shows the residential decision`, /residential draw · settled on the sandbox/i.test(inbox.text) && /ortiz plumbing/i.test(inbox.text), inbox.text.slice(0, 300));
     check(`${tag} paid residential action is View paid receipt`, landingPriority.actionText === "View paid receipt" && landingPriority.actionHref === `#/pay-apps/${settledPayAppId}`, JSON.stringify(landingPriority));

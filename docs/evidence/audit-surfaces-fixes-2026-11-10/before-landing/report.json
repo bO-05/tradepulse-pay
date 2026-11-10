@@ -1,0 +1,445 @@
+{
+  "target": "http://localhost:3150",
+  "checks": [
+    {
+      "name": "landing leads with the residential GC job story",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "landing explains Catch overbilling early",
+      "ok": true,
+      "detail": "TradePulse Pay\nRESIDENTIAL REMODEL GCS · PAYPAL SANDBOX\n\nPROGRESS DRAWS FOR OWNER-RUN REMODELS\n\nPay the right amount.\nKeep the receipt.\nChoose your seat\n\nStart with the GC seat. No signup or sponsor account is needed for the core demo.\n\nSettled Lopez draw: $5,400.00 requested, $4,000.00 approved, $3,800.00 paid after $200.00 retainage.\n\nSign in as the general contractor\n→\nReview a sub's pay app and release sandbox payment.\ngc@demo.tradepulse\nSubcontractor\n→\nSign in as Ortiz Plumbing on the settled Lopez Kitchen Remodel pay app.\nsub4@demo.tradepulse\nProject owner\n→\nSee job progress and pay a change-order invoice.\nowner@demo.tradepulse\n\nThese buttons use ordinary demo-account sign-in, not an authentication bypass. Funding and invoice payment still need sandbox browser approval.\n\nNormal sign-in / create a GC account\n\nPayPal sandbox · no real money moves here, and every demo account is shared.\n\nRules set the amount. Mistral explains it. You decide.\n\nManual sign-in and sandbox details\nCatch overbilling early\n\nEvery line is checked against the schedule of values, exclusions and what was already paid.\n\nDecide with the evidence\n\nSee the contract, change orders, licence status and prior payments beside the amount you are approving.\n\nKeep a clean owner trail\n\nSub pay apps, owner invoices and PayPal receipts stay tied to one job ledger for the owner or lender.\n\nBuilt for the GC running a handful of kitchens, additions and whole-home remodels — not a billion-dollar ERP. Rules compute the money. A model can explain the evidence. You make the call.\n\nJudge walkthrough: inspect a settled r"
+    },
+    {
+      "name": "landing explains Decide with the evidence",
+      "ok": true,
+      "detail": "TradePulse Pay\nRESIDENTIAL REMODEL GCS · PAYPAL SANDBOX\n\nPROGRESS DRAWS FOR OWNER-RUN REMODELS\n\nPay the right amount.\nKeep the receipt.\nChoose your seat\n\nStart with the GC seat. No signup or sponsor account is needed for the core demo.\n\nSettled Lopez draw: $5,400.00 requested, $4,000.00 approved, $3,800.00 paid after $200.00 retainage.\n\nSign in as the general contractor\n→\nReview a sub's pay app and release sandbox payment.\ngc@demo.tradepulse\nSubcontractor\n→\nSign in as Ortiz Plumbing on the settled Lopez Kitchen Remodel pay app.\nsub4@demo.tradepulse\nProject owner\n→\nSee job progress and pay a change-order invoice.\nowner@demo.tradepulse\n\nThese buttons use ordinary demo-account sign-in, not an authentication bypass. Funding and invoice payment still need sandbox browser approval.\n\nNormal sign-in / create a GC account\n\nPayPal sandbox · no real money moves here, and every demo account is shared.\n\nRules set the amount. Mistral explains it. You decide.\n\nManual sign-in and sandbox details\nCatch overbilling early\n\nEvery line is checked against the schedule of values, exclusions and what was already paid.\n\nDecide with the evidence\n\nSee the contract, change orders, licence status and prior payments beside the amount you are approving.\n\nKeep a clean owner trail\n\nSub pay apps, owner invoices and PayPal receipts stay tied to one job ledger for the owner or lender.\n\nBuilt for the GC running a handful of kitchens, additions and whole-home remodels — not a billion-dollar ERP. Rules compute the money. A model can explain the evidence. You make the call.\n\nJudge walkthrough: inspect a settled r"
+    },
+    {
+      "name": "landing explains Keep a clean owner trail",
+      "ok": true,
+      "detail": "TradePulse Pay\nRESIDENTIAL REMODEL GCS · PAYPAL SANDBOX\n\nPROGRESS DRAWS FOR OWNER-RUN REMODELS\n\nPay the right amount.\nKeep the receipt.\nChoose your seat\n\nStart with the GC seat. No signup or sponsor account is needed for the core demo.\n\nSettled Lopez draw: $5,400.00 requested, $4,000.00 approved, $3,800.00 paid after $200.00 retainage.\n\nSign in as the general contractor\n→\nReview a sub's pay app and release sandbox payment.\ngc@demo.tradepulse\nSubcontractor\n→\nSign in as Ortiz Plumbing on the settled Lopez Kitchen Remodel pay app.\nsub4@demo.tradepulse\nProject owner\n→\nSee job progress and pay a change-order invoice.\nowner@demo.tradepulse\n\nThese buttons use ordinary demo-account sign-in, not an authentication bypass. Funding and invoice payment still need sandbox browser approval.\n\nNormal sign-in / create a GC account\n\nPayPal sandbox · no real money moves here, and every demo account is shared.\n\nRules set the amount. Mistral explains it. You decide.\n\nManual sign-in and sandbox details\nCatch overbilling early\n\nEvery line is checked against the schedule of values, exclusions and what was already paid.\n\nDecide with the evidence\n\nSee the contract, change orders, licence status and prior payments beside the amount you are approving.\n\nKeep a clean owner trail\n\nSub pay apps, owner invoices and PayPal receipts stay tied to one job ledger for the owner or lender.\n\nBuilt for the GC running a handful of kitchens, additions and whole-home remodels — not a billion-dollar ERP. Rules compute the money. A model can explain the evidence. You make the call.\n\nJudge walkthrough: inspect a settled r"
+    },
+    {
+      "name": "landing explains owner or lender",
+      "ok": true,
+      "detail": "TradePulse Pay\nRESIDENTIAL REMODEL GCS · PAYPAL SANDBOX\n\nPROGRESS DRAWS FOR OWNER-RUN REMODELS\n\nPay the right amount.\nKeep the receipt.\nChoose your seat\n\nStart with the GC seat. No signup or sponsor account is needed for the core demo.\n\nSettled Lopez draw: $5,400.00 requested, $4,000.00 approved, $3,800.00 paid after $200.00 retainage.\n\nSign in as the general contractor\n→\nReview a sub's pay app and release sandbox payment.\ngc@demo.tradepulse\nSubcontractor\n→\nSign in as Ortiz Plumbing on the settled Lopez Kitchen Remodel pay app.\nsub4@demo.tradepulse\nProject owner\n→\nSee job progress and pay a change-order invoice.\nowner@demo.tradepulse\n\nThese buttons use ordinary demo-account sign-in, not an authentication bypass. Funding and invoice payment still need sandbox browser approval.\n\nNormal sign-in / create a GC account\n\nPayPal sandbox · no real money moves here, and every demo account is shared.\n\nRules set the amount. Mistral explains it. You decide.\n\nManual sign-in and sandbox details\nCatch overbilling early\n\nEvery line is checked against the schedule of values, exclusions and what was already paid.\n\nDecide with the evidence\n\nSee the contract, change orders, licence status and prior payments beside the amount you are approving.\n\nKeep a clean owner trail\n\nSub pay apps, owner invoices and PayPal receipts stay tied to one job ledger for the owner or lender.\n\nBuilt for the GC running a handful of kitchens, additions and whole-home remodels — not a billion-dollar ERP. Rules compute the money. A model can explain the evidence. You make the call.\n\nJudge walkthrough: inspect a settled r"
+    },
+    {
+      "name": "landing explains PayPal sandbox · no real money",
+      "ok": true,
+      "detail": "TradePulse Pay\nRESIDENTIAL REMODEL GCS · PAYPAL SANDBOX\n\nPROGRESS DRAWS FOR OWNER-RUN REMODELS\n\nPay the right amount.\nKeep the receipt.\nChoose your seat\n\nStart with the GC seat. No signup or sponsor account is needed for the core demo.\n\nSettled Lopez draw: $5,400.00 requested, $4,000.00 approved, $3,800.00 paid after $200.00 retainage.\n\nSign in as the general contractor\n→\nReview a sub's pay app and release sandbox payment.\ngc@demo.tradepulse\nSubcontractor\n→\nSign in as Ortiz Plumbing on the settled Lopez Kitchen Remodel pay app.\nsub4@demo.tradepulse\nProject owner\n→\nSee job progress and pay a change-order invoice.\nowner@demo.tradepulse\n\nThese buttons use ordinary demo-account sign-in, not an authentication bypass. Funding and invoice payment still need sandbox browser approval.\n\nNormal sign-in / create a GC account\n\nPayPal sandbox · no real money moves here, and every demo account is shared.\n\nRules set the amount. Mistral explains it. You decide.\n\nManual sign-in and sandbox details\nCatch overbilling early\n\nEvery line is checked against the schedule of values, exclusions and what was already paid.\n\nDecide with the evidence\n\nSee the contract, change orders, licence status and prior payments beside the amount you are approving.\n\nKeep a clean owner trail\n\nSub pay apps, owner invoices and PayPal receipts stay tied to one job ledger for the owner or lender.\n\nBuilt for the GC running a handful of kitchens, additions and whole-home remodels — not a billion-dollar ERP. Rules compute the money. A model can explain the evidence. You make the call.\n\nJudge walkthrough: inspect a settled r"
+    },
+    {
+      "name": "landing offers all three demo seats",
+      "ok": true,
+      "detail": "3"
+    },
+    {
+      "name": "landing keeps the credential-free GC entry",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "judge checklist is available but collapsed",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "test-card number is not in the first reading surface",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "manual sandbox details open on demand",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "GC primary bar is capped at the daily payment path",
+      "ok": true,
+      "detail": "[\"Approvals\",\"Billing\",\"Projects\",\"Change orders\",\"Payments\",\"Guided demoDemo\"]"
+    },
+    {
+      "name": "primary nav keeps Approvals",
+      "ok": true,
+      "detail": "[\"Approvals\",\"Billing\",\"Projects\",\"Change orders\",\"Payments\",\"Guided demoDemo\"]"
+    },
+    {
+      "name": "primary nav keeps Billing",
+      "ok": true,
+      "detail": "[\"Approvals\",\"Billing\",\"Projects\",\"Change orders\",\"Payments\",\"Guided demoDemo\"]"
+    },
+    {
+      "name": "primary nav keeps Projects",
+      "ok": true,
+      "detail": "[\"Approvals\",\"Billing\",\"Projects\",\"Change orders\",\"Payments\",\"Guided demoDemo\"]"
+    },
+    {
+      "name": "primary nav keeps Change orders",
+      "ok": true,
+      "detail": "[\"Approvals\",\"Billing\",\"Projects\",\"Change orders\",\"Payments\",\"Guided demoDemo\"]"
+    },
+    {
+      "name": "primary nav keeps Payments",
+      "ok": true,
+      "detail": "[\"Approvals\",\"Billing\",\"Projects\",\"Change orders\",\"Payments\",\"Guided demoDemo\"]"
+    },
+    {
+      "name": "primary nav keeps the guided demo for judges",
+      "ok": true,
+      "detail": "[\"Approvals\",\"Billing\",\"Projects\",\"Change orders\",\"Payments\",\"Guided demoDemo\"]"
+    },
+    {
+      "name": "back-office registers are not in the primary bar",
+      "ok": true,
+      "detail": "[\"Approvals\",\"Billing\",\"Projects\",\"Change orders\",\"Payments\",\"Guided demoDemo\"]"
+    },
+    {
+      "name": "More menu is present and collapsed",
+      "ok": true,
+      "detail": "{\"label\":\"More▼\",\"open\":false,\"links\":[{\"text\":\"Procurement\",\"href\":\"#/procurement\"},{\"text\":\"Compliance & waivers\",\"href\":\"#/compliance\"},{\"text\":\"Project summaries\",\"href\":\"#/projects\"},{\"text\":\"People\",\"href\":\"#/people\"},{\"text\":\"Vendors\",\"href\":\"#/vendors\"},{\"text\":\"Billing agents\",\"href\":\"#/billing-agents\"},{\"text\":\"Payment reports\",\"href\":\"#/dashboard\"}]}"
+    },
+    {
+      "name": "More menu keeps Procurement",
+      "ok": true,
+      "detail": "[{\"text\":\"Procurement\",\"href\":\"#/procurement\"},{\"text\":\"Compliance & waivers\",\"href\":\"#/compliance\"},{\"text\":\"Project summaries\",\"href\":\"#/projects\"},{\"text\":\"People\",\"href\":\"#/people\"},{\"text\":\"Vendors\",\"href\":\"#/vendors\"},{\"text\":\"Billing agents\",\"href\":\"#/billing-agents\"},{\"text\":\"Payment reports\",\"href\":\"#/dashboard\"}]"
+    },
+    {
+      "name": "More menu keeps Compliance & waivers",
+      "ok": true,
+      "detail": "[{\"text\":\"Procurement\",\"href\":\"#/procurement\"},{\"text\":\"Compliance & waivers\",\"href\":\"#/compliance\"},{\"text\":\"Project summaries\",\"href\":\"#/projects\"},{\"text\":\"People\",\"href\":\"#/people\"},{\"text\":\"Vendors\",\"href\":\"#/vendors\"},{\"text\":\"Billing agents\",\"href\":\"#/billing-agents\"},{\"text\":\"Payment reports\",\"href\":\"#/dashboard\"}]"
+    },
+    {
+      "name": "More menu keeps Project summaries",
+      "ok": true,
+      "detail": "[{\"text\":\"Procurement\",\"href\":\"#/procurement\"},{\"text\":\"Compliance & waivers\",\"href\":\"#/compliance\"},{\"text\":\"Project summaries\",\"href\":\"#/projects\"},{\"text\":\"People\",\"href\":\"#/people\"},{\"text\":\"Vendors\",\"href\":\"#/vendors\"},{\"text\":\"Billing agents\",\"href\":\"#/billing-agents\"},{\"text\":\"Payment reports\",\"href\":\"#/dashboard\"}]"
+    },
+    {
+      "name": "More menu keeps People",
+      "ok": true,
+      "detail": "[{\"text\":\"Procurement\",\"href\":\"#/procurement\"},{\"text\":\"Compliance & waivers\",\"href\":\"#/compliance\"},{\"text\":\"Project summaries\",\"href\":\"#/projects\"},{\"text\":\"People\",\"href\":\"#/people\"},{\"text\":\"Vendors\",\"href\":\"#/vendors\"},{\"text\":\"Billing agents\",\"href\":\"#/billing-agents\"},{\"text\":\"Payment reports\",\"href\":\"#/dashboard\"}]"
+    },
+    {
+      "name": "More menu keeps Vendors",
+      "ok": true,
+      "detail": "[{\"text\":\"Procurement\",\"href\":\"#/procurement\"},{\"text\":\"Compliance & waivers\",\"href\":\"#/compliance\"},{\"text\":\"Project summaries\",\"href\":\"#/projects\"},{\"text\":\"People\",\"href\":\"#/people\"},{\"text\":\"Vendors\",\"href\":\"#/vendors\"},{\"text\":\"Billing agents\",\"href\":\"#/billing-agents\"},{\"text\":\"Payment reports\",\"href\":\"#/dashboard\"}]"
+    },
+    {
+      "name": "More menu keeps Billing agents",
+      "ok": true,
+      "detail": "[{\"text\":\"Procurement\",\"href\":\"#/procurement\"},{\"text\":\"Compliance & waivers\",\"href\":\"#/compliance\"},{\"text\":\"Project summaries\",\"href\":\"#/projects\"},{\"text\":\"People\",\"href\":\"#/people\"},{\"text\":\"Vendors\",\"href\":\"#/vendors\"},{\"text\":\"Billing agents\",\"href\":\"#/billing-agents\"},{\"text\":\"Payment reports\",\"href\":\"#/dashboard\"}]"
+    },
+    {
+      "name": "More menu keeps Payment reports",
+      "ok": true,
+      "detail": "[{\"text\":\"Procurement\",\"href\":\"#/procurement\"},{\"text\":\"Compliance & waivers\",\"href\":\"#/compliance\"},{\"text\":\"Project summaries\",\"href\":\"#/projects\"},{\"text\":\"People\",\"href\":\"#/people\"},{\"text\":\"Vendors\",\"href\":\"#/vendors\"},{\"text\":\"Billing agents\",\"href\":\"#/billing-agents\"},{\"text\":\"Payment reports\",\"href\":\"#/dashboard\"}]"
+    },
+    {
+      "name": "More links point at the existing routes",
+      "ok": true,
+      "detail": "[\"#/procurement\",\"#/compliance\",\"#/projects\",\"#/people\",\"#/vendors\",\"#/billing-agents\",\"#/dashboard\"]"
+    },
+    {
+      "name": "inbox reports its three buckets",
+      "ok": true,
+      "detail": "5 open · 0 awaiting payment · 13 in history"
+    },
+    {
+      "name": "inbox bucket counts add up to the loaded entries",
+      "ok": true,
+      "detail": "{\"counts\":\"5 open · 0 awaiting payment · 13 in history\",\"entries\":18,\"visible\":0,\"labels\":[\"Paid\",\"Paid\",\"Paid\",\"Ready for decision\",\"Ready for decision\",\"Ready for decision\",\"Ready for decision\",\"Paid\",\"Paid\",\"Paid\",\"Paid\",\"Paid\",\"Paid\",\"Paid\",\"Paid\",\"Paid\",\"Paid\",\"Ready for decision\"],\"groups\":[\"Needs your attention 0\"],\"history\":{\"selector\":\"[data-testid=\\\"inbox-history\\\"]\",\"tag\":\"details\",\"open\":false,\"label\":\"History1 paid, rejected or revisedShowHide\",\"records\":1},\"commercial\":{\"selector\":\"[data-testid=\\\"inbox-commercial\\\"]\",\"open\":false,\"title\":\"Commercial reference job (17)\",\"declaredCount\":17,\"records\":17,\"visibleRecords\":0},\"records\":[{\"payAppId\":\"ph7434a59sqck3nysgt6teqh0h8hvx1h\",\"projectKind\":\"residential\",\"top\":832,\"visible\":true,\"insideCommercial\":false},{\"payAppId\":\"ph7434a59sqck3nysgt6teqh0h8hvx1h\",\"projectKind\":\"residential\",\"top\":1092,\"visible\":false,\"insideCommercial\":false},{\"payAppId\":\"ph7ayjenxg206ybxhg384tyes18hregt\",\"projectKind\":\"commercial\",\"top\":1166,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph700be475tytmh4ay4083y0ps8hspfc\",\"projectKind\":\"commercial\",\"top\":2652,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph7chs95hyw8h3m6hp193pjghn8hpyg6\",\"projectKind\":\"commercial\",\"top\":3824,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph77xv9jnj6vb16qdf8x97wgq58hpk3n\",\"projectKind\":\"commercial\",\"top\":5829,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph73363j955992e4sj7b9zzeah8hpv5q\",\"projectKind\":\"commercial\",\"top\":7493,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph7eyyr8bjqbts7yd6gys5tqdx8hpq64\",\"projectKind\":\"commercial\",\"top\":9499,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph72w1maj711z2zr7cw3zz83rs8hn63h\",\"projectKind\":\"commercial\",\"top\":11179,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph7bhnd7383j5wj8gakzmjt22d8hnrfw\",\"projectKind\":\"commercial\",\"top\":12697,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph761s6d1kd6ah9b0q74ph32ss8hnjtp\",\"projectKind\":\"commercial\",\"top\":13868,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph7f5h66zqqfcr6170j1r493bd8hnwkm\",\"projectKind\":\"commercial\",\"top\":15402,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph7b70myszz62jcwpx7kq9z9658hjn5c\",\"projectKind\":\"commercial\",\"top\":16574,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph751jbwv6sxh282f3mpbtwdrh8hkwph\",\"projectKind\":\"commercial\",\"top\":18028,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph728x8x8v25whds6eqtdd7ech8hj5qa\",\"projectKind\":\"commercial\",\"top\":19199,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph7a66t9yq3k6b9hqmkwyzkexh8hjjwa\",\"projectKind\":\"commercial\",\"top\":20665,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph7fh2dpqnx82kq1dn3gwcp8yx8hcem6\",\"projectKind\":\"commercial\",\"top\":21869,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph72dz348hz9fdsbrj7t46qrgd8hdd3c\",\"projectKind\":\"commercial\",\"top\":23281,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph70bynf8n2k5mdjbejb4snk398hceqx\",\"projectKind\":\"commercial\",\"top\":24492,\"visible\":false,\"insideCommercial\":true}],\"residentialLeads\":true,\"action\":{\"text\":\"View paid receipt\",\"href\":\"#/pay-apps/ph7434a59sqck3nysgt6teqh0h8hvx1h\"},\"paidApproveActions\":[],\"primaryCount\":1,\"pageHeight\":1262,\"chips\":[\"Approvals\",\"Money across your jobs\",\"Needs your attention 0\",\"Ortiz Plumbing · Pay app #1\",\"Ortiz Plumbing · Pay app #1 – period ending Oct 15, 2026\",\"Rosendin Electric, Inc. · Period 2 · billing agent\",\"Rosendin Electric, Inc. · Period 1\",\"Rosendin Electric, Inc. · Period 2 · billing agent\",\"Rosendin Electric, Inc. · Period 1\",\"Rosendin Electric, Inc. · Period 2 · billing agent\",\"Rosendin Electric, Inc. · Period 1\",\"Rosendin Electric, Inc. · Period 2 · billing agent\",\"Rosendin Electric, Inc. · Period 1\",\"Rosendin Electric, Inc. · Period 2 · billing agent\",\"Rosendin Electric, Inc. · Period 1\",\"Rosendin Electric, Inc. · Period 2 · billing agent\",\"Rosendin Electric, Inc. · Period 1\",\"Rosendin Electric, Inc. · Period 2 · billing agent\",\"Rosendin Electric, Inc. · Period 1\",\"Rosendin Electric, Inc. · Period 2 · billing agent\",\"Rosendin Electric, Inc. · Period 1\",\"Rosendin Electric, Inc. · Pay app #1 – period ending Nov 25, 2026\"]}"
+    },
+    {
+      "name": "open work is rendered before settled history",
+      "ok": true,
+      "detail": "[\"Approvals\",\"Money across your jobs\",\"Needs your attention 0\",\"Ortiz Plumbing · Pay app #1\",\"Ortiz Plumbing · Pay app #1 – period ending Oct 15, 2026\",\"Rosendin Electric, Inc. · Period 2 · billing agent\",\"Rosendin Electric, Inc. · Period 1\",\"Rosendin Electric, Inc. · Period 2 · billing agent\",\"Rosendin Electric, Inc. · Period 1\",\"Rosendin Electric, Inc. · Period 2 · billing agent\",\"Rosendin Electric, Inc. · Period 1\",\"Rosendin Electric, Inc. · Period 2 · billing agent\",\"Rosendin Electric, Inc. · Period 1\",\"Rosendin Electric, Inc. · Period 2 · billing agent\",\"Rosendin Electric, Inc. · Period 1\",\"Rosendin Electric, Inc. · Period 2 · billing agent\",\"Rosendin Electric, Inc. · Period 1\",\"Rosendin Electric, Inc. · Period 2 · billing agent\",\"Rosendin Electric, Inc. · Period 1\",\"Rosendin Electric, Inc. · Period 2 · billing agent\",\"Rosendin Electric, Inc. · Period 1\",\"Rosendin Electric, Inc. · Pay app #1 – period ending Nov 25, 2026\"]"
+    },
+    {
+      "name": "residential history keeps its existing disclosure",
+      "ok": true,
+      "detail": "{\"selector\":\"[data-testid=\\\"inbox-history\\\"]\",\"tag\":\"details\",\"open\":false,\"label\":\"History1 paid, rejected or revisedShowHide\",\"records\":1}"
+    },
+    {
+      "name": "history is collapsed while open work exists",
+      "ok": true,
+      "detail": "{\"selector\":\"[data-testid=\\\"inbox-history\\\"]\",\"tag\":\"details\",\"open\":false,\"label\":\"History1 paid, rejected or revisedShowHide\",\"records\":1}"
+    },
+    {
+      "name": "paid residential card offers its receipt",
+      "ok": true,
+      "detail": "{\"text\":\"View paid receipt\",\"href\":\"#/pay-apps/ph7434a59sqck3nysgt6teqh0h8hvx1h\"}"
+    },
+    {
+      "name": "no paid representation offers approve-and-pay",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "residential records precede every commercial record",
+      "ok": true,
+      "detail": "[{\"payAppId\":\"ph7434a59sqck3nysgt6teqh0h8hvx1h\",\"projectKind\":\"residential\",\"top\":832,\"visible\":true,\"insideCommercial\":false},{\"payAppId\":\"ph7434a59sqck3nysgt6teqh0h8hvx1h\",\"projectKind\":\"residential\",\"top\":1092,\"visible\":false,\"insideCommercial\":false},{\"payAppId\":\"ph7ayjenxg206ybxhg384tyes18hregt\",\"projectKind\":\"commercial\",\"top\":1166,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph700be475tytmh4ay4083y0ps8hspfc\",\"projectKind\":\"commercial\",\"top\":2652,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph7chs95hyw8h3m6hp193pjghn8hpyg6\",\"projectKind\":\"commercial\",\"top\":3824,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph77xv9jnj6vb16qdf8x97wgq58hpk3n\",\"projectKind\":\"commercial\",\"top\":5829,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph73363j955992e4sj7b9zzeah8hpv5q\",\"projectKind\":\"commercial\",\"top\":7493,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph7eyyr8bjqbts7yd6gys5tqdx8hpq64\",\"projectKind\":\"commercial\",\"top\":9499,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph72w1maj711z2zr7cw3zz83rs8hn63h\",\"projectKind\":\"commercial\",\"top\":11179,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph7bhnd7383j5wj8gakzmjt22d8hnrfw\",\"projectKind\":\"commercial\",\"top\":12697,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph761s6d1kd6ah9b0q74ph32ss8hnjtp\",\"projectKind\":\"commercial\",\"top\":13868,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph7f5h66zqqfcr6170j1r493bd8hnwkm\",\"projectKind\":\"commercial\",\"top\":15402,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph7b70myszz62jcwpx7kq9z9658hjn5c\",\"projectKind\":\"commercial\",\"top\":16574,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph751jbwv6sxh282f3mpbtwdrh8hkwph\",\"projectKind\":\"commercial\",\"top\":18028,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph728x8x8v25whds6eqtdd7ech8hj5qa\",\"projectKind\":\"commercial\",\"top\":19199,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph7a66t9yq3k6b9hqmkwyzkexh8hjjwa\",\"projectKind\":\"commercial\",\"top\":20665,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph7fh2dpqnx82kq1dn3gwcp8yx8hcem6\",\"projectKind\":\"commercial\",\"top\":21869,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph72dz348hz9fdsbrj7t46qrgd8hdd3c\",\"projectKind\":\"commercial\",\"top\":23281,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph70bynf8n2k5mdjbejb4snk398hceqx\",\"projectKind\":\"commercial\",\"top\":24492,\"visible\":false,\"insideCommercial\":true}]"
+    },
+    {
+      "name": "commercial records share one collapsed disclosure",
+      "ok": true,
+      "detail": "{\"selector\":\"[data-testid=\\\"inbox-commercial\\\"]\",\"open\":false,\"title\":\"Commercial reference job (17)\",\"declaredCount\":17,\"records\":17,\"visibleRecords\":0}"
+    },
+    {
+      "name": "commercial disclosure has the real count",
+      "ok": true,
+      "detail": "{\"selector\":\"[data-testid=\\\"inbox-commercial\\\"]\",\"open\":false,\"title\":\"Commercial reference job (17)\",\"declaredCount\":17,\"records\":17,\"visibleRecords\":0}"
+    },
+    {
+      "name": "every commercial entry is inside that disclosure",
+      "ok": true,
+      "detail": "[{\"payAppId\":\"ph7434a59sqck3nysgt6teqh0h8hvx1h\",\"projectKind\":\"residential\",\"top\":832,\"visible\":true,\"insideCommercial\":false},{\"payAppId\":\"ph7434a59sqck3nysgt6teqh0h8hvx1h\",\"projectKind\":\"residential\",\"top\":1092,\"visible\":false,\"insideCommercial\":false},{\"payAppId\":\"ph7ayjenxg206ybxhg384tyes18hregt\",\"projectKind\":\"commercial\",\"top\":1166,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph700be475tytmh4ay4083y0ps8hspfc\",\"projectKind\":\"commercial\",\"top\":2652,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph7chs95hyw8h3m6hp193pjghn8hpyg6\",\"projectKind\":\"commercial\",\"top\":3824,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph77xv9jnj6vb16qdf8x97wgq58hpk3n\",\"projectKind\":\"commercial\",\"top\":5829,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph73363j955992e4sj7b9zzeah8hpv5q\",\"projectKind\":\"commercial\",\"top\":7493,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph7eyyr8bjqbts7yd6gys5tqdx8hpq64\",\"projectKind\":\"commercial\",\"top\":9499,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph72w1maj711z2zr7cw3zz83rs8hn63h\",\"projectKind\":\"commercial\",\"top\":11179,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph7bhnd7383j5wj8gakzmjt22d8hnrfw\",\"projectKind\":\"commercial\",\"top\":12697,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph761s6d1kd6ah9b0q74ph32ss8hnjtp\",\"projectKind\":\"commercial\",\"top\":13868,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph7f5h66zqqfcr6170j1r493bd8hnwkm\",\"projectKind\":\"commercial\",\"top\":15402,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph7b70myszz62jcwpx7kq9z9658hjn5c\",\"projectKind\":\"commercial\",\"top\":16574,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph751jbwv6sxh282f3mpbtwdrh8hkwph\",\"projectKind\":\"commercial\",\"top\":18028,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph728x8x8v25whds6eqtdd7ech8hj5qa\",\"projectKind\":\"commercial\",\"top\":19199,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph7a66t9yq3k6b9hqmkwyzkexh8hjjwa\",\"projectKind\":\"commercial\",\"top\":20665,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph7fh2dpqnx82kq1dn3gwcp8yx8hcem6\",\"projectKind\":\"commercial\",\"top\":21869,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph72dz348hz9fdsbrj7t46qrgd8hdd3c\",\"projectKind\":\"commercial\",\"top\":23281,\"visible\":false,\"insideCommercial\":true},{\"payAppId\":\"ph70bynf8n2k5mdjbejb4snk398hceqx\",\"projectKind\":\"commercial\",\"top\":24492,\"visible\":false,\"insideCommercial\":true}]"
+    },
+    {
+      "name": "the collapsed landing keeps one primary action",
+      "ok": true,
+      "detail": "1"
+    },
+    {
+      "name": "status codes are shown as readable labels",
+      "ok": true,
+      "detail": "[\"Paid\",\"Paid\",\"Paid\",\"Ready for decision\",\"Ready for decision\",\"Ready for decision\",\"Ready for decision\",\"Paid\",\"Paid\",\"Paid\",\"Paid\",\"Paid\",\"Paid\",\"Paid\",\"Paid\",\"Paid\",\"Paid\",\"Ready for decision\"]"
+    },
+    {
+      "name": "paid history entry remains reachable",
+      "ok": true,
+      "detail": "{\"records\":1,\"payAppId\":\"ph7434a59sqck3nysgt6teqh0h8hvx1h\",\"status\":\"Paid\",\"approveActions\":[],\"primaryActions\":0}"
+    },
+    {
+      "name": "paid history entry has no approval or primary action",
+      "ok": true,
+      "detail": "{\"records\":1,\"payAppId\":\"ph7434a59sqck3nysgt6teqh0h8hvx1h\",\"status\":\"Paid\",\"approveActions\":[],\"primaryActions\":0}"
+    },
+    {
+      "name": "expanding the commercial disclosure reveals every counted record",
+      "ok": true,
+      "detail": "{\"records\":17,\"visibleRecords\":17,\"primaryCount\":1,\"pageHeight\":28252}"
+    },
+    {
+      "name": "the expanded commercial disclosure still has one primary",
+      "ok": true,
+      "detail": "1"
+    },
+    {
+      "name": "search returns the two R6-A pay apps",
+      "ok": true,
+      "detail": "2"
+    },
+    {
+      "name": "commercial search opens the counted disclosure",
+      "ok": true,
+      "detail": "{\"visible\":2,\"text\":\"Approvals\\n\\nReview each sub pay app before money moves. Code computes the amounts; you approve, trim or reject.\\n\\n0 open · 0 awaiting payment · 2 in history\\n\\nMoney on this job · Lopez Kitchen Remodel\\n\\nCollected from the homeowner, paid to subs, both retainage directions and owed this week.\\n\\nCollected from homeowner\\n$4,800.00\\nFrom 1 paid draw and 1 paid change order.\\nPaid to subs\\n$3,800.00\\nNet of retainage, from 1 successful payout.\\nRetainage you hold\\n$200.00\\n5% to the sub\\nRetainage held from you\\n$400.00\\n$400.00 at 10% from the homeowner\\nOwed this week\\n$0.00\\n\\nNo approved pay app is due this week. Open billing\\n\\nReceipts behind these numbers\\nMoney across your jobs\\n\\nAcross every job where you are the general contractor, including the separate commercial reference job: collected from owners, paid to subs, retainage held and owed this week.\\n\\nCollected from owners\\n$3,600.00\\nFrom 1 paid owner pay app.\\nPaid to subs\\n$17,070.40\\nNet of retainage, from 17 successful payouts.\\nRetainage held\\n$657.60\\nHeld on 7 subcontracts.\\nRetainage held from you\\n$400.00\\n$400.00 at 10% from the homeowner\\nOwed this week\\n$0.00\\n\\nNo approved pay app is due this week. Open billing\\n\\nReceipts behind these numbers\\nSearch loaded applications\\nStatus\\nAll statuses\\nSubmitted\\nUnder review\\nReady for decision\\nApproved\\nApproved as noted\\nRevision requested\\nPaid\\nRejected\\nClear\\n\\nShowing 2 of 18.\\n\\nCommercial reference job (2)\\nHide\\nRosendin Electric, Inc. · Period 2 · billing agent\\n\\nSandbox run · Paid\\n\\nFiled in the guided demo as the subcontractor's billing agent. It is not a signed-in billing-agent account.\\n\\nOpen pay application\\nAgreement ledger\\nCalifornia contractor license (CSLB)\\n\\nCalifornia registry lookup only. On a Texas project this is supplementary contractor information, not verification of Texas licensing or permission to perform this project's work.\\n\\nRosendin Electric, Inc. · CA license #142881\\n\\nCSLB: Active\\nChecked Nov 9, 2026, 8:48 PM UTC via a hosted browser lookup · cached 24 h\\nCheck license\\n\\nCSLB license #142881: ROSENDIN ELECTRIC INC, SAN JOSE, CA 95134. Entity: Corporation. Issued 01/12/1954. Expires 09/30/2028. License Status: This license is current and active. All information below should be reviewed. Classifications: A - GENERAL ENGINEERING; B - GENERAL BUILDING; C10 - ELECTRICAL; C-7 - LOW VOLTAGE SYSTEMS.\\n\\nPay agent proposals\\nCapture from milestone authorization\\nExecuted\\nCSLB: Active\\nPay agent · Nov 5, 2026\\nPROPOSED BY CODE RULES\\n$320.00\\n→EDITED BY GC\\n$288.00\\n\\nMilestone: Mobilization\\n\\nThe code-computed approved amount for this pay application is above zero, and milestone 1 (Mobilization) is funded with authorization still available, so capture from that funded milestone is appropriate.\\n\\nGC reason for the change: GC accepted 90% of the recommended amount. The remaining 10% is held pending closeout evidence and a signed lien waiver; the sub can revise and resubmit.\\n\\nOverbilled lines\\nExcluded-scope lines\\nOut-of-sequence lines\\nLien waiver missing\\nReduced from request\\n\\nPayPal capture 64J29860SF3166026\\n\\nReschedule billing\\nPending\\nCSLB: Active\\nPay agent · Nov 5, 2026\\n\\nLine 4 bills closeout work (testing, commissioning, O&M manuals) out of sequence while earlier funding tranches are incomplete, so its billing should be rescheduled to the closeout phase.\\n\\nOverbilled lines\\nExcluded-scope lines\\nOut-of-sequence lines\\nLien waiver missing\\nReduced from request\\nPayout to the sub (net of retainage)\\nExecuted\\nCSLB: Active\\nPay agent · Nov 5, 2026\\nPROPOSED BY CODE RULES\\n$320.00\\n→EDITED BY GC\\n$288.00\\n→RETAINAGE 10%\\n$28.80\\n→NET TO SUB\\n$259.20\\n\\nMilestone: Mobilization\\n\\nCSLB license #142881 is current and active, and the approved total is above zero, so the sub can be paid net of the 10% retainage.\\n\\nGC reason for the change: GC accepted 90% of the recommended amount. The remaining 10% is held pending closeout evidence and a signed lien waiver; the sub can revise and resubmit.\\n\\nOverbilled lines\\nExcluded-scope lines\\nOut-of-sequence lines\\nLien waiver missing\\nReduced from request\\n\\nPayout Paid out: $288.00 gross, $28.80 retainage held, $259.20 net to sb-****@personal.example.com · batch YZX7NZZMMD6D8\\n\\nPayPal payout batch\\nYZX7NZZMMD6D8\\nCopy\\n\\nPayout status is as recorded from PayPal API responses and webhooks, not a live PayPal query.\\n\\nView agent trace\\nPeriod 2 · billing agent\\n\\nSubmitted Nov 5, 2026 · status Paid\\n\\nRequested\\n$13,500.00\\nRecommended (code-computed)\\n$320.00\\nFinal approved (GC)\\n$288.00\\n\\nExplanation by Mistral Large 4 (rules set the amount) · Nov 5, 2026\\n\\nLien waiver missing\\nLicense: CSLB active\\n\\nREVIEW NOTES (MODEL COMMENTARY, NOT A GC DECISION)\\n\\nNo lien waiver was provided with this pay application (lienWaiverMissing true). License check is current and active (CSLB #142881), so no license issue. Line 2's claim embeds excluded seismic bracing per the sub's own notes and earns nothing; lines 1 and 3 exceed the 5% funding-tranche ceiling at their 30% claims; line 4 bills closeout work out of sequence. Prior pay app (Period 1, $2,000 requested) is still under review and is not approved progress.\\n\\nLine\\tClaimed to date\\tRecommended to date\\tRequested\\tRecommended\\tFinal approved\\tVerdict and reason\\n1. 1600A main switchboard & transformers\\t30%\\t5%\\t$5,720.00\\t$220.00\\t$198.00\\toverbilled\\nLine claims 30% to date, but the funding tranches covering this line support a ceiling of 5% to date (funding ceiling to date 0.05 < claimed 0.30). Recommend the 5% tranche ceiling.\\n\\n2. Branch conduit & wire feeder runs\\t30%\\t0%\\t$4,680.00\\t$0.00\\t$0.00\\texcluded scope\\nThe pay-app notes state this branch conduit & wire feeder claim embeds $4,500 of IBC Section 1613 engineered seismic bracing, which the sub excluded from its bid (agreement excluded scope notes); excluded work earns nothing, so recommend the previous 0% to date.\\n\\n3. Grounding & bonding system\\t30%\\t5%\\t$2,600.00\\t$100.00\\t$90.00\\toverbilled\\nLine claims 30% to date, but the funding tranches covering this line support a ceiling of 5% to date (funding ceiling to date 0.05 < claimed 0.30). Recommend the 5% tranche ceiling.\\n\\n4. Closeout: testing, commissioning & O&M manuals\\t10%\\t0%\\t$500.00\\t$0.00\\t$0.00\\tout of sequence\\nThis is closeout-phase work (testing, commissioning, O&M manuals) billed this period while an earlier funding tranche covering the line is not complete (closeout work before earlier funding tranches true), despite the 10% claim. Recommend the previous 0% to date.\\nRosendin Electric, Inc. · Period 1\\n\\nSandbox run · Paid\\n\\nFiled in the guided demo as the subcontractor. It is not a signed-in subcontractor account.\\n\\nOpen pay application\\nAgreement ledger\\nCalifornia contractor license (CSLB)\\n\\nCalifornia registry lookup only. On a Texas project this is supplementary contractor information, not verification of Texas licensing or permission to perform this project's work.\\n\\nRosendin Electric, Inc. · CA license #142881\\n\\nCSLB: Active\\nChecked Nov 9, 2026, 8:48 PM UTC via a hosted browser lookup · cached 24 h\\nCheck license\\n\\nCSLB license #142881: ROSENDIN ELECTRIC INC, SAN JOSE, CA 95134. Entity: Corporation. Issued 01/12/1954. Expires 09/30/2028. License Status: This license is current and active. All information below should be reviewed. Classifications: A - GENERAL ENGINEERING; B - GENERAL BUILDING; C10 - ELECTRICAL; C-7 - LOW VOLTAGE SYSTEMS.\\n\\nPay agent proposals\\nCapture from milestone authorization\\nExecuted\\nCSLB: Active\\nPay agent · Nov 5, 2026\\nPROPOSED BY CODE RULES\\n$2,000.00\\n\\nMilestone: Mobilization\\n\\nApproved total for Period 1 is funded by the Mobilization milestone, which still has authorization available. Capturing the approved amount from that funded milestone's PayPal authorization.\\n\\nPayPal capture 7SG52121PE562433B\\n\\nPayout to the sub (net of retainage)\\nExecuted\\nCSLB: Active\\nPay agent · Nov 5, 2026\\nPROPOSED BY CODE RULES\\n$2,000.00\\n→RETAINAGE 10%\\n$200.00\\n→NET TO SUB\\n$1,800.00\\n\\nMilestone: Mobilization\\n\\nCSLB license is active and all lines are within the funding-tranche ceiling with no front-loading, so the approved amount net of retainage can be paid to Rosendin Electric, Inc.\\n\\nPayout Paid out: $2,000.00 gross, $200.00 retainage held, $1,800.00 net to sb-****@personal.example.com · batch 5VXWJ96GBXLRW\\n\\nPayPal payout batch\\n5VXWJ96GBXLRW\\nCopy\\n\\nPayout status is as recorded from PayPal API responses and webhooks, not a live PayPal query.\\n\\nView agent trace\\nPeriod 1\\n\\nSubmitted Nov 5, 2026 · status Paid\\n\\nRequested\\n$2,000.00\\nRecommended (code-computed)\\n$2,000.00\\nFinal approved (GC)\\n$2,000.00\\n\\nExplanation by Mistral Large 4 (rules set the amount) · Nov 5, 2026\\n\\nLicense: CSLB active\\n\\nREVIEW NOTES (MODEL COMMENTARY, NOT A GC DECISION)\\n\\nAll three lines claim 4% to date, within the 5% funding-tranche ceiling and consistent with the rest of the job at 3.39–3.56% work in place. License is active and a lien waiver was provided.\\n\\nLine\\tClaimed to date\\tRecommended to date\\tRequested\\tRecommended\\tFinal approved\\tVerdict and reason\\n1. 1600A main switchboard & transformers\\t4%\\t4%\\t$880.00\\t$880.00\\t$880.00\\tok\\nClaimed 4% to date is within the 5% tranche ceiling; work in place (4%) is less than double the other lines' 3.39% progress and not 15 points above it, so not front-loaded.\\n\\n2. Branch conduit & wire feeder runs\\t4%\\t4%\\t$720.00\\t$720.00\\t$720.00\\tok\\nClaimed 4% to date is within the 5% tranche ceiling; work in place (4%) is less than double the other lines' 3.46% progress, so not front-loaded.\\n\\n3. Grounding & bonding system\\t4%\\t4%\\t$400.00\\t$400.00\\t$400.00\\tok\\nClaimed 4% to date is within the 5% tranche ceiling; work in place (4%) is less than double the other lines' 3.56% progress, so not front-loaded.\\nPreserved reference jobs · read-only.\",\"commercialOpen\":true,\"commercialTitle\":\"Commercial reference job (2)\"}"
+    },
+    {
+      "name": "filtered history becomes visible without clearing the search",
+      "ok": true,
+      "detail": "Approvals\n\nReview each sub pay app before money moves. Code computes the amounts; you approve, trim or reject.\n\n0 open · 0 awaiting payment · 2 in history\n\nMoney on this job · Lopez Kitchen Remodel\n\nCollected from the homeowner, paid to subs, both retainage directions and owed this week.\n\nCollected from homeowner\n$4,800.00\nFrom 1 paid draw and 1 paid change order.\nPaid to subs\n$3,800.00\nNet of retainage, from 1 successful payout.\nRetainage you hold\n$200.00\n5% to the sub\nRetainage held from you\n$400.00\n$400.00 at 10% from the homeowner\nOwed this week\n$0.00\n\nNo approved pay app is due this week."
+    },
+    {
+      "name": "phone layout does not overflow horizontally",
+      "ok": true,
+      "detail": "0"
+    },
+    {
+      "name": "phone keeps commercial records collapsed with one primary",
+      "ok": true,
+      "detail": "{\"overflow\":0,\"pageHeight\":1793,\"commercialOpen\":false,\"primaryCount\":1,\"menuVisible\":true}"
+    },
+    {
+      "name": "phone menu control is visible",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "phone menu exposes the same capped primary bar",
+      "ok": true,
+      "detail": "[\"Approvals\",\"Billing\",\"Projects\",\"Change orders\",\"Payments\",\"Guided demoDemo\"]"
+    },
+    {
+      "name": "no unexpected page errors",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "no unexpected console errors",
+      "ok": true,
+      "detail": "[]"
+    }
+  ],
+  "measurements": [
+    {
+      "screen": "inbox-collapsed",
+      "width": 1440,
+      "height": 900,
+      "pageHeight": 1262,
+      "commercial": {
+        "selector": "[data-testid=\"inbox-commercial\"]",
+        "open": false,
+        "title": "Commercial reference job (17)",
+        "declaredCount": 17,
+        "records": 17,
+        "visibleRecords": 0
+      },
+      "records": [
+        {
+          "payAppId": "ph7434a59sqck3nysgt6teqh0h8hvx1h",
+          "projectKind": "residential",
+          "top": 832,
+          "visible": true,
+          "insideCommercial": false
+        },
+        {
+          "payAppId": "ph7434a59sqck3nysgt6teqh0h8hvx1h",
+          "projectKind": "residential",
+          "top": 1092,
+          "visible": false,
+          "insideCommercial": false
+        },
+        {
+          "payAppId": "ph7ayjenxg206ybxhg384tyes18hregt",
+          "projectKind": "commercial",
+          "top": 1166,
+          "visible": false,
+          "insideCommercial": true
+        },
+        {
+          "payAppId": "ph700be475tytmh4ay4083y0ps8hspfc",
+          "projectKind": "commercial",
+          "top": 2652,
+          "visible": false,
+          "insideCommercial": true
+        },
+        {
+          "payAppId": "ph7chs95hyw8h3m6hp193pjghn8hpyg6",
+          "projectKind": "commercial",
+          "top": 3824,
+          "visible": false,
+          "insideCommercial": true
+        },
+        {
+          "payAppId": "ph77xv9jnj6vb16qdf8x97wgq58hpk3n",
+          "projectKind": "commercial",
+          "top": 5829,
+          "visible": false,
+          "insideCommercial": true
+        },
+        {
+          "payAppId": "ph73363j955992e4sj7b9zzeah8hpv5q",
+          "projectKind": "commercial",
+          "top": 7493,
+          "visible": false,
+          "insideCommercial": true
+        },
+        {
+          "payAppId": "ph7eyyr8bjqbts7yd6gys5tqdx8hpq64",
+          "projectKind": "commercial",
+          "top": 9499,
+          "visible": false,
+          "insideCommercial": true
+        },
+        {
+          "payAppId": "ph72w1maj711z2zr7cw3zz83rs8hn63h",
+          "projectKind": "commercial",
+          "top": 11179,
+          "visible": false,
+          "insideCommercial": true
+        },
+        {
+          "payAppId": "ph7bhnd7383j5wj8gakzmjt22d8hnrfw",
+          "projectKind": "commercial",
+          "top": 12697,
+          "visible": false,
+          "insideCommercial": true
+        },
+        {
+          "payAppId": "ph761s6d1kd6ah9b0q74ph32ss8hnjtp",
+          "projectKind": "commercial",
+          "top": 13868,
+          "visible": false,
+          "insideCommercial": true
+        },
+        {
+          "payAppId": "ph7f5h66zqqfcr6170j1r493bd8hnwkm",
+          "projectKind": "commercial",
+          "top": 15402,
+          "visible": false,
+          "insideCommercial": true
+        },
+        {
+          "payAppId": "ph7b70myszz62jcwpx7kq9z9658hjn5c",
+          "projectKind": "commercial",
+          "top": 16574,
+          "visible": false,
+          "insideCommercial": true
+        },
+        {
+          "payAppId": "ph751jbwv6sxh282f3mpbtwdrh8hkwph",
+          "projectKind": "commercial",
+          "top": 18028,
+          "visible": false,
+          "insideCommercial": true
+        },
+        {
+          "payAppId": "ph728x8x8v25whds6eqtdd7ech8hj5qa",
+          "projectKind": "commercial",
+          "top": 19199,
+          "visible": false,
+          "insideCommercial": true
+        },
+        {
+          "payAppId": "ph7a66t9yq3k6b9hqmkwyzkexh8hjjwa",
+          "projectKind": "commercial",
+          "top": 20665,
+          "visible": false,
+          "insideCommercial": true
+        },
+        {
+          "payAppId": "ph7fh2dpqnx82kq1dn3gwcp8yx8hcem6",
+          "projectKind": "commercial",
+          "top": 21869,
+          "visible": false,
+          "insideCommercial": true
+        },
+        {
+          "payAppId": "ph72dz348hz9fdsbrj7t46qrgd8hdd3c",
+          "projectKind": "commercial",
+          "top": 23281,
+          "visible": false,
+          "insideCommercial": true
+        },
+        {
+          "payAppId": "ph70bynf8n2k5mdjbejb4snk398hceqx",
+          "projectKind": "commercial",
+          "top": 24492,
+          "visible": false,
+          "insideCommercial": true
+        }
+      ]
+    },
+    {
+      "screen": "inbox-commercial-open",
+      "width": 1440,
+      "height": 900,
+      "records": 17,
+      "visibleRecords": 17,
+      "primaryCount": 1,
+      "pageHeight": 28252
+    },
+    {
+      "screen": "inbox-collapsed",
+      "width": 390,
+      "height": 844,
+      "pageHeight": 1793,
+      "primaryCount": 1
+    }
+  ],
+  "pageErrors": [],
+  "consoleErrors": [],
+  "ok": true
+}

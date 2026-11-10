@@ -190,31 +190,38 @@ describe("residential and commercial wording", () => {
     expect(labels(html)).not.toContain("Collected from owner");
   });
 
-  test("a commercial job keeps its existing labels and never uses Draw", () => {
+  test("a commercial job keeps its four-cell structure and receipt copy byte-for-byte", () => {
     const html = render(money({ kind: "commercial", collectedWithChangeOrders: 480_000 }), PROJECT_ID);
     expect(labels(html)).toEqual([
       "Collected from owner",
       "Paid to subs",
       "Retainage held",
-      "Retainage held from you",
       "Owed this week",
     ]);
-    // The additive residential collection field does not change the established commercial bucket.
+    // The additive residential fields do not change the established commercial structure or copy.
     expect(cell(html, "project-money-collected").text).toBe("$3,600.00");
+    expect(html).not.toContain('data-testid="project-money-retainage-held-from-you"');
+    expect(html).toContain('data-testid="project-money-owner-retainage"');
+    expect(plain(html)).toContain("$400.00 held from the owner");
     expect(plain(html)).toContain("Money on this job");
     expect(plain(html)).not.toContain("Money on this job · Lopez Kitchen Remodel");
     expect(plain(html)).toContain("Collected from the owner, paid to subs, retainage held and owed this week.");
-    expect(plain(html)).toContain("Owner pay app #1");
+    expect(plain(html)).toContain("Owner pay app #1 · $3,600.00 · paid Nov 8, 2026 · invoice INV2-5ZNS-USY8-KBFD-L3B9");
+    expect(plain(html)).not.toContain("retainage held from you");
     expect(plain(html)).not.toContain("homeowner");
     expect(plain(html)).not.toContain("Retainage you hold");
     expect(plain(html)).not.toMatch(/\bDraws?\b/);
   });
 
-  test("the portfolio strip is labeled across the GC's jobs and uses the neutral plural", () => {
+  test("the portfolio strip keeps four cells, the neutral plural and the commercial-reference label", () => {
     const html = render(money({ scope: "portfolio" }), undefined);
-    expect(labels(html)[0]).toBe("Collected from owners");
-    expect(labels(html)).not.toContain("Collected from homeowner");
-    expect(labels(html)).not.toContain("Collected from owner");
+    expect(labels(html)).toEqual([
+      "Collected from owners",
+      "Paid to subs",
+      "Retainage held",
+      "Owed this week",
+    ]);
+    expect(html).not.toContain('data-testid="project-money-retainage-held-from-you"');
     expect(plain(html)).toContain("Money across your jobs");
     expect(plain(html)).toContain("Across every job where you are the general contractor");
     expect(plain(html)).toContain("including the separate commercial reference job");

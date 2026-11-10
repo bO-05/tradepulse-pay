@@ -214,19 +214,57 @@ describe("the GC approval inbox", () => {
     expect(html).not.toContain(">reviewed<");
   });
 
-  test("keeps one visually primary approve action and makes Edit and Reject secondary", () => {
+  test("commercial-only work keeps its decision primary outside the collapsed records", () => {
     mockQueries([inboxItem()]);
     const html = renderToStaticMarkup(<ApprovalInbox />);
     expect(html.match(/data-testid="approve-proposal"/g)).toHaveLength(2);
     expect(primaryElements(html)).toHaveLength(1);
-    const [primaryApprove] = html.match(/<button[^>]*data-testid="approve-proposal"[^>]*>/) ?? [];
-    const [, secondaryApprove] = html.match(/<button[^>]*data-testid="approve-proposal"[^>]*>/g) ?? [];
-    expect(primaryApprove).toContain("bg-accent");
-    expect(secondaryApprove).not.toContain("bg-accent");
-    for (const id of ["edit-proposal", "reject-proposal"]) {
-      const tag = html.match(new RegExp(`<button[^>]*data-testid="${id}"[^>]*>`))?.[0] ?? "";
-      expect(tag).not.toContain("bg-accent");
+
+    const action = html.indexOf('data-testid="inbox-commercial-decision-action"');
+    const commercial = html.indexOf('data-testid="inbox-commercial"');
+    expect(action).toBeGreaterThan(-1);
+    expect(action).toBeLessThan(commercial);
+    expect(html).toContain("Review next commercial pay app");
+    expect(html).toContain('href="#/pay-apps/payapp_1"');
+
+    const detailsStart = html.lastIndexOf("<details", commercial);
+    const detailsTag = html.slice(detailsStart, html.indexOf(">", detailsStart) + 1);
+    expect(detailsTag).not.toContain(" open");
+    expect(primaryElements(html.slice(commercial))).toHaveLength(0);
+    for (const id of ["approve-proposal", "edit-proposal", "reject-proposal"]) {
+      const tags = html.match(new RegExp(`<button[^>]*data-testid="${id}"[^>]*>`, "g")) ?? [];
+      expect(tags.length).toBeGreaterThan(0);
+      for (const tag of tags) expect(tag).not.toContain("bg-accent");
     }
+  });
+
+  test("paid commercial filter results keep a receipt primary outside the collapsed records", () => {
+    const firstPaid = inboxItem({
+      readOnlyReference: true,
+      payApp: { ...inboxItem().payApp, _id: "payapp_paid_1", status: "paid" },
+      agreement: { ...inboxItem().agreement, agreementNumber: "A401-DEMO-PAY-20261105-07" },
+    });
+    const secondPaid = inboxItem({
+      readOnlyReference: true,
+      payApp: { ...inboxItem().payApp, _id: "payapp_paid_2", status: "paid" },
+      agreement: { ...inboxItem().agreement, _id: "agreement_paid_2", agreementNumber: "A401-DEMO-PAY-20261105-07" },
+    });
+    mockQueries([firstPaid, secondPaid]);
+    const html = renderToStaticMarkup(<ApprovalInbox />);
+
+    const action = html.indexOf('data-testid="inbox-commercial-decision-action"');
+    const commercial = html.indexOf('data-testid="inbox-commercial"');
+    expect(action).toBeGreaterThan(-1);
+    expect(action).toBeLessThan(commercial);
+    expect(html).toContain("View paid receipt");
+    expect(html).toContain('href="#/pay-apps/payapp_paid_1"');
+    expect(html).toContain("Commercial reference job (2)");
+    expect(primaryElements(html)).toHaveLength(1);
+    expect(primaryElements(html.slice(commercial))).toHaveLength(0);
+    expect(html).not.toContain('data-testid="approve-proposal"');
+    const detailsStart = html.lastIndexOf("<details", commercial);
+    const detailsTag = html.slice(detailsStart, html.indexOf(">", detailsStart) + 1);
+    expect(detailsTag).not.toContain(" open");
   });
 
   test("across several applications only the next decision carries the primary style", () => {

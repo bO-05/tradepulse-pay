@@ -436,6 +436,11 @@ function payoutSplitOf(item: InboxItem): { retainageCents: number; netCents: num
   return proposal?.split ?? null;
 }
 
+function pendingDecisionProposal(item: InboxItem): Proposal | null {
+  if (item.readOnlyReference || item.payApp.status !== "reviewed") return null;
+  return item.proposals.find((p) => p.status === "pending" && p.kind !== "capture") ?? null;
+}
+
 /**
  * The first card on the GC home: the settled residential draw, with one filled action that names
  * the money. It is a read-only reference, so the action opens the stored decision and receipt
@@ -601,16 +606,22 @@ export function ApprovalInbox() {
   // reachable in their disclosure, but never compete with the residential primary action.
   const primaryProposalId = (() => {
     if (residentialDecision) return null;
-    const decisionQueue = [
-      ...residentialActive,
-      ...commercial.filter((item) => inboxGroup(item.payApp.status) === "active"),
-    ];
-    for (const item of decisionQueue) {
-      if (item.readOnlyReference || item.payApp.status !== "reviewed") continue;
-      const next = item.proposals.find((p) => p.status === "pending" && p.kind !== "capture");
+    for (const item of residentialActive) {
+      const next = pendingDecisionProposal(item);
       if (next) return next._id;
     }
     return null;
+  })();
+  // A commercial-only or commercially filtered landing still needs one visible primary. Keep the
+  // records collapsed and link to the appropriate decision or receipt instead of hiding the only
+  // primary inside the disclosure.
+  const commercialAction = (() => {
+    if (residentialDecision || primaryProposalId || commercial.length === 0) return null;
+    const decision = commercial.find((item) => pendingDecisionProposal(item));
+    if (decision) return { item: decision, label: "Review next commercial pay app" };
+    const receipt = commercial.find((item) => item.payApp.status === "paid");
+    if (receipt) return { item: receipt, label: "View paid receipt" };
+    return { item: commercial[0], label: "Open commercial pay app" };
   })();
   const filterFields = (
     <>
@@ -699,10 +710,21 @@ export function ApprovalInbox() {
               </div>
             </details>
           ) : null}
+          {commercialAction ? (
+            <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
+              <a
+                href={payAppHash(commercialAction.item.payApp._id)}
+                className={PRIMARY_LINK}
+                data-testid="inbox-commercial-decision-action"
+              >
+                {commercialAction.label}
+              </a>
+              <span className="text-xs text-slate-400">Commercial records stay grouped below until you open them.</span>
+            </div>
+          ) : null}
           {commercial.length > 0 ? (
             <details
               className="group rounded-2xl border border-slate-800 bg-slate-900/40"
-              open={filtering}
               data-testid="inbox-commercial"
               data-record-count={commercial.length}
             >
@@ -715,7 +737,7 @@ export function ApprovalInbox() {
                 <span aria-hidden="true" className="hidden text-xs text-slate-400 group-open:inline">Hide</span>
               </summary>
               <div className="space-y-3 border-t border-slate-800 p-3">
-                {commercial.map((item) => <InboxEntry key={item.payApp._id} item={item} primaryProposalId={primaryProposalId} />)}
+                {commercial.map((item) => <InboxEntry key={item.payApp._id} item={item} primaryProposalId={null} />)}
               </div>
             </details>
           ) : null}

@@ -334,6 +334,64 @@ for (const [width, height] of [[1440, 900], [390, 844]]) {
   await delay(150);
   await page.screenshot({ path: path.join(outDir, `change-order-invoice-first-viewport-${width}.png`) });
 
+  // ---- Owner Projects detail: the legacy commercial change order is display-mapped only --------
+  const legacyProjectId = "q9751tqcjsbd11myp8x25c08hs8hdj94";
+  const legacyProjectHash = `#/my-projects/${legacyProjectId}`;
+  await page.evaluate(() => document.querySelector('a[href="#/my-projects"]')?.click());
+  await page.waitForFunction(() => location.hash === "#/my-projects", { timeout: 60000 });
+  await page.waitForSelector('[data-testid="project-switcher"]', { timeout: 60000 });
+  await page.evaluate((href) => document.querySelector(`a[href="${href}"]`)?.click(), legacyProjectHash);
+  await page.waitForFunction((hash) => location.hash === hash, { timeout: 60000 }, legacyProjectHash);
+  await page.waitForFunction(() => {
+    const sections = [...document.querySelectorAll("main section")];
+    return sections.some((section) => section.querySelector("h2")?.textContent?.trim() === "Change orders");
+  }, { timeout: 60000 });
+  await page.evaluate(() => document.querySelectorAll("main details").forEach((details) => { details.open = true; }));
+  await delay(300);
+  const projectDetail = await page.evaluate(() => {
+    const main = document.querySelector("main");
+    const changeOrders = [...(main?.querySelectorAll("section") ?? [])]
+      .find((section) => section.querySelector("h2")?.textContent?.trim() === "Change orders");
+    const perceivableAttributes = [...(main?.querySelectorAll("*") ?? [])].flatMap((el) =>
+      ["title", "aria-label", "aria-description", "placeholder", "alt"]
+        .map((name) => el.getAttribute(name))
+        .filter(Boolean),
+    );
+    return {
+      hash: location.hash,
+      text: main?.innerText ?? "",
+      changeOrdersText: changeOrders?.innerText ?? "",
+      perceivableAttributes,
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    };
+  });
+  report.measurements.push({
+    screen: "owner-project-detail",
+    width,
+    ...projectDetail,
+    text: maskEmails(projectDetail.text),
+    changeOrdersText: maskEmails(projectDetail.changeOrdersText),
+    perceivableAttributes: projectDetail.perceivableAttributes.map(maskEmails),
+  });
+  check(`${tag} owner Projects detail route resolves`, projectDetail.hash === legacyProjectHash, projectDetail.hash);
+  check(
+    `${tag} owner Projects detail strips only the stored legacy prefix`,
+    /add two EV charger circuits in the garage/i.test(projectDetail.changeOrdersText),
+    projectDetail.changeOrdersText.slice(0, 600),
+  );
+  check(
+    `${tag} owner Projects detail has no Judge demo text or perceivable attribute`,
+    !/Judge demo/i.test([projectDetail.text, ...projectDetail.perceivableAttributes].join("\n")),
+    projectDetail.changeOrdersText.slice(0, 600),
+  );
+  check(`${tag} owner Projects detail has no horizontal overflow`, projectDetail.scrollWidth <= projectDetail.clientWidth, `${projectDetail.scrollWidth} vs ${projectDetail.clientWidth}`);
+  await maskSandboxEmails(page);
+  await page.screenshot({ path: path.join(outDir, `owner-project-detail-${width}.png`), fullPage: true });
+  await page.evaluate(() => scrollTo(0, 0));
+  await delay(150);
+  await page.screenshot({ path: path.join(outDir, `owner-project-detail-first-viewport-${width}.png`) });
+
   const failures = realFailures(diagnostics);
   report.diagnostics.push({ width, ...failures });
   check(`${tag} zero page errors`, failures.pageErrors.length === 0, JSON.stringify(failures.pageErrors));

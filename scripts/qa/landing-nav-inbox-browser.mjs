@@ -234,23 +234,107 @@ try {
   await page.click('[data-testid="inbox-commercial"] > summary');
   await page.waitForFunction(() => document.querySelector('[data-testid="inbox-commercial"]')?.open === false);
 
-  phase = "inbox filter";
+  phase = "paid commercial filter";
   await page.type('input[placeholder^="Agreement, project"]', "A401-DEMO-PAY-20261105-07");
   await delay(500);
   await page.waitForFunction(() => {
-    const visible = [...document.querySelectorAll('[data-testid="inbox-entry"]')].filter((el) => !el.closest("details:not([open])") && el.getClientRects().length > 0);
-    return visible.length === 2;
+    const commercial = document.querySelector('[data-testid="inbox-commercial"]');
+    return commercial?.getAttribute("data-record-count") === "2" && commercial.querySelectorAll('[data-testid="inbox-entry"]').length === 2;
   });
-  const filtered = await page.evaluate(() => ({
-    visible: [...document.querySelectorAll('[data-testid="inbox-entry"]')].filter((el) => !el.closest("details:not([open])") && el.getClientRects().length > 0).length,
-    text: document.querySelector("main")?.innerText ?? "",
-    commercialOpen: document.querySelector('[data-testid="inbox-commercial"]')?.open === true,
-    commercialTitle: document.querySelector('[data-testid="inbox-commercial"] summary > span')?.textContent.trim() ?? "",
-  }));
-  check("search returns the two R6-A pay apps", filtered.visible === 2, String(filtered.visible));
-  check("commercial search opens the counted disclosure", filtered.commercialOpen && filtered.commercialTitle === "Commercial reference job (2)", JSON.stringify(filtered));
-  check("filtered history becomes visible without clearing the search", filtered.text.includes("Rosendin Electric"), filtered.text.slice(0, 600));
-  await page.screenshot({ path: path.join(evidenceDir, "inbox-filtered.png"), fullPage: true });
+  const filtered = await page.evaluate(() => {
+    const visible = (el) => !el.closest("details:not([open])") && (typeof el.checkVisibility === "function" ? el.checkVisibility({ checkVisibilityCSS: true }) : el.getClientRects().length > 0);
+    const commercial = document.querySelector('[data-testid="inbox-commercial"]');
+    const primaries = [...document.querySelectorAll("a, button")].filter((el) => visible(el) && /\bbg-accent\b/.test(el.className) && /\btext-accent-fg\b/.test(el.className)).map((el) => ({
+      text: el.textContent.trim(),
+      href: el.getAttribute("href"),
+      testId: el.getAttribute("data-testid"),
+      height: Math.round(el.getBoundingClientRect().height),
+      insideDetails: el.closest("details") !== null,
+    }));
+    return {
+      records: commercial?.querySelectorAll('[data-testid="inbox-entry"]').length ?? 0,
+      visible: [...(commercial?.querySelectorAll('[data-testid="inbox-entry"]') ?? [])].filter(visible).length,
+      text: document.querySelector("main")?.innerText ?? "",
+      commercialOpen: commercial?.open === true,
+      commercialTitle: commercial?.querySelector("summary > span")?.textContent.trim() ?? "",
+      primaries,
+    };
+  });
+  check("paid commercial search keeps both records collapsed by default", !filtered.commercialOpen && filtered.records === 2 && filtered.visible === 0 && filtered.commercialTitle === "Commercial reference job (2)", JSON.stringify(filtered));
+  check("paid commercial filter has exactly one visible primary", filtered.primaries.length === 1, JSON.stringify(filtered.primaries));
+  check("paid commercial primary is a receipt outside the disclosure", filtered.primaries[0]?.testId === "inbox-commercial-decision-action" && filtered.primaries[0]?.text === "View paid receipt" && filtered.primaries[0]?.href?.startsWith("#/pay-apps/") && filtered.primaries[0]?.insideDetails === false, JSON.stringify(filtered.primaries));
+  check("paid commercial primary meets the 44px floor", (filtered.primaries[0]?.height ?? 0) >= 44, JSON.stringify(filtered.primaries));
+  report.measurements.push({ screen: "inbox-paid-commercial-filter", width: 1440, height: 900, ...filtered });
+  await page.screenshot({ path: path.join(evidenceDir, "inbox-paid-commercial-filter-collapsed.png"), fullPage: true });
+  await page.click('[data-testid="inbox-commercial"] > summary');
+  await page.waitForFunction(() => document.querySelector('[data-testid="inbox-commercial"]')?.open === true);
+  const filteredOpen = await page.evaluate(() => {
+    const visible = (el) => !el.closest("details:not([open])") && el.getClientRects().length > 0;
+    return {
+      visible: [...document.querySelectorAll('[data-testid="inbox-entry"]')].filter(visible).length,
+      text: document.querySelector("main")?.innerText ?? "",
+      primaryCount: [...document.querySelectorAll("a, button")].filter((el) => visible(el) && /\bbg-accent\b/.test(el.className) && /\btext-accent-fg\b/.test(el.className)).length,
+    };
+  });
+  check("expanding the paid commercial filter reveals both records without adding a primary", filteredOpen.visible === 2 && filteredOpen.text.includes("Rosendin Electric") && filteredOpen.primaryCount === 1, JSON.stringify(filteredOpen));
+  await page.screenshot({ path: path.join(evidenceDir, "inbox-paid-commercial-filter-open.png"), fullPage: true });
+  await page.click('[data-testid="inbox-commercial"] > summary');
+  await page.waitForFunction(() => document.querySelector('[data-testid="inbox-commercial"]')?.open === false);
+  await page.evaluate(() => [...document.querySelectorAll("button")].find((button) => button.textContent.trim() === "Clear" && button.getClientRects().length > 0)?.click());
+  await page.waitForFunction(() => document.querySelector('[data-testid="inbox-commercial"]')?.open === false && document.querySelector('[data-testid="inbox-residential-decision-action"]')?.textContent.trim() === "View paid receipt");
+
+  phase = "commercial-only pending filter";
+  const pendingCommercialId = await page.evaluate(() => {
+    const commercial = document.querySelector('[data-testid="inbox-commercial"]');
+    const entry = [...(commercial?.querySelectorAll('[data-testid="inbox-entry"]') ?? [])].find((el) =>
+      el.getAttribute("data-project-kind") === "commercial" &&
+      el.querySelector('[data-testid="inbox-payapp-status"]')?.getAttribute("data-status") === "reviewed" &&
+      el.querySelector('[data-testid="approve-proposal"]'),
+    );
+    return entry?.getAttribute("data-payapp-id") ?? null;
+  });
+  check("a decidable commercial record is available for the commercial-only state", typeof pendingCommercialId === "string" && pendingCommercialId.length > 0, String(pendingCommercialId));
+  await page.type('input[placeholder^="Agreement, project"]', pendingCommercialId);
+  await delay(500);
+  await page.waitForFunction((payAppId) => {
+    const commercial = document.querySelector('[data-testid="inbox-commercial"]');
+    return commercial?.getAttribute("data-record-count") === "1" && commercial.querySelector(`[data-payapp-id="${payAppId}"]`) !== null;
+  }, {}, pendingCommercialId);
+  const commercialOnly = await page.evaluate(() => {
+    const visible = (el) => !el.closest("details:not([open])") && (typeof el.checkVisibility === "function" ? el.checkVisibility({ checkVisibilityCSS: true }) : el.getClientRects().length > 0);
+    const commercial = document.querySelector('[data-testid="inbox-commercial"]');
+    const primaries = [...document.querySelectorAll("a, button")].filter((el) => visible(el) && /\bbg-accent\b/.test(el.className) && /\btext-accent-fg\b/.test(el.className)).map((el) => ({
+      text: el.textContent.trim(),
+      href: el.getAttribute("href"),
+      testId: el.getAttribute("data-testid"),
+      height: Math.round(el.getBoundingClientRect().height),
+      insideDetails: el.closest("details") !== null,
+    }));
+    return {
+      commercialOpen: commercial?.open === true,
+      records: commercial?.querySelectorAll('[data-testid="inbox-entry"]').length ?? 0,
+      visibleRecords: [...(commercial?.querySelectorAll('[data-testid="inbox-entry"]') ?? [])].filter(visible).length,
+      primaries,
+    };
+  });
+  check("commercial-only records stay collapsed by default", !commercialOnly.commercialOpen && commercialOnly.records === 1 && commercialOnly.visibleRecords === 0, JSON.stringify(commercialOnly));
+  check("commercial-only state has exactly one visible primary", commercialOnly.primaries.length === 1, JSON.stringify(commercialOnly.primaries));
+  check("commercial-only primary opens the decision outside the disclosure", commercialOnly.primaries[0]?.testId === "inbox-commercial-decision-action" && commercialOnly.primaries[0]?.text === "Review next commercial pay app" && commercialOnly.primaries[0]?.href === `#/pay-apps/${pendingCommercialId}` && commercialOnly.primaries[0]?.insideDetails === false, JSON.stringify(commercialOnly.primaries));
+  check("commercial-only primary meets the 44px floor", (commercialOnly.primaries[0]?.height ?? 0) >= 44, JSON.stringify(commercialOnly.primaries));
+  report.measurements.push({ screen: "inbox-commercial-only-pending", width: 1440, height: 900, ...commercialOnly });
+  await page.screenshot({ path: path.join(evidenceDir, "inbox-commercial-only-pending-collapsed.png"), fullPage: true });
+  await page.click('[data-testid="inbox-commercial"] > summary');
+  await page.waitForFunction(() => document.querySelector('[data-testid="inbox-commercial"]')?.open === true);
+  const commercialOnlyOpen = await page.evaluate(() => {
+    const visible = (el) => !el.closest("details:not([open])") && el.getClientRects().length > 0;
+    return {
+      visibleRecords: [...document.querySelectorAll('[data-testid="inbox-entry"]')].filter(visible).length,
+      primaryCount: [...document.querySelectorAll("a, button")].filter((el) => visible(el) && /\bbg-accent\b/.test(el.className) && /\btext-accent-fg\b/.test(el.className)).length,
+    };
+  });
+  check("expanding the commercial-only record does not add a competing primary", commercialOnlyOpen.visibleRecords === 1 && commercialOnlyOpen.primaryCount === 1, JSON.stringify(commercialOnlyOpen));
+  await page.click('[data-testid="inbox-commercial"] > summary');
+  await page.waitForFunction(() => document.querySelector('[data-testid="inbox-commercial"]')?.open === false);
   await page.evaluate(() => [...document.querySelectorAll("button")].find((button) => button.textContent.trim() === "Clear" && button.getClientRects().length > 0)?.click());
   await page.waitForFunction(() => document.querySelector('[data-testid="inbox-commercial"]')?.open === false && document.querySelector('[data-testid="inbox-residential-decision-action"]')?.textContent.trim() === "View paid receipt");
 
