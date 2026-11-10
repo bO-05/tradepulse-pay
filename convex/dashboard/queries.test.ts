@@ -133,6 +133,162 @@ describe("dashboard data", () => {
     expect(asOwner.totals.contractSumCents).toBe(0);
   });
 
+  test("the demo owner's default report contains only Lopez change-order rows and money", async () => {
+    const { t, owner, agreement } = await setup();
+    const { lopezId, commercialId } = await t.run(async (ctx) => {
+      const projects = await ctx.db.query("projects").collect();
+      const lopez = projects.find((project) => project.title === "Lopez Kitchen Remodel");
+      if (lopez === undefined) throw new Error("Lopez reference missing");
+      return { lopezId: lopez._id, commercialId: agreement.projectId };
+    });
+    await t.run(async (ctx) => {
+      const now = Date.now();
+      await ctx.db.insert("changeOrders", {
+        projectId: commercialId,
+        scope: "prime",
+        number: 90,
+        title: "Commercial sandbox paid work",
+        description: "Commercial sandbox paid work",
+        amountCents: 185_000,
+        status: "paid",
+        createdAt: now,
+        invoicedAt: now,
+        paidAt: now,
+      });
+      await ctx.db.insert("changeOrders", {
+        projectId: commercialId,
+        scope: "prime",
+        number: 91,
+        title: "Commercial sandbox unpaid work",
+        description: "Commercial sandbox unpaid work",
+        amountCents: 45_000,
+        status: "invoiced",
+        createdAt: now,
+        invoicedAt: now,
+      });
+      await ctx.db.insert("changeOrders", {
+        projectId: lopezId,
+        scope: "prime",
+        number: 1,
+        title: "Add under-cabinet lighting",
+        description: "Add under-cabinet lighting",
+        amountCents: 120_000,
+        status: "paid",
+        createdAt: now,
+        invoicedAt: now,
+        paidAt: now,
+      });
+      await ctx.db.insert("changeOrders", {
+        projectId: lopezId,
+        scope: "prime",
+        number: 2,
+        title: "Lopez invoiced unpaid work",
+        description: "Lopez invoiced unpaid work",
+        amountCents: 30_000,
+        status: "invoiced",
+        createdAt: now,
+        invoicedAt: now,
+      });
+    });
+
+    const data = await owner.as.query(api.dashboard.queries.getDashboardData, {});
+    expect(data.totals.changeOrdersPaidCents).toBe(120_000);
+    expect(data.totals.changeOrdersInvoicedCents).toBe(30_000);
+    expect(data.changeOrders).toHaveLength(2);
+    expect(data.changeOrders.map((co) => co.description).sort()).toEqual([
+      "Add under-cabinet lighting",
+      "Lopez invoiced unpaid work",
+    ]);
+    expect(JSON.stringify(data)).not.toContain("Commercial sandbox");
+
+    const selectedCommercial = await owner.as.query(api.dashboard.queries.getDashboardData, {
+      projectId: commercialId,
+    });
+    expect(selectedCommercial.totals.changeOrdersPaidCents).toBe(185_000);
+    expect(selectedCommercial.changeOrders.map((co) => co.description)).toContain("Commercial sandbox paid work");
+    expect(JSON.stringify(selectedCommercial)).not.toContain("Lopez invoiced unpaid work");
+    expect(JSON.stringify(selectedCommercial)).not.toContain("Add under-cabinet lighting");
+  });
+
+  test("a commercial-only owner keeps its commercial report without cross-project leakage", async () => {
+    const { t, owner, agreement } = await setup();
+    const { lopezId, userId: commercialOwnerId } = await t.run(async (ctx) => {
+      const projects = await ctx.db.query("projects").collect();
+      const lopez = projects.find((project) => project.title === "Lopez Kitchen Remodel");
+      if (lopez === undefined) throw new Error("Lopez reference missing");
+      const now = Date.now();
+      await ctx.db.insert("changeOrders", {
+        projectId: agreement.projectId,
+        scope: "prime",
+        number: 90,
+        title: "SONORAN added outlets",
+        description: "SONORAN added outlets",
+        amountCents: 185_000,
+        status: "paid",
+        createdAt: now,
+        invoicedAt: now,
+        paidAt: now,
+      });
+      await ctx.db.insert("changeOrders", {
+        projectId: lopez._id,
+        scope: "prime",
+        number: 1,
+        title: "Add under-cabinet lighting",
+        description: "Add under-cabinet lighting",
+        amountCents: 120_000,
+        status: "paid",
+        createdAt: now,
+        invoicedAt: now,
+        paidAt: now,
+      });
+      const companyId = await ctx.db.insert("companies", {
+        name: "Commercial Owner Group",
+        kind: "owner",
+        isDemo: false,
+        createdAt: now,
+      });
+      const userId = await ctx.db.insert("users", {
+        email: "pat@commercial-owner.test",
+        emailVerificationTime: now,
+      });
+      await ctx.db.insert("userProfiles", {
+        userId,
+        role: "owner",
+        displayName: "Pat",
+        actorType: "human",
+        companyId,
+        createdAt: now,
+      });
+      await ctx.db.insert("companyMembers", {
+        companyId,
+        userId,
+        role: "admin",
+        status: "active",
+        createdAt: now,
+      });
+      await ctx.db.insert("projectMembers", {
+        projectId: agreement.projectId,
+        companyId,
+        partyRole: "owner",
+        status: "active",
+        createdAt: now,
+      });
+      return { lopezId: lopez._id, userId };
+    });
+    const commercialOwner = await withSession(t, commercialOwnerId, "pat@commercial-owner.test");
+
+    const data = await commercialOwner.query(api.dashboard.queries.getDashboardData, {});
+    expect(data.totals.changeOrdersPaidCents).toBe(185_000);
+    expect(data.changeOrders.map((co) => co.description)).toContain("SONORAN added outlets");
+    expect(JSON.stringify(data)).not.toContain("Add under-cabinet lighting");
+    await expect(commercialOwner.query(api.dashboard.queries.getDashboardData, { projectId: lopezId })).rejects.toThrow("Not found.");
+
+    // The Demo owner's lead report still excludes the commercial project's rows.
+    const demoData = await owner.as.query(api.dashboard.queries.getDashboardData, {});
+    expect(JSON.stringify(demoData)).not.toContain("SONORAN added outlets");
+    expect(demoData.totals.changeOrdersPaidCents).toBe(120_000);
+  });
+
   test("subs, linked and unlinked billing agents, no-role users and signed-out callers are refused", async () => {
     const { t, gc, sub1, agreement } = await setup();
     await gc.as.mutation(api.agentLinks.addAgentLink, {

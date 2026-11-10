@@ -3,7 +3,7 @@ import type { Doc } from "../_generated/dataModel";
 import { query } from "../_generated/server";
 import { requireRole } from "../lib/roles";
 import { gcAgreementsAndOwnerProjects } from "../lib/agreementScope";
-import { ownerChangeOrdersOfProject } from "../lib/ownerView";
+import { leadOwnerProjectScope, ownerChangeOrdersOfProject } from "../lib/ownerView";
 import { primeChangeOrders } from "../billing/changeOrderView";
 import { percentageOfCents, sumCents } from "../lib/money";
 import {
@@ -55,7 +55,9 @@ function sumTotals(list: LedgerTotals[]): LedgerTotals {
  * project when `projectId` is given; another company's id reads "Not found."): the GC sees its
  * projects' subcontract ledgers. On projects where the caller is the owner it gets owner items
  * only (change orders invoiced to it), never subcontract sums, payments, pay apps, retainage,
- * milestones or AI review internals. Subs and billing agents have no dashboard access.
+ * milestones or AI review internals. Without `projectId`, an owner's report uses the same single
+ * lead project as Owner home; an explicit id selects another accessible project. Subs and billing
+ * agents have no dashboard access.
  */
 export const getDashboardData = query({
   args: { projectId: v.optional(v.string()) },
@@ -65,6 +67,10 @@ export const getDashboardData = query({
     const agreementsTruncated = scoped.truncated;
     const all = scoped.rows.map((r) => r.agreement);
     const readOnly = viewer.role !== "gc" || scoped.ownerProjects.length > 0;
+    const ownerProjects =
+      viewer.role === "owner" && args.projectId === undefined
+        ? leadOwnerProjectScope(scoped.ownerProjects)
+        : scoped.ownerProjects;
     const budget = createReadBudget(DASHBOARD_READ_BUDGET - all.length);
 
     const agreements = [];
@@ -195,7 +201,7 @@ export const getDashboardData = query({
     }
 
     const projectChangeOrders: Doc<"changeOrders">[] = [];
-    for (const project of scoped.ownerProjects) {
+    for (const project of ownerProjects) {
       for (const co of await ownerChangeOrdersOfProject(ctx, project._id)) {
         projectChangeOrders.push(co);
         changeOrders.push({

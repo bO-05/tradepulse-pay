@@ -19,6 +19,16 @@ export function ownerProjectSummary(project: Doc<"projects">, gcCompanyName: str
   };
 }
 
+/**
+ * Default an owner's portfolio report to the same lead job as Owner home: residential first, then
+ * server order. This selects one accessible project rather than filtering by kind, so an owner
+ * with only commercial jobs keeps its commercial report. An explicit projectId bypasses this.
+ */
+export function leadOwnerProjectScope(projects: readonly Doc<"projects">[]): Doc<"projects">[] {
+  const lead = projects.find((project) => project.projectKind === "residential") ?? projects[0];
+  return lead === undefined ? [] : [lead];
+}
+
 /** Prime change orders of a project the owner sees: every one but the GC's drafts. */
 export async function ownerChangeOrdersOfProject(ctx: QueryCtx, projectId: Id<"projects">): Promise<Doc<"changeOrders">[]> {
   const rows = await ctx.db
