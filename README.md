@@ -4,7 +4,7 @@
 
 [**Open the judge demo →**](https://tradepulse-pay.asynchronope.tech/#/demo) · [judge walkthrough](./docs/judge-guide.md) · [settled Lopez evidence](./docs/evidence/settlement/README.md) · [source on `main`](https://github.com/bO-05/tradepulse-pay/tree/main) · MIT licensed.
 
-> **Demo video:** _[video link]_
+> **Demo video:** [Watch on YouTube](https://youtu.be/ILRf9g50w08)
 
 > **Try it in two minutes:** open `#/demo` and pick a seat: GC, subcontractor or owner. The Subcontractor seat lands on Ortiz Plumbing's settled Lopez pay app. Each button signs in through ordinary password sign-in; the page keeps the shared password, test card, mirror, commit hash and notes in one collapsed **Manual sign-in and sandbox details** block. PayPal sandbox only; synthetic data; no real money.
 
