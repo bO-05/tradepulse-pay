@@ -25,6 +25,8 @@
     "verify:reports": "node scripts/qa/render-audit-reports.mjs",
     "verify:guards": "node scripts/tools/guard-audit.mjs",
     "verify:agents": "node scripts/tools/check-agents-md.mjs",
+    "judge-demo:history": "node scripts/qa/judge-demo-history-browser.mjs",
+    "judge-demo:fixture": "node scripts/qa/judge-demo-fixture-browser.mjs",
     "smoke:live": "node scripts/qa/live-smoke.mjs"
   },
   "dependencies": {

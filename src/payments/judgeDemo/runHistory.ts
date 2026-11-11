@@ -1,6 +1,8 @@
 /**
- * How the guided-demo page presents old runs. A run that never reached its change-order invoice
- * within an hour of starting was abandoned (a closed PayPal popup, a judge who walked away, a
+ * How the guided-demo page presents old runs. Owner payment completes a run; paid pay apps with no
+ * paid Owner stay "Pay apps paid · Owner payment open" indefinitely, invoice or not, because that
+ * human step has no deadline. Only an unfinished run that has neither kind of progress is abandoned,
+ * strictly more than an hour after starting (a closed PayPal popup, a judge who walked away, a
  * provider error). The page labels those runs, stops their elapsed timer and keeps them behind a
  * toggle, so the run history reads as a record instead of a list of failures. Presentation only:
  * no run, payment or ledger row is changed or deleted.
