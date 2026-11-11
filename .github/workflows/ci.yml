@@ -50,7 +50,7 @@ jobs:
           npx vitest run --maxWorkers=2 --reporter=default --reporter=junit --outputFile=test-results/junit.xml
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: vitest-junit
           path: test-results/junit.xml
