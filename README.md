@@ -4,8 +4,7 @@
 
 [**Open the judge demo →**](https://tradepulse-pay.asynchronope.tech/#/demo) · [judge walkthrough](./docs/judge-guide.md) · [settled Lopez evidence](./docs/evidence/settlement/README.md) · [source on `main`](https://github.com/bO-05/tradepulse-pay/tree/main) · MIT licensed.
 
-> **Demo video:** _[video link to be added by the submitter]_  
-> <!-- Replace the placeholder above with the public video URL after it is uploaded and checked in a signed-out browser. -->
+> **Demo video:** _[video link]_
 
 > **Try it in two minutes:** open `#/demo` and pick a seat: GC, subcontractor or owner. The Subcontractor seat lands on Ortiz Plumbing's settled Lopez pay app. Each button signs in through ordinary password sign-in; the page keeps the shared password, test card, mirror, commit hash and notes in one collapsed **Manual sign-in and sandbox details** block. PayPal sandbox only; synthetic data; no real money.
 
@@ -58,7 +57,7 @@ TradePulse Pay takes the contract the GC just awarded in TradePulse Pro and runs
 
 1. **Execute the agreement.** Code generates the schedule of values (SOV) from the awarded bid with milestone funding and the agreed retainage. Excluded scope stays in the comparison/notes, not the awarded contract sum or ordinary SOV.
 2. **Fund a milestone.** The GC approves a PayPal `AUTHORIZE` order. The money is held, not captured.
-3. **Sub files a pay application**, either a person or the sub's **billing agent** signed in with AgentID.
+3. **Sub files a pay application**, either a person or the sub's **billing agent** signed in with AgentID (not enabled on the hosted demo; see [Billing-agent sign-in](#billing-agent-sign-in-agentid)).
 4. **Rules review with model explanations.** The rules engine returns per-line verdicts (ok, overbilled, excluded scope, front-loaded, out of sequence) and **code computes every dollar** from the SOV; the configured Mistral or Anthropic model explains the evidence and cannot author or change an amount. KERNEL checks the sub's California license (CSLB) in a hosted browser.
 5. **Pay agent proposes**, the GC approves. The agent can only insert proposals (capture, payout, hold, reschedule). Money moves only after the GC approves: PayPal captures from the authorization, pays the sub net of retainage through Payouts, and credits the retainage ledger.
 6. **Owner draws and change orders** are invoiced to the homeowner with PayPal Invoicing. **Retainage** is released at closeout as one payout of the ledger balance.
@@ -76,7 +75,7 @@ The original TradePulse Pay work is the commit range **`2ad5543..paypal-hackatho
 - **Dashboard (DASH).** Lazy-loaded licensed AG Studio dashboard for the GC and a read-only owner view, with the TradePulse pay agent wired through the auth-gated `/ai/studio` configured-provider proxy. The basic live dashboard does not need a Studio license.
 - **Submission (DOCS, PAY).** Postman collection and APIMatic log, the one-click judge demo, this README, `.env.example`, the secret sweep and the guard audit.
 
-The procurement features of TradePulse Pro (CSI scoping, Firecrawl discovery, AgentMail RFQ inboxes, bid leveling, scope clash detection, A401-style drafts) predate this project and now require GC sign-in. The November recovery branch also fixes discovery title parsing, stale package deadlines and invitation-recipient switching; it adds Mistral support, truthful integration diagnostics and run-specific judge access.
+The procurement features of TradePulse Pro (CSI scoping, Firecrawl discovery, AgentMail RFQ inboxes, bid leveling, scope clash detection, A401-style drafts) predate this project and now require GC sign-in. The November recovery work, now on `main`, also fixes discovery title parsing, stale package deadlines and invitation-recipient switching; it adds Mistral support, truthful integration diagnostics and run-specific judge access.
 
 ---
 
@@ -243,9 +242,11 @@ Sign in as `gc@demo.tradepulse`, open **Guided demo** and click **Run TradePulse
 4. Rules review with the configured Anthropic or Mistral model's explanations (code computes every dollar), the KERNEL CSLB license check, and the pay agent's capture and payout proposals.
 5. The GC approves the honest pay app as proposed. On the agent's overbilled pay app the rules review flags the feeder line carrying the excluded seismic bracing, and the GC cuts that line by its own requested dollars before approving, leaving every other line at the review's recommended amount; the pay-app screen shows the rules recommendation, the approved amount and the difference side by side. PayPal captures the approved amount from the authorization and pays sub1 net of 10% retainage.
 6. A $1,850.00 change order is invoiced to the Owner through PayPal Invoicing. The dashboard step turns green once its totals match the ledger.
-7. **The Owner** pays the invoice in their own browser (sign in as `owner@demo.tradepulse`, **Projects & change orders**, **Open PayPal invoice**, pay with the guest card and a guest email), then clicks **Refresh status**.
+7. **The Owner** pays the invoice in their own browser (sign in as `owner@demo.tradepulse`, **Change orders**, **Open PayPal invoice**, pay with the guest card and a guest email), then clicks **Refresh status**.
 
 The page shows each step's status from Convex and PayPal, and the time from start to the change-order invoice. Starting the guided driver explicitly authorizes its fixture-scoped GC proposal approvals; production approvals are not delegated automatically. Each run gets a bookmarkable URL and can be selected from recent history, so a second judge cannot silently replace your selected run. "Continue this run" resumes after a reload or re-sign-in, including a change order left as a draft; that step finishes only once the invoice is sent and has a payer link.
+
+Recent history labels each run `Complete · Owner paid`, `Pay apps paid · Owner payment open`, `In progress` or `Abandoned · not finished`. A run with paid pay apps stays owner-payment-open even when no invoice exists; only an unfinished run with no paid pay apps and no paid Owner becomes abandoned, strictly after one hour, and those runs sit behind a counted **Show N abandoned runs** checkbox that can be turned on and off. **Change orders** keeps every real project, every guided run that has a prime change order and any run selected explicitly; guided runs with no change orders are left out of the default picker with a count, and their records still open by direct link.
 
 **Optional sandbox closeout: release retainage when the platform has enough balance.** PayPal's fees reduce the cash left after captures, so a retainage payout can fail with `INSUFFICIENT_FUNDS`. A paid Owner invoice may provide sufficient sandbox balance; a separate top-up is not always necessary. Otherwise, use the GC-only **Sandbox setup: top up the platform balance** panel. It creates a sandbox CAPTURE order, opens checkout for real guest approval, and requires **Capture top-up** afterward. A `PENDING` capture is not funding: **Check capture status** reads the same capture without capturing twice. Once funds settle, click **Release retainage** and wait for payout `SUCCESS`. Top-ups are outside agreement/dashboard totals and refuse to run unless `PAYPAL_ENV` is `sandbox`.
 
@@ -273,7 +274,7 @@ Funded authorizations are watched hourly (`convex/crons.ts`): after the 3-day ho
 | AgentID | Billing-agent sign-in (OIDC, PKCE) on the deployment whose redirect URI is registered. | Unlinked agents get "Agent not authorized". Recovery sign-in is disabled until new owner-approved client credentials are configured; existing clients are preserved. |
 | AgentMail | Inbox identity for billing agents; RFQ inboxes and outbound email for procurement. | The free plan is at its 3-inbox limit, so new trade packages reuse an existing inbox and the UI labels it **shared**. Inbound `/agentmail/webhook` requires `AGENTMAIL_WEBHOOK_SECRET` (Svix verification) and returns 503 when it is not set. |
 | Firecrawl | Subcontractor discovery by web search, with per-record provenance. | When a search returns nothing usable, no records are created; records stay "Unverified" unless the source is a registry page. |
-| AG Studio | Licensed payments dashboard and chat agent; the original trial expires 20 Nov 2026. | Chat requires the configured model provider. A basic React ledger remains available without Studio licensing; it does not imitate Studio chat. |
+| AG Studio | Licensed payments dashboard and chat agent when a Studio license key is configured. Not enabled on the hosted demo; the original trial expires 20 Nov 2026. | Chat requires the configured model provider. A basic React ledger remains available without Studio licensing; it does not imitate Studio chat. |
 | OpenAI, Gemini, Vertex | Additional BYOK adapters in the procurement router (`convex/llmRouter.ts`). | Optional. Mistral is the recovery build's intended provider; unavailable inference is not presented as a successful model run. |
 
 ---

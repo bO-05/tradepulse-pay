@@ -8,7 +8,7 @@ This is the tested recovery-dev sandbox, not production. The guide signs into or
 
 | Role | Email | Where to begin |
 | --- | --- | --- |
-| GC | `gc@demo.tradepulse` | Guided demo, approval inbox, agreement ledger |
+| GC | `gc@demo.tradepulse` | Approvals (Lopez money strip, settled Ortiz pay app), Guided demo, agreement ledger |
 | Subcontractor | `sub4@demo.tradepulse` | Settled Lopez Kitchen Remodel pay app (Ortiz Plumbing) |
 | Owner | `owner@demo.tradepulse` | Home, change orders, invoice payment |
 
@@ -22,35 +22,6 @@ The app does not require your own PayPal, model, AgentID or Studio account for t
 For independent QA, give a new reviewer the [blind first-use brief](./browser-audit-start.md) first,
 then the [detailed browser audit playbook](./browser-agent-audit.md). Those are audit assignments,
 not claims that the independent checks have already passed.
-
-## Commercial reference: two-minute inspection, no new payment
-
-1. Enter as GC. In **Guided demo**, select `A401-DEMO-PAY-20261101-02` from the run history.
-   Direct bookmark: https://tradepulse-pay.asynchronope.tech/#/judge-demo/nx74k1sdcnsmqzvkr97kf0ts598hch6p
-   (mirror: https://cheery-axolotl-689.convex.site/#/judge-demo/nx74k1sdcnsmqzvkr97kf0ts598hch6p).
-2. Read the steps. Open the agreement number to inspect the authoritative agreement ledger.
-3. In **Approval inbox**, open the two pay applications for that agreement. Compare the honest claim and the
-   deliberately overbilled claim. Inspect model/provider attribution, verdicts, proposals, the GC decision and PayPal IDs.
-4. Check **Dashboard** against the agreement ledger. Dashboard totals across all projects can be higher;
-   compare the selected agreement, not a global total to one contract.
-5. Enter as Owner in a separate browser. The same agreement's `$1,850` change-order invoice is paid.
-   Do not pay a different shared-account invoice by mistake.
-
-The November 1 independent PayPal check verified:
-
-| Record | Amount/status |
-| --- | --- |
-| Contract award | `$55,000`, seismic bracing excluded |
-| Mobilization authorization | `$5,500`, partially captured |
-| Honest pay-app gross | `$2,000`, capture COMPLETED; net payout `$1,800` SUCCESS |
-| Overbilled pay-app gross | `$288` after the rules-review recommendation and an explicit GC edit; net payout `$259.20` SUCCESS |
-| Owner change-order invoice | `$1,850`, PAID |
-| Retainage release | `$228.80`, SUCCESS |
-| Agreement totals after release | Captured `$2,288`; paid `$2,288`; retainage held `$0` |
-
-This is a real sandbox settlement of **partial progress**, not completion of the `$55,000` contract.
-The `$1,850` Owner revenue is separate from the subcontract sum. Historical proof and limitations are in
-[recovery progress](./recovery-progress.md). Live state can change when public demo users act.
 
 ## Residential reference job (start here)
 
@@ -83,6 +54,35 @@ write controls. Inspect it rather than editing it.
 Evidence, exact ids and the run log are in [`docs/evidence/settlement/`](./evidence/settlement/README.md).
 The guided demo (below) is the only write sandbox; do not try to fund, approve or pay on Lopez.
 
+## Commercial reference: two-minute inspection, no new payment
+
+1. Enter as GC. In **Guided demo**, select `A401-DEMO-PAY-20261101-02` from the run history.
+   Direct bookmark: https://tradepulse-pay.asynchronope.tech/#/judge-demo/nx74k1sdcnsmqzvkr97kf0ts598hch6p
+   (mirror: https://cheery-axolotl-689.convex.site/#/judge-demo/nx74k1sdcnsmqzvkr97kf0ts598hch6p).
+2. Read the steps. Open the agreement number to inspect the authoritative agreement ledger.
+3. In **Approvals**, open the two pay applications for that agreement. Compare the honest claim and the
+   deliberately overbilled claim. Inspect model/provider attribution, verdicts, proposals, the GC decision and PayPal IDs.
+4. Check **More → Payment reports** against the agreement ledger. Dashboard totals across all projects can be higher;
+   compare the selected agreement, not a global total to one contract.
+5. Enter as Owner in a separate browser. The same agreement's `$1,850` change-order invoice is paid.
+   Do not pay a different shared-account invoice by mistake.
+
+The November 1 independent PayPal check verified:
+
+| Record | Amount/status |
+| --- | --- |
+| Contract award | `$55,000`, seismic bracing excluded |
+| Mobilization authorization | `$5,500`, partially captured |
+| Honest pay-app gross | `$2,000`, capture COMPLETED; net payout `$1,800` SUCCESS |
+| Overbilled pay-app gross | `$288` after the rules-review recommendation and an explicit GC edit; net payout `$259.20` SUCCESS |
+| Owner change-order invoice | `$1,850`, PAID |
+| Retainage release | `$228.80`, SUCCESS |
+| Agreement totals after release | Captured `$2,288`; paid `$2,288`; retainage held `$0` |
+
+This is a real sandbox settlement of **partial progress**, not completion of the `$55,000` contract.
+The `$1,850` Owner revenue is separate from the subcontract sum. Historical proof and limitations are in
+[recovery progress](./recovery-progress.md). Live state can change when public demo users act.
+
 ## Hands-on run, approximately 5–10 minutes
 
 1. GC → **Guided demo** → **Run TradePulse Pay demo**. This creates a fresh, labeled project and `$55,000` award.
@@ -106,6 +106,14 @@ The guided demo (below) is the only write sandbox; do not try to fund, approve o
 
 If a browser/model/provider step fails, read its error and use **Continue this run** after resolving it.
 Do not start another run just to hide a failure. An expired authorization needs an actual new authorization.
+
+Run history labels each run `Complete · Owner paid`, `Pay apps paid · Owner payment open`, `In progress`
+or `Abandoned · not finished`. Paid pay apps keep a run owner-payment-open even without an invoice; only
+an unfinished run with no paid pay apps and no paid Owner becomes abandoned, strictly after one hour.
+Abandoned runs are hidden by default behind a counted **Show N abandoned runs** checkbox, and a directly
+selected run stays visible with a frozen timer. **Change orders** keeps every real project, every guided
+run with a prime change order and any explicit selection; empty guided runs are left out of the default
+picker with a count, and their records still open by direct link.
 
 ## How a real user starts
 
@@ -163,7 +171,7 @@ and in-app subcontract acceptance by the sub. `docs/r7-remediation.md` lists bot
   webhook were verified with an already-owned test inbox. The unmatched auth message acquired no tenant scope.
 - **AgentID:** recovery needs owner-approved OAuth client registration, so the hosted demo hides the button
   instead of showing a disabled control. A labeled billing-agent stand-in is not evidence of successful AgentID login.
-- **AG Studio:** optional licensed editor/chat. Its existing trial ends November 20, before December judging;
+- **AG Studio:** optional licensed editor/chat, not enabled on the hosted demo. Its existing trial ends November 20, before December judging;
   a legitimate license extension is needed to promise its availability then. The core live React dashboard remains
   usable without it and no license warning is shown.
 - **Firecrawl:** web-derived records remain unverified until a human checks them. Do not infer licensing or email consent from discovery.
@@ -185,7 +193,6 @@ Sources: [official rules](https://paypalaihackathon.devpost.com/rules) and
 Technological implementation, design, potential impact, innovation and presentation are equally weighted.
 Sponsor tools are optional; only claim prizes for tools actually used and lawfully licensed.
 Public repository access and the MIT license were checked without authentication on November 1.
-Use the recovery-branch source link in the README; `main` is not this build.
-A local narrated actual-app recording is 2:51. The public YouTube URL, final Devpost submission and
-ongoing service funding still need owner action. See [the submission draft and video handoff](./submission-draft.md).
-No video upload, Devpost submission, production change or guarantee of a prize is implied by passing tests.
+The source on `main` is the deployed build: `/version.json` on the hosted demo shows the same commit as `main`.
+Keeping the demo services funded through judging remains the owner's responsibility.
+No Devpost submission, production change or guarantee of a prize is implied by passing tests.

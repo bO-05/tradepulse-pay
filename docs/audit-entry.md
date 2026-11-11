@@ -22,9 +22,10 @@ to it.
 
 | Command | Expected |
 | :--- | :--- |
-| `npx vitest run` | 190 files, 2,280 tests, 0 failures |
+| `npx vitest run --maxWorkers=2` | 203 files, 2,387 tests, 0 failures |
 | `node scripts/tools/guard-audit.mjs` | 269 public functions, 205 internal, 0 problems |
-| `npm run verify:docs` | 118 relative links resolve |
+| `npm run verify:docs` | 113 relative links resolve |
+| `npx tsc -b` | clean; about 94 s on the first run and under 6 s on repeat (declaration-only output in `.tmp/tsc`, so build mode stops re-checking the whole program; see `tsconfig.json`) |
 | `npm run build` | clean, no type errors |
 | `node scripts/qa/lien-waiver-browser.mjs --url <host>` | 26/26, no page or console errors. Toggles the demo gate, mints one unredeemed evidence ticket, records no waiver |
 | `node scripts/qa/quick-start-resume-browser.mjs --url <host>` | 15/15, read-only |
@@ -62,7 +63,6 @@ every assertion when run alone, and the failing URL answers in under a second ov
 | `docs/quick-start.md` | The wizard, its saved draft, and how resume is verified |
 | `docs/recovery-progress.md` | Recovery history and the branch handoff |
 | `hackathon.md` | Earlier Convex All Gas hackathon log (September 2026), kept as history for the disclosure |
-| `docs/submission-draft.md` | What the submission claims, written for judges |
 
 ## Open items, stated plainly
 
@@ -71,7 +71,7 @@ every assertion when run alone, and the failing URL answers in under a second ov
   signature. The final-payout path outside retainage is unchanged.
 - **Block 1 (shipped after this record).** The residential reference job is settled and read-only: the
   Ortiz subcontract, the flagged pay app with the exact `$1,400.00` line cut, the conditional waiver, the
-  net payout, paid Draw #1, the paid change order and the four-cell money strip on the GC home, the project
+  net payout, paid Draw #1, the paid change order and the five-cell money strip on the GC home, the project
   page and the owner-billing tab. The demo now leads with the residential Lopez job; the commercial Rosendin
   reference is labeled "Commercial reference job". Still open: a separate prime-milestone schedule that
   creates owner draws automatically. See [`docs/evidence/settlement/README.md`](./evidence/settlement/README.md).
@@ -84,7 +84,7 @@ every assertion when run alone, and the failing URL answers in under a second ov
   carried (with its source label, or "unavailable") and the user agent. A proxy or VPN changes that address;
   identity comes from the authenticated, email-verified session.
 - **Owner settings outside the code.** The PayPal sandbox merchant still shows the default store name;
-  the demo video, YouTube upload and Devpost submission are the owner's tasks.
+  the Devpost submission is the owner's task.
 
 ## What this build does not claim
 

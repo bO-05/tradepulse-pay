@@ -134,7 +134,7 @@ A third private audit (first-use / skeptical judge) and a fourth (judging criter
 
 - README now leads with the problem, audience, demo link, two masked screenshots, the exact PayPal APIs and AI models used, the competitive wedge, one sourced impact sentence, and a short known-limits line. Recovery and production caveats moved to a "Recovery status" section at the end.
 - Added `docs/README.md` as the document index, added the two screenshots under `docs/screenshots/`, and aligned AgentID/Studio wording in the judge guide and README.
-- Updated `docs/submission-draft.md` per the fourth audit: problem-first opening, PayPal API and AI lists, "How it differs", a sourced impact paragraph (Built 2026 ledger; Billd 2026 survey; Corpay 2026 retainage explainer), shortened challenges, trimmed Built With, and a paste-ready testing-instructions section with the demo guide, three logins, guest card and pinned-run bookmark.
+- Updated the Devpost submission draft (since removed from the repository; the README carries the current project description) per the fourth audit: problem-first opening, PayPal API and AI lists, "How it differs", a sourced impact paragraph (Built 2026 ledger; Billd 2026 survey; Corpay 2026 retainage explainer), shortened challenges, trimmed Built With, and a paste-ready testing-instructions section with the demo guide, three logins, guest card and pinned-run bookmark.
 - The raw audit folders remain private and ignored. No Devpost entry, public video, default-branch merge, repository About change, custom domain or production deployment was performed.
 
 ### Validation

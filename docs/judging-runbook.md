@@ -6,12 +6,10 @@ the submission claims.
 
 ## Before submitting
 
-- [ ] A **public** YouTube video, under three minutes, showing the running software. Devpost rejects the
-      entry without it. The local recording is 2:51, so it fits; it only needs to be published.
 - [ ] The entry links the canonical source (`main`) and the demo at
       `https://tradepulse-pay.asynchronope.tech/#/demo`.
-- [ ] The existing-project disclosure in [the submission draft](./submission-draft.md) is pasted as
-      written: PayPal-era work starts after baseline `2ad5543`, the first PayPal commit is `c7986da` on
+- [ ] The existing-project disclosure from the README's [What changed since Oct 1](../README.md#what-changed-since-oct-1)
+      section is in the entry: PayPal-era work starts after baseline `2ad5543`, the first PayPal commit is `c7986da` on
       7 October 2026, and the September procurement base was a separate Convex-hackathon submission.
 - [ ] The PayPal sandbox merchant name is no longer the default "Test Store", if the account allows it.
 
@@ -41,8 +39,8 @@ node scripts/qa/owner-landing-browser.mjs
 node scripts/qa/lien-waiver-browser.mjs --url https://tradepulse-pay.asynchronope.tech
 ```
 
-Compare against the table in [the audit entry](./audit-entry.md), which carries the counts for the build
-under review (161 test files and 2,092 tests at the time of writing). The three browser sweeps must report
+Compare against the table in [the audit entry](./audit-entry.md), which carries the current counts for the
+build under review. The three browser sweeps must report
 `ok: true` with empty `pageErrors` and `consoleErrors`.
 
 Do **not** run `scripts/qa/quick-start-browser.mjs` during judging unless you accept it creating a real

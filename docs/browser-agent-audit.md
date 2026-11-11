@@ -453,8 +453,8 @@ SDK document/webinar was reviewed or that legal eligibility is established.
 | Public open-source entry | Public repository, necessary source/assets/setup and a recognized open-source license visible in GitHub's repository metadata/About area. Check unauthenticated access; match the recovery source, not stale main. Historical check found MIT. |
 | Existing project | Significant work during the October 1–November 12 period must be disclosed. Procurement predates the entry; explain the new payments/AI/recovery work rather than claiming a wholly new product. |
 | Written submission | English, clear problem/audience/solution, tools and API use, limitations, and material agreement with observed behavior. Draft text is not a submitted entry. |
-| Video | Actual running app footage, **under three minutes**, publicly available on YouTube and linked in submission. Local MP4 is not sufficient. |
-| Video truthfulness | Final local 2:51 recording is a narrated read-only tour of an already-settled run. It does **not** show a new checkout. Assess whether its storytelling adequately demonstrates E2E; recommend a new capture if needed. |
+| Video | Actual running app footage, **under three minutes**, publicly available on YouTube and linked in the submission. A local file alone does not satisfy the rule. |
+| Video truthfulness | The footage must show the actual running app. Flag any edit or narration that implies a checkout, payment or run the recording does not show. |
 | Judge access | Keep free access, sandbox/provider resources and stable core experience available through December 15. Judging is December 1–15; a one-day audit cannot guarantee future uptime. |
 | Rights / data | Owner verifies source/assets/data/trademark permissions, licenses and privacy, including permitted use of synthetic examples involving real company names. Do not certify legal compliance. |
 | Optional sponsors | Claim only real, eligible usage. AG Studio editor availability needs a valid license beyond November 20; a basic grid alone is not evidence of the sponsor page's Studio-agent integration. |
@@ -578,5 +578,4 @@ authorization path, external webhook, legal obligation, provider retry race or f
 ## Supporting documents
 
 - [Judge walkthrough](./judge-guide.md)
-- [Submission draft and video handoff](./submission-draft.md)
 - [Recovery implementation and historical evidence](./recovery-progress.md)

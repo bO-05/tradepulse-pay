@@ -12,7 +12,14 @@
     "resolvePackageJsonExports": true,
     "resolvePackageJsonImports": true,
     "isolatedModules": true,
-    "noEmit": true,
+    /* `tsc -b` decides freshness from output files. With `noEmit` it found no output and re-checked
+       the whole src+convex program on every invocation (about 90 s idle, far longer under load).
+       Declaration-only output into the ignored .tmp/tsc keeps the same full program checked while
+       letting build mode reuse its .tsbuildinfo on repeat runs. */
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "rootDir": ".",
+    "outDir": ".tmp/tsc",
     "jsx": "react-jsx",
 
     /* Linting */

@@ -10,6 +10,7 @@ import { LicenseCheckPanel } from "../LicenseCheck";
 import { SandboxTopUpPanel } from "./SandboxTopUpPanel";
 import { deriveSteps, JUDGE_DEMO_AUTOSTART_KEY, type DemoInboxItem, type StepStatus } from "./steps";
 import { useJudgeDemoDriver } from "./useJudgeDemoDriver";
+import { listedRunHistory, partitionRunHistory, runHistoryNeedsClock, runOptionLabel, runTimerText, type RunHistoryItem } from "./runHistory";
 import { NotFoundState } from "../../ui/NotFoundState";
 import { ReferenceNotice } from "../ReferenceNotice";
 import { CommercialReferenceBadge, ConfirmDialog, formatDateTime } from "../../ui";
@@ -22,9 +23,23 @@ const STATUS_STYLE: Record<StepStatus, { label: string; style: string }> = {
   error: { label: "Problem", style: "border-rose-800 bg-rose-950 text-rose-200" },
 };
 
-function elapsed(ms: number): string {
-  const s = Math.max(0, Math.round(ms / 1000));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+/** The counted checkbox for runs that never finished; hidden entirely when there is nothing to show. */
+export function AbandonedRunsToggle({
+  count,
+  checked,
+  onChange,
+}: {
+  count: number;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  if (count === 0) return null;
+  return (
+    <label className="flex items-center gap-2 text-xs text-slate-400" data-testid="judge-demo-abandoned-toggle">
+      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+      Show {count} abandoned {count === 1 ? "run" : "runs"} (started but not finished within an hour; kept for the record)
+    </label>
+  );
 }
 
 /** Demo-company GC only: one-click guided demo against the real sandbox, reachable from the demo simulator and the nav. */
@@ -50,6 +65,7 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
   const [refreshBusy, setRefreshBusy] = useState(false);
   const [confirmStart, setConfirmStart] = useState(false);
   const [confirmCloseout, setConfirmCloseout] = useState(false);
+  const [showAbandoned, setShowAbandoned] = useState(false);
 
   const pinRun = (id: Id<"judgeDemoRuns">) => {
     setRunId(id);
@@ -59,11 +75,6 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
   useEffect(() => {
     if (runId === null && run) pinRun(run._id);
   }, [runId, run]);
-
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
 
   const byId = useMemo(() => new Map((inbox ?? []).map((i) => [i.payApp._id as string, i as unknown as DemoInboxItem])), [inbox]);
   const honest = run?.honestPayAppId ? (byId.get(run.honestPayAppId) ?? null) : null;
@@ -103,7 +114,31 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
     dashboardTotals,
   });
   const mobilization = ledger?.milestones.find((m) => m.name === "Mobilization") ?? null;
+  const selectedHistoryItem = useMemo<RunHistoryItem | null>(() => {
+    if (!run) return null;
+    const listed = history?.find((item) => item.runId === run._id);
+    if (listed) return listed;
+    // A directly linked run older than the listed history still labels and times from its own data.
+    return {
+      runId: run._id,
+      agreementNumber: run.agreementNumber,
+      createdAt: run.createdAt,
+      payAppsPaid: Boolean(honest?.payApp.status === "paid" && agent?.payApp.status === "paid"),
+      ownerPaid: changeOrder?.status === "paid",
+    };
+  }, [run, history, honest, agent, changeOrder]);
   const invoicedAt = changeOrder?.invoicedAt ?? null;
+  const timer = selectedHistoryItem ? runTimerText(selectedHistoryItem, invoicedAt, now) : null;
+  // One shared clock covers every time-limited entry, not only the selected one. It stops as soon as
+  // no entry can change, even when a completed or abandoned run stays selected.
+  const ticking = runHistoryNeedsClock(history ?? [], selectedHistoryItem, now);
+  useEffect(() => {
+    if (!ticking) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [ticking]);
+  const { abandoned: abandonedRuns } = partitionRunHistory(history ?? [], now);
+  const listedRuns = listedRunHistory(history ?? [], now, showAbandoned);
   if (runId !== null && run === null) return <NotFoundState />;
 
   return (
@@ -136,12 +171,17 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
             aria-label="Demo run" disabled={driver.running} value={run?._id ?? ""}
             onChange={(event) => { if (event.target.value) window.location.hash = judgeDemoHash(event.target.value); }}>
             {!run && <option value="">Choose a run</option>}
-            {run && !history?.some((r) => r.runId === run._id) && <option value={run._id}>{run.agreementNumber}</option>}
-            {history?.map((item) => <option key={item.runId} value={item.runId}>
-              {item.agreementNumber} · {new Date(item.createdAt).toLocaleDateString()} · {item.payAppsPaid ? "Pay apps paid" : "Pay apps incomplete"} · {item.ownerPaid ? "Owner paid" : "Owner unpaid"}
+            {selectedHistoryItem && !listedRuns.some((r) => r.runId === selectedHistoryItem.runId) && (
+              <option value={selectedHistoryItem.runId}>
+                {runOptionLabel(selectedHistoryItem, now)}
+              </option>
+            )}
+            {listedRuns.map((item) => <option key={item.runId} value={item.runId}>
+              {runOptionLabel(item, now)}
             </option>)}
           </select>
         </label>
+        <AbandonedRunsToggle count={abandonedRuns.length} checked={showAbandoned} onChange={setShowAbandoned} />
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
@@ -207,10 +247,16 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
               </a>
             </span>
             <span>Started {formatDateTime(run.createdAt, { timeZone: "UTC" })} UTC</span>
-            <span data-testid="judge-demo-elapsed">
-              {invoicedAt ? `Finished in ${elapsed(invoicedAt - run.createdAt)} (start to change-order invoice)` : `Elapsed ${elapsed(now - run.createdAt)}`}
+            <span data-testid="judge-demo-elapsed" data-abandoned={timer?.abandoned ? "true" : undefined}>
+              {timer?.text}
             </span>
           </section>
+          {timer?.abandoned && !run.readOnlyReference && (
+            <p className="rounded-xl border border-slate-700 bg-slate-900 p-3 text-xs text-slate-300" role="note" data-testid="judge-demo-abandoned-note">
+              This run was started but not finished. Nothing below was faked: each step shows what Convex and PayPal recorded before it stopped.
+              Start a new run with <strong>Run TradePulse Pay demo</strong>, or pick a completed run above.
+            </p>
+          )}
 
           <h2 className="font-semibold">Guided run steps</h2>
           <ol className="space-y-2" data-testid="judge-demo-steps">
@@ -244,7 +290,7 @@ export function JudgeDemoPage({ initialRunId }: { initialRunId?: string }) {
                 {step.id === "owner_pays" && !run.readOnlyReference && step.status === "human" && changeOrder?.payerViewUrl && (
                   <div className="space-y-1 text-xs">
                     <p className="text-amber-200">
-                      Human step: sign in as owner@demo.tradepulse in another browser, open Projects &amp; change orders and pay{" "}
+                      Human step: sign in as owner@demo.tradepulse in another browser, open Change orders and pay{" "}
                       {changeOrder.label} with the guest card, or open the{" "}
                       <a href={changeOrder.payerViewUrl} target="_blank" rel="noreferrer" className="underline text-emerald-300" data-testid="judge-demo-payer-link">
                         PayPal payer view

@@ -6,10 +6,9 @@ Source: `main` is the canonical branch and carries the current build. `recovery/
 
 ## For judges and reviewers
 
-- [Judging runbook](./judging-runbook.md) — the owner's checklist for the December 1–15 judging window: the mandatory video, the keys and credits that must stay funded, and the commands to re-verify.
+- [Judging runbook](./judging-runbook.md) — the owner's checklist for the December 1–15 judging window: the keys and credits that must stay funded, and the commands to re-verify.
 - [Audit entry point](./audit-entry.md) — the one-page start for an external reviewer: how to confirm the build, the commands that reproduce the evidence, and every open item.
 - [Judge guide](./judge-guide.md) — demo access, two-minute path, and a screen-by-screen inspection route.
-- [Submission draft](./submission-draft.md) — the Devpost text, testing instructions, and the separate owner publishing checklist.
 - [Quick start](./quick-start.md) — create a job, add a sub, paste a schedule of values and execute a subcontract in one pass, plus the demo-company invite limit.
 - [Lien-waiver gate](./lien-waiver-gate.md) — the opt-in per-subcontract gate, what the sub signs, the pay-gate reasons and the legal limits.
 - [Pay-app questions](./pay-app-questions.md) — the sub “Question this amount” thread, who can read or post, and why it never edits the figures.

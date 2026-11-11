@@ -737,10 +737,31 @@ export function resolveChangeOrderProjectId<T extends { _id: string; projectKind
   return projects.find((project) => project.hasPrimeChangeOrders)?._id ?? projects[0]?._id ?? null;
 }
 
+/** A guided-demo run's project ("Demo · TradePulse Pay judge demo …" stored, "Sandbox run …" shown). */
+export function isGuidedRunProject(title: string): boolean {
+  return /^Sandbox run\b/.test(demoProjectName(title));
+}
+
+/**
+ * Guided-demo runs that never reached a change order add nothing to this page, so the picker drops
+ * them. Runs with change orders, real projects and the current explicit selection always stay, and
+ * when every project would be dropped the full list is kept so the picker is never empty.
+ */
+export function pickerProjects<T extends { _id: string; title: string; hasPrimeChangeOrders: boolean }>(
+  projects: readonly T[],
+  explicitProjectId: string | null,
+): { shown: T[]; hiddenRuns: number } {
+  const shown = projects.filter((p) => p.hasPrimeChangeOrders || p._id === explicitProjectId || !isGuidedRunProject(p.title));
+  if (shown.length === 0) return { shown: [...projects], hiddenRuns: 0 };
+  return { shown, hiddenRuns: projects.length - shown.length };
+}
+
 /** Change orders page: subcontract COs (GC and that sub) and project change orders (GC and the owner) per project. */
 export function ChangeOrdersPage() {
-  const projects = useQuery(api.billing.changeOrders.myChangeOrderProjects, {});
+  const allProjects = useQuery(api.billing.changeOrders.myChangeOrderProjects, {});
   const [projectId, setProjectId] = useState<string | null>(null);
+  const { shown, hiddenRuns } = pickerProjects(allProjects ?? [], projectId);
+  const projects = allProjects === undefined ? undefined : shown;
   // Lopez/residential leads the picker. A project with existing change orders only breaks the tie
   // when no residential job exists, and an explicit selection is never overridden.
   const selected = resolveChangeOrderProjectId(projects ?? [], projectId);
@@ -788,6 +809,11 @@ export function ChangeOrdersPage() {
           ) : (
             <p className="text-sm font-medium">{demoProjectName(projects[0].title)}</p>
           )}
+          {hiddenRuns > 0 ? (
+            <p className="text-xs text-ink-subtle" data-testid="change-orders-hidden-runs">
+              {hiddenRuns} guided-demo {hiddenRuns === 1 ? "run" : "runs"} without change orders {hiddenRuns === 1 ? "is" : "are"} not listed.
+            </p>
+          ) : null}
           {selected ? <ProjectChangeOrders key={selected} projectId={selected} /> : null}
         </>
       )}

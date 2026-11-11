@@ -267,7 +267,8 @@ The final ledger fix counts only confirmed `COMPLETED` captures as collected cas
   It is an inspection of previously settled receipts, not a recording of new payments. No YouTube upload or
   Devpost submission has been performed. Final media:
   `evidence/submission-film-2026-11-01T19-41-30-725Z/TradePulse-Pay-demo.mp4`.
-  See [the publishing handoff](./submission-draft.md).
+  The publishing handoff that accompanied this entry has since been removed from the repository; the demo
+  media is tracked outside the repository.
 - Stable focused validation passed **54 tests across six files** and TypeScript. The first full follow-up run
   overlapped an export edit and recorded 1,956/1,957; its one mapper failure passed on the stable rerun.
   Subsequent attempts did not produce a final report within the execution window and are not counted as passes.

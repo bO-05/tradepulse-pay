@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { ToastProvider } from "../ui";
-import { ChangeOrderRows, ChangeOrdersPage, orderChangeOrderProjects, resolveChangeOrderProjectId } from "./ChangeOrders";
+import { ChangeOrderRows, ChangeOrdersPage, isGuidedRunProject, orderChangeOrderProjects, pickerProjects, resolveChangeOrderProjectId } from "./ChangeOrders";
 
 vi.mock("convex/react", () => ({
   useAction: vi.fn(),
@@ -127,12 +127,56 @@ describe("change-orders project picker", () => {
     expect(html.match(/<optgroup label="Commercial reference job"/g) ?? []).toHaveLength(1);
     const group = html.slice(html.indexOf("<optgroup"));
     expect(group).toContain('value="project_run20"');
-    expect(group).toContain('value="project_run19"');
-    // Server order is preserved inside the commercial group.
-    expect(group.indexOf('value="project_run20"')).toBeLessThan(group.indexOf('value="project_run19"'));
+    // A guided-demo run without change orders is no longer listed; the page says how many are hidden.
+    expect(html).not.toContain('value="project_run19"');
+    expect(html).toContain('data-testid="change-orders-hidden-runs"');
+    expect(html).toContain("1 guided-demo run without change orders is not listed.");
     // No commercial option sits outside the group.
     expect(html.slice(0, html.indexOf("<optgroup"))).not.toContain('value="project_run20"');
-    expect(html.slice(0, html.indexOf("<optgroup"))).not.toContain('value="project_run19"');
+  });
+
+  test("empty guided-demo runs are dropped; real projects and runs with change orders stay in server order", () => {
+    const realEmpty: PickerProject = { _id: "project_office", title: "Office Buildout", projectKind: "commercial", hasPrimeChangeOrders: false };
+    const storedRun: PickerProject = { _id: "project_run17", title: "Demo · TradePulse Pay judge demo 20261109-17", projectKind: "commercial", hasPrimeChangeOrders: false };
+    const storedRunWithCo: PickerProject = { _id: "project_run12", title: "Demo · TradePulse Pay judge demo 20261107-12", projectKind: "commercial", hasPrimeChangeOrders: true };
+    expect(isGuidedRunProject(storedRun.title)).toBe(true);
+    expect(isGuidedRunProject("Lopez Kitchen Remodel")).toBe(false);
+    const all = [commercialWithoutChangeOrders, storedRun, storedRunWithCo, realEmpty, lopez];
+    const { shown, hiddenRuns } = pickerProjects(all, null);
+    expect(shown.map((p) => p._id)).toEqual(["project_run12", "project_office", "project_lopez"]);
+    expect(hiddenRuns).toBe(2);
+    // The explicit selection is never hidden, even when it is an empty run.
+    expect(pickerProjects(all, "project_run17").shown.map((p) => p._id)).toContain("project_run17");
+    mockPickerProjects(all);
+    const html = renderToStaticMarkup(<ChangeOrdersPage />);
+    expect(html).not.toContain('value="project_run17"');
+    expect(html).toContain('value="project_office"');
+    expect(html).toContain("2 guided-demo runs without change orders are not listed.");
+  });
+
+  test("the default comes from the filtered list, and an all-filtered picker restores the authorized list", () => {
+    // The newest server row is an empty guided run; the only other project is real and empty too.
+    const storedRun: PickerProject = { _id: "project_run17", title: "Sandbox run 20261109-17", projectKind: "commercial", hasPrimeChangeOrders: false };
+    const realEmpty: PickerProject = { _id: "project_office", title: "Office Buildout", projectKind: "commercial", hasPrimeChangeOrders: false };
+    const mixed = pickerProjects([storedRun, realEmpty], null).shown;
+    expect(resolveChangeOrderProjectId(mixed, null)).toBe("project_office");
+    mockPickerProjects([storedRun, realEmpty]);
+    const html = renderToStaticMarkup(<ChangeOrdersPage />);
+    // One filtered project opens directly; the hidden run cannot be the fallback default.
+    expect(html).toContain("Office Buildout");
+    expect(html).not.toContain("Sandbox run 20261109-17");
+    expect(html).not.toContain('data-testid="change-orders-project"');
+    expect(html).toContain("1 guided-demo run without change orders is not listed.");
+
+    // Every project is an empty guided run: the original authorized set comes back, with no count.
+    const onlyRuns = [storedRun, commercialWithoutChangeOrders];
+    expect(pickerProjects(onlyRuns, null)).toEqual({ shown: onlyRuns, hiddenRuns: 0 });
+    mockPickerProjects(onlyRuns);
+    const restored = renderToStaticMarkup(<ChangeOrdersPage />);
+    expect(restored).toContain('value="project_run17"');
+    expect(restored).toContain('value="project_run19"');
+    expect(restored).not.toContain('data-testid="change-orders-hidden-runs"');
+    expect(selectedProjectId(restored)).toBe("project_run17");
   });
 
   test("a commercial project no longer wins the default just because it has change orders", () => {
@@ -151,7 +195,11 @@ describe("change-orders project picker", () => {
 
   test("commercial-only owners fall back to a project with change orders, then to the first project", () => {
     mockPickerProjects([commercialWithoutChangeOrders, commercialWithChangeOrders]);
-    expect(selectedProjectId(renderToStaticMarkup(<ChangeOrdersPage />))).toBe("project_run20");
+    // The empty guided run is hidden, so the one remaining project opens directly without a picker.
+    const single = renderToStaticMarkup(<ChangeOrdersPage />);
+    expect(single).not.toContain('data-testid="change-orders-project"');
+    expect(single).toContain("Sandbox run 20261110-20");
+    expect(resolveChangeOrderProjectId([commercialWithoutChangeOrders, commercialWithChangeOrders], null)).toBe("project_run20");
 
     const olderCommercial: PickerProject = { ...commercialWithoutChangeOrders, _id: "project_run18", title: "Sandbox run 20261110-18" };
     mockPickerProjects([olderCommercial, commercialWithoutChangeOrders]);
