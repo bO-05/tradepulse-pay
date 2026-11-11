@@ -1,6 +1,15 @@
 import fs from "node:fs";
 import path from "node:path";
 import { REPO_ROOT as root, launchBrowser, attachDiagnostics, delay } from "./lib.mjs";
+import {
+  captureEvidenceScreenshot,
+  maskEmailsInPage,
+  maskEmailText,
+  printEvidence,
+  safeEvidenceLine,
+  sanitizeForEvidence,
+  writeEvidenceJson,
+} from "./evidence-privacy.mjs";
 
 /**
  * Hosted release proof for the judge path's GC leg (VAL-CROSS-001 / VAL-CROSS-003 / VAL-CROSS-004).
@@ -13,8 +22,13 @@ import { REPO_ROOT as root, launchBrowser, attachDiagnostics, delay } from "./li
  * "Commercial reference job" badge). Starting a fresh guided run is opt-in by omitting the flag:
  * follow-up and release validation are read-only and MUST pass --no-fresh-run.
  *
- * Every persisted measurement and screenshot masks email-shaped text, so the tracked report never
- * carries a sandbox payee, owner or shared-seat address.
+ * Every DOM-derived value is evidence. The script masks the live DOM through the shared
+ * `scripts/qa/evidence-privacy.mjs` helper before every extraction, so the measurement, the check
+ * detail and the screenshot all describe the same masked DOM. Screenshots use the fail-closed
+ * capture wrapper (mask, prove zero survivors, then capture), the report is written through the
+ * fail-closed serializer, and stdout goes through the shared safe-output helpers. A surviving
+ * email-shaped value refuses the artifact instead of persisting it; there is no direct
+ * screenshot or raw report fallback.
  *
  *   node scripts/qa/release-hosted-gc-browser.mjs --url https://tradepulse-pay.pages.dev --no-fresh-run
  */
@@ -30,32 +44,43 @@ const settledPayAppId = /SETTLED_LOPEZ_PAY_APP_ID = "([^"]+)"/.exec(seatsSource)
 if (!settledPayAppId) throw new Error("SETTLED_LOPEZ_PAY_APP_ID not found in src/auth/demoSeats.ts");
 const PINNED_REFERENCE_RUN = "nx74k1sdcnsmqzvkr97kf0ts598hch6p";
 const startFreshRun = !process.argv.includes("--no-fresh-run");
-const report = { target: site, settledPayAppId, checks: [], measurements: [], diagnostics: [], guidedDemo: null };
+const report = {
+  target: site,
+  settledPayAppId,
+  readOnly: true,
+  privacy: {
+    module: "scripts/qa/evidence-privacy.mjs",
+    extraction: "maskEmailsInPage before every page.evaluate",
+    capture: "captureEvidenceScreenshot (mask, post-mask survivor check, capture)",
+    reports: "writeEvidenceJson (sanitize, serialize, survivor scan)",
+    stdout: "printEvidence / safeEvidenceLine",
+  },
+  checks: [],
+  measurements: [],
+  diagnostics: [],
+  guidedDemo: null,
+};
 
-/** Never publish a sandbox, owner or shared-seat address in evidence. */
-const maskEmails = (value) => String(value ?? "").replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[masked email]");
-
-/** Mask rendered addresses in the DOM before a screenshot. */
-async function maskSandboxEmails(page) {
-  await page.evaluate(() => {
-    const email = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
-    const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-    while (walk.nextNode()) {
-      const parent = walk.currentNode.parentElement;
-      if (!parent || ["SCRIPT", "STYLE"].includes(parent.tagName)) continue;
-      walk.currentNode.textContent = walk.currentNode.textContent.replace(email, "[masked email]");
-    }
-  });
-}
+/** Details and errors are evidence too: mask/sanitize them recursively, including object keys. */
+const evidenceDetail = (detail) => (typeof detail === "string" ? maskEmailText(detail) : sanitizeForEvidence(detail));
+const describe = (detail) => (typeof detail === "string" ? detail : JSON.stringify(detail));
 
 const check = (name, ok, detail = "") => {
-  report.checks.push({ name, ok, detail: maskEmails(detail) });
-  if (!ok) console.log(`FAIL ${name} :: ${maskEmails(detail)}`);
+  const safeName = maskEmailText(name);
+  const safeDetail = evidenceDetail(detail);
+  report.checks.push({ name: safeName, ok, detail: safeDetail });
+  if (!ok) console.log(safeEvidenceLine(`FAIL ${safeName} :: ${describe(safeDetail)}`));
 };
+
+/** Every DOM read starts from the masked DOM the evidence persists. */
+async function maskedEvaluate(page, fn, ...args) {
+  await maskEmailsInPage(page);
+  return page.evaluate(fn, ...args);
+}
 
 /** Click the app's own link (opening a closed disclosure when the link lives inside one). */
 async function clickHref(page, href) {
-  const clicked = await page.evaluate((target) => {
+  const clicked = await maskedEvaluate(page, (target) => {
     const links = [...document.querySelectorAll(`a[href="${target}"]`)];
     const link = links.find((a) => a.getBoundingClientRect().height > 0) ?? links[0];
     if (!link) return false;
@@ -69,7 +94,7 @@ async function clickHref(page, href) {
 }
 
 async function clickTextLink(page, text) {
-  const clicked = await page.evaluate((needle) => {
+  const clicked = await maskedEvaluate(page, (needle) => {
     const link = [...document.querySelectorAll("a[href]")].find((a) => (a.textContent ?? "").includes(needle));
     if (!link) return null;
     link.click();
@@ -81,7 +106,7 @@ async function clickTextLink(page, text) {
 }
 
 async function clickLeadingStripCell(page, testId) {
-  const href = await page.evaluate((id) => {
+  const href = await maskedEvaluate(page, (id) => {
     const root = document.querySelectorAll('[data-testid="project-money-strip"]')[0];
     const link = root?.querySelector(`[data-testid="${id}"] a`);
     if (!link) return null;
@@ -116,7 +141,7 @@ async function waitForMoney(page, expectedStrips = 1) {
 }
 
 async function readStrip(page, index = 0) {
-  return await page.evaluate((stripIndex) => {
+  return await maskedEvaluate(page, (stripIndex) => {
     const roots = [...document.querySelectorAll('[data-testid="project-money-strip"]')];
     const rootEl = roots[stripIndex];
     const value = (id) => rootEl?.querySelector(`[data-testid="${id}"]`)?.innerText?.trim() ?? null;
@@ -152,7 +177,7 @@ async function readStrip(page, index = 0) {
 }
 
 async function readPage(page) {
-  return await page.evaluate(() => {
+  return await maskedEvaluate(page, () => {
     const main = document.querySelector("main#workspace-main") ?? document.querySelector("main");
     const links = [...document.querySelectorAll("a[href]")].map((a) => ({
       text: (a.textContent ?? "").trim().slice(0, 80),
@@ -201,7 +226,7 @@ for (const [width, height] of widths) {
     await delay(300);
     const inbox = await readPage(page);
     const inboxStrip = await readStrip(page);
-    const landingPriority = await page.evaluate(() => {
+    const landingPriority = await maskedEvaluate(page, () => {
       const visible = (el) => !el.closest("details:not([open])") && (typeof el.checkVisibility === "function" ? el.checkVisibility({ checkVisibilityCSS: true }) : el.getClientRects().length > 0);
       const commercial = document.querySelector('[data-testid="inbox-commercial"]');
       const strips = [...document.querySelectorAll('[data-testid="project-money-strip"]')];
@@ -283,8 +308,7 @@ for (const [width, height] of widths) {
     check(`${tag} residential records lead every commercial record`, landingPriority.residentialLeads && landingPriority.allCommercialInside, JSON.stringify(landingPriority));
     check(`${tag} commercial records share one counted collapsed section`, !landingPriority.commercialOpen && landingPriority.commercialVisible === 0 && landingPriority.commercialTitle === `Commercial reference job (${landingPriority.commercialRecords})`, JSON.stringify(landingPriority));
     check(`${tag} GC landing keeps exactly one primary action`, landingPriority.primaryCount === 1, String(landingPriority.primaryCount));
-    await maskSandboxEmails(page);
-    await page.screenshot({ path: path.join(outDir, `hosted-inbox-${width}.png`), fullPage: false });
+    await captureEvidenceScreenshot(page, path.join(outDir, `hosted-inbox-${width}.png`), { fullPage: false });
 
     // Every leading-strip figure resolves to its existing receipt surface. The paid change-order
     // row gets one extra direct-link check because it joins the paid draw in the collected figure.
@@ -309,7 +333,7 @@ for (const [width, height] of widths) {
         const root = document.querySelectorAll('[data-testid="project-money-strip"]')[0];
         return (root?.querySelectorAll('[data-testid="project-money-receipts"] a[href^="#/change-orders/"]').length ?? 0) > 0;
       }, { timeout: 15000 }).catch(() => {});
-      const changeOrderReceipt = await page.evaluate(() => {
+      const changeOrderReceipt = await maskedEvaluate(page, () => {
         const root = document.querySelectorAll('[data-testid="project-money-strip"]')[0];
         const details = root?.querySelector('[data-testid="project-money-receipts"]');
         if (details) details.open = true;
@@ -326,8 +350,7 @@ for (const [width, height] of widths) {
         await page.waitForSelector('[data-testid="change-order-amount"], [data-testid="not-found"]', { timeout: 60000 });
         const changeOrder = await readPage(page);
         check(`${tag} paid change-order receipt opens the stored $1,200 record`, !changeOrder.notFound && /Add under-cabinet lighting/.test(changeOrder.text) && /\$1,200\.00/.test(changeOrder.text) && /Paid/.test(changeOrder.text), changeOrder.text.slice(0, 600));
-        await maskSandboxEmails(page);
-        await page.screenshot({ path: path.join(outDir, "hosted-lopez-change-order-receipt-1440.png"), fullPage: false });
+        await captureEvidenceScreenshot(page, path.join(outDir, "hosted-lopez-change-order-receipt-1440.png"), { fullPage: false });
         await returnToInbox(page);
       }
     }
@@ -369,8 +392,7 @@ for (const [width, height] of widths) {
     check(`${tag} Lopez page shows the settled-record read-only notice`, project.readOnlyNotice === "Settled sandbox record · read-only.", String(project.readOnlyNotice));
     check(`${tag} Lopez page offers no new-draw control`, project.newDraw === false);
     check(`${tag} Lopez page has no dead hash links`, project.deadLinks.length === 0, JSON.stringify(project.deadLinks));
-    await maskSandboxEmails(page);
-    await page.screenshot({ path: path.join(outDir, `hosted-lopez-${width}.png`), fullPage: false });
+    await captureEvidenceScreenshot(page, path.join(outDir, `hosted-lopez-${width}.png`), { fullPage: false });
 
     // ---- Lopez -> GC home -> settled Ortiz pay app ---------------------------------------
     await clickHref(page, "#/inbox");
@@ -383,7 +405,7 @@ for (const [width, height] of widths) {
     await page.waitForSelector('[data-testid="payment-panel"]', { timeout: 60000 });
     await page.waitForFunction(() => (document.querySelector('[data-testid="payapp-money-trail"]')?.innerText ?? "").includes("$5,400.00"), { timeout: 60000 });
     await delay(300);
-    const payApp = await page.evaluate(() => ({
+    const payApp = await maskedEvaluate(page, () => ({
       hash: location.hash,
       trail: document.querySelector('[data-testid="payapp-money-trail"]')?.innerText ?? "",
       payment: document.querySelector('[data-testid="payment-panel"]')?.innerText ?? "",
@@ -399,8 +421,7 @@ for (const [width, height] of widths) {
     check(`${tag} Ortiz payout receipt shows the PayPal batch`, payApp.payment.includes("PayPal payout batch") && payApp.payment.includes("D5V7XEN5YZH4C"), payApp.payment.slice(0, 300));
     check(`${tag} Ortiz pay app shows the settled-record read-only notice`, payApp.readOnlyNotice === "Settled sandbox record · read-only.", String(payApp.readOnlyNotice));
     check(`${tag} Ortiz pay app has no dead hash links`, !payApp.links.some((href) => href === "#" || href === "#/home"), JSON.stringify(payApp.links.filter((href) => href === "#" || href === "#/home")));
-    await maskSandboxEmails(page);
-    await page.screenshot({ path: path.join(outDir, `hosted-ortiz-pay-app-${width}.png`), fullPage: false });
+    await captureEvidenceScreenshot(page, path.join(outDir, `hosted-ortiz-pay-app-${width}.png`), { fullPage: false });
 
     // ---- pay app -> agreement ledger (the sub path's agreement link resolves) ------------
     await page.click('[data-testid="payapp-view-payments"]');
@@ -413,15 +434,14 @@ for (const [width, height] of widths) {
     check(`${tag} the ledger names Ortiz Plumbing`, ledger.text.includes("Ortiz Plumbing"), ledger.text.slice(0, 400));
     check(`${tag} the ledger shows the $9,000.00 contract`, ledger.text.includes("$9,000.00"), ledger.text.slice(0, 600));
     check(`${tag} the ledger has no dead hash links`, ledger.deadLinks.length === 0, JSON.stringify(ledger.deadLinks));
-    await maskSandboxEmails(page);
-    await page.screenshot({ path: path.join(outDir, `hosted-agreement-ledger-${width}.png`), fullPage: false });
+    await captureEvidenceScreenshot(page, path.join(outDir, `hosted-agreement-ledger-${width}.png`), { fullPage: false });
 
     // ---- a commercial reference page keeps its AIA words and the badge ------------------
     await clickHref(page, "#/all-projects");
     await page.waitForFunction(() => location.hash === "#/all-projects", { timeout: 60000 });
     await page.waitForSelector("main", { timeout: 30000 });
     await page.waitForFunction(() => document.querySelectorAll('a[href^="#/all-projects/"]').length > 2, { timeout: 60000 });
-    const commercialHref = await page.evaluate(() => {
+    const commercialHref = await maskedEvaluate(page, () => {
       const rows = [...document.querySelectorAll('a[href^="#/all-projects/"]')].filter((a) => !a.getAttribute("href").endsWith("/all-projects/new"));
       const picked = rows.find((a) => /Sandbox run 20261101-02/i.test(a.textContent ?? "")) ?? rows.find((a) => /Domain Tower B/i.test(a.textContent ?? ""));
       if (picked) picked.click();
@@ -436,13 +456,11 @@ for (const [width, height] of widths) {
     check(`${tag} commercial project page shows the Commercial reference job badge`, /commercial reference job/i.test(commercial.badge ?? ""), String(commercial.badge));
     check(`${tag} commercial project keeps the reference-job read-only copy`, commercial.readOnlyNotice === null || commercial.readOnlyNotice === "Preserved reference job · read-only.", String(commercial.readOnlyNotice));
     check(`${tag} commercial project keeps commercial wording`, /Collected from owner/.test(commercial.text) && /Retainage held/.test(commercial.text) && !/Collected from homeowner/.test(commercial.text) && !/Retainage you hold/.test(commercial.text), commercial.text.slice(0, 600));
-    await maskSandboxEmails(page);
-    await page.screenshot({ path: path.join(outDir, `hosted-commercial-${width}.png`), fullPage: false });
+    await captureEvidenceScreenshot(page, path.join(outDir, `hosted-commercial-${width}.png`), { fullPage: false });
   } catch (error) {
     report.failure = { width, phase: "gc path", message: error instanceof Error ? error.message : String(error) };
     check(`${tag} GC path completes`, false, report.failure.message);
-    await maskSandboxEmails(page).catch(() => {});
-    await page.screenshot({ path: path.join(outDir, `failure-${width}.png`), fullPage: true }).catch(() => {});
+    await captureEvidenceScreenshot(page, path.join(outDir, `failure-${width}.png`), { fullPage: true }).catch(() => {});
   }
 
   const ignored = diagnostics.failedRequests.filter((line) => line.includes("/api/sign-in-options") && line.includes("net::ERR_ABORTED"));
@@ -483,23 +501,24 @@ for (const [width, height] of widths) {
     await page.waitForFunction((want) => location.hash === `#/judge-demo/${want}`, { timeout: 60000 }, PINNED_REFERENCE_RUN);
     await page.waitForSelector('[data-testid="read-only-reference"]', { timeout: 60000 });
     await delay(500);
-    result.pinnedReferenceBadge = await page.evaluate(
+    result.pinnedReferenceBadge = await maskedEvaluate(
+      page,
       () => document.querySelector('[data-testid="commercial-reference-badge"]')?.innerText ?? null,
     );
-    result.pinnedReferenceNotice = await page.evaluate(
+    result.pinnedReferenceNotice = await maskedEvaluate(
+      page,
       () => document.querySelector('[data-testid="read-only-reference"]')?.innerText?.trim() ?? null,
     );
     check("pinned Rosendin reference run shows the Commercial reference job badge", /commercial reference job/i.test(result.pinnedReferenceBadge ?? ""), String(result.pinnedReferenceBadge));
     check("pinned Rosendin reference run keeps the commercial read-only copy", result.pinnedReferenceNotice === "Preserved reference job · read-only.", String(result.pinnedReferenceNotice));
-    await maskSandboxEmails(page);
-    await page.screenshot({ path: path.join(outDir, "hosted-guided-demo-reference.png"), fullPage: false });
+    await captureEvidenceScreenshot(page, path.join(outDir, "hosted-guided-demo-reference.png"), { fullPage: false });
 
     // Start a fresh run; it must be a new run, not the frozen reference.
     if (startFreshRun) {
-      const beforeHash = await page.evaluate(() => location.hash);
+      const beforeHash = await maskedEvaluate(page, () => location.hash);
       await page.click('[data-testid="judge-demo-start"]');
       await page.waitForSelector('[role="alertdialog"]', { timeout: 15000 });
-      await page.evaluate(() => {
+      await maskedEvaluate(page, () => {
         const button = [...document.querySelectorAll('[role="alertdialog"] button')].find((el) => el.textContent.trim() === "Create sandbox run");
         if (!button) throw new Error("Create sandbox run button not found");
         button.click();
@@ -510,20 +529,18 @@ for (const [width, height] of widths) {
         beforeHash,
       );
       await page.waitForSelector('[data-testid="judge-demo-run"]', { timeout: 90000 });
-      result.freshRunId = await page.evaluate(() => location.hash.replace(/^#\/judge-demo\//, ""));
-      result.freshAgreementHref = await page.evaluate(() => document.querySelector('[data-testid="judge-demo-agreement"]')?.getAttribute("href") ?? null);
+      result.freshRunId = await maskedEvaluate(page, () => location.hash.replace(/^#\/judge-demo\//, ""));
+      result.freshAgreementHref = await maskedEvaluate(page, () => document.querySelector('[data-testid="judge-demo-agreement"]')?.getAttribute("href") ?? null);
       check("a fresh guided run starts with its own run id", /^[a-z0-9]+$/.test(result.freshRunId) && result.freshRunId !== PINNED_REFERENCE_RUN, String(result.freshRunId));
       check("the fresh guided run has its own agreement link", typeof result.freshAgreementHref === "string" && result.freshAgreementHref.startsWith("#/payments/"), String(result.freshAgreementHref));
-      await maskSandboxEmails(page);
-      await page.screenshot({ path: path.join(outDir, "hosted-guided-demo-fresh-run.png"), fullPage: false });
+      await captureEvidenceScreenshot(page, path.join(outDir, "hosted-guided-demo-fresh-run.png"), { fullPage: false });
     } else {
       result.freshRunSkipped = true;
     }
   } catch (error) {
     report.failure = { phase: "guided demo", message: error instanceof Error ? error.message : String(error) };
     check("guided demo reference and fresh run complete", false, report.failure.message);
-    await maskSandboxEmails(page).catch(() => {});
-    await page.screenshot({ path: path.join(outDir, "failure-guided-demo.png"), fullPage: true }).catch(() => {});
+    await captureEvidenceScreenshot(page, path.join(outDir, "failure-guided-demo.png"), { fullPage: true }).catch(() => {});
   }
   report.guidedDemo = result;
   const ignored = diagnostics.failedRequests.filter((line) => line.includes("/api/sign-in-options") && line.includes("net::ERR_ABORTED"));
@@ -544,9 +561,7 @@ for (const [width, height] of widths) {
 const failures = report.checks.filter((c) => !c.ok);
 report.checksRun = report.checks.length;
 report.failures = failures.length;
-// Mask every persisted string as a second line of defence, including text copied from the DOM.
-const maskReportJson = (value) =>
-  JSON.stringify(value, (_key, entry) => (typeof entry === "string" ? maskEmails(entry) : entry), 2);
-fs.writeFileSync(path.join(outDir, "report.json"), maskReportJson(report));
-console.log(maskReportJson({ outDir, checksRun: report.checksRun, failures: failures.map((f) => f.name), guidedDemo: report.guidedDemo }));
+// Report files and stdout use the shared fail-closed serializer: a survivor refuses the artifact.
+writeEvidenceJson(path.join(outDir, "report.json"), report, "hosted GC report");
+printEvidence({ outDir, checksRun: report.checksRun, failures: failures.map((f) => f.name), guidedDemo: report.guidedDemo }, "hosted GC stdout");
 if (failures.length > 0 || report.failure) process.exitCode = 1;
