@@ -321,7 +321,9 @@ for (const [width, height] of widths) {
         await clickHref(page, changeOrderReceipt.href);
         await page.waitForFunction((want) => location.hash === want, { timeout: 60000 }, changeOrderReceipt.href);
         await page.waitForSelector("main", { timeout: 30000 });
-        await delay(300);
+        // The detail page joins its change-order query after the route renders. Wait for the
+        // terminal query state (amount or not-found) instead of racing a fixed delay on a cold host.
+        await page.waitForSelector('[data-testid="change-order-amount"], [data-testid="not-found"]', { timeout: 60000 });
         const changeOrder = await readPage(page);
         check(`${tag} paid change-order receipt opens the stored $1,200 record`, !changeOrder.notFound && /Add under-cabinet lighting/.test(changeOrder.text) && /\$1,200\.00/.test(changeOrder.text) && /Paid/.test(changeOrder.text), changeOrder.text.slice(0, 600));
         await maskSandboxEmails(page);

@@ -4,9 +4,10 @@
  * No DOM test library is installed and none is approved, so this harness mounts the production
  * `JudgeDemoPage` in real Chrome and drives the actual React interval effect:
  *
- *  1. Sign in as the demo GC and read the existing 20 guided runs (query-only; no run is created).
- *  2. Freeze `Date.now` just after the oldest run starts, so every unfinished entry is still
- *     "In progress" while the page is mounted - not an already-aged render.
+ *  1. Sign in as the demo GC and read the accepted release-4 history query-only: 21 `judgeDemoRuns`
+ *     rows, of which `listRuns` returns the newest 20. No run is created.
+ *  2. Freeze `Date.now` just after the earliest unfinished run starts, so every unfinished entry is
+ *     still "In progress" while the page is mounted - not an already-aged render.
  *  3. Advance the frozen clock to each unfinished run's exact one-hour boundary, then one
  *     millisecond past it, waiting for the page's own 1 s interval to commit each render.
  *  4. Assert the entry stays "In progress" at exactly one hour and becomes "Abandoned · not
@@ -34,6 +35,11 @@ const outDir = process.env.REM_EVIDENCE_DIR
   : path.join(REPO_ROOT, "evidence", "submission-amendment-mounted-2026-11-11");
 const HOUR = 3_600_000;
 const RUN_SELECT = 'select[aria-label="Demo run"]';
+// `judgeDemo/runs:listRuns` returns the demo GC's newest 20 rows. The accepted release-4 baseline is
+// 21 rows, so the accepted run -21 leads the window and the oldest row (-01) falls outside it.
+const LIST_RUNS_WINDOW = 20;
+const ACCEPTED_RUN_21 = "nx7bvsf5hh9ghmtx4yt4wkst998j0213";
+const ACCEPTED_RUN_21_AGREEMENT = "A401-DEMO-PAY-20261111-21";
 fs.mkdirSync(outDir, { recursive: true });
 
 const result = {
@@ -330,7 +336,15 @@ try {
 
   const baselineRuns = await fetchRuns(page);
   result.history.baseline = baselineRuns.map(({ runId, agreementNumber, createdAt, payAppsPaid, ownerPaid }) => ({ runId, agreementNumber, createdAt, payAppsPaid, ownerPaid }));
-  check("the demo GC has the existing 20 guided runs", baselineRuns.length === 20, String(baselineRuns.length));
+  // The accepted baseline is 21 `judgeDemoRuns` rows (`library/release-4.md`); this signed-in
+  // query intentionally returns only the newest 20, and the accepted run -21 must lead them.
+  check(
+    "the accepted 21-run baseline is present: run -21 leads the capped newest-20 history",
+    baselineRuns.length === LIST_RUNS_WINDOW &&
+      baselineRuns[0]?.runId === ACCEPTED_RUN_21 &&
+      baselineRuns[0]?.agreementNumber === ACCEPTED_RUN_21_AGREEMENT,
+    `${baselineRuns.length}: ${baselineRuns[0]?.agreementNumber}`,
+  );
   const unfinished = baselineRuns.filter((run) => !run.payAppsPaid && !run.ownerPaid).sort((a, b) => a.createdAt - b.createdAt);
   const completed = baselineRuns.filter((run) => run.ownerPaid);
   const ownerOpen = baselineRuns.filter((run) => run.payAppsPaid && !run.ownerPaid);
@@ -340,9 +354,11 @@ try {
   check("run -20 is A401-DEMO-PAY-20261110-20 created at 2026-11-10T11:33:45.932Z", run20?.agreementNumber === "A401-DEMO-PAY-20261110-20" && run20?.createdAt === 1794310425932, JSON.stringify(run20));
   result.history.run20 = run20;
 
-  // Mount while the oldest unfinished run is only five minutes old: every unfinished entry is
+  // Mount while the earliest unfinished run is only five minutes old: every unfinished entry is
   // in progress on the first render, so the walk advances a live page rather than re-rendering it.
-  const anchor = Math.min(...baselineRuns.map((run) => run.createdAt)) + 5 * 60_000;
+  // Anchor on min(unfinished), not min(all runs): the oldest listed run is a completed pinned
+  // reference, and anchoring there would put every time-limited run before its first hour.
+  const anchor = Math.min(...unfinished.map((run) => run.createdAt)) + 5 * 60_000;
   await freezeClock(page, anchor);
   result.clockWalk.anchor = { epochMs: anchor, iso: new Date(anchor).toISOString() };
   await page.evaluate(() => {
@@ -363,7 +379,7 @@ try {
 
   let history = await readHistory(page);
   result.history.initial = history;
-  check("all 20 runs are listed while nothing is abandoned", history.options.length === 20, String(history.options.length));
+  check(`all ${baselineRuns.length} listed runs are shown while nothing is abandoned`, history.options.length === baselineRuns.length, String(history.options.length));
   check("no abandoned toggle is needed before any entry ages out", history.togglePresent === false, JSON.stringify(history.toggleText));
   check("every unfinished entry renders In progress", unfinished.every((run) => stateOfOption(optionFor(history, run.runId)?.text || "") === "in_progress"));
   check("completed entries render Complete · Owner paid", completed.every((run) => stateOfOption(optionFor(history, run.runId)?.text || "") === "complete"));
@@ -413,7 +429,8 @@ try {
   result.history.allAbandoned = history;
   check("the default list keeps exactly the clock-independent runs", history.options.length === completed.length + ownerOpen.length, `${history.options.length} vs ${completed.length + ownerOpen.length}`);
   check("the default list contains no abandoned entry", history.options.every((option) => stateOfOption(option.text) !== "abandoned"));
-  check("the toggle declares the plural abandoned count", /Show 14 abandoned runs/.test(history.toggleText || ""), history.toggleText);
+  const abandonedTogglePattern = new RegExp(`Show ${unfinished.length} abandoned ${unfinished.length === 1 ? "run" : "runs"}`);
+  check("the toggle declares the data-driven abandoned count", abandonedTogglePattern.test(history.toggleText || ""), history.toggleText);
   await maskEmailsInPage(page);
   result.widths["1440-stopped"] = { file: await captureEvidenceScreenshot(page, path.join(outDir, "guided-history-mounted-stopped-1440.png"), { fullPage: true }) };
 

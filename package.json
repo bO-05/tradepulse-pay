@@ -27,6 +27,8 @@
     "verify:agents": "node scripts/tools/check-agents-md.mjs",
     "judge-demo:history": "node scripts/qa/judge-demo-history-browser.mjs",
     "judge-demo:fixture": "node scripts/qa/judge-demo-fixture-browser.mjs",
+    "release:hosted-gc": "node scripts/qa/release-hosted-gc-browser.mjs --url https://tradepulse-pay.pages.dev --no-fresh-run",
+    "release:hosted-gc:canonical": "node scripts/qa/release-hosted-gc-browser.mjs --url https://tradepulse-pay.asynchronope.tech --no-fresh-run",
     "smoke:live": "node scripts/qa/live-smoke.mjs"
   },
   "dependencies": {
